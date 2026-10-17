@@ -1,0 +1,175 @@
+{
+  "schema_version": 1,
+  "name": "Guitar Pedalboard",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 10.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Plug a guitar into input 1 of your audio interface and pick it in the Devices tab (smallest buffer that doesn't crackle; 128 frames is a good start). You hear yourself through a tone filter and an echo; no need to press play.\n\nTone: lower cutoff for a darker sound. Echo: time in seconds, feedback for more repeats, mix for how loud they are."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -208.0
+          ],
+          "size": [
+            600.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "audio_in",
+        "config": {
+          "channel": 0,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Guitar"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "biquad",
+        "params": {
+          "cutoff": 3500.0,
+          "mode": "lowpass",
+          "q": 0.8
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Tone"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "delay",
+        "config": {
+          "max_time": 2.0
+        },
+        "params": {
+          "feedback": 0.35,
+          "mix": 0.3,
+          "time": 0.32
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ],
+          "label": "Echo"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "gain",
+        "params": {
+          "gain": -3.0
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            0.0
+          ],
+          "label": "Level"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1350.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "comment",
+        "config": {
+          "text": "Try this: set Echo's unit to beats (Node tab, config) to lock the repeats to the tempo, or add a second Biquad in peak mode before Level for a mid boost."
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            220.0
+          ],
+          "size": [
+            420.0,
+            80.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Pedalboard",
+        "rect": [
+          -30.0,
+          -50.0,
+          1606.0,
+          220.0
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "name": "Clock gate",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "duty": 0.25,
+          "interval": 0.25
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "map",
+        "params": {
+          "out_max": 0.5
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "readout",
+        "ui": {
+          "pos": [
+            200.0,
+            150.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:gate",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "1:count",
+        "to": "4:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

@@ -1,0 +1,21 @@
+[package]
+name = "ac-nodes"
+description = "Built-in nodes for Audio Constructor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+ac-core.workspace = true
+ac-dsp.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_no_alloc.workspace = true

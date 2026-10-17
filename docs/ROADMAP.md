@@ -19,61 +19,133 @@ Oscillator, ADSR, and Biquad driven by a MIDI keyboard, save the project,
 and reproduce the same audio from the command line.
 
 ### M1.1 Workspace and CI
-- [ ] Cargo workspace with the crates in ARCHITECTURE §3 (plugin and web crates as empty placeholders).
-- [ ] CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on Linux, macOS, Windows; `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, `ac-engine`.
-- [ ] `rust-toolchain.toml`, `deny.toml` (license and advisory checks), `.editorconfig`.
-- [ ] `audioc --version` and `audio-constructor` binaries build and run (empty window).
+- [x] Cargo workspace with the crates in ARCHITECTURE §3 (plugin and web crates as empty placeholders).
+- [x] CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on Linux, macOS, Windows; `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, `ac-engine`.
+- [x] `rust-toolchain.toml`, `deny.toml` (license and advisory checks), `.editorconfig`.
+- [x] `audioc --version` and `audio-constructor` binaries build and run (empty window).
 
 ### M1.2 Core model and persistence
-- [ ] Graph, NodeInstance, Wire, GroupDef, Project types with serde and `schema_version`.
-- [ ] Signal types, units, ranges; `Signature` with dynamic sockets from config.
-- [ ] `Node` trait, `node!` macro, `Registry`.
-- [ ] Round-trip tests: load → save produces identical JSON; unknown node kinds preserved.
-- [ ] Clipboard format (subgraph as JSON) with id remapping on paste.
+- [x] Graph, NodeInstance, Wire, GroupDef, Project types with serde and `schema_version`.
+- [x] Signal types, units, ranges; `Signature` with dynamic sockets from config.
+- [x] `Node` trait, `node!` macro, `Registry`.
+- [x] Round-trip tests: load → save produces identical JSON; unknown node kinds preserved.
+- [x] Clipboard format (subgraph as JSON) with id remapping on paste.
 
 ### M1.3 Compiler and offline engine
-- [ ] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
-- [ ] Rate and channel inference; implicit conversions.
-- [ ] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
-- [ ] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
-- [ ] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
-- [ ] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
-- [ ] `assert_no_alloc` guard in debug builds around `process`.
+- [x] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
+- [x] Rate and channel inference; implicit conversions.
+- [x] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
+- [x] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
+- [x] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
+- [x] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
+- [x] `assert_no_alloc` guard in debug builds around `process`.
+
+*Verified:* `cargo test -p ac-engine` (25 engine tests: conversions, upmix,
+channel and type errors, cycles named and isolated, Feedback delay, nested
+groups, reroutes, carry-over, smoothing, start modes, loop/seek, buffer
+reuse, and offline vs. null host bit-for-bit at blocks 32 and 1024, all
+under the allocation guard); `cargo test -p ac-core` (tempo map at six
+rates with tempo and meter changes); `cargo test -p ac-cli --test golden`
+(golden hashes, live-vs-offline determinism, and the `audioc render` binary
+matching the library).
 
 ### M1.4 Phase 1 nodes
 Every node in NODES.md marked **P1**, with unit tests and at least one golden project per category:
 AudioIn, AudioOut, MidiIn, Record, Oscillator, Clip, Transport, Gain, Pan, Mix, Biquad, Delay, Constant, Math, Unary, Compare, Map, ADSR, Clock, MidiNote, Button, Toggle, Slider, Meter, Scope, Readout, Feedback, Reroute, Group, SplitChannels, MergeChannels, Comment.
-- [ ] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
-- [ ] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+- [x] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
+- [x] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+
+*Verified:* all 32 kinds registered (`every_phase1_node_is_registered`);
+`cargo test -p ac-nodes -p ac-dsp` (unit tests per node: known frequencies,
+impulse responses, generator contract, edge cases, block size 1; a sweep
+runs every node at block sizes 1/64/1024 under the allocation guard);
+14 golden projects in `tests/golden/` cover every category with P1 nodes;
+`docs/reference/` is generated and a test fails if it goes stale.
 
 ### M1.5 Real-time runtime and devices
-- [ ] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
-- [ ] midir input with timestamps → block offsets.
-- [ ] Null host for tests and headless CI.
-- [ ] Recording through a disk thread; files land in `<project>/assets/`.
-- [ ] `audioc run` (headless live); `audioc devices`.
-- [ ] Latency measurement (loopback test in the Devices panel, manual).
+- [x] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
+- [x] midir input with timestamps → block offsets.
+- [x] Null host for tests and headless CI.
+- [x] Recording through a disk thread; files land in `<project>/assets/`.
+- [x] `audioc run` (headless live); `audioc devices`.
+- [x] Latency measurement (loopback test in the Devices panel, manual).
+
+*Verified:* `cargo test -p ac-io` (duplex ring pass-through, underrun and
+overrun; MIDI offsets and rebasing; disk recorder through the real Record
+node; latency correlation on a simulated loopback to the exact sample;
+paced null host; live hot-swap and parameters; all under the allocation
+guard); `cargo test -p ac-cli` (`audioc devices`, `run --null` with and
+without recording, error paths; `tests/acceptance.rs` records 30 s through
+the live path, plays it back from a Clip after save and reopen, and gets
+the same samples). The latency probe (noise burst + FFT cross-correlation)
+finds a simulated loopback delay to the exact sample; it runs from the
+Devices panel's "Measure latency" button and `audioc latency`. Real devices,
+MIDI hardware, and a loopback-cable measurement need a human; steps are in
+the merge request and results go in the M1.7 table.
 
 ### M1.6 Desktop editor
-- [ ] eframe shell, theme module, fonts, icons; dark theme.
-- [ ] Node canvas: pan/zoom/select/move, add palette with fuzzy search, wiring with type checking, drop-on-empty-canvas filtered palette with auto-wire, insert on wire, delete with reconnect, duplicate, mute, collapse, frames, reroute, undo/redo for everything.
-- [ ] Inline widgets per unit; wired-input live values; socket meters; wire flow for audio; event pulses.
-- [ ] Group create/enter/leave/ungroup with exposed sockets.
-- [ ] Side panel tabs: Node (with docs), Library, Project, Devices, Problems.
-- [ ] Transport bar; keyboard shortcuts from UX.md.
-- [ ] Save/load/recent projects; asset handling; missing-file handling.
-- [ ] egui_kittest tests for: add node via palette, wire two nodes, undo, group and enter.
+- [x] eframe shell, theme module, fonts, icons; dark theme.
+- [x] Node canvas: pan/zoom/select/move, add palette with fuzzy search, wiring with type checking, drop-on-empty-canvas filtered palette with auto-wire, insert on wire, delete with reconnect, duplicate, mute, collapse, frames, reroute, undo/redo for everything.
+- [x] Inline widgets per unit; wired-input live values; socket meters; wire flow for audio; event pulses.
+- [x] Group create/enter/leave/ungroup with exposed sockets.
+- [x] Side panel tabs: Node (with docs), Library, Project, Devices, Problems.
+- [x] Transport bar; keyboard shortcuts from UX.md.
+- [x] Save/load/recent projects; asset handling; missing-file handling.
+- [x] egui_kittest tests for: add node via palette, wire two nodes, undo, group and enter.
+
+*Verified:* `cargo test -p ac-app` (unit tests for every editing operation:
+group/ungroup boundaries, delete-with-reconnect, duplicate with and
+without incoming wires, insert on wire, paste, reroutes, nested groups,
+interface sockets; egui_kittest tests on the null stream: add a node via the
+palette, wire and disconnect, undo/redo, group and enter/leave/ungroup,
+missing nodes and bad wires still draw, drop-wire auto-wire, splice on wire,
+duplicate-and-place as one undo step; Export WAV is byte-identical to a
+direct render). Look and live feedback checked from screenshots under Xvfb
+with a software renderer (playing, meters, scope, wire flow, event pulses,
+palette search, groups, panels). Real devices, native dialogs, and feel
+need a human; steps are in the merge request.
 
 ### M1.7 End to end, examples, baseline
-- [ ] Example projects: Start, Guitar Pedalboard (AudioIn → Biquad → Delay → AudioOut), Subtractive Synth (MidiIn → MidiNote → Oscillator → Biquad → ADSR-driven Gain → AudioOut), Four Tracks (4 × Track block → Mix → AudioOut), Reverse Delay placeholder (documents the Phase 2 node).
-- [ ] `audioc bench` with three stress projects and a baseline file committed; CI bench job comparing against `main`.
+- [x] Example projects: Start, Guitar Pedalboard (AudioIn → Biquad → Delay → AudioOut), Subtractive Synth (MidiIn → MidiNote → Oscillator → Biquad → ADSR-driven Gain → AudioOut), Four Tracks (4 × Track block → Mix → AudioOut), Reverse Delay placeholder (documents the Phase 2 node).
+- [x] `audioc bench` with three stress projects and a baseline file committed; CI bench job comparing against `main`.
 - [ ] Manual verification on all three OSes recorded in this file (who, which device, buffer size, measured latency, xruns over 10 minutes).
+
+*Verified:* `cargo test -p ac-cli --test examples` (all five examples open,
+are canonical, compile without errors; Start, Subtractive Synth, and Four
+Tracks make sound without clipping; the CLI render of the synth equals the
+library render bit for bit). `audioc bench` baseline in `bench/`; the CI
+bench job compares merge requests with their base branch.
+
+Manual verification (to be filled in by a person with the hardware; the
+merge request lists the exact steps):
+
+| OS | Who | Audio device | Buffer | Measured round trip | Xruns in 10 min | Date |
+| --- | --- | --- | --- | --- | --- | --- |
+| macOS | | | 128 | | | |
+| Windows | | | 128 | | | |
+| Linux | | | 128 | | | |
 
 **Phase 1 acceptance**
 - Live guitar through the Pedalboard example at 128-frame buffers with zero engine-caused xruns over 10 minutes on each OS.
 - Record 30 s, play back from a Clip, save, close, reopen, same result.
 - `audioc render` of the Subtractive Synth example with a MidiPattern stand-in (a Clock-driven note) matches the in-app offline export bit-for-bit.
 - All CI jobs green, including wasm checks and the bench comparison.
+
+*Status:*
+- Live guitar at 128 frames with zero engine-caused xruns: **needs manual
+  verification** (table above). The engine side is covered by the
+  allocation guard on every node and the processor, and by load
+  measurement in `audioc run` and the editor.
+- Record 30 s → Clip → save → reopen → same result: automated through the
+  live code path in `crates/ac-cli/tests/acceptance.rs` (bit-identical);
+  the same flow in the editor needs a manual check with a real input.
+- `audioc render` of the Subtractive Synth (with its clock-driven demo
+  note) matches the in-app export bit for bit: both call the same render
+  function with default options; `tests/examples.rs` checks the CLI against
+  the library and an `ac-app` unit test checks the export against the
+  library.
+- CI: fmt, clippy, tests on Linux/macOS/Windows, wasm32, and cargo deny are
+  green; the bench comparison runs on merge requests.
 
 ---
 

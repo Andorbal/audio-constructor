@@ -74,7 +74,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `Gain` | P1 | `in: Audio`, `gain: Float(dB)`. Channel-polymorphic. (Also "Volume".) |
-| `Pan` | P1 | Mono or stereo in, stereo out, `pan: Float(-1..1)`, constant-power law. |
+| `Pan` | P1 | Mono or stereo in, stereo out, `pan: Float(-1..1)`: constant-power law for mono, balance (far side fades, near side stays at unity) for stereo. |
 | `Mix` | P1 | N inputs (config), each with `gain: Float(dB)`; sums to `out`. Select four nodes and add a Mix to auto-wire them. |
 | `Crossfade` | P2 | `a`, `b`, `mix: Float(0..1)`. Works for `Audio` and `Float`. |
 | `EnvelopeFollower` | P2 | `in: Audio` → `level: Float` (peak or RMS, attack/release). Half of a compressor, all of a sidechain detector. |
@@ -148,7 +148,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `ADSR` | P1 | `gate: Bool` (or `trigger` + `release`), attack/decay/sustain/release, curve shape. Out: `out: Float` (sample rate), `active: Bool`, `end: Trigger`. |
+| `ADSR` | P1 | `gate: Bool` (or `on`/`off` triggers), attack/decay/sustain/release, curve shape (linear or exponential). Out: `out: Float` (sample rate), `active: Bool` (sample rate), `end: Trigger`. |
 | `LFO` | P2 | Block-rate oscillator with shapes, `rate` in Hz or beats, `phase`, `retrigger`, `unipolar/bipolar`, `smooth` for random shapes. Lighter than `Oscillator` for hundreds of modulators. |
 | `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints) with loop points. |
 | `StepSequencer` | P2 | N steps of `Float` values; advances on `clock`; `direction`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |

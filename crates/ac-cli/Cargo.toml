@@ -1,0 +1,34 @@
+[package]
+name = "ac-cli"
+description = "audioc: the Audio Constructor command line."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "audioc"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+ac-core.workspace = true
+ac-nodes.workspace = true
+ac-dsp.workspace = true
+ac-engine.workspace = true
+ac-io.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+ctrlc.workspace = true
+assert_no_alloc.workspace = true
+
+[features]
+default = []
+jack = ["ac-io/jack"]
+asio = ["ac-io/asio"]

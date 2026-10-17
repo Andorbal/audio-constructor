@@ -1,0 +1,17 @@
+[package]
+name = "ac-core"
+description = "Graph model, signal types, node trait, registry, and persistence for Audio Constructor."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
