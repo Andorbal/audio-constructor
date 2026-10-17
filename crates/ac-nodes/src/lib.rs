@@ -17,6 +17,7 @@ pub mod io;
 pub mod level;
 pub mod math;
 pub mod modulation;
+mod segments;
 pub mod sequencing;
 pub mod time;
 pub mod triggers;
