@@ -63,12 +63,22 @@ runs every node at block sizes 1/64/1024 under the allocation guard);
 `docs/reference/` is generated and a test fails if it goes stale.
 
 ### M1.5 Real-time runtime and devices
-- [ ] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
-- [ ] midir input with timestamps → block offsets.
-- [ ] Null host for tests and headless CI.
-- [ ] Recording through a disk thread; files land in `<project>/assets/`.
-- [ ] `audioc run` (headless live); `audioc devices`.
+- [x] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
+- [x] midir input with timestamps → block offsets.
+- [x] Null host for tests and headless CI.
+- [x] Recording through a disk thread; files land in `<project>/assets/`.
+- [x] `audioc run` (headless live); `audioc devices`.
 - [ ] Latency measurement (loopback test in the Devices panel, manual).
+
+*Verified:* `cargo test -p ac-io` (duplex ring pass-through, underrun and
+overrun; MIDI offsets and rebasing; disk recorder through the real Record
+node; latency correlation on a simulated loopback to the exact sample;
+paced null host; live hot-swap and parameters; all under the allocation
+guard); `cargo test -p ac-cli` (`audioc devices`, `run --null` with and
+without recording, error paths; `tests/acceptance.rs` records 30 s through
+the live path, plays it back from a Clip after save and reopen, and gets
+the same samples). Real devices, MIDI hardware, and the loopback latency
+measurement need a human; steps are in the merge request.
 
 ### M1.6 Desktop editor
 - [ ] eframe shell, theme module, fonts, icons; dark theme.
