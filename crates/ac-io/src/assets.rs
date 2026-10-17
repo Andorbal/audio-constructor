@@ -6,7 +6,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ac_core::{AudioData, Project, RecordRequest, RecordSink, Registry, Resources, util::content_hash};
+use ac_core::{
+    AudioData, Project, RecordRequest, RecordSink, Registry, Resources, util::content_hash,
+};
 
 /// An asset problem found while loading.
 #[derive(Clone, Debug, PartialEq)]
@@ -105,7 +107,8 @@ impl AssetStore {
 /// `(path, stored hash)` for every asset reference in a project.
 pub fn referenced_assets(project: &Project, registry: &Registry) -> Vec<(String, Option<String>)> {
     let mut out = Vec::new();
-    let graphs = std::iter::once(&project.graph).chain(project.group_defs.values().map(|d| &d.graph));
+    let graphs =
+        std::iter::once(&project.graph).chain(project.group_defs.values().map(|d| &d.graph));
     for g in graphs {
         for n in &g.nodes {
             let Some(entry) = registry.get(&n.kind) else {
@@ -115,7 +118,11 @@ pub fn referenced_assets(project: &Project, registry: &Registry) -> Vec<(String,
                 if let Some(p) = n.config.get(*key).and_then(|v| v.as_str())
                     && !p.is_empty()
                 {
-                    let hash = n.config.get("hash").and_then(|v| v.as_str()).map(str::to_string);
+                    let hash = n
+                        .config
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
                     out.push((p.to_string(), hash));
                 }
             }

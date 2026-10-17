@@ -19,6 +19,7 @@ workspace = true
 [dependencies]
 ac-core.workspace = true
 ac-nodes.workspace = true
+ac-dsp.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true
 clap.workspace = true

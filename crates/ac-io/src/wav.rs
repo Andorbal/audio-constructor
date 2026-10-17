@@ -55,8 +55,8 @@ impl From<hound::Error> for WavError {
 
 /// Read a WAV file into non-interleaved `f32` channels.
 pub fn read_wav(path: &Path) -> Result<AudioData, WavError> {
-    let reader = hound::WavReader::open(path)
-        .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
+    let reader =
+        hound::WavReader::open(path).map_err(|e| WavError(format!("{}: {e}", path.display())))?;
     read_from(reader)
 }
 
@@ -115,7 +115,11 @@ pub fn write_wav(
     let frames = channels.first().map_or(0, Vec::len);
     for i in 0..frames {
         for c in 0..n_ch {
-            let s = channels.get(c).and_then(|ch| ch.get(i)).copied().unwrap_or(0.0);
+            let s = channels
+                .get(c)
+                .and_then(|ch| ch.get(i))
+                .copied()
+                .unwrap_or(0.0);
             let s = if s.is_finite() { s } else { 0.0 };
             match depth {
                 BitDepth::Float32 => w.write_sample(s)?,
