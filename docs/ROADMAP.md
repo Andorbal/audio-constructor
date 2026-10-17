@@ -19,10 +19,10 @@ Oscillator, ADSR, and Biquad driven by a MIDI keyboard, save the project,
 and reproduce the same audio from the command line.
 
 ### M1.1 Workspace and CI
-- [ ] Cargo workspace with the crates in ARCHITECTURE §3 (plugin and web crates as empty placeholders).
-- [ ] CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on Linux, macOS, Windows; `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, `ac-engine`.
-- [ ] `rust-toolchain.toml`, `deny.toml` (license and advisory checks), `.editorconfig`.
-- [ ] `audioc --version` and `audio-constructor` binaries build and run (empty window).
+- [x] Cargo workspace with the crates in ARCHITECTURE §3 (plugin and web crates as empty placeholders).
+- [x] CI: `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test` on Linux, macOS, Windows; `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, `ac-engine`.
+- [x] `rust-toolchain.toml`, `deny.toml` (license and advisory checks), `.editorconfig`.
+- [x] `audioc --version` and `audio-constructor` binaries build and run (empty window).
 
 ### M1.2 Core model and persistence
 - [ ] Graph, NodeInstance, Wire, GroupDef, Project types with serde and `schema_version`.

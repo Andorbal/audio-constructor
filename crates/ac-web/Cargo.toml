@@ -1,0 +1,16 @@
+[package]
+name = "ac-web"
+description = "Placeholder for the Phase 3 web build (AudioWorklet host)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+

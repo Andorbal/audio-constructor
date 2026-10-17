@@ -1,0 +1,46 @@
+# cargo-deny configuration: license and advisory policy.
+# Engine crates must stay free of GPL code; see CLAUDE.md.
+
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # ttf-parser is unmaintained (not vulnerable). It reaches us only through winit's
+    # Wayland client-side decorations (sctk-adwaita); no maintained replacement exists
+    # upstream yet. Revisit when winit moves off it.
+    { id = "RUSTSEC-2026-0192", reason = "transitive via winit CSD, no upgrade available" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Zlib",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "MPL-2.0",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+    "CDLA-Permissive-2.0",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

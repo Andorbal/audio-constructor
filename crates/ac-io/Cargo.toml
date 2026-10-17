@@ -1,0 +1,21 @@
+[package]
+name = "ac-io"
+description = "Device and file layer for Audio Constructor: audio and MIDI devices, WAV files, recording."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+ac-core.workspace = true
+ac-engine.workspace = true
+hound.workspace = true
+cpal.workspace = true
+midir.workspace = true
+rtrb.workspace = true
