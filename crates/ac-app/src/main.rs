@@ -13,7 +13,7 @@ fn main() -> eframe::Result {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(1, |d| d.as_nanos() as u64);
     let opts = AppOptions {
-        audio: AudioMode::NoDevice,
+        audio: AudioMode::Device(ac_io::AudioConfig::default()),
         project,
         start_example: true,
         recent: Recent::load_default(),

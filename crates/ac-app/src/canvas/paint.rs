@@ -677,8 +677,9 @@ impl Canvas {
                 && !matches!(s.ty, SignalType::Trigger | SignalType::Midi)
             {
                 let text = widgets::live_text(v, s.ty, s.spec.as_ref());
+                let right = row.max.x - (theme::NODE_PAD_X + s.reserve) * z;
                 painter.text(
-                    pos2(row.max.x - theme::NODE_PAD_X * z, row.center().y),
+                    pos2(right, row.center().y),
                     Align2::RIGHT_CENTER,
                     text,
                     theme::canvas_font(theme::FONT_VALUE, z, true),
@@ -690,7 +691,7 @@ impl Canvas {
                 {
                     let y = row.max.y - 2.5 * z;
                     let a = x0;
-                    let b = row.max.x - theme::NODE_PAD_X * z;
+                    let b = right;
                     painter.line_segment(
                         [pos2(a, y), pos2(b, y)],
                         Stroke::new(1.0, theme::fade(theme::WIDGET_BG, alpha)),
@@ -723,7 +724,7 @@ impl Canvas {
             return;
         };
         let Some(node) = node else { return };
-        let f = t.rect_to_screen(field_rect(s.row));
+        let f = t.rect_to_screen(field_rect(s));
         let field_hovered = matches!(hover, Hit::Field { node, socket } | Hit::Fire { node, socket } if *node == n.id && *socket == s.name);
         let active = matches!(&self.gesture, Gesture::DragValue { node, socket, .. } if *node == n.id && *socket == s.name)
             || matches!(&self.edit, Some(e) if matches!(&e.target, super::EditTarget::Param { node, socket, .. } if *node == n.id && *socket == s.name));
@@ -904,16 +905,29 @@ impl Canvas {
                 if rec {
                     self.live.active = true;
                 }
-                super::bodies::record(
-                    painter,
-                    rect,
-                    z,
-                    rec,
-                    live.node_value(n.id, 1).unwrap_or(0.0),
-                    live.node_value(n.id, 2).unwrap_or(0.0),
-                    now,
-                    alpha,
-                );
+                if io.can_record {
+                    super::bodies::record(
+                        painter,
+                        rect,
+                        z,
+                        rec,
+                        live.node_value(n.id, 1).unwrap_or(0.0),
+                        live.node_value(n.id, 2).unwrap_or(0.0),
+                        now,
+                        alpha,
+                    );
+                } else {
+                    super::bodies::readout(painter, rect, z, "", alpha);
+                    if z >= 0.4 {
+                        painter.text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            "save the project to record",
+                            theme::canvas_font(theme::FONT_SMALL, z, false),
+                            theme::fade(theme::TEXT_MUTED, alpha),
+                        );
+                    }
+                }
             }
             Body::AudioOut => {
                 let r = |k| live.node_value(n.id, k).unwrap_or(0.0);

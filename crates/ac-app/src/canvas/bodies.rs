@@ -169,7 +169,7 @@ pub fn meter(painter: &Painter, rect: Rect, zoom: f32, ch: [MeterChannel; 2], al
         return;
     }
     let y = bars.min.y + 2.0 * (bar_h + gap) + 6.0 * zoom;
-    for mark in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
+    for mark in [-48.0f32, -24.0, -12.0, 0.0] {
         let x = bars.min.x + bars.width() * ((mark + 60.0) / 63.0);
         painter.text(
             pos2(x, y),

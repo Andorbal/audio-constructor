@@ -59,6 +59,16 @@ pub enum PanelRequest {
     /// Jump to a node (entering groups as needed).
     Navigate(NodePath),
     Status(String),
+    /// Open another audio device setup.
+    SwitchAudio(ac_io::AudioConfig),
+}
+
+/// The Devices tab's state: the device list (read when first shown, since
+/// enumerating can be slow) and the setup being edited.
+#[derive(Default)]
+pub struct DevicesState {
+    pub hosts: Option<Vec<ac_io::HostInfo>>,
+    pub draft: Option<ac_io::AudioConfig>,
 }
 
 /// The side panel's own state.
@@ -67,6 +77,7 @@ pub struct SidePanel {
     pub tab: Tab,
     pub library_query: String,
     label_edit: Option<(NodeId, String)>,
+    pub devices: DevicesState,
 }
 
 impl Default for SidePanel {
@@ -76,6 +87,7 @@ impl Default for SidePanel {
             tab: Tab::Node,
             library_query: String::new(),
             label_edit: None,
+            devices: DevicesState::default(),
         }
     }
 }
@@ -135,7 +147,7 @@ impl SidePanel {
                     Tab::Node => node_tab::show(ui, io, &mut self.label_edit),
                     Tab::Library => library::show(ui, io, &mut self.library_query),
                     Tab::Project => project_tab::show(ui, io),
-                    Tab::Devices => status_tabs::devices(ui, io),
+                    Tab::Devices => status_tabs::devices(ui, io, &mut self.devices),
                     Tab::Problems => status_tabs::problems(ui, io),
                 }
                 ui.add_space(12.0);

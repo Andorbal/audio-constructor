@@ -78,7 +78,10 @@ pub struct EditorApp {
     confirm: Option<AfterConfirm>,
     prompt: Option<PathPrompt>,
     native_dialogs: bool,
-    audio_mode: AudioMode,
+    /// Writes Record nodes' takes into the saved project's assets folder.
+    recorder: Option<Arc<ac_io::DiskRecorder>>,
+    /// Finished takes waiting to be turned into Clip nodes.
+    pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
     show_timing: bool,
     show_shortcuts: bool,
@@ -128,11 +131,17 @@ impl EditorApp {
                 ),
             },
         };
+        let recorder = path
+            .as_ref()
+            .and_then(|p| ac_io::DiskRecorder::new(&files::project_dir(p)).ok())
+            .map(Arc::new);
         let resources = Arc::new(FileResources {
             assets: assets.clone(),
-            recorder: None,
+            recorder: recorder
+                .clone()
+                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
         });
-        let engine = EngineHost::start(&project, registry.clone(), resources, opts.audio);
+        let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
         let doc = Document::new(project, path.clone(), base, opts.seed);
         let mut recent = opts.recent;
         if let Some(p) = &path {
@@ -154,7 +163,8 @@ impl EditorApp {
             confirm: None,
             prompt: None,
             native_dialogs: opts.native_dialogs,
-            audio_mode: opts.audio,
+            recorder,
+            takes: Vec::new(),
             export_job: None,
             show_timing: false,
             show_shortcuts: false,
@@ -189,6 +199,13 @@ impl EditorApp {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
+        // The app may be drawn into a context other than the one it was
+        // created with (a test harness); give that one the look too.
+        let themed = egui::Id::unique("audio-constructor-theme");
+        if !ctx.data(|d| d.get_temp::<bool>(themed).unwrap_or(false)) {
+            theme::apply(&ctx);
+            ctx.data_mut(|d| d.insert_temp(themed, true));
+        }
         // The canvas is keyboard-driven: with nothing focused, Tab and the
         // arrow keys belong to it, not to egui's focus navigation.
         if ctx.memory(|m| m.focused().is_none()) {
@@ -272,7 +289,9 @@ impl EditorApp {
             .frame(egui::Frame::new().fill(theme::CANVAS_BG))
             .show(ui, |ui| {
                 let calm = self.engine.handle.status().load_fraction() > 0.8;
+                let can_record = self.recorder.is_some();
                 let mut io = CanvasIo {
+                    can_record,
                     doc: &mut self.doc,
                     registry: &self.registry,
                     engine: &mut self.engine.handle,
@@ -300,7 +319,31 @@ impl EditorApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui, now: f64) {
         ui.horizontal_centered(|ui| {
-            if let Some((text, t, warn)) = &self.status {
+            // A recorded take waits here until it's made into a Clip.
+            if let Some(take) = self.takes.first().cloned() {
+                ui.label(
+                    RichText::new(format!(
+                        "{}  Recorded {}",
+                        icons::RECORD,
+                        take.relative_path
+                    ))
+                    .small()
+                    .color(theme::TEXT),
+                );
+                if ui.small_button("Create Clip from take").clicked() {
+                    self.clip_from_take(&take, now);
+                }
+                if ui.small_button(icons::X).on_hover_text("Dismiss").clicked() {
+                    self.takes.remove(0);
+                }
+                if self.takes.len() > 1 {
+                    ui.label(
+                        RichText::new(format!("+{} more", self.takes.len() - 1))
+                            .small()
+                            .color(theme::TEXT_MUTED),
+                    );
+                }
+            } else if let Some((text, t, warn)) = &self.status {
                 if now - t < 8.0 || *t == 0.0 {
                     let color = if *warn { theme::WARNING } else { theme::TEXT };
                     let icon = if *warn { icons::WARNING } else { icons::INFO };
@@ -324,18 +367,20 @@ impl EditorApp {
                 ui.label(RichText::new(hint).small().color(theme::TEXT_FAINT));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let b = self.engine.backend_status();
-                let text = match &b {
-                    Some(b) => format!(
-                        "{} {} · {} Hz · {} frames",
-                        icons::SPEAKER_HIGH,
-                        b.device.as_deref().unwrap_or(&b.name),
-                        b.sample_rate,
-                        b.buffer_frames
-                    ),
-                    None => format!("{} audio off", icons::SPEAKER_SLASH),
+                let icon = if self.engine.is_running() {
+                    icons::SPEAKER_HIGH
+                } else {
+                    icons::SPEAKER_SLASH
                 };
-                ui.label(RichText::new(text).small().color(theme::TEXT_MUTED));
+                let text = format!("{icon} {}", self.engine.describe());
+                let r = ui.add(
+                    egui::Button::new(RichText::new(text).small().color(theme::TEXT_MUTED))
+                        .frame(false),
+                );
+                if r.on_hover_text("Audio device settings").clicked() {
+                    self.side.open = true;
+                    self.side.tab = Tab::Devices;
+                }
                 let n = self.engine.report.diagnostics.len();
                 if n > 0 {
                     let errors = self.engine.report.has_errors();
@@ -366,7 +411,8 @@ impl EditorApp {
                 self.reload_assets();
             }
         }
-        self.engine.handle.collect_garbage();
+        self.engine.tick();
+        self.poll_takes(now);
         self.sync_loop();
 
         if let Some((path, rx)) = &self.export_job
@@ -421,7 +467,7 @@ impl EditorApp {
 
     /// Keep the engine's loop region in step with the project.
     fn sync_loop(&mut self) {
-        let rate = f64::from(self.engine.settings.sample_rate);
+        let rate = f64::from(self.engine.info.sample_rate);
         let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
         let want = self.doc.project.settings.loop_region.and_then(|[a, b]| {
             let (s, e) = (tempo.sample_at(a), tempo.sample_at(b));
@@ -437,12 +483,77 @@ impl EditorApp {
         self.assets = AssetStore::load_for(&self.doc.project, &self.doc.base_dir, &self.registry);
         self.missing = missing_of(&self.assets);
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
-        let resources = Arc::new(FileResources {
-            assets: self.assets.clone(),
-            recorder: None,
-        });
+        let resources = self.resources();
         self.engine.set_resources(&self.doc.project, resources);
         self.engine.synced_revision = self.doc.engine_revision;
+    }
+
+    /// Assets and, for a saved project, the recorder writing into its
+    /// assets folder (recreated when the project moves).
+    fn resources(&mut self) -> Arc<FileResources> {
+        let dir = self.doc.path.as_deref().map(files::project_dir);
+        let current = self.recorder.as_ref().map(|r| r.assets_dir());
+        let wanted = dir.as_ref().map(|d| d.join("assets"));
+        if current != wanted {
+            if let Some(old) = self.recorder.take() {
+                old.shutdown();
+            }
+            self.recorder = dir
+                .and_then(|d| ac_io::DiskRecorder::new(&d).ok())
+                .map(Arc::new);
+        }
+        Arc::new(FileResources {
+            assets: self.assets.clone(),
+            recorder: self
+                .recorder
+                .clone()
+                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+        })
+    }
+
+    /// Takes the recorder finished: offer to turn them into Clip nodes.
+    fn poll_takes(&mut self, now: f64) {
+        let Some(r) = &self.recorder else { return };
+        let done = r.finished_takes();
+        for t in done {
+            match &t.error {
+                Some(e) => self.warn(format!("Take {} is incomplete: {e}", t.relative_path), now),
+                None => self.say(format!("Recorded {}", t.relative_path), now),
+            }
+            self.takes.push(t);
+        }
+    }
+
+    /// Add a Clip node playing a recorded take, next to its Record node when
+    /// that's in the current graph.
+    pub fn clip_from_take(&mut self, take: &ac_io::Take, now: f64) {
+        let hash = std::fs::read(&take.path)
+            .map(|b| ac_core::util::content_hash(&b))
+            .unwrap_or_default();
+        let prefix = self.doc.scope_prefix();
+        let near = take
+            .node_key
+            .parse::<ac_core::NodePath>()
+            .ok()
+            .filter(|p| p.0.len() == prefix.len() + 1 && p.0[..prefix.len()] == prefix[..])
+            .and_then(|p| p.leaf())
+            .and_then(|id| self.doc.graph().node(id))
+            .map(|n| egui::pos2(n.ui.pos[0] + theme::NODE_WIDTH + 60.0, n.ui.pos[1]));
+        let at = near.unwrap_or(self.canvas.view.center);
+        let c = Candidate {
+            name: "Clip".into(),
+            kind: "clip".into(),
+            category: None,
+            summary: String::new(),
+            config: serde_json::json!({
+                "file": take.relative_path,
+                "channels": take.channels,
+                "hash": hash,
+            }),
+            socket: None,
+        };
+        self.add_candidate(&c, at + vec2(theme::NODE_WIDTH / 2.0, 14.0), None, now);
+        self.takes.retain(|t| t.path != take.path);
     }
 
     // ------------------------------------------------------------ input
@@ -555,6 +666,22 @@ impl EditorApp {
                 }
             }
             PanelRequest::Status(s) => self.say(s, now),
+            PanelRequest::SwitchAudio(config) => {
+                let resources = self.resources();
+                self.engine
+                    .switch(config, &self.doc.project, self.registry.clone(), resources);
+                // A rebuilt engine has seen none of the document's revisions.
+                self.engine
+                    .replace(&self.doc.project, self.doc.engine_revision);
+                self.loop_sent = None;
+                match &self.engine.device_error {
+                    Some(e) => self.warn(format!("Audio: {e}"), now),
+                    None => {
+                        let d = self.engine.describe();
+                        self.say(format!("Audio: {d}"), now);
+                    }
+                }
+            }
         }
     }
 
@@ -965,6 +1092,12 @@ impl EditorApp {
         }
     }
 
+    /// Show `project` as a new, unsaved document (examples, tests).
+    pub fn open_unsaved(&mut self, project: Project) {
+        let assets = AssetStore::load_for(&project, &cwd(), &self.registry);
+        self.replace_document(project, None, cwd(), assets);
+    }
+
     fn replace_document(
         &mut self,
         project: Project,
@@ -977,17 +1110,14 @@ impl EditorApp {
         self.missing = missing_of(&assets);
         self.assets = assets;
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
-        let resources = Arc::new(FileResources {
-            assets: self.assets.clone(),
-            recorder: None,
-        });
-        // A new project gets a fresh engine: nothing carries over.
-        self.engine = EngineHost::start(
-            &self.doc.project,
-            self.registry.clone(),
-            resources,
-            self.audio_mode,
-        );
+        // A new project starts from scratch: transport at zero, every node
+        // rebuilt (new resources carry no state over). The device stays open.
+        self.engine.handle.stop();
+        self.engine.handle.set_recording(false);
+        self.engine.handle.seek(0);
+        let resources = self.resources();
+        self.engine.set_resources(&self.doc.project, resources);
+        self.engine.synced_revision = self.doc.engine_revision;
         self.loop_sent = None;
         self.palette.close();
         self.canvas.reset_for(&self.doc, &self.registry);
@@ -1025,8 +1155,10 @@ impl EditorApp {
         };
         match ac_io::save_project(&path, &project) {
             Ok(()) => {
+                // Relinked assets, or a new home for the recorder's takes.
                 let assets_changed = project.graph != self.doc.project.graph
-                    || project.group_defs != self.doc.project.group_defs;
+                    || project.group_defs != self.doc.project.group_defs
+                    || self.doc.path.as_ref() != Some(&path);
                 self.doc.project = project;
                 self.doc.path = Some(path.clone());
                 self.doc.base_dir = files::project_dir(&path);
@@ -1053,6 +1185,7 @@ impl EditorApp {
         let path = files::with_extension(path, "wav");
         let project = self.doc.project.clone();
         let registry = self.registry.clone();
+        // Offline exports never record.
         let resources: Arc<dyn ac_core::Resources> = Arc::new(FileResources {
             assets: self.assets.clone(),
             recorder: None,

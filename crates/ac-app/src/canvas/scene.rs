@@ -93,6 +93,9 @@ pub struct SocketView {
     pub row: Rect,
     pub wired: bool,
     pub input: bool,
+    /// Inputs: room kept at the right of the row for the output label that
+    /// shares it (canvas units).
+    pub reserve: f32,
 }
 
 impl SocketView {
@@ -228,6 +231,7 @@ pub fn build(doc: &Document, registry: &Registry, iface_pos: Option<[Pos2; 2]>) 
                     muted: false,
                     selected: doc.selection.contains(&id),
                     body: None,
+                    text: String::new(),
                 },
                 &sockets,
                 &wired_in,
@@ -290,6 +294,11 @@ pub fn build(doc: &Document, registry: &Registry, iface_pos: Option<[Pos2; 2]>) 
                 muted: n.muted,
                 selected: doc.selection.contains(&n.id),
                 body,
+                text: if n.kind == "comment" {
+                    n.config.get_str_or("text", "").to_string()
+                } else {
+                    String::new()
+                },
             },
             &sockets,
             &wired_in,
@@ -348,6 +357,20 @@ struct LayoutIn {
     muted: bool,
     selected: bool,
     body: Option<Body>,
+    /// Comment text (sizes notes that haven't been resized by hand).
+    text: String,
+}
+
+/// Height that fits a note's text at `width` (canvas units), estimated
+/// from the body font's average advance so the scene needs no font access.
+fn comment_height(text: &str, width: f32) -> f32 {
+    let per_line = ((width - 20.0) / 6.4).max(8.0) as usize;
+    let lines: usize = text
+        .lines()
+        .map(|l| l.chars().count().div_ceil(per_line).max(1))
+        .sum::<usize>()
+        .max(1);
+    (20.0 + 12.0 + lines as f32 * 16.0).clamp(60.0, 2000.0)
 }
 
 fn layout(
@@ -369,6 +392,7 @@ fn layout(
             wired_out.contains(&(id, s.name.as_str()))
         },
         input,
+        reserve: 0.0,
     };
     let mut inputs: Vec<SocketView> = sockets.inputs.iter().map(|s| mk(s, true)).collect();
     let mut outputs: Vec<SocketView> = sockets.outputs.iter().map(|s| mk(s, false)).collect();
@@ -407,7 +431,7 @@ fn layout(
     }
 
     if view.class == Class::Comment {
-        let size = l.size.unwrap_or([240.0, 120.0]);
+        let size = l.size.unwrap_or([240.0, comment_height(&l.text, 240.0)]);
         view.rect = Rect::from_min_size(l.pos, vec2(size[0].max(80.0), size[1].max(40.0)));
         view.header = Rect::from_min_size(l.pos, vec2(view.rect.width(), 20.0));
         return view;
@@ -430,11 +454,9 @@ fn layout(
     let w = l.width;
     view.header = Rect::from_min_size(l.pos, vec2(w, theme::HEADER_HEIGHT));
     let mut y = l.pos.y + theme::HEADER_HEIGHT + 3.0;
-    for s in &mut view.outputs {
-        s.row = Rect::from_min_size(pos2(x, y), vec2(w, theme::ROW_HEIGHT));
-        s.pos = pos2(x + w, y + theme::ROW_HEIGHT / 2.0);
-        y += theme::ROW_HEIGHT;
-    }
+    // A widget body sits under the header, then the socket rows: input i
+    // on the left and output i on the right of the same row (UX.md "Node
+    // anatomy").
     if let Some(b) = l.body {
         y += 3.0;
         let r = Rect::from_min_size(
@@ -444,9 +466,25 @@ fn layout(
         view.body = Some((b, r));
         y += b.height() + 5.0;
     }
-    for s in &mut view.inputs {
-        s.row = Rect::from_min_size(pos2(x, y), vec2(w, theme::ROW_HEIGHT));
-        s.pos = pos2(x, y + theme::ROW_HEIGHT / 2.0);
+    let rows = view.inputs.len().max(view.outputs.len());
+    for i in 0..rows {
+        let row = Rect::from_min_size(pos2(x, y), vec2(w, theme::ROW_HEIGHT));
+        let mut reserve = 0.0;
+        if let Some(o) = view.outputs.get_mut(i) {
+            o.row = row;
+            o.pos = pos2(x + w, y + theme::ROW_HEIGHT / 2.0);
+            let label = if o.is_new_slot() {
+                11
+            } else {
+                o.name.chars().count()
+            };
+            reserve = label as f32 * 6.6 + 12.0;
+        }
+        if let Some(s) = view.inputs.get_mut(i) {
+            s.row = row;
+            s.pos = pos2(x, y + theme::ROW_HEIGHT / 2.0);
+            s.reserve = reserve;
+        }
         y += theme::ROW_HEIGHT;
     }
     y += theme::NODE_PAD_BOTTOM;
@@ -490,7 +528,7 @@ mod tests {
         let out = m.socket("out", false).unwrap();
         let inp = m.socket("in", true).unwrap();
         let body = m.body.unwrap().1;
-        assert!(out.pos.y < body.min.y && body.max.y < inp.pos.y);
+        assert!(body.max.y < out.pos.y && out.pos.y == inp.pos.y);
         assert_eq!(out.pos.x, m.rect.max.x);
         assert_eq!(inp.pos.x, m.rect.min.x);
         assert!(inp.wired);

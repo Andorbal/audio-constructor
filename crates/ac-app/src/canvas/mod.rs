@@ -71,6 +71,8 @@ pub struct CanvasIo<'a> {
     /// Skip animations while the audio thread is heavily loaded (UX.md).
     pub calm: bool,
     pub show_timing: bool,
+    /// Record nodes can write takes (the project is saved somewhere).
+    pub can_record: bool,
     pub events: Vec<CanvasEvent>,
 }
 
@@ -808,7 +810,7 @@ impl Canvas {
                     if n.body.and_then(|(b, _)| b.controls()) == Some(s.name.as_str()) {
                         continue;
                     }
-                    let f = t.rect_to_screen(field_rect(s.row));
+                    let f = t.rect_to_screen(field_rect(s));
                     match widgets::field(spec) {
                         widgets::Field::Label => {}
                         widgets::Field::Fire => {
@@ -889,11 +891,15 @@ pub fn ease(t: f32) -> f32 {
     1.0 - (1.0 - t) * (1.0 - t) * (1.0 - t)
 }
 
-/// The inline widget rectangle on an input row (canvas units).
-pub fn field_rect(row: Rect) -> Rect {
+/// The inline widget rectangle of an input (canvas units), leaving room for
+/// an output label on the same row.
+pub fn field_rect(s: &scene::SocketView) -> Rect {
+    let row = s.row;
+    let right =
+        (row.max.x - theme::NODE_PAD_X - s.reserve).max(row.min.x + theme::NODE_PAD_X + 30.0);
     Rect::from_min_max(
         pos2(row.min.x + theme::NODE_PAD_X, row.min.y + 2.0),
-        pos2(row.max.x - theme::NODE_PAD_X, row.max.y - 2.0),
+        pos2(right, row.max.y - 2.0),
     )
 }
 

@@ -184,7 +184,7 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
             Block::Paragraph(text) => {
                 let mut job = inline(&text, theme::FONT_UI, theme::TEXT);
                 job.wrap.max_width = width;
-                ui.label(job);
+                ui.add(egui::Label::new(job).wrap());
                 ui.add_space(4.0);
             }
             Block::Item(text) => {
@@ -192,7 +192,7 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
                     ui.label(RichText::new("•").color(theme::TEXT_MUTED));
                     let mut job = inline(&text, theme::FONT_UI, theme::TEXT);
                     job.wrap.max_width = ui.available_width();
-                    ui.label(job);
+                    ui.add(egui::Label::new(job).wrap());
                 });
             }
             Block::Code(code) => {
@@ -221,7 +221,10 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
                                 } else {
                                     theme::TEXT
                                 };
-                                ui.label(inline(c, theme::FONT_SMALL + 0.5, color));
+                                ui.add(
+                                    egui::Label::new(inline(c, theme::FONT_SMALL + 0.5, color))
+                                        .wrap(),
+                                );
                             }
                             ui.end_row();
                         }

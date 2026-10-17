@@ -42,7 +42,7 @@ impl TransportState {
         let status = engine.handle.status().clone();
         let playing = engine.handle.is_playing();
         let recording = status.recording.load(std::sync::atomic::Ordering::Relaxed);
-        let rate = f64::from(engine.settings.sample_rate);
+        let rate = f64::from(engine.info.sample_rate);
         let tempo = TempoMap::new(rate, &doc.project.settings.tempo);
         let pos = engine.handle.position();
 
@@ -111,14 +111,14 @@ impl TransportState {
 
             // Position: bars:beats, large; time underneath.
             let (bars, time) = position_text(&tempo, pos);
-            let (rect, _) = ui.allocate_exact_size(vec2(118.0, 34.0), Sense::hover());
+            let (rect, _) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());
             ui.painter()
                 .rect_filled(rect, theme::radius(6.0), theme::WELL_BG);
             ui.painter().text(
-                pos2(rect.min.x + 10.0, rect.center().y - 1.0),
+                pos2(rect.min.x + 10.0, rect.center().y),
                 Align2::LEFT_CENTER,
                 bars,
-                theme::mono_font(17.0),
+                theme::mono_font(16.0),
                 if playing {
                     theme::TEXT_STRONG
                 } else {
@@ -126,10 +126,10 @@ impl TransportState {
                 },
             );
             ui.painter().text(
-                pos2(rect.max.x - 8.0, rect.center().y + 7.0),
+                pos2(rect.max.x - 10.0, rect.center().y + 1.0),
                 Align2::RIGHT_CENTER,
                 time,
-                theme::mono_font(theme::FONT_SMALL - 1.0),
+                theme::mono_font(theme::FONT_SMALL),
                 theme::TEXT_MUTED,
             );
             ui.add_space(6.0);

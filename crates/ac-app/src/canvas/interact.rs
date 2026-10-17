@@ -200,9 +200,9 @@ impl Canvas {
                 let spec = scene
                     .node(node)
                     .and_then(|n| n.socket(&socket, true))
-                    .and_then(|s| s.spec.clone().map(|spec| (spec, s.row)));
+                    .and_then(|s| s.spec.clone().map(|spec| (spec, field_rect(s))));
                 match spec {
-                    Some((spec, row)) if widgets::field(&spec) == widgets::Field::Number => {
+                    Some((spec, field)) if widgets::field(&spec) == widgets::Field::Number => {
                         let start = io
                             .doc
                             .graph()
@@ -214,7 +214,7 @@ impl Canvas {
                             spec,
                             start,
                             origin_x: origin.x,
-                            width: t.rect_to_screen(field_rect(row)).width(),
+                            width: t.rect_to_screen(field).width(),
                         };
                         self.hint = Some("Ctrl: fine · Shift: coarse".into());
                     }
@@ -775,13 +775,13 @@ impl Canvas {
                                 spec: spec.clone(),
                             },
                             text: plain_number(v, &spec),
-                            rect: field_rect(s.row),
+                            rect: field_rect(s),
                             multiline: false,
                             started: false,
                         });
                     }
                     widgets::Field::Choice => {
-                        let r = t.rect_to_screen(field_rect(s.row));
+                        let r = t.rect_to_screen(field_rect(s));
                         self.choice = Some((node, socket, r.left_bottom()));
                     }
                     widgets::Field::Check => {

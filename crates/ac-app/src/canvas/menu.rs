@@ -209,7 +209,7 @@ impl Canvas {
                                     name: name.clone(),
                                 },
                                 text: name.clone(),
-                                rect: super::field_rect(s.row),
+                                rect: super::field_rect(s),
                                 multiline: false,
                                 started: false,
                             });

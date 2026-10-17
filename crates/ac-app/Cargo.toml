@@ -20,6 +20,11 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[features]
+# Audio backends that need extra system pieces at build time (see ac-io).
+jack = ["ac-io/jack"]
+asio = ["ac-io/asio"]
+
 [dependencies]
 ac-core.workspace = true
 ac-nodes.workspace = true
