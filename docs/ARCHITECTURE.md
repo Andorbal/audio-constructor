@@ -439,7 +439,8 @@ All hosts call the same `Engine`.
   undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
 - **CLI** (`ac-cli`, binary `audioc`):
   - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]...`
-  - `audioc run <project> [--audio-device ...] [--midi-device ...]` runs live, headless, until interrupted.
+  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null]` runs live, headless, until Ctrl+C or `--duration`, printing position, load, xruns, and dropped messages every second. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
+  - `audioc latency [device options] [--count N]` measures the round trip through a loopback cable.
   - `audioc validate <project>` prints the compile report (errors, disabled nodes, latency).
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.

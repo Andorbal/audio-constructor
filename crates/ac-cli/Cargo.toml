@@ -25,3 +25,10 @@ ac-io.workspace = true
 clap.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true
+ctrlc.workspace = true
+assert_no_alloc.workspace = true
+
+[features]
+default = []
+jack = ["ac-io/jack"]
+asio = ["ac-io/asio"]

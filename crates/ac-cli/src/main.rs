@@ -1,14 +1,25 @@
 //! `audioc`: the Audio Constructor command line.
 
+mod devices;
 mod docs;
 mod inspect;
+mod live;
 mod render;
 mod util;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use clap::{Parser, Subcommand};
+
+// Debug builds abort on any allocation inside the real-time callbacks
+// (everything wrapped in `assert_no_alloc`), so `audioc run` doubles as a
+// real-time hygiene check.
+#[cfg(debug_assertions)]
+#[global_allocator]
+static ALLOCATOR: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 /// Render, run, and inspect Audio Constructor projects.
 #[derive(Debug, Parser)]
@@ -22,6 +33,12 @@ struct Cli {
 enum Command {
     /// Render a project offline to a WAV file.
     Render(render::RenderArgs),
+    /// Run a project live on the audio devices until Ctrl+C.
+    Run(live::RunArgs),
+    /// List audio hosts and devices, and MIDI inputs.
+    Devices,
+    /// Measure round-trip latency through a loopback cable.
+    Latency(live::LatencyArgs),
     /// Compile a project and print problems, disabled nodes, and latency.
     Validate {
         project: PathBuf,
@@ -53,6 +70,16 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Render(args) => render::run(args),
+        Command::Run(args) => {
+            let stop = Arc::new(AtomicBool::new(false));
+            let flag = stop.clone();
+            if let Err(e) = ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed)) {
+                eprintln!("warning: Ctrl+C won't stop cleanly ({e}); use --duration");
+            }
+            live::run(args, &stop)
+        }
+        Command::Devices => devices::devices(),
+        Command::Latency(args) => live::latency(args),
         Command::Validate {
             project,
             sample_rate,
