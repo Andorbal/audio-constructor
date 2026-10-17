@@ -332,7 +332,9 @@ impl EditorApp {
                 if ui.small_button("Create Clip from take").clicked() {
                     self.clip_from_take(&take, now);
                 }
-                if ui.small_button(icons::X).on_hover_text("Dismiss").clicked() {
+                if ui.small_button(icons::X).on_hover_text("Dismiss").clicked()
+                    && !self.takes.is_empty()
+                {
                     self.takes.remove(0);
                 }
                 if self.takes.len() > 1 {
