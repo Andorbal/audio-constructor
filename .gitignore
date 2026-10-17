@@ -3,3 +3,4 @@
 *.wav.tmp
 /tests/golden/out/
 .DS_Store
+/.claude/worktrees/
