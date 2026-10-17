@@ -55,9 +55,28 @@ pub fn parse_value(s: &str) -> Value {
 
 /// Load a project and its assets. Asset problems are printed, not fatal.
 pub fn load(path: &Path, registry: &Registry) -> Result<(Project, Arc<FileResources>)> {
+    let (project, assets) = load_with_assets(path, registry)?;
+    Ok((
+        project,
+        Arc::new(FileResources {
+            assets,
+            recorder: None,
+        }),
+    ))
+}
+
+/// The directory a project's relative asset paths start from.
+pub fn project_dir(path: &Path) -> &Path {
+    match path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    }
+}
+
+/// Load a project and the asset store for it, printing asset problems.
+pub fn load_with_assets(path: &Path, registry: &Registry) -> Result<(Project, AssetStore)> {
     let project = ac_io::load_project(path).map_err(|e| anyhow!(e))?;
-    let dir = path.parent().unwrap_or(Path::new("."));
-    let assets = AssetStore::load_for(&project, dir, registry);
+    let assets = AssetStore::load_for(&project, project_dir(path), registry);
     for issue in &assets.issues {
         match issue {
             ac_io::assets::AssetIssue::Missing { path, reason } => {
@@ -68,13 +87,7 @@ pub fn load(path: &Path, registry: &Registry) -> Result<(Project, Arc<FileResour
             }
         }
     }
-    Ok((
-        project,
-        Arc::new(FileResources {
-            assets,
-            recorder: None,
-        }),
-    ))
+    Ok((project, assets))
 }
 
 #[cfg(test)]

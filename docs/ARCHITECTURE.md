@@ -298,15 +298,29 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
 
 - **No allocation, no locks, no I/O, no syscalls, no panics** inside
   `process()` or the scheduler.
-- **Graph swap** via `arc-swap`: the callback loads the current
-  `CompiledGraph` pointer at the start of each block. The old graph is dropped
-  on a non-real-time thread.
-- **Parameters in**: an SPSC ring (`rtrb`) of `(NodeId, SocketName, Value)`
-  updates, drained at the start of each block. Values smooth over a few ms by
+- **Graph swap**: compiled graphs arrive through an SPSC ring and are
+  installed at the start of a block; the retired graph goes back through
+  another ring and is dropped on the control thread (see the engine API
+  below).
+- **Parameters in**: an SPSC ring (`rtrb`) of `(param slot, value)` updates
+  (the control side resolves node path and socket name to a slot), drained
+  at the start of each block. Values smooth over a few ms by
   default to avoid zipper noise (per-socket opt-out).
 - **Events in**: MIDI, gamepad, keyboard, OSC arrive on their own threads and
-  are pushed into rings with timestamps; the callback assigns them block
-  offsets.
+  are pushed into rings with timestamps from one monotonic clock (one ring
+  per source, so no producer ever waits on another; a full ring drops and
+  counts). The callback drains them and assigns block offsets **one block
+  late**: an event that arrived a quarter of the way through the previous
+  callback period lands a quarter of the way into this block,
+  `offset = clamp((t_recv − (t_callback − block)) × rate, 0, frames − 1)`.
+  That costs one buffer of latency and removes the jitter of quantizing to
+  callback boundaries.
+- **Device input** comes from a separate input stream through an SPSC ring
+  of interleaved samples, drained by the output callback (which owns the
+  processor). The same path serves one duplex interface or two devices. The
+  ring keeps a one-buffer cushion against callback jitter; when it runs dry
+  or (with two clocks drifting) piles up, the callback zero-fills or skips
+  back to the cushion and counts a device xrun.
 - **Telemetry out**: meters, scope rings, per-socket levels, per-node
   timings, and the xrun counter are relaxed atomics the UI reads at frame
   rate (DECISIONS D22). Nothing waits on the UI.
@@ -393,8 +407,16 @@ This keeps a single project format and a single engine, with no mode switch.
 
 ## 11. Device layer
 
-`ac-io` wraps every backend behind `AudioHost`, `MidiHost`, `ControlHost`
-traits so the engine never names a backend.
+`ac-io` wraps every backend so the engine never names one. Audio goes
+through two traits: an `AudioHost` is a configured backend that knows its
+rate and buffer size before it starts (so the engine is built at the
+device's rate), and `start` turns it into a running `AudioStream` that owns
+the engine's `Processor`, reports counters, measures latency, and hands the
+processor back when stopped (so switching devices at the same rate doesn't
+rebuild the engine). The device backend (cpal) and a timer-paced null host
+implement both. MIDI needs no trait: every source, a port or a virtual one
+like the computer keyboard, pushes into the same per-source rings, and one
+`MidiReceiver` drains them on the audio thread.
 
 | Platform | Backends (cpal) | Notes |
 | --- | --- | --- |
@@ -404,7 +426,12 @@ traits so the engine never names a backend.
 | Web | Web Audio `AudioWorklet` | Requires cross-origin isolation headers for `SharedArrayBuffer`. |
 
 - Buffer sizes from 32 to 2048 frames; the settings panel shows the measured
-  round-trip latency and the xrun count.
+  round-trip latency and the xrun count. Latency is measured with a loopback
+  cable: the stream pauses the engine for about a second, plays a burst of
+  pseudo-random noise on every output, records every input, and finds the
+  burst by cross-correlation.
+- Device callback threads ask the OS for real-time priority; a refusal is
+  reported, not fatal.
 - MIDI via midir, hot-plug aware. Gamepads via gilrs (buttons as `Bool`/
   `Trigger`, axes as `Float`, with per-axis dead zone and curve in the node).
 - The computer keyboard is a control source like any other: the host feeds
@@ -437,7 +464,8 @@ All hosts call the same `Engine`.
   undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
 - **CLI** (`ac-cli`, binary `audioc`):
   - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]...`
-  - `audioc run <project> [--audio-device ...] [--midi-device ...]` runs live, headless, until interrupted.
+  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null]` runs live, headless, until Ctrl+C or `--duration`, printing position, load, xruns, and dropped messages every second. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
+  - `audioc latency [device options] [--count N]` measures the round trip through a loopback cable.
   - `audioc validate <project>` prints the compile report (errors, disabled nodes, latency).
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
