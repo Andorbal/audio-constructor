@@ -21,6 +21,23 @@
     "nodes": [
       {
         "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Plug a guitar into input 1 of your audio interface and pick it in the Devices tab (smallest buffer that doesn't crackle; 128 frames is a good start). You hear yourself through a tone filter and an echo; no need to press play.\n\nTone: lower cutoff for a darker sound. Echo: time in seconds, feedback for more repeats, mix for how loud they are."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -208.0
+          ],
+          "size": [
+            600.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
         "kind": "audio_in",
         "config": {
           "channel": 0,
@@ -29,13 +46,13 @@
         "ui": {
           "pos": [
             0.0,
-            60.0
+            0.0
           ],
           "label": "Guitar"
         }
       },
       {
-        "id": "2",
+        "id": "3",
         "kind": "biquad",
         "params": {
           "cutoff": 3500.0,
@@ -44,14 +61,14 @@
         },
         "ui": {
           "pos": [
-            240.0,
-            60.0
+            270.0,
+            0.0
           ],
           "label": "Tone"
         }
       },
       {
-        "id": "3",
+        "id": "4",
         "kind": "delay",
         "config": {
           "max_time": 2.0
@@ -63,56 +80,43 @@
         },
         "ui": {
           "pos": [
-            500.0,
-            60.0
+            540.0,
+            0.0
           ],
           "label": "Echo"
         }
       },
       {
-        "id": "4",
+        "id": "5",
         "kind": "gain",
         "params": {
           "gain": -3.0
         },
         "ui": {
           "pos": [
-            760.0,
-            60.0
+            810.0,
+            0.0
           ],
           "label": "Level"
         }
       },
       {
-        "id": "5",
+        "id": "6",
         "kind": "meter",
         "ui": {
           "pos": [
-            980.0,
-            60.0
-          ]
-        }
-      },
-      {
-        "id": "6",
-        "kind": "audio_out",
-        "ui": {
-          "pos": [
-            1200.0,
-            60.0
+            1080.0,
+            0.0
           ]
         }
       },
       {
         "id": "7",
-        "kind": "comment",
-        "config": {
-          "text": "Plug a guitar into input 1 of your audio interface and pick it in the Devices tab (smallest buffer that doesn't crackle; 128 frames is a good start). You hear yourself through a tone filter and an echo; no need to press play.\n\nTone: lower cutoff for a darker sound. Echo: time in seconds, feedback for more repeats, mix for how loud they are."
-        },
+        "kind": "audio_out",
         "ui": {
           "pos": [
-            0.0,
-            -180.0
+            1350.0,
+            0.0
           ]
         }
       },
@@ -120,21 +124,21 @@
         "id": "8",
         "kind": "comment",
         "config": {
-          "text": "Try this: set Echo's config unit to beats to lock the repeats to the tempo, or add a second Biquad in peak mode before Level for a mid boost."
+          "text": "Try this: set Echo's unit to beats (Node tab, config) to lock the repeats to the tempo, or add a second Biquad in peak mode before Level for a mid boost."
         },
         "ui": {
           "pos": [
-            500.0,
-            260.0
+            540.0,
+            220.0
+          ],
+          "size": [
+            420.0,
+            80.0
           ]
         }
       }
     ],
     "wires": [
-      {
-        "from": "1:out",
-        "to": "2:in"
-      },
       {
         "from": "2:out",
         "to": "3:in"
@@ -150,25 +154,22 @@
       {
         "from": "5:out",
         "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
       }
     ],
     "frames": [
       {
         "label": "Pedalboard",
         "rect": [
-          -40.0,
-          0.0,
-          1440.0,
+          -30.0,
+          -50.0,
+          1606.0,
           220.0
         ]
       }
     ]
-  },
-  "view": {
-    "center": [
-      600.0,
-      60.0
-    ],
-    "zoom": 0.85
   }
 }

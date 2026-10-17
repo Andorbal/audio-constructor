@@ -21,6 +21,23 @@
     "nodes": [
       {
         "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Welcome! This is a patch: nodes joined by wires. Sound flows left to right, from the Oscillator to Audio Out.\n\n1. Press Space to play. Press it again to stop.\n2. Drag the oscillator's freq value left and right. Ctrl-drag is fine, Shift-drag is coarse; click to type a number.\n3. Change shape to sine, square, or pulse."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -184.0
+          ],
+          "size": [
+            520.0,
+            144.0
+          ]
+        }
+      },
+      {
+        "id": "2",
         "kind": "oscillator",
         "params": {
           "freq": 220.0,
@@ -29,63 +46,50 @@
         "ui": {
           "pos": [
             0.0,
-            40.0
+            0.0
           ]
         }
       },
       {
-        "id": "2",
+        "id": "3",
         "kind": "gain",
         "params": {
           "gain": -18.0
         },
         "ui": {
           "pos": [
-            260.0,
-            40.0
-          ]
-        }
-      },
-      {
-        "id": "3",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            480.0,
-            40.0
+            270.0,
+            0.0
           ]
         }
       },
       {
         "id": "4",
-        "kind": "scope",
+        "kind": "meter",
         "ui": {
           "pos": [
-            700.0,
-            40.0
+            540.0,
+            0.0
           ]
         }
       },
       {
         "id": "5",
-        "kind": "audio_out",
+        "kind": "scope",
         "ui": {
           "pos": [
-            940.0,
-            40.0
+            810.0,
+            0.0
           ]
         }
       },
       {
         "id": "6",
-        "kind": "comment",
-        "config": {
-          "text": "Welcome! This is a patch: nodes joined by wires. Sound flows left to right, from the Oscillator to Audio Out.\n\n1. Press Space to play. Press it again to stop.\n2. Drag the oscillator's freq value left and right. Ctrl-drag is fine, Shift-drag is coarse; click to type a number.\n3. Change shape to sine, square, or pulse."
-        },
+        "kind": "audio_out",
         "ui": {
           "pos": [
-            0.0,
-            -200.0
+            1080.0,
+            0.0
           ]
         }
       },
@@ -98,7 +102,11 @@
         "ui": {
           "pos": [
             0.0,
-            300.0
+            280.0
+          ],
+          "size": [
+            470.0,
+            160.0
           ]
         }
       },
@@ -110,17 +118,17 @@
         },
         "ui": {
           "pos": [
-            520.0,
-            300.0
+            540.0,
+            280.0
+          ],
+          "size": [
+            440.0,
+            128.0
           ]
         }
       }
     ],
     "wires": [
-      {
-        "from": "1:out",
-        "to": "2:in"
-      },
       {
         "from": "2:out",
         "to": "3:in"
@@ -132,14 +140,11 @@
       {
         "from": "4:out",
         "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
       }
     ]
-  },
-  "view": {
-    "center": [
-      470.0,
-      80.0
-    ],
-    "zoom": 0.9
   }
 }

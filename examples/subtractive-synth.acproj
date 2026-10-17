@@ -21,6 +21,23 @@
     "nodes": [
       {
         "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "A classic mono synth: oscillator → filter → amplifier, with one envelope opening the filter and the amp.\n\nPlay it from a MIDI keyboard (pick the input in Devices). The oscillator runs all the time; the envelope shapes each note."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -152.0
+          ],
+          "size": [
+            560.0,
+            112.0
+          ]
+        }
+      },
+      {
+        "id": "2",
         "kind": "midi_in",
         "ui": {
           "pos": [
@@ -30,20 +47,20 @@
         }
       },
       {
-        "id": "2",
+        "id": "3",
         "kind": "midi_note",
         "params": {
           "glide": 0.0
         },
         "ui": {
           "pos": [
-            220.0,
+            270.0,
             0.0
           ]
         }
       },
       {
-        "id": "3",
+        "id": "4",
         "kind": "oscillator",
         "params": {
           "shape": "saw",
@@ -52,13 +69,13 @@
         },
         "ui": {
           "pos": [
-            480.0,
+            540.0,
             0.0
           ]
         }
       },
       {
-        "id": "4",
+        "id": "5",
         "kind": "biquad",
         "params": {
           "mode": "lowpass",
@@ -66,44 +83,28 @@
         },
         "ui": {
           "pos": [
-            760.0,
-            0.0
-          ]
-        }
-      },
-      {
-        "id": "5",
-        "kind": "gain",
-        "ui": {
-          "pos": [
-            1020.0,
+            810.0,
             0.0
           ]
         }
       },
       {
         "id": "6",
-        "kind": "audio_out",
+        "kind": "gain",
         "ui": {
           "pos": [
-            1260.0,
+            1080.0,
             0.0
           ]
         }
       },
       {
         "id": "7",
-        "kind": "adsr",
-        "params": {
-          "attack": 0.005,
-          "decay": 0.25,
-          "release": 0.4,
-          "sustain": 0.5
-        },
+        "kind": "audio_out",
         "ui": {
           "pos": [
-            480.0,
-            300.0
+            1350.0,
+            0.0
           ]
         }
       },
@@ -117,8 +118,8 @@
         },
         "ui": {
           "pos": [
-            760.0,
-            300.0
+            810.0,
+            190.0
           ],
           "label": "Filter envelope"
         }
@@ -132,70 +133,44 @@
         },
         "ui": {
           "pos": [
-            760.0,
-            520.0
+            1080.0,
+            120.0
           ],
           "label": "Amp envelope"
         }
       },
       {
         "id": "a",
-        "kind": "toggle",
+        "kind": "adsr",
         "params": {
-          "value": true
+          "attack": 0.005,
+          "decay": 0.25,
+          "release": 0.4,
+          "sustain": 0.5
         },
         "ui": {
           "pos": [
-            -40.0,
-            520.0
-          ],
-          "label": "Demo"
-        }
-      },
-      {
-        "id": "b",
-        "kind": "clock",
-        "params": {
-          "duty": 0.4,
-          "interval": 0.5
-        },
-        "ui": {
-          "pos": [
-            -40.0,
-            700.0
+            540.0,
+            280.0
           ]
         }
       },
       {
-        "id": "c",
-        "kind": "math",
-        "params": {
-          "op": "multiply"
-        },
-        "ui": {
-          "pos": [
-            200.0,
-            620.0
-          ],
-          "label": "Demo gate"
-        }
-      },
-      {
-        "id": "d",
+        "id": "b",
         "kind": "math",
         "params": {
           "op": "max"
         },
         "ui": {
           "pos": [
-            220.0,
-            300.0
+            270.0,
+            190.0
           ],
           "label": "Either gate"
         }
       },
       {
-        "id": "e",
+        "id": "c",
         "kind": "compare",
         "params": {
           "b": 0.5,
@@ -203,22 +178,51 @@
         },
         "ui": {
           "pos": [
-            240.0,
-            440.0
+            270.0,
+            320.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "toggle",
+        "params": {
+          "value": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            560.0
+          ],
+          "label": "Demo"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "clock",
+        "params": {
+          "duty": 0.4,
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            700.0
           ]
         }
       },
       {
         "id": "f",
-        "kind": "comment",
-        "config": {
-          "text": "A classic mono synth: oscillator → filter → amplifier, with one envelope opening the filter and the amp.\n\nPlay it from a MIDI keyboard (pick the input in Devices). The oscillator runs all the time; the envelope shapes each note."
+        "kind": "math",
+        "params": {
+          "op": "multiply"
         },
         "ui": {
           "pos": [
-            0.0,
-            -260.0
-          ]
+            270.0,
+            600.0
+          ],
+          "label": "Demo gate"
         }
       },
       {
@@ -229,24 +233,24 @@
         },
         "ui": {
           "pos": [
-            -60.0,
-            900.0
+            0.0,
+            860.0
+          ],
+          "size": [
+            466.0,
+            96.0
           ]
         }
       }
     ],
     "wires": [
       {
-        "from": "1:midi",
-        "to": "2:midi"
+        "from": "2:midi",
+        "to": "3:midi"
       },
       {
-        "from": "2:freq",
-        "to": "3:freq"
-      },
-      {
-        "from": "3:out",
-        "to": "4:in"
+        "from": "3:freq",
+        "to": "4:freq"
       },
       {
         "from": "4:out",
@@ -257,63 +261,60 @@
         "to": "6:in"
       },
       {
-        "from": "7:out",
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "a:out",
         "to": "8:in"
       },
       {
         "from": "8:out",
-        "to": "4:cutoff"
+        "to": "5:cutoff"
       },
       {
-        "from": "7:out",
+        "from": "a:out",
         "to": "9:in"
       },
       {
         "from": "9:out",
-        "to": "5:gain"
-      },
-      {
-        "from": "a:out",
-        "to": "c:a"
-      },
-      {
-        "from": "b:gate",
-        "to": "c:b"
-      },
-      {
-        "from": "2:gate",
-        "to": "d:a"
-      },
-      {
-        "from": "c:out",
-        "to": "d:b"
+        "to": "6:gain"
       },
       {
         "from": "d:out",
-        "to": "e:a"
+        "to": "f:a"
       },
       {
-        "from": "e:out",
-        "to": "7:gate"
+        "from": "e:gate",
+        "to": "f:b"
+      },
+      {
+        "from": "3:gate",
+        "to": "b:a"
+      },
+      {
+        "from": "f:out",
+        "to": "b:b"
+      },
+      {
+        "from": "b:out",
+        "to": "c:a"
+      },
+      {
+        "from": "c:out",
+        "to": "a:gate"
       }
     ],
     "frames": [
       {
         "label": "Demo note (stand-in for a MIDI pattern)",
         "rect": [
-          -80.0,
-          470.0,
-          520.0,
-          400.0
+          -30.0,
+          510.0,
+          526.0,
+          320.0
         ]
       }
     ]
-  },
-  "view": {
-    "center": [
-      560.0,
-      260.0
-    ],
-    "zoom": 0.75
   }
 }
