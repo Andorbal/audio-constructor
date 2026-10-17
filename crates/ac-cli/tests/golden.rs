@@ -211,7 +211,10 @@ fn golden_renders_match() {
                     })
             });
             if !ok {
-                failures.push(format!("{}: levels differ beyond tolerance", path.display()));
+                failures.push(format!(
+                    "{}: levels differ beyond tolerance",
+                    path.display()
+                ));
             }
         }
     }

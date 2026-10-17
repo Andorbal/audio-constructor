@@ -1,5 +1,6 @@
 //! `audioc`: the Audio Constructor command line.
 
+mod bench;
 mod docs;
 mod inspect;
 mod render;
@@ -40,6 +41,8 @@ enum Command {
         #[arg(long, value_name = "DIR")]
         docs: Option<PathBuf>,
     },
+    /// Render stress projects and report the real-time ratio per node and overall.
+    Bench(bench::BenchArgs),
     /// Rewrite project files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
@@ -60,6 +63,7 @@ fn main() -> ExitCode {
         Command::Inspect { project } => inspect::inspect(&project),
         Command::Nodes { json, docs } => docs::nodes(json, docs.as_deref()),
         Command::Fmt { files, check } => inspect::fmt(&files, check),
+        Command::Bench(args) => bench::run(args),
     };
     match result {
         Ok(code) => code,
