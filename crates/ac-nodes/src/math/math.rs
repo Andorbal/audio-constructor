@@ -1,0 +1,209 @@
+use ac_core::{
+    Config, FloatIn, FloatOut, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec,
+    Unit, node,
+};
+
+use super::finite_or_zero;
+
+node! {
+    kind: "math",
+    name: "Math",
+    category: Math,
+    keywords: ["add", "multiply", "subtract", "divide", "arithmetic", "plus", "times"],
+    /// Combines two values, `a` and `b`, with an arithmetic operation.
+    ///
+    /// | `op` | `out` |
+    /// | --- | --- |
+    /// | `add` | a + b |
+    /// | `subtract` | a − b |
+    /// | `multiply` | a × b |
+    /// | `divide` | a ÷ b |
+    /// | `min`, `max` | the smaller or larger of a and b |
+    /// | `power` | a raised to the power b |
+    /// | `modulo` | the remainder of a ÷ b, always from 0 up to \|b\| (Euclidean: −0.25 modulo 1 is 0.75) |
+    /// | `atan2` | the angle in radians (−π..π) of the point with x = b and y = a |
+    ///
+    /// The output runs at the fastest rate of `a` and `b`: block rate when
+    /// both are controls, sample rate when either carries audio-rate
+    /// modulation. Audio wired into `a` or `b` arrives as its first channel.
+    ///
+    /// The result is always finite. A NaN or infinite input counts as 0, and
+    /// anything undefined or too large is 0: dividing by 0, modulo 0, and a
+    /// negative number to a fractional power all give 0.
+    ///
+    /// **Try this:** `multiply` an `Oscillator` by a `Slider` for a depth
+    /// control, then `add` a second `Slider` to set the centre, and wire the
+    /// result into a `Biquad` cutoff. `modulo` with `b` = 1 wraps a rising
+    /// ramp (such as `Transport.time`) into a repeating 0..1 sawtooth.
+    pub struct Math {}
+}
+
+const A: usize = 0;
+const B: usize = 1;
+const OP: usize = 2;
+const OUT: usize = 0;
+
+const OPS: &[&str] = &[
+    "add", "subtract", "multiply", "divide", "min", "max", "power", "modulo", "atan2",
+];
+
+impl Node for Math {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+
+    fn describe(_: &Config) -> Signature {
+        Signature::new()
+            .input(SocketSpec::float("a", Unit::Generic, 0.0).doc("First operand."))
+            .input(SocketSpec::float("b", Unit::Generic, 0.0).doc("Second operand."))
+            .input(SocketSpec::choice("op", OPS, "add").doc("The operation."))
+            .output(
+                SocketSpec::float("out", Unit::Generic, 0.0)
+                    .poly()
+                    .doc("The result."),
+            )
+    }
+
+    fn new(_: &Config, _: &PrepareCtx) -> Self {
+        Math {}
+    }
+
+    fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
+        let a = io.inputs.float(A);
+        let b = io.inputs.float(B);
+        let op = io.inputs.choice(OP, OPS.len());
+        let mut out = io.outputs.float(OUT);
+        // One monomorphized loop per op keeps the match out of the per-sample path.
+        match op {
+            0 => apply(&mut out, a, b, |x, y| x + y),
+            1 => apply(&mut out, a, b, |x, y| x - y),
+            2 => apply(&mut out, a, b, |x, y| x * y),
+            3 => apply(&mut out, a, b, divide),
+            4 => apply(&mut out, a, b, f32::min),
+            5 => apply(&mut out, a, b, f32::max),
+            6 => apply(&mut out, a, b, f32::powf),
+            7 => apply(&mut out, a, b, modulo),
+            _ => apply(&mut out, a, b, f32::atan2),
+        }
+    }
+
+    fn reset(&mut self) {}
+}
+
+#[inline]
+fn apply(out: &mut FloatOut, a: FloatIn, b: FloatIn, f: impl Fn(f32, f32) -> f32) {
+    out.fill_with(|i| finite_or_zero(f(finite_or_zero(a.at(i)), finite_or_zero(b.at(i)))));
+}
+
+#[inline]
+fn divide(a: f32, b: f32) -> f32 {
+    if b == 0.0 { 0.0 } else { a / b }
+}
+
+/// Euclidean remainder, in `0..|b|`.
+#[inline]
+fn modulo(a: f32, b: f32) -> f32 {
+    if b == 0.0 {
+        return 0.0;
+    }
+    let r = a.rem_euclid(b);
+    // `rem_euclid` can round up to exactly |b| for tiny negative `a`; wrap it
+    // so phase-wrapping patches never see a value outside the range.
+    if r >= b.abs() { 0.0 } else { r }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_core::testing::Harness;
+    use serde_json::json;
+
+    fn eval(op: &str, a: f32, b: f32) -> f32 {
+        let mut h = Harness::new::<Math>(json!({}));
+        h.set("a", a).set("b", b).set("op", op);
+        h.run(1).float("out")[0]
+    }
+
+    #[test]
+    fn arithmetic_ops() {
+        assert_eq!(eval("add", 2.0, 3.0), 5.0);
+        assert_eq!(eval("subtract", 2.0, 3.0), -1.0);
+        assert_eq!(eval("multiply", 2.0, 3.0), 6.0);
+        assert_eq!(eval("divide", 3.0, 2.0), 1.5);
+        assert_eq!(eval("min", 2.0, 3.0), 2.0);
+        assert_eq!(eval("max", 2.0, 3.0), 3.0);
+        assert_eq!(eval("power", 2.0, 3.0), 8.0);
+    }
+
+    #[test]
+    fn default_op_is_add() {
+        let mut h = Harness::new::<Math>(json!({}));
+        h.set("a", 1.0).set("b", 2.0);
+        assert_eq!(h.run(1).float("out")[0], 3.0);
+    }
+
+    #[test]
+    fn modulo_is_euclidean() {
+        assert_eq!(eval("modulo", 5.5, 2.0), 1.5);
+        assert_eq!(eval("modulo", -0.25, 1.0), 0.75);
+        assert_eq!(eval("modulo", -0.25, -1.0), 0.75);
+        let r = eval("modulo", -1e-9, 1.0);
+        assert!((0.0..1.0).contains(&r), "{r}");
+    }
+
+    #[test]
+    fn atan2_takes_a_as_y() {
+        let r = eval("atan2", 1.0, 0.0);
+        assert!((r - std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+        assert_eq!(eval("atan2", 0.0, 1.0), 0.0);
+        assert!((eval("atan2", 0.0, -1.0) - std::f32::consts::PI).abs() < 1e-6);
+    }
+
+    #[test]
+    fn domain_errors_give_zero() {
+        assert_eq!(eval("divide", 1.0, 0.0), 0.0);
+        assert_eq!(eval("modulo", 1.0, 0.0), 0.0);
+        assert_eq!(eval("power", -2.0, 0.5), 0.0);
+        assert_eq!(eval("power", 0.0, -1.0), 0.0);
+        assert_eq!(eval("multiply", 3e38, 10.0), 0.0);
+    }
+
+    #[test]
+    fn non_finite_inputs_count_as_zero() {
+        let mut h = Harness::new::<Math>(json!({}));
+        h.set_samples("a", vec![f32::NAN, f32::INFINITY, 1.0]);
+        h.set("b", 2.0);
+        assert_eq!(h.run(3).float("out"), vec![2.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn control_inputs_give_block_rate_output() {
+        let mut h = Harness::new::<Math>(json!({}));
+        let ramp: Vec<f32> = (0..128).map(|i| i as f32).collect();
+        h.set_block("a", ramp).set("b", 1.0);
+        let out = h.run(128);
+        // Block-rate: one value per 64-frame block.
+        assert_eq!(out.float("out")[10], 1.0);
+        assert_eq!(out.float("out")[70], 65.0);
+    }
+
+    #[test]
+    fn sample_rate_input_gives_sample_rate_output() {
+        let mut h = Harness::new::<Math>(json!({}));
+        let ramp: Vec<f32> = (0..128).map(|i| i as f32).collect();
+        h.set_samples("b", ramp).set("a", 1.0).set("op", "multiply");
+        let out = h.run(128);
+        assert_eq!(out.float("out")[10], 10.0);
+        assert_eq!(out.float("out")[127], 127.0);
+    }
+
+    #[test]
+    fn op_can_be_wired_as_an_int() {
+        let mut h = Harness::new::<Math>(json!({}));
+        h.set("a", 6.0).set("b", 3.0).set_int("op", 3);
+        assert_eq!(h.run(1).float("out")[0], 2.0);
+        // Out-of-range indices clamp to the last op instead of failing.
+        h.set_int("op", 99);
+        assert_eq!(h.run(1).float("out")[0], 6f32.atan2(3.0));
+    }
+}
