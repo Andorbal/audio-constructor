@@ -11,9 +11,9 @@ use crate::theme;
 /// short wires stay tight and backward wires loop around.
 pub fn bezier(a: Pos2, b: Pos2, zoom: f32) -> [Pos2; 4] {
     let dx = (b.x - a.x).abs();
-    let reach = (dx * 0.5)
-        .max(40.0 * zoom.max(0.3))
-        .min(260.0 * zoom.max(0.3));
+    // Short wires between close sockets stay a gentle S instead of looping.
+    let min_reach = (40.0 * zoom.max(0.3)).min((b - a).length() * 0.5);
+    let reach = (dx * 0.5).max(min_reach).min(260.0 * zoom.max(0.3));
     let back = if b.x < a.x {
         // Going backwards: push the tangents out further so the wire doesn't
         // cut straight through the nodes.

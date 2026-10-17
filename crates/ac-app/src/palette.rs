@@ -33,6 +33,8 @@ pub struct Palette {
     pub canvas: Pos2,
     pub pending: Option<PendingWire>,
     focus: bool,
+    /// Frames since it opened (the opening click mustn't close it).
+    age: u32,
 }
 
 /// What the palette offers for `query`, best first.
@@ -131,6 +133,7 @@ impl Palette {
         self.canvas = canvas;
         self.pending = pending;
         self.focus = true;
+        self.age = 0;
     }
 
     pub fn close(&mut self) {
@@ -247,8 +250,10 @@ impl Palette {
                         }
                     });
             });
-        let clicked_outside =
-            ctx.input(|i| i.pointer.any_pressed()) && !area.response.contains_pointer();
+        let clicked_outside = self.age > 0
+            && ctx.input(|i| i.pointer.any_pressed())
+            && !area.response.contains_pointer();
+        self.age += 1;
         if chosen.is_some() || clicked_outside {
             self.close();
         }

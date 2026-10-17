@@ -256,6 +256,10 @@ pub struct Canvas {
     pub edit: Option<InlineEdit>,
     menu: Option<(menu::Target, Pos2)>,
     choice: Option<(NodeId, String, Pos2)>,
+    /// Frames the menu / dropdown has been open (the opening click must
+    /// not count as a click outside).
+    menu_age: u32,
+    choice_age: u32,
     releases: Vec<PendingRelease>,
     /// Space was used to pan, so its release doesn't toggle playback.
     space_panned: bool,
@@ -271,6 +275,8 @@ pub struct Canvas {
     tips: Vec<(Rect, String)>,
     /// The view was set from the document (load, scope change).
     view_scope: Option<Vec<NodeId>>,
+    /// The view each group scope was last left at.
+    scope_views: HashMap<Vec<NodeId>, View>,
 }
 
 impl Default for Canvas {
@@ -287,6 +293,8 @@ impl Default for Canvas {
             edit: None,
             menu: None,
             choice: None,
+            menu_age: 0,
+            choice_age: 0,
             releases: Vec::new(),
             space_panned: false,
             screen: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),
@@ -295,6 +303,7 @@ impl Default for Canvas {
             hint: None,
             tips: Vec::new(),
             view_scope: None,
+            scope_views: HashMap::new(),
         }
     }
 }
@@ -390,6 +399,7 @@ impl Canvas {
             }
         }
         self.view_scope = Some(doc.scope_prefix());
+        self.scope_views.clear();
     }
 
     fn build(&self, doc: &Document, registry: &Registry) -> Scene {
@@ -601,13 +611,21 @@ impl Canvas {
         let now = ui.input(|i| i.time);
         let dt = self.live.begin_frame(now);
 
-        // A scope change (entering or leaving a group) frames the new graph.
+        // A scope change (entering or leaving a group): come back to where
+        // that graph was last seen, or frame it the first time.
         let prefix = io.doc.scope_prefix();
         if self.view_scope.as_ref() != Some(&prefix) {
-            if self.view_scope.is_some() {
-                let scene = self.build(io.doc, io.registry);
-                if let Some(b) = scene.bounds(None) {
-                    self.target = Some(View::fit(b, rect, 1.0));
+            if let Some(old) = self.view_scope.take() {
+                self.scope_views
+                    .insert(old, self.target.unwrap_or(self.view));
+                match self.scope_views.get(&prefix) {
+                    Some(v) => self.target = Some(*v),
+                    None => {
+                        let scene = self.build(io.doc, io.registry);
+                        if let Some(b) = scene.bounds(None) {
+                            self.target = Some(View::fit(b, rect, 1.0));
+                        }
+                    }
                 }
             }
             self.view_scope = Some(prefix);

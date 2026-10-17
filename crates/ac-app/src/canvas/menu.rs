@@ -65,17 +65,25 @@ impl Canvas {
                 .constrain(true)
                 .show(&ctx, |ui| {
                     egui::Frame::menu(ui.style()).show(ui, |ui| {
-                        ui.set_min_width(210.0);
-                        close = self.menu_items(ui, io, scene, &target, now);
+                        ui.set_min_width(220.0);
+                        ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+                            close = self.menu_items(ui, io, scene, &target, now);
+                        });
                     });
                 });
-            let clicked_outside = ctx.input(|i| i.pointer.any_pressed())
-                && !area.response.contains_pointer()
-                && !area.response.hovered();
+            // The click that opened the menu doesn't close it.
+            let clicked_outside = self.menu_age > 0
+                && ctx.input(|i| i.pointer.any_pressed())
+                && !area.response.contains_pointer();
             if close || clicked_outside {
                 self.menu = None;
             }
         }
+        self.menu_age = if self.menu.is_some() {
+            self.menu_age + 1
+        } else {
+            0
+        };
         if let Some((node, socket, at)) = self.choice.clone() {
             let spec = scene
                 .node(node)
@@ -118,12 +126,18 @@ impl Canvas {
                         }
                     });
                 });
-            let clicked_outside =
-                ctx.input(|i| i.pointer.any_pressed()) && !area.response.contains_pointer();
+            let clicked_outside = self.choice_age > 0
+                && ctx.input(|i| i.pointer.any_pressed())
+                && !area.response.contains_pointer();
             if close || clicked_outside {
                 self.choice = None;
             }
         }
+        self.choice_age = if self.choice.is_some() {
+            self.choice_age + 1
+        } else {
+            0
+        };
     }
 
     /// The items of a right-click menu. Returns true to close it.

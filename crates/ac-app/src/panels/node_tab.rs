@@ -381,14 +381,10 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
 
     config_fields(ui, io, id, &node);
 
-    // Documentation.
-    if let Some(e) = entry {
-        section(ui, "Help");
-        markdown::show(ui, &e.meta.doc_text());
-    } else if let NodeClass::Group(d) = &class
+    if let NodeClass::Group(d) = &class
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()
     {
-        section(ui, "Group");
+        section(ui, "Group definition");
         let mut name = def.name.clone();
         ui.horizontal(|ui| {
             ui.label("Name");
@@ -404,18 +400,28 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 });
             }
         });
+        let instances = edit::group::instance_paths(&io.doc.project, d).len();
         ui.label(
             RichText::new(format!(
-                "{} inputs, {} outputs, {} nodes inside. Every instance shares this definition.",
+                "{} inputs · {} outputs · {} nodes inside · {} instance{}. Editing the inside changes every instance.",
                 def.inputs.len(),
                 def.outputs.len(),
-                def.graph.nodes.len()
+                def.graph.nodes.len(),
+                instances,
+                if instances == 1 { "" } else { "s" }
             ))
+            .small()
             .color(theme::TEXT_MUTED),
         );
         if !def.description.is_empty() {
             markdown::show(ui, &def.description);
         }
+    }
+
+    // Documentation.
+    if let Some(e) = entry {
+        section(ui, "Help");
+        markdown::show(ui, &e.meta.doc_text());
     }
 }
 
