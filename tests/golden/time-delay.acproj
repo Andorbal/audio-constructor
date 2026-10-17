@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "name": "Delay",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "duty": 0.02,
+          "interval": 1.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "oscillator",
+        "params": {
+          "freq": 880.0,
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.5,
+          "mix": 0.5,
+          "time": 0.125
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "delay",
+        "config": {
+          "unit": "beats"
+        },
+        "params": {
+          "feedback": 0.2,
+          "mix": 0.3,
+          "time": 0.75
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            800.0,
+            100.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:gate",
+        "to": "3:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:b"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

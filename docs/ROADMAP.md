@@ -32,27 +32,53 @@ and reproduce the same audio from the command line.
 - [x] Clipboard format (subgraph as JSON) with id remapping on paste.
 
 ### M1.3 Compiler and offline engine
-- [ ] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
-- [ ] Rate and channel inference; implicit conversions.
-- [ ] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
-- [ ] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
-- [ ] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
-- [ ] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
-- [ ] `assert_no_alloc` guard in debug builds around `process`.
+- [x] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
+- [x] Rate and channel inference; implicit conversions.
+- [x] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
+- [x] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
+- [x] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
+- [x] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
+- [x] `assert_no_alloc` guard in debug builds around `process`.
+
+*Verified:* `cargo test -p ac-engine` (25 engine tests: conversions, upmix,
+channel and type errors, cycles named and isolated, Feedback delay, nested
+groups, reroutes, carry-over, smoothing, start modes, loop/seek, buffer
+reuse, and offline vs. null host bit-for-bit at blocks 32 and 1024, all
+under the allocation guard); `cargo test -p ac-core` (tempo map at six
+rates with tempo and meter changes); `cargo test -p ac-cli --test golden`
+(golden hashes, live-vs-offline determinism, and the `audioc render` binary
+matching the library).
 
 ### M1.4 Phase 1 nodes
 Every node in NODES.md marked **P1**, with unit tests and at least one golden project per category:
 AudioIn, AudioOut, MidiIn, Record, Oscillator, Clip, Transport, Gain, Pan, Mix, Biquad, Delay, Constant, Math, Unary, Compare, Map, ADSR, Clock, MidiNote, Button, Toggle, Slider, Meter, Scope, Readout, Feedback, Reroute, Group, SplitChannels, MergeChannels, Comment.
-- [ ] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
-- [ ] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+- [x] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
+- [x] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+
+*Verified:* all 32 kinds registered (`every_phase1_node_is_registered`);
+`cargo test -p ac-nodes -p ac-dsp` (unit tests per node: known frequencies,
+impulse responses, generator contract, edge cases, block size 1; a sweep
+runs every node at block sizes 1/64/1024 under the allocation guard);
+14 golden projects in `tests/golden/` cover every category with P1 nodes;
+`docs/reference/` is generated and a test fails if it goes stale.
 
 ### M1.5 Real-time runtime and devices
-- [ ] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
-- [ ] midir input with timestamps → block offsets.
-- [ ] Null host for tests and headless CI.
-- [ ] Recording through a disk thread; files land in `<project>/assets/`.
-- [ ] `audioc run` (headless live); `audioc devices`.
+- [x] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.
+- [x] midir input with timestamps → block offsets.
+- [x] Null host for tests and headless CI.
+- [x] Recording through a disk thread; files land in `<project>/assets/`.
+- [x] `audioc run` (headless live); `audioc devices`.
 - [ ] Latency measurement (loopback test in the Devices panel, manual).
+
+*Verified:* `cargo test -p ac-io` (duplex ring pass-through, underrun and
+overrun; MIDI offsets and rebasing; disk recorder through the real Record
+node; latency correlation on a simulated loopback to the exact sample;
+paced null host; live hot-swap and parameters; all under the allocation
+guard); `cargo test -p ac-cli` (`audioc devices`, `run --null` with and
+without recording, error paths; `tests/acceptance.rs` records 30 s through
+the live path, plays it back from a Clip after save and reopen, and gets
+the same samples). Real devices, MIDI hardware, and the loopback latency
+measurement need a human; steps are in the merge request.
 
 ### M1.6 Desktop editor
 - [ ] eframe shell, theme module, fonts, icons; dark theme.

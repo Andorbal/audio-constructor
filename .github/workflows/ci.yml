@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Work branches get CI on every push, before a merge request exists.
+    branches: [main, "claude/**", "phase-*/**"]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -62,3 +67,32 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+
+  bench:
+    name: Bench (vs. base branch)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Bench the base branch
+        run: |
+          git worktree add ../base "origin/${{ github.base_ref }}"
+          if [ -f ../base/crates/ac-cli/src/bench.rs ]; then
+            (cd ../base && cargo build --release -p ac-cli && ./target/release/audioc bench --seconds 5 --repeat 3 --json > ../base-bench.json)
+          else
+            echo "The base branch has no bench yet; nothing to compare against."
+          fi
+      - name: Bench this branch and compare (fails on a >20 % slowdown)
+        run: |
+          cargo build --release -p ac-cli
+          if [ -f ../base-bench.json ]; then
+            ./target/release/audioc bench --seconds 5 --repeat 3 --compare ../base-bench.json --threshold 0.2
+          else
+            ./target/release/audioc bench --seconds 5 --repeat 3
+          fi

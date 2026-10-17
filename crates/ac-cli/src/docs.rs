@@ -212,3 +212,29 @@ fn demote_headings(doc: &str) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The committed reference must match what the nodes' doc comments say.
+    /// Regenerate with `cargo run -p ac-cli -- nodes --docs docs/reference`.
+    #[test]
+    fn committed_reference_is_up_to_date() {
+        let dir = std::env::temp_dir().join(format!("ac-docs-{}", std::process::id()));
+        write_docs(&ac_nodes::registry(), &dir).unwrap();
+        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference");
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let entry = entry.unwrap();
+            let fresh = std::fs::read_to_string(entry.path()).unwrap();
+            let name = entry.file_name();
+            let old = std::fs::read_to_string(committed.join(&name)).unwrap_or_default();
+            assert!(
+                fresh == old,
+                "docs/reference/{} is stale; run `cargo run -p ac-cli -- nodes --docs docs/reference`",
+                name.to_string_lossy()
+            );
+        }
+        std::fs::remove_dir_all(dir).ok();
+    }
+}

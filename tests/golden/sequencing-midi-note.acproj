@@ -1,0 +1,208 @@
+{
+  "schema_version": 1,
+  "name": "MIDI note",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "midi_note",
+        "params": {
+          "glide": 0.05
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            450.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.005,
+          "release": 0.1
+        },
+        "ui": {
+          "pos": [
+            450.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "map",
+        "params": {
+          "out_max": -6.0,
+          "out_min": -60.0
+        },
+        "ui": {
+          "pos": [
+            650.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            700.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:freq",
+        "to": "3:freq"
+      },
+      {
+        "from": "2:gate",
+        "to": "4:gate"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:gain"
+      },
+      {
+        "from": "3:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true,
+    "midi": [
+      [
+        1000,
+        [
+          144,
+          60,
+          100
+        ]
+      ],
+      [
+        12000,
+        [
+          144,
+          64,
+          100
+        ]
+      ],
+      [
+        15000,
+        [
+          128,
+          60,
+          0
+        ]
+      ],
+      [
+        24000,
+        [
+          128,
+          64,
+          0
+        ]
+      ],
+      [
+        30000,
+        [
+          144,
+          67,
+          80
+        ]
+      ],
+      [
+        30001,
+        [
+          144,
+          55,
+          90
+        ]
+      ],
+      [
+        40000,
+        [
+          128,
+          67,
+          0
+        ]
+      ],
+      [
+        44000,
+        [
+          128,
+          55,
+          0
+        ]
+      ]
+    ]
+  }
+}

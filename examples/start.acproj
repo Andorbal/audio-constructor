@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "name": "Start",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 10.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            40.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gain",
+        "params": {
+          "gain": -18.0
+        },
+        "ui": {
+          "pos": [
+            260.0,
+            40.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            480.0,
+            40.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "scope",
+        "ui": {
+          "pos": [
+            700.0,
+            40.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            940.0,
+            40.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "Welcome! This is a patch: nodes joined by wires. Sound flows left to right, from the Oscillator to Audio Out.\n\n1. Press Space to play. Press it again to stop.\n2. Drag the oscillator's freq value left and right. Ctrl-drag is fine, Shift-drag is coarse; click to type a number.\n3. Change shape to sine, square, or pulse."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -200.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Shift+A opens the add palette. Type \"biquad\" (or \"lpf\") and press Enter, then drop it onto the wire between Oscillator and Gain to splice it in.\n• Add a second Oscillator with shape sine and freq 3 Hz, then wire its out into the first oscillator's fm socket for vibrato.\n• Select nodes and press Ctrl+G to pack them into a group; Tab goes inside."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "comment",
+        "config": {
+          "text": "Now break it:\n• Wire Audio Out's input from two places at once (the newest wire wins).\n• Make a loop from Gain back into the Oscillator: the Problems tab explains why it's refused, and a Feedback node is the fix.\n• Ctrl+Z undoes anything."
+        },
+        "ui": {
+          "pos": [
+            520.0,
+            300.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      }
+    ]
+  },
+  "view": {
+    "center": [
+      470.0,
+      80.0
+    ],
+    "zoom": 0.9
+  }
+}

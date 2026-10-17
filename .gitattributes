@@ -1,0 +1,6 @@
+# Project files, expectations, and docs are compared byte for byte in tests;
+# keep LF endings on every platform.
+* text=auto eol=lf
+*.wav binary
+*.ttf binary
+*.png binary

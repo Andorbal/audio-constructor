@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "name": "Meter, scope, readout",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 3455.7519189487725,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "unary",
+        "params": {
+          "op": "sin"
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "b": 0.25,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "scope",
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "readout",
+        "ui": {
+          "pos": [
+            720.0,
+            150.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:time",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "1:bpm",
+        "to": "8:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

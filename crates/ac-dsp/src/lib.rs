@@ -7,4 +7,11 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod biquad;
+pub mod delay;
+pub mod envelope;
+pub mod interp;
+pub mod osc;
+pub mod resample;
+pub mod smooth;
 pub mod util;
