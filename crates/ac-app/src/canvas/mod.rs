@@ -279,6 +279,11 @@ pub struct Canvas {
     scope_views: HashMap<Vec<NodeId>, View>,
     /// The current graph with interface wires, refreshed each paint.
     graph_cache: ac_core::Graph,
+    /// Frame the graph once the canvas knows its real size: a project
+    /// loaded before the first frame was framed against a guess, and the
+    /// window and panels settle over the first few frames. Counts the
+    /// frames left to follow size changes, with the rect last framed.
+    fit_on_show: (u8, Rect),
 }
 
 impl Default for Canvas {
@@ -307,6 +312,7 @@ impl Default for Canvas {
             view_scope: None,
             scope_views: HashMap::new(),
             graph_cache: ac_core::Graph::default(),
+            fit_on_show: (0, Rect::NOTHING),
         }
     }
 }
@@ -351,17 +357,26 @@ impl Canvas {
         }
     }
 
+    /// Canvas bounds of every node and frame in the current graph.
+    fn everything(&self, doc: &Document, registry: &Registry) -> Option<Rect> {
+        let frames = doc.graph().frames.iter().map(frame_rect);
+        self.build(doc, registry)
+            .bounds(None)
+            .into_iter()
+            .chain(frames)
+            .reduce(|a, b| a.union(b))
+    }
+
     /// Frame everything (Home).
     pub fn fit_all(&mut self, doc: &Document, registry: &Registry) {
-        let scene = self.build(doc, registry);
-        self.fit(scene.bounds(None), 1.0);
+        self.fit(self.everything(doc, registry), 1.0);
     }
 
     /// Frame the selection (`.`).
     pub fn fit_selection(&mut self, doc: &Document, registry: &Registry) {
         let scene = self.build(doc, registry);
         if doc.selection.is_empty() {
-            self.fit(scene.bounds(None), 1.0);
+            self.fit(self.everything(doc, registry), 1.0);
         } else {
             self.fit(scene.bounds(Some(&doc.selection)), 1.5);
         }
@@ -394,11 +409,11 @@ impl Canvas {
                 self.target = None;
             }
             _ => {
-                let scene = self.build(doc, registry);
-                if let Some(b) = scene.bounds(None) {
+                if let Some(b) = self.everything(doc, registry) {
                     self.view = View::fit(b, self.screen, 1.0);
                 }
                 self.target = None;
+                self.fit_on_show = (6, Rect::NOTHING);
             }
         }
         self.view_scope = Some(doc.scope_prefix());
@@ -614,6 +629,17 @@ impl Canvas {
     pub fn show(&mut self, ui: &mut egui::Ui, io: &mut CanvasIo) {
         let rect = ui.available_rect_before_wrap();
         self.screen = rect;
+        let (frames, framed) = self.fit_on_show;
+        if frames > 0 && rect.width() > 1.0 && rect.height() > 1.0 {
+            if rect != framed
+                && let Some(b) = self.everything(io.doc, io.registry)
+            {
+                self.view = View::fit(b, rect, 1.0);
+                self.target = None;
+            }
+            self.fit_on_show = (frames - 1, rect);
+            ui.ctx().request_repaint();
+        }
         let id = egui::Id::unique("canvas");
         let response = ui.interact(rect, id, egui::Sense::click_and_drag());
         let now = ui.input(|i| i.time);
@@ -629,8 +655,7 @@ impl Canvas {
                 match self.scope_views.get(&prefix) {
                     Some(v) => self.target = Some(*v),
                     None => {
-                        let scene = self.build(io.doc, io.registry);
-                        if let Some(b) = scene.bounds(None) {
+                        if let Some(b) = self.everything(io.doc, io.registry) {
                             self.target = Some(View::fit(b, rect, 1.0));
                         }
                     }
