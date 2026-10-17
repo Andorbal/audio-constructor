@@ -19,7 +19,7 @@ use ac_engine::Processor;
 use crate::latency::{Latency, LatencyError};
 use crate::midi::MidiReceiver;
 use crate::runtime::{
-    AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, Stopped,
+    AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, StartError, Stopped,
     StreamCounters, StreamInfo, StreamStats,
 };
 
@@ -64,7 +64,7 @@ impl AudioHost for NullAudio {
         self: Box<Self>,
         processor: Processor,
         midi: Option<MidiReceiver>,
-    ) -> Result<Box<dyn AudioStream>, AudioError> {
+    ) -> Result<Box<dyn AudioStream>, StartError> {
         let info = self.info;
         let counters = Arc::new(StreamCounters::default());
         let status = processor.status().clone();
@@ -101,8 +101,10 @@ impl AudioHost for NullAudio {
                 }
                 core
             })
-            .map_err(|e| {
-                AudioError::Backend(format!("couldn't start the null audio thread: {e}"))
+            .map_err(|e| StartError {
+                error: AudioError::Backend(format!("couldn't start the null audio thread: {e}")),
+                // The unspawned closure was dropped, returning the processor.
+                returned: ctl.returned.try_recv().ok().map(Box::new),
             })?;
         Ok(Box::new(NullStream {
             info,

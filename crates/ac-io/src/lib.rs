@@ -59,7 +59,9 @@ pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, b
 pub use null::{NullAudio, NullHost, NullStream};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
-pub use runtime::{AudioError, AudioHost, AudioStream, Stopped, StreamInfo, StreamStats};
+pub use runtime::{
+    AudioError, AudioHost, AudioStream, StartError, Stopped, StreamInfo, StreamStats,
+};
 pub use wav::{BitDepth, read_wav, write_wav};
 
 // Unit tests run under the allocation guard, so a real-time path that

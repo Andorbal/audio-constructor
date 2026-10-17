@@ -185,13 +185,37 @@ pub trait AudioHost {
     fn info(&self) -> &StreamInfo;
 
     /// Start calling `processor` from the device callback, feeding it MIDI
-    /// from `midi` if given.
+    /// from `midi` if given. On failure the processor comes back with the
+    /// error (when the backend released it), so another device can be tried.
     fn start(
         self: Box<Self>,
         processor: Processor,
         midi: Option<MidiReceiver>,
-    ) -> Result<Box<dyn AudioStream>, AudioError>;
+    ) -> Result<Box<dyn AudioStream>, StartError>;
 }
+
+/// A stream that couldn't start, and the engine half it was given.
+pub struct StartError {
+    pub error: AudioError,
+    pub returned: Option<Box<Stopped>>,
+}
+
+impl fmt::Debug for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StartError")
+            .field("error", &self.error)
+            .field("returned", &self.returned.is_some())
+            .finish()
+    }
+}
+
+impl fmt::Display for StartError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+impl std::error::Error for StartError {}
 
 /// A running host. Dropping it stops the stream.
 pub trait AudioStream: Send {

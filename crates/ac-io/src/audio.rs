@@ -33,8 +33,8 @@ use crate::convert::interleave;
 use crate::latency::{Latency, LatencyError};
 use crate::midi::MidiReceiver;
 use crate::runtime::{
-    AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, InputRing, Stopped,
-    StreamCounters, StreamInfo, StreamStats, error_code, input_ring_frames,
+    AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, InputRing,
+    StartError, Stopped, StreamCounters, StreamInfo, StreamStats, error_code, input_ring_frames,
 };
 
 /// Frames per callback when nothing was asked for and the device allows it:
@@ -386,13 +386,19 @@ impl CpalAudio {
                     .unwrap_or_default();
                 pick_config(&def, &ranges, rate)
             });
+            // The input may offer different callback sizes; match the
+            // output's where it can.
+            let in_buffer = |c: &SupportedStreamConfig| match buffer {
+                BufferSize::Fixed(n) => choose_buffer(Some(n), c.buffer_size()).0,
+                BufferSize::Default => BufferSize::Default,
+            };
             match picked {
                 Some(c) => Some((
                     d,
                     StreamConfig {
                         channels: c.channels(),
                         sample_rate: rate,
-                        buffer_size: buffer,
+                        buffer_size: in_buffer(&c),
                     },
                     c.sample_format(),
                 )),
@@ -584,7 +590,7 @@ impl AudioHost for CpalAudio {
         self: Box<Self>,
         processor: Processor,
         midi: Option<MidiReceiver>,
-    ) -> Result<Box<dyn AudioStream>, AudioError> {
+    ) -> Result<Box<dyn AudioStream>, StartError> {
         let me = *self;
         let mut info = me.info;
         let counters = Arc::new(StreamCounters::default());
@@ -599,11 +605,22 @@ impl AudioHost for CpalAudio {
             let mut input_stream = None;
             let mut input_ring = None;
             if let Some((dev, cfg, fmt)) = &me.input {
-                let cfg = StreamConfig {
-                    buffer_size: buffer,
-                    ..*cfg
-                };
-                match build_input(dev, cfg, *fmt, &counters, &status) {
+                let mut cfg = *cfg;
+                if buffer == BufferSize::Default {
+                    cfg.buffer_size = BufferSize::Default;
+                }
+                // An input that refuses the callback size gets its default.
+                let built = build_input(dev, cfg, *fmt, &counters, &status).or_else(|e| {
+                    if cfg.buffer_size == BufferSize::Default {
+                        return Err(e);
+                    }
+                    let cfg = StreamConfig {
+                        buffer_size: BufferSize::Default,
+                        ..cfg
+                    };
+                    build_input(dev, cfg, *fmt, &counters, &status)
+                });
+                match built {
                     Ok((s, r)) => {
                         input_stream = Some(s);
                         input_ring = Some(r);
@@ -643,12 +660,18 @@ impl AudioHost for CpalAudio {
             );
             match built {
                 Ok(output) => {
-                    if let Some(s) = &input_stream {
-                        s.play().map_err(|e| AudioError::Backend(e.to_string()))?;
+                    let played = input_stream
+                        .as_ref()
+                        .map_or(Ok(()), StreamTrait::play)
+                        .and_then(|()| output.play());
+                    if let Err(e) = played {
+                        drop(output);
+                        drop(input_stream);
+                        return Err(StartError {
+                            error: AudioError::Backend(e.to_string()),
+                            returned: ctl.returned.recv_timeout(STOP_TIMEOUT).ok().map(Box::new),
+                        });
                     }
-                    output
-                        .play()
-                        .map_err(|e| AudioError::Backend(e.to_string()))?;
                     if let Ok(n) = output.buffer_size() {
                         info.buffer_size = n;
                     }
@@ -666,16 +689,28 @@ impl AudioHost for CpalAudio {
                 }
                 Err(e) => {
                     last_err = Some(e);
+                    drop(input_stream);
                     // The failed callback was dropped and sent the processor back.
-                    back = ctl.returned.recv_timeout(STOP_TIMEOUT).map_err(|_| {
-                        AudioError::Backend("the audio backend kept the engine".into())
-                    })?;
+                    match ctl.returned.recv_timeout(STOP_TIMEOUT) {
+                        Ok(b) => back = b,
+                        Err(_) => {
+                            return Err(StartError {
+                                error: AudioError::Backend(
+                                    "the audio backend kept the engine".into(),
+                                ),
+                                returned: None,
+                            });
+                        }
+                    }
                 }
             }
         }
-        Err(AudioError::UnsupportedConfig {
-            device: info.output_device.unwrap_or_default(),
-            reason: last_err.map_or_else(|| "couldn't open".into(), |e| e.to_string()),
+        Err(StartError {
+            error: AudioError::UnsupportedConfig {
+                device: info.output_device.unwrap_or_default(),
+                reason: last_err.map_or_else(|| "couldn't open".into(), |e| e.to_string()),
+            },
+            returned: Some(Box::new(back)),
         })
     }
 }
