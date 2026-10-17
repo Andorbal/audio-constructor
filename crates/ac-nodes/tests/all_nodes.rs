@@ -188,7 +188,6 @@ fn socket_names_are_unique_snake_case() {
 }
 
 #[test]
-#[ignore = "enabled once every P1 node lands (M1.4)"]
 fn every_phase1_node_is_registered() {
     let reg = ac_nodes::registry();
     let missing: Vec<_> = P1_KINDS.iter().filter(|k| !reg.contains(k)).collect();
