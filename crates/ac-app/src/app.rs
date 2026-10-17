@@ -605,6 +605,10 @@ impl EditorApp {
                     }
                     let action = match key {
                         Key::Delete | Key::Backspace if !modifiers.any() => Some(Action::Delete),
+                        // `+` needs Shift on most layouts; `=` is the same key.
+                        Key::Plus | Key::Equals if !modifiers.command && !modifiers.alt => {
+                            Some(Action::ZoomIn)
+                        }
                         _ => actions::for_key(key, modifiers),
                     };
                     let Some(a) = action else { continue };
