@@ -7,5 +7,6 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod biquad;
 pub mod osc;
 pub mod util;
