@@ -23,9 +23,11 @@ use crate::runtime::{
     StreamCounters, StreamInfo, StreamStats,
 };
 
-/// When the pacing thread falls this many periods behind (a suspended
-/// laptop, a debugger), it stops trying to catch up.
-const MAX_LAG_PERIODS: u32 = 4;
+/// When the pacing thread falls this far behind (a suspended laptop, a
+/// debugger), it stops trying to catch up. Shorter lags are caught up by
+/// running blocks back to back: timer overshoot on busy or virtualized
+/// machines can exceed several periods, and skipping would drop audio.
+const MAX_LAG: Duration = Duration::from_millis(500);
 
 /// A device-less audio host paced by a timer.
 #[derive(Clone, Debug)]
@@ -94,7 +96,7 @@ impl AudioHost for NullAudio {
                     let now = Instant::now();
                     if next > now {
                         std::thread::sleep(next - now);
-                    } else if now - next > period * MAX_LAG_PERIODS {
+                    } else if now - next > MAX_LAG.max(period * 4) {
                         status.device_xruns.fetch_add(1, Ordering::Relaxed);
                         next = now;
                     }
