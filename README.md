@@ -65,11 +65,14 @@ You need a Rust toolchain from [rustup](https://rustup.rs); the repository
 pins the exact version in `rust-toolchain.toml`, and rustup installs it on
 first build.
 
-- **Linux:** the ALSA and udev development headers, e.g.
-  `sudo apt install libasound2-dev libudev-dev` (Debian/Ubuntu) or
-  `sudo dnf install alsa-lib-devel systemd-devel` (Fedora). The editor
-  needs a desktop session (X11 or Wayland) and a GPU driver with Vulkan or
-  OpenGL.
+- **Linux:** `pkg-config` and the ALSA development headers, e.g.
+  `sudo apt install pkg-config libasound2-dev` (Debian/Ubuntu) or
+  `sudo dnf install pkgconf alsa-lib-devel` (Fedora). The editor needs a
+  desktop session (X11 or Wayland) and a GPU driver with Vulkan or OpenGL.
+  For JACK, build with `--features jack` (needs the JACK development
+  files); PipeWire works through its ALSA and JACK shims.
+- **Windows ASIO** (optional): build with `--features asio` and the
+  Steinberg ASIO SDK (`CPAL_ASIO_DIR`); WASAPI works without it.
 - **macOS and Windows:** nothing extra.
 
 ```
@@ -98,7 +101,9 @@ preview).
 ```
 audioc render examples/subtractive-synth.acproj -o synth.wav   # offline render (16/24/32f WAV)
 audioc run examples/guitar-pedalboard.acproj                    # live, headless; Ctrl+C stops
+audioc run examples/start.acproj --null --duration 5            # same, without audio hardware
 audioc devices                                                  # audio and MIDI devices
+audioc latency                                                  # round trip via a loopback cable
 audioc validate my.acproj                                       # compile report
 audioc inspect my.acproj                                        # nodes, wires, groups
 audioc nodes                                                    # every node (also --json, --docs DIR)
