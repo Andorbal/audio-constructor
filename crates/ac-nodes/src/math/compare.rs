@@ -32,10 +32,10 @@ node! {
     /// infinite inputs count as 0, and a negative `hysteresis` counts as 0.
     /// Restarting the transport clears the held state.
     ///
-    /// **Try this:** compare an `EnvelopeFollower` (or any level signal) with
-    /// a `Slider` threshold, `hysteresis` 0.05, to get a clean gate that opens
-    /// on loud passages. Or compare `Transport.time` with a number to switch
-    /// something on partway through a song.
+    /// **Try this:** compare a slow `Oscillator` (or any level signal) with a
+    /// `Slider` threshold, `hysteresis` 0.05, for a clean gate to drive an
+    /// `ADSR`. Or compare `Transport.time` with a number to switch something
+    /// on partway through a song.
     pub struct Compare {
         on: bool,
     }
