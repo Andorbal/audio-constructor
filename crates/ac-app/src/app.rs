@@ -114,8 +114,12 @@ impl EditorApp {
             None => match files::find_start_example().filter(|_| opts.start_example) {
                 Some(p) => match files::open_project(&p, &registry) {
                     // The example opens as an untitled copy, so saving
-                    // doesn't overwrite the shipped file.
-                    Ok((proj, assets)) => (proj, None, files::project_dir(&p), assets),
+                    // doesn't overwrite the shipped file. Its stored view
+                    // was set on someone else's window: frame it to this one.
+                    Ok((mut proj, assets)) => {
+                        proj.view = None;
+                        (proj, None, files::project_dir(&p), assets)
+                    }
                     Err(_) => (
                         files::default_project(&registry),
                         None,
