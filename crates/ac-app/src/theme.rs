@@ -21,7 +21,7 @@ pub const WELL_BG: Color32 = Color32::from_rgb(0x15, 0x16, 0x1A);
 pub const BORDER: Color32 = Color32::from_rgb(0x30, 0x33, 0x3A);
 
 /// Node card body. Slightly translucent so wires behind it read as dimmed.
-pub const NODE_BG: Color32 = Color32::from_rgba_premultiplied(0x27, 0x2A, 0x31, 0xF2);
+pub const NODE_BG: Color32 = Color32::from_rgba_premultiplied(0x25, 0x28, 0x2E, 0xEA);
 /// Node outline.
 pub const NODE_OUTLINE: Color32 = Color32::from_rgb(0x38, 0x3C, 0x45);
 /// Outline of a selected node.

@@ -18,6 +18,9 @@ use crate::theme;
 /// is never lost between blocks.
 const MIN_HOLD: f64 = 0.04;
 
+/// Pointer travel (points) that sweeps an inline value's whole soft range.
+const DRAG_TRAVEL: f32 = 320.0;
+
 impl Canvas {
     /// Handle the pointer for this frame. Returns whether the document changed.
     pub(super) fn handle_pointer(
@@ -202,7 +205,7 @@ impl Canvas {
                     .and_then(|n| n.socket(&socket, true))
                     .and_then(|s| s.spec.clone().map(|spec| (spec, field_rect(s))));
                 match spec {
-                    Some((spec, field)) if widgets::field(&spec) == widgets::Field::Number => {
+                    Some((spec, _)) if widgets::field(&spec) == widgets::Field::Number => {
                         let start = io
                             .doc
                             .graph()
@@ -214,7 +217,9 @@ impl Canvas {
                             spec,
                             start,
                             origin_x: origin.x,
-                            width: t.rect_to_screen(field).width(),
+                            // A fixed travel, not the field's width: narrow
+                            // fields would be too touchy.
+                            width: DRAG_TRAVEL,
                         };
                         self.hint = Some("Ctrl: fine · Shift: coarse".into());
                     }

@@ -304,21 +304,56 @@ pub fn paint_number(
     if zoom < 0.45 {
         return;
     }
+    label_and_value(painter, rect, zoom, label, value, 0.0, true, state.alpha);
+}
+
+/// The value right-aligned, and the label left-aligned in whatever room is
+/// left (truncated, or dropped when there's none: the value matters more).
+#[allow(clippy::too_many_arguments)]
+fn label_and_value(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    label: &str,
+    value: &str,
+    right_pad: f32,
+    mono: bool,
+    alpha: f32,
+) {
     let pad = 6.0 * zoom;
-    let font = theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false);
-    painter.text(
-        pos2(rect.min.x + pad, rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        font,
-        theme::fade(theme::TEXT_MUTED, state.alpha),
+    let size = if mono {
+        theme::FONT_VALUE
+    } else {
+        theme::FONT_NODE_LABEL
+    };
+    let vg = painter.layout_no_wrap(
+        value.to_string(),
+        theme::canvas_font(size, zoom, mono),
+        theme::fade(theme::TEXT_STRONG, alpha),
     );
-    painter.text(
-        pos2(rect.max.x - pad, rect.center().y),
-        Align2::RIGHT_CENTER,
-        value,
-        theme::canvas_font(theme::FONT_VALUE, zoom, true),
-        theme::fade(theme::TEXT_STRONG, state.alpha),
+    let vx = rect.max.x - pad - right_pad - vg.size().x;
+    painter.galley(
+        pos2(vx, rect.center().y - vg.size().y / 2.0),
+        vg,
+        theme::TEXT_STRONG,
+    );
+    let room = vx - rect.min.x - 2.0 * pad;
+    if room < 14.0 * zoom {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::single_section(
+        label.to_string(),
+        egui::TextFormat::simple(
+            theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
+            theme::fade(theme::TEXT_MUTED, alpha),
+        ),
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(room);
+    let lg = painter.layout_job(job);
+    painter.galley(
+        pos2(rect.min.x + pad, rect.center().y - lg.size().y / 2.0),
+        lg,
+        theme::TEXT_MUTED,
     );
 }
 
@@ -337,14 +372,6 @@ pub fn paint_choice(
         return;
     }
     let pad = 6.0 * zoom;
-    let font = theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false);
-    painter.text(
-        pos2(rect.min.x + pad, rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        font.clone(),
-        theme::fade(theme::TEXT_MUTED, state.alpha),
-    );
     let caret = theme::canvas_font(theme::FONT_SMALL, zoom, false);
     painter.text(
         pos2(rect.max.x - pad, rect.center().y),
@@ -353,12 +380,15 @@ pub fn paint_choice(
         caret,
         theme::fade(theme::TEXT_MUTED, state.alpha),
     );
-    painter.text(
-        pos2(rect.max.x - pad - 14.0 * zoom, rect.center().y),
-        Align2::RIGHT_CENTER,
+    label_and_value(
+        painter,
+        rect,
+        zoom,
+        label,
         value,
-        font,
-        theme::fade(theme::TEXT_STRONG, state.alpha),
+        14.0 * zoom,
+        false,
+        state.alpha,
     );
 }
 

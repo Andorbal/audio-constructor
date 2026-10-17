@@ -277,6 +277,8 @@ pub struct Canvas {
     view_scope: Option<Vec<NodeId>>,
     /// The view each group scope was last left at.
     scope_views: HashMap<Vec<NodeId>, View>,
+    /// The current graph with interface wires, refreshed each paint.
+    graph_cache: ac_core::Graph,
 }
 
 impl Default for Canvas {
@@ -304,6 +306,7 @@ impl Default for Canvas {
             tips: Vec::new(),
             view_scope: None,
             scope_views: HashMap::new(),
+            graph_cache: ac_core::Graph::default(),
         }
     }
 }

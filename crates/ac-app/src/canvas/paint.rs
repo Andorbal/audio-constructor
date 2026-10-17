@@ -29,6 +29,8 @@ impl Canvas {
         let t = self.transform();
         let z = self.view.zoom;
         painter.rect_filled(self.screen, 0.0, theme::CANVAS_BG);
+        // One copy of the graph (with interface wires) for this frame's lookups.
+        self.graph_cache = io.doc.display_graph();
         paint_grid(painter, &t);
         let tele = io.engine.telemetry();
         let live = Live::new(&tele, io.doc);
@@ -512,20 +514,21 @@ impl Canvas {
                 } else {
                     theme::TEXT
                 };
+                // Audio outputs carry a small level bar between the label
+                // and the socket.
+                let audio = s.ty == SignalType::Audio;
+                let label_x = row.max.x - (theme::NODE_PAD_X + if audio { 7.0 } else { 0.0 }) * z;
                 painter.text(
-                    pos2(row.max.x - theme::NODE_PAD_X * z, row.center().y),
+                    pos2(label_x, row.center().y),
                     Align2::RIGHT_CENTER,
                     label,
                     theme::canvas_font(theme::FONT_NODE_LABEL, z, false),
                     theme::fade(color, alpha),
                 );
-                // Audio outputs carry a small level bar beside the socket.
-                if s.ty == SignalType::Audio
-                    && let Some(level) = live.tele.socket_level(&live.path(n.id), &s.name)
-                {
+                if audio && let Some(level) = live.tele.socket_level(&live.path(n.id), &s.name) {
                     level_bar(
                         painter,
-                        pos2(row.max.x - 4.5 * z, row.center().y),
+                        pos2(row.max.x - 10.0 * z, row.center().y),
                         z,
                         level,
                         alpha,
@@ -646,6 +649,11 @@ impl Canvas {
         let controlled = n.body.and_then(|(b, _)| b.controls()) == Some(s.name.as_str());
 
         if s.wired {
+            let x0 = if s.ty == SignalType::Audio {
+                x0 + 7.0 * z
+            } else {
+                x0
+            };
             painter.text(
                 pos2(x0, row.center().y),
                 Align2::LEFT_CENTER,
@@ -654,8 +662,10 @@ impl Canvas {
                 theme::fade(theme::TEXT, alpha),
             );
             // The live value arriving on the wire, muted.
-            let graph = io.doc.display_graph();
-            let src = graph.wire_into(&s.endpoint(n.id)).map(|w| w.from.clone());
+            let src = self
+                .graph_cache
+                .wire_into(&s.endpoint(n.id))
+                .map(|w| w.from.clone());
             let reading = src.as_ref().and_then(|ep| source_path(io.doc, ep));
             let value = reading
                 .as_ref()
@@ -667,7 +677,7 @@ impl Canvas {
                 {
                     level_bar(
                         painter,
-                        pos2(row.min.x + 4.5 * z, row.center().y),
+                        pos2(row.min.x + 10.0 * z, row.center().y),
                         z,
                         level,
                         alpha,

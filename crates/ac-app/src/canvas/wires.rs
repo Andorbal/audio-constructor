@@ -148,11 +148,11 @@ fn curve(c: [Pos2; 4], width: f32, color: Color32) -> Shape {
 fn flow(out: &mut Vec<Shape>, c: &[Pos2; 4], look: WireLook) {
     let pts = flatten(c);
     let db = 20.0 * look.level.max(1e-6).log10();
-    let strength = ((db + 60.0) / 60.0).clamp(0.08, 1.0);
-    let bright = theme::mix(look.color, Color32::WHITE, 0.55);
-    let color = theme::fade(bright, strength * look.alpha * 0.9);
-    let spacing = 22.0;
-    let dash: f32 = 7.0;
+    let strength = ((db + 60.0) / 60.0).clamp(0.2, 1.0);
+    let bright = theme::mix(look.color, Color32::WHITE, 0.7);
+    let color = theme::fade(bright, strength * look.alpha);
+    let spacing = 18.0;
+    let dash: f32 = 6.0;
     let phase = (look.time * 46.0) % spacing;
     let mut acc = 0.0;
     let mut next = phase;
@@ -165,7 +165,7 @@ fn flow(out: &mut Vec<Shape>, c: &[Pos2; 4], look: WireLook) {
             let b = a + dir * dash.min(len);
             out.push(Shape::line_segment(
                 [a, b],
-                Stroke::new(look.width * 0.9, color),
+                Stroke::new(look.width + 0.6, color),
             ));
             next += spacing;
         }
