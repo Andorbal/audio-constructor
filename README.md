@@ -4,7 +4,9 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: planning. See [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand.
+> Status: Phase 1 (foundation) is built: the engine, 32 nodes, the command
+> line, and the desktop editor. See [docs/ROADMAP.md](docs/ROADMAP.md) for
+> where things stand and what still needs a human with audio hardware.
 
 ## The idea
 
@@ -55,6 +57,70 @@ parts those tools are made of and lets you wire them up however you like.
    instrument so patches run inside any host. Hosting third-party plugins as
    nodes is also planned.
 
+## Getting started
+
+### Build
+
+You need a Rust toolchain from [rustup](https://rustup.rs); the repository
+pins the exact version in `rust-toolchain.toml`, and rustup installs it on
+first build.
+
+- **Linux:** the ALSA and udev development headers, e.g.
+  `sudo apt install libasound2-dev libudev-dev` (Debian/Ubuntu) or
+  `sudo dnf install alsa-lib-devel systemd-devel` (Fedora). The editor
+  needs a desktop session (X11 or Wayland) and a GPU driver with Vulkan or
+  OpenGL.
+- **macOS and Windows:** nothing extra.
+
+```
+cargo build --release
+```
+
+This builds two programs into `target/release/`: `audio-constructor` (the
+editor) and `audioc` (the command line).
+
+### Run the editor
+
+```
+cargo run --release -p ac-app                                  # opens the Start example
+cargo run --release -p ac-app -- examples/guitar-pedalboard.acproj
+```
+
+Press `Space` to play, `Shift+A` to add a node, drag between sockets to
+wire, `Ctrl+Z` to undo. Pick your audio interface and MIDI keyboard in the
+side panel's **Devices** tab (`N` toggles the panel). The examples in
+`examples/` are good places to start: **Start**, **Guitar Pedalboard**,
+**Subtractive Synth**, **Four Tracks**, and **Reverse Delay** (a Phase 2
+preview).
+
+### Use the command line
+
+```
+audioc render examples/subtractive-synth.acproj -o synth.wav   # offline render (16/24/32f WAV)
+audioc run examples/guitar-pedalboard.acproj                    # live, headless; Ctrl+C stops
+audioc devices                                                  # audio and MIDI devices
+audioc validate my.acproj                                       # compile report
+audioc inspect my.acproj                                        # nodes, wires, groups
+audioc nodes                                                    # every node (also --json, --docs DIR)
+audioc bench                                                    # real-time ratio on stress projects
+```
+
+(`cargo run --release -p ac-cli -- <args>` runs `audioc` without
+installing it; `cargo install --path crates/ac-cli` installs it.)
+
+### Develop
+
+```
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check -p ac-core -p ac-dsp -p ac-nodes -p ac-engine --target wasm32-unknown-unknown
+cargo deny check
+```
+
+The node reference in [docs/reference](docs/reference/README.md) is generated
+from the nodes' doc comments with `audioc nodes --docs docs/reference`.
+
 ## Documentation
 
 | Document | What it covers |
@@ -64,6 +130,7 @@ parts those tools are made of and lets you wire them up however you like.
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
+| [docs/reference](docs/reference/README.md) | Generated reference for every node |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 
 ## License
