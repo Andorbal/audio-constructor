@@ -309,9 +309,8 @@ impl EditorApp {
             });
         self.library_drop(&ctx, now);
 
-        if let Some(c) = self.palette.show(&ctx, &self.registry, &self.doc) {
-            let (at, pending) = (self.palette.canvas, self.palette.pending.take());
-            self.add_candidate(&c, at, pending, now);
+        if let Some(p) = self.palette.show(&ctx, &self.registry, &self.doc) {
+            self.add_candidate(&p.candidate, p.at, p.pending, now);
         }
         self.dialogs(&ctx, now);
         self.finish_frame(&ctx, now);

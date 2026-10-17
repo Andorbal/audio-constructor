@@ -209,3 +209,61 @@ fn missing_nodes_and_bad_wires_still_draw() {
             .is_some()
     );
 }
+
+#[test]
+fn dropping_a_wire_on_empty_canvas_adds_a_wired_node() {
+    let mut h = harness(Some(two_nodes()));
+    let from = h
+        .state()
+        .canvas
+        .socket_screen_pos(NodeId(1), "out", false)
+        .unwrap();
+    drag(&mut h, from, from + vec2(120.0, 260.0));
+    assert!(
+        h.state().palette.open,
+        "the palette opens where the wire dropped"
+    );
+    h.event(Event::Text("meter".into()));
+    steps(&mut h, 3);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    let doc = h.state().document();
+    let new = doc.graph().nodes.last().unwrap();
+    assert_eq!(new.kind, "meter");
+    assert!(
+        doc.graph().wires.contains(&Wire::new(
+            Endpoint::new(NodeId(1), "out"),
+            Endpoint::new(new.id, "in")
+        )),
+        "the new node is wired to the dragged output"
+    );
+}
+
+#[test]
+fn dropping_a_node_on_a_wire_splices_it_in() {
+    let mut p = two_nodes();
+    p.graph.connect(
+        Endpoint::new(NodeId(1), "out"),
+        Endpoint::new(NodeId(2), "in"),
+    );
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(3), "meter").at(120.0, 260.0));
+    let mut h = harness(Some(p));
+    let canvas = &h.state().canvas;
+    let a = canvas.socket_screen_pos(NodeId(1), "out", false).unwrap();
+    let b = canvas.socket_screen_pos(NodeId(2), "in", true).unwrap();
+    let header = canvas.node_screen_rect(NodeId(3)).unwrap().center_top() + vec2(0.0, 10.0);
+    // Drag the meter by its header so the pointer ends on the wire.
+    let target = a + (b - a) * 0.5;
+    drag(&mut h, header, target);
+    let w = &h.state().document().graph().wires;
+    assert!(w.contains(&Wire::new(
+        Endpoint::new(NodeId(1), "out"),
+        Endpoint::new(NodeId(3), "in")
+    )));
+    assert!(w.contains(&Wire::new(
+        Endpoint::new(NodeId(3), "out"),
+        Endpoint::new(NodeId(2), "in")
+    )));
+    assert_eq!(w.len(), 2);
+}

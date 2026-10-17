@@ -170,7 +170,7 @@ pub fn meter_color(db: f32) -> Color32 {
 // ---------------------------------------------------------------- geometry
 
 /// Node cards (canvas units; multiplied by zoom when drawn).
-pub const NODE_WIDTH: f32 = 184.0;
+pub const NODE_WIDTH: f32 = 196.0;
 pub const NODE_RADIUS: f32 = 7.0;
 pub const HEADER_HEIGHT: f32 = 26.0;
 pub const HEADER_STRIP: f32 = 3.0;

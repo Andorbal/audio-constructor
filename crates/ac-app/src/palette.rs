@@ -23,6 +23,15 @@ pub struct Candidate {
     pub socket: Option<String>,
 }
 
+/// What the user picked, with the wire it completes and where it goes.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Picked {
+    pub candidate: Candidate,
+    pub pending: Option<PendingWire>,
+    /// Canvas position for the new node.
+    pub at: Pos2,
+}
+
 #[derive(Default)]
 pub struct Palette {
     pub open: bool,
@@ -147,7 +156,7 @@ impl Palette {
         ctx: &egui::Context,
         registry: &Registry,
         doc: &Document,
-    ) -> Option<Candidate> {
+    ) -> Option<Picked> {
         if !self.open {
             return None;
         }
@@ -198,7 +207,7 @@ impl Palette {
                                     4.5,
                                     theme::type_color(p.ty),
                                 );
-                                let side = if p.from.is_some() { "takes" } else { "feeds" };
+                                let side = if p.from.is_some() { "take" } else { "feed" };
                                 ui.label(
                                     RichText::new(format!("Nodes that {side} {}", p.ty.name()))
                                         .small()
@@ -254,10 +263,15 @@ impl Palette {
             && ctx.input(|i| i.pointer.any_pressed())
             && !area.response.contains_pointer();
         self.age += 1;
-        if chosen.is_some() || clicked_outside {
+        let picked = chosen.map(|c| Picked {
+            candidate: c,
+            pending: self.pending.take(),
+            at: self.canvas,
+        });
+        if picked.is_some() || clicked_outside {
             self.close();
         }
-        chosen
+        picked
     }
 }
 
