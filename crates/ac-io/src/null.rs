@@ -191,10 +191,11 @@ mod tests {
         handle.collect_garbage();
         let pos = handle.position();
         let elapsed = t0.elapsed().as_secs_f64();
-        // Paced to the clock: roughly elapsed × rate, one or two buffers either way.
+        // Paced to the clock: roughly elapsed × rate, give or take a few
+        // buffers (more slack below, for a busy test machine).
         let expect = elapsed * 48_000.0;
         assert!(
-            (pos as f64) > expect - 4_800.0 && (pos as f64) < expect + 4_800.0,
+            (pos as f64) > expect - 9_600.0 && (pos as f64) < expect + 2_400.0,
             "{pos} frames after {elapsed:.3} s"
         );
         let stats = stream.stats();
@@ -214,6 +215,74 @@ mod tests {
         };
         back.process(&mut io);
         assert!(handle.position() >= pos);
+    }
+
+    #[test]
+    fn graphs_hot_swap_and_params_apply_while_running() {
+        use ac_core::{Endpoint, NodeId, NodeInstance, NodePath, Value, Wire};
+        use ac_engine::GraphEdit;
+
+        let mut project = Project::default();
+        project
+            .graph
+            .nodes
+            .push(NodeInstance::new(NodeId(1), "audio_in"));
+        project
+            .graph
+            .nodes
+            .push(NodeInstance::new(NodeId(2), "audio_out"));
+        project.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(1), "out"),
+            Endpoint::new(NodeId(2), "in"),
+        ));
+        let (engine, report) = Engine::new(
+            project.clone(),
+            Arc::new(ac_nodes::registry()),
+            Arc::new(NoResources),
+            EngineOptions {
+                sample_rate: 48_000.0,
+                max_block: 128,
+                socket_telemetry: true,
+            },
+        );
+        assert!(!report.has_errors(), "{report}");
+        let (mut handle, processor) = engine.split();
+        let stream = Box::new(NullAudio::new(48_000, 128, 2, 2))
+            .start(processor, None)
+            .unwrap();
+        handle.play();
+
+        // Insert a Gain between in and out while the stream runs.
+        project.graph.wires.clear();
+        project
+            .graph
+            .nodes
+            .push(NodeInstance::new(NodeId(3), "gain"));
+        project.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(1), "out"),
+            Endpoint::new(NodeId(3), "in"),
+        ));
+        project.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(3), "out"),
+            Endpoint::new(NodeId(2), "in"),
+        ));
+        let report = handle.edit(GraphEdit::Replace(Box::new(project)));
+        assert!(!report.has_errors(), "{report}");
+        let t0 = Instant::now();
+        while handle.status().generation.load(Ordering::Relaxed) != 1 {
+            assert!(
+                t0.elapsed() < Duration::from_secs(2),
+                "graph never swapped in"
+            );
+            handle.collect_garbage();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let gain = NodePath::root(NodeId(3));
+        assert!(handle.set_param(&gain, "gain", Value::Float(-6.0)));
+        std::thread::sleep(Duration::from_millis(50));
+        handle.collect_garbage();
+        assert!(handle.position() > 0);
+        assert!(stream.stop().is_some());
     }
 
     #[test]

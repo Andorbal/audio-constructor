@@ -19,6 +19,7 @@ use crate::util::{load_with_assets, parse_time, project_dir};
 /// How often the control loop wakes to collect garbage and check for stop.
 const TICK: Duration = Duration::from_millis(20);
 const STATUS_EVERY: Duration = Duration::from_secs(1);
+const MIDI_RESCAN_EVERY: Duration = Duration::from_secs(2);
 /// Buffer size for `--null` when none is given.
 const NULL_BUFFER: u32 = 256;
 
@@ -144,8 +145,9 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     let (mut handle, processor) = engine.split();
 
     let select = MidiSelect::parse(&args.midi);
+    let select_any = select != MidiSelect::None;
     let (mut midi, midi_rx) = MidiInputs::new();
-    if select != MidiSelect::None {
+    if select_any {
         let ports = midi.connect(select);
         match (ports.is_empty(), midi.last_error()) {
             (false, _) => println!("midi: {}", ports.join(", ")),
@@ -169,6 +171,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
         handle.play();
     }
 
+    let rescan_midi = select_any && midi.system_available();
     let outcome = control_loop(
         &mut handle,
         stream.as_mut(),
@@ -176,6 +179,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
         &recorder,
         stop,
         duration,
+        rescan_midi,
     );
     shut_down(&mut handle, stream, &recorder);
     drop(handle);
@@ -198,9 +202,11 @@ fn control_loop(
     recorder: &DiskRecorder,
     stop: &AtomicBool,
     duration: Option<Duration>,
+    rescan_midi: bool,
 ) -> Result<()> {
     let t0 = Instant::now();
     let mut next_status = t0 + STATUS_EVERY;
+    let mut next_rescan = t0 + MIDI_RESCAN_EVERY;
     let mut warned_rt = false;
     loop {
         std::thread::sleep(TICK);
@@ -227,6 +233,14 @@ fn control_loop(
         if now >= next_status {
             next_status += STATUS_EVERY;
             println!("{}", status_line(handle, now - t0, midi.dropped()));
+        }
+        if rescan_midi && now >= next_rescan {
+            // Hot-plug: pick up controllers plugged in after start.
+            next_rescan += MIDI_RESCAN_EVERY;
+            let added = midi.rescan();
+            if !added.is_empty() {
+                println!("midi: connected {}", added.join(", "));
+            }
         }
         if stop.load(Ordering::Relaxed) || duration.is_some_and(|d| now - t0 >= d) {
             return Ok(());

@@ -14,8 +14,9 @@ workspace = true
 
 [features]
 default = []
-# JACK audio on Linux (and Windows/macOS where JACK is installed). Needs the
-# JACK client library at run time.
+# JACK audio (Linux, and Windows/macOS where JACK is installed). Off by
+# default: building needs the JACK development files (`jack.pc` for
+# pkg-config), and running needs a JACK or PipeWire-JACK server.
 jack = ["cpal/jack"]
 # ASIO on Windows. Off by default: building needs the Steinberg ASIO SDK
 # (point `CPAL_ASIO_DIR` at it) and LLVM for bindgen, and distributing

@@ -287,6 +287,8 @@ pub struct MidiInputs {
     garbage_rx: Consumer<Consumer<StampedMidi>>,
     dropped: Arc<AtomicU64>,
     last_error: Option<MidiError>,
+    /// The last scan could list ports (the MIDI system is there).
+    scan_ok: bool,
 }
 
 impl fmt::Debug for MidiInputs {
@@ -310,6 +312,7 @@ impl MidiInputs {
             garbage_rx,
             dropped: Arc::new(AtomicU64::new(0)),
             last_error: None,
+            scan_ok: false,
         };
         let receiver = MidiReceiver {
             slots: (0..MAX_SOURCES).map(|_| None).collect(),
@@ -336,11 +339,15 @@ impl MidiInputs {
         let ports = match list_inputs() {
             Ok(p) => {
                 self.last_error = None;
+                self.scan_ok = true;
                 p
             }
             Err(e) => {
+                // A failed scan says nothing about the ports already open;
+                // keep them rather than closing everything.
                 self.last_error = Some(e);
-                Vec::new()
+                self.scan_ok = false;
+                return Vec::new();
             }
         };
         let select = self.select.clone();
@@ -470,6 +477,12 @@ impl MidiInputs {
     }
 
     /// Why the last scan or connection failed, if it did.
+    /// Whether the last scan reached the system's MIDI service. When it
+    /// didn't (no sequencer, no driver), rescanning won't help.
+    pub fn system_available(&self) -> bool {
+        self.scan_ok
+    }
+
     pub fn last_error(&self) -> Option<&MidiError> {
         self.last_error.as_ref()
     }
