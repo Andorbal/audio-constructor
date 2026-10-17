@@ -4,6 +4,7 @@ use ac_core::{
 };
 use ac_dsp::delay::DelayLine;
 use ac_dsp::smooth::BlockRamp;
+use ac_dsp::util::snap_samples;
 
 node! {
     kind: "delay",
@@ -69,18 +70,6 @@ fn finite_or(v: f32, default: f32) -> f32 {
     if v.is_finite() { v } else { default }
 }
 
-/// Times arrive as `f32`, so "0.01 s" is really 0.00999999977 s, a hair off
-/// 480 samples at 48 kHz. Snap to the whole sample when the difference is
-/// within `f32` rounding, so round-number times give exact integer delays.
-fn snap(samples: f64) -> f64 {
-    let whole = samples.round();
-    if (samples - whole).abs() <= samples.abs() * f64::from(f32::EPSILON) {
-        whole
-    } else {
-        samples
-    }
-}
-
 /// Bound on what the feedback path writes. A fixed delay with feedback
 /// below 1 always decays (the interpolator never boosts), but audio-rate
 /// jumps in `time` can briefly exceed unity loop gain; this keeps that
@@ -90,7 +79,7 @@ const LIMIT: f32 = 1e9;
 impl Delay {
     /// Fill `self.delays` with the delay in samples for each frame.
     fn delays(&mut self, time: FloatIn, scale: f64, frames: usize) {
-        let to_samples = |t: f32| snap(f64::from(finite_or(t, 0.0)) * scale);
+        let to_samples = |t: f32| snap_samples(f64::from(finite_or(t, 0.0)) * scale);
         if time.is_varying() {
             let mut last = to_samples(time.first());
             for (i, d) in self.delays.iter_mut().take(frames).enumerate() {

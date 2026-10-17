@@ -9,6 +9,7 @@
 
 pub mod biquad;
 pub mod delay;
+pub mod envelope;
 pub mod interp;
 pub mod osc;
 pub mod smooth;
