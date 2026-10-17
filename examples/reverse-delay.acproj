@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "name": "Reverse Delay (Phase 2 preview)",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 10.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "audio_in",
+        "config": {
+          "channel": 0,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            60.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.4,
+          "mix": 0.4,
+          "time": 0.5
+        },
+        "ui": {
+          "pos": [
+            260.0,
+            60.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            520.0,
+            60.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "comment",
+        "config": {
+          "text": "Placeholder for the Reverse Delay example. It needs the Reverse node, which arrives in Phase 2.\n\nReverse has to hear its whole input before it can play it backwards, so it can't run on a live source. When it lands it will sit between Delay and Audio Out: fed from Audio In it shows a \"disabled while live\" badge and passes silence; fed from a Clip it bakes in the background and plays."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -220.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "comment",
+        "config": {
+          "text": "Until then this is a plain echo, so the project still does something."
+        },
+        "ui": {
+          "pos": [
+            260.0,
+            240.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      }
+    ]
+  }
+}
