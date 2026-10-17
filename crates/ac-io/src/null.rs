@@ -76,6 +76,7 @@ impl AudioHost for NullAudio {
             out_channels: info.out_channels,
             input_ring: None,
             midi,
+            promote: false,
         });
         let stop = Arc::new(AtomicBool::new(false));
         let frames = info.buffer_size as usize;

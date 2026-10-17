@@ -44,6 +44,7 @@ pub mod convert;
 pub mod latency;
 pub mod midi;
 pub mod null;
+pub mod priority;
 pub mod project_file;
 pub mod record;
 pub mod runtime;

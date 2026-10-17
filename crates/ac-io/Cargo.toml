@@ -28,12 +28,17 @@ ac-core.workspace = true
 ac-engine.workspace = true
 hound.workspace = true
 # `realtime` asks the OS for real-time scheduling on the device callback
-# threads (without D-Bus; a refusal is reported, not fatal).
+# threads (MMCSS on Windows; without D-Bus it does nothing on Linux, see
+# `priority.rs`).
 cpal = { workspace = true, features = ["realtime"] }
 midir.workspace = true
 rtrb.workspace = true
 assert_no_alloc.workspace = true
 realfft.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# SCHED_FIFO for the ALSA callback thread.
+thread-priority.workspace = true
 
 [dev-dependencies]
 ac-nodes.workspace = true

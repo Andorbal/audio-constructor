@@ -624,6 +624,7 @@ impl AudioHost for CpalAudio {
                 out_channels: info.out_channels,
                 input_ring,
                 midi: back.midi,
+                promote: crate::priority::host_needs_promotion(&info.host),
             });
             let channels = info.out_channels;
             let format = me.out_format;

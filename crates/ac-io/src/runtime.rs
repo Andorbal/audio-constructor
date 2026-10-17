@@ -436,6 +436,8 @@ pub(crate) struct CallbackCore {
     midi_all: Vec<MidiEvent>,
     midi_chunk: Vec<MidiEvent>,
     probe: ProbeAudio,
+    /// Ask for real-time priority on the first callback (see `priority.rs`).
+    promote: bool,
 }
 
 pub(crate) struct CoreParts {
@@ -446,6 +448,7 @@ pub(crate) struct CoreParts {
     pub out_channels: usize,
     pub input_ring: Option<InputRing>,
     pub midi: Option<MidiReceiver>,
+    pub promote: bool,
 }
 
 /// The control-side handles that go with a [`CallbackCore`].
@@ -466,6 +469,7 @@ impl CallbackCore {
             out_channels,
             input_ring,
             midi,
+            promote,
         } = parts;
         clock::init();
         processor.set_clock(Some(clock::now_ns));
@@ -486,6 +490,7 @@ impl CallbackCore {
             midi_all: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
             midi_chunk: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
             probe,
+            promote,
         };
         (
             core,
@@ -511,11 +516,22 @@ impl CallbackCore {
         frames: usize,
         mut write: impl FnMut(&[f32], usize, usize),
     ) {
+        if self.promote {
+            // Once, before the guarded section: one system call at stream start.
+            self.promote = false;
+            if !crate::priority::promote_current_thread() {
+                self.counters.realtime_denied.store(true, Ordering::Relaxed);
+            }
+        }
         assert_no_alloc::assert_no_alloc(|| {
             self.counters.callbacks.fetch_add(1, Ordering::Relaxed);
             self.counters
                 .max_callback_frames
                 .fetch_max(frames as u64, Ordering::Relaxed);
+            if frames == 0 {
+                // Leave MIDI queued for a callback that can place it.
+                return;
+            }
             match self.midi.as_mut() {
                 Some(m) => m.drain(t, frames, self.sample_rate, &mut self.midi_all),
                 None => self.midi_all.clear(),
@@ -697,6 +713,7 @@ mod tests {
             out_channels: 2,
             input_ring: Some(InputRing::new(rx, 2, buffer)),
             midi,
+            promote: false,
         });
         (core, ctl, tx, counters)
     }
