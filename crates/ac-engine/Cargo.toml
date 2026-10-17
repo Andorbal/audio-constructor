@@ -18,3 +18,6 @@ ac-nodes.workspace = true
 serde_json.workspace = true
 rtrb.workspace = true
 assert_no_alloc.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
