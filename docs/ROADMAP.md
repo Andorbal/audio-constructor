@@ -52,8 +52,15 @@ matching the library).
 ### M1.4 Phase 1 nodes
 Every node in NODES.md marked **P1**, with unit tests and at least one golden project per category:
 AudioIn, AudioOut, MidiIn, Record, Oscillator, Clip, Transport, Gain, Pan, Mix, Biquad, Delay, Constant, Math, Unary, Compare, Map, ADSR, Clock, MidiNote, Button, Toggle, Slider, Meter, Scope, Readout, Feedback, Reroute, Group, SplitChannels, MergeChannels, Comment.
-- [ ] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
-- [ ] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+- [x] Generator contract implemented (start-on-play dropdown, stop/reset/loop/reverse/rate where applicable).
+- [x] `audioc nodes --docs` generates `docs/reference/` from node doc comments.
+
+*Verified:* all 32 kinds registered (`every_phase1_node_is_registered`);
+`cargo test -p ac-nodes -p ac-dsp` (unit tests per node: known frequencies,
+impulse responses, generator contract, edge cases, block size 1; a sweep
+runs every node at block sizes 1/64/1024 under the allocation guard);
+14 golden projects in `tests/golden/` cover every category with P1 nodes;
+`docs/reference/` is generated and a test fails if it goes stale.
 
 ### M1.5 Real-time runtime and devices
 - [ ] cpal host with device enumeration, sample rate and buffer size selection, hot-swap of graphs, parameter ring with smoothing, telemetry triple-buffers, xrun counter.

@@ -1,0 +1,172 @@
+{
+  "schema_version": 1,
+  "name": "ADSR",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "duty": 0.5,
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.02,
+          "decay": 0.1,
+          "release": 0.15,
+          "sustain": 0.4
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.0,
+          "curve": "linear",
+          "decay": 0.05,
+          "release": 0.0,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "params": {
+          "freq": 330.0,
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "math",
+        "params": {
+          "b": 0.25,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:gate",
+        "to": "2:gate"
+      },
+      {
+        "from": "1:trigger",
+        "to": "3:on"
+      },
+      {
+        "from": "2:out",
+        "to": "5:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:b"
+      },
+      {
+        "from": "3:out",
+        "to": "7:a"
+      },
+      {
+        "from": "5:out",
+        "to": "6:a"
+      },
+      {
+        "from": "7:out",
+        "to": "6:b"
+      },
+      {
+        "from": "6:out",
+        "to": "8:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

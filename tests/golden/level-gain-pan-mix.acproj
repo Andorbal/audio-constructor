@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "name": "Gain, pan, mix",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 200.0,
+          "shape": "square"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "oscillator",
+        "params": {
+          "freq": 300.0,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "pan",
+        "params": {
+          "pan": -0.5
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "gain",
+        "params": {
+          "gain": -12.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "pan",
+        "params": {
+          "pan": 0.75
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "oscillator",
+        "params": {
+          "freq": 2.0,
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -9.0
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            800.0,
+            100.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "3:in"
+      },
+      {
+        "from": "2:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "6:out",
+        "to": "3:pan"
+      },
+      {
+        "from": "3:out",
+        "to": "7:in_0"
+      },
+      {
+        "from": "5:out",
+        "to": "7:in_1"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "name": "Clip playback",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clip",
+        "config": {
+          "file": "assets/tone.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true,
+          "rate": 1.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "clip",
+        "config": {
+          "file": "assets/tone.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": false
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            500.0,
+            100.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "3:in_0"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in_1"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
