@@ -873,7 +873,7 @@ impl EditorApp {
                 self.doc.selection = new.iter().copied().collect();
                 self.canvas.mark_born(&new, now);
                 self.last_added = new;
-                self.canvas.start_grab(&mut self.doc);
+                self.canvas.start_grab(&mut self.doc, false);
             }
             Action::SelectAll => {
                 self.doc.selection = self.doc.graph().ids();
@@ -883,7 +883,7 @@ impl EditorApp {
                 let sel = self.selected_real();
                 self.doc.selection = edit::linked(self.doc.graph(), &sel);
             }
-            Action::Grab => self.canvas.start_grab(&mut self.doc),
+            Action::Grab => self.canvas.start_grab(&mut self.doc, true),
             Action::Rename => {
                 if let Some(id) = self.selected_real().into_iter().next() {
                     self.canvas.rename_node(&self.doc, &reg, id);

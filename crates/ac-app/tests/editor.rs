@@ -139,6 +139,33 @@ fn undo_and_redo() {
 }
 
 #[test]
+fn duplicate_and_place_is_one_undo_step() {
+    let mut h = harness(Some(two_nodes()));
+    h.hover_at(Pos2::new(600.0, 600.0));
+    steps(&mut h, 2);
+    press(&mut h, Modifiers::NONE, Key::A);
+    press(&mut h, Modifiers::SHIFT, Key::D);
+    // The copies follow the pointer until a click places them.
+    let place = Pos2::new(700.0, 700.0);
+    h.hover_at(place);
+    steps(&mut h, 2);
+    h.drag_at(place);
+    steps(&mut h, 2);
+    h.drop_at(place);
+    steps(&mut h, 3);
+    let doc = h.state().document();
+    assert_eq!(doc.graph().nodes.len(), 4);
+    let copy = doc.graph().nodes.last().unwrap().ui.pos;
+    assert!(
+        copy[1] > 60.0,
+        "the copies moved with the pointer: {copy:?}"
+    );
+    press(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(h.state().document().graph().nodes.len(), 2);
+    assert!(!h.state().document().is_dirty());
+}
+
+#[test]
 fn group_and_enter() {
     let mut p = two_nodes();
     p.graph.connect(

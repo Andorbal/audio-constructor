@@ -425,8 +425,11 @@ impl Canvas {
         Some(self.transform().rect_to_screen(s.node(node)?.rect))
     }
 
-    /// Start moving the selection with the pointer (`G`).
-    pub fn start_grab(&mut self, doc: &mut Document) {
+    /// Start moving the selection with the pointer (`G`). `own_step`:
+    /// record the move as its own undo step; a grab that follows a
+    /// duplicate folds into the duplicate's step instead, so one undo
+    /// removes the copies.
+    pub fn start_grab(&mut self, doc: &mut Document, own_step: bool) {
         let ids: Vec<NodeId> = doc
             .selection
             .iter()
@@ -441,7 +444,9 @@ impl Canvas {
             .filter_map(|id| doc.graph().node(*id))
             .map(|n| pos2(n.ui.pos[0], n.ui.pos[1]))
             .collect();
-        doc.checkpoint("Move");
+        if own_step {
+            doc.checkpoint("Move");
+        }
         self.gesture = Gesture::Move {
             ids,
             starts,
