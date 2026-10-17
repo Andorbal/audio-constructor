@@ -40,6 +40,9 @@ pub struct BenchArgs {
     /// Allowed slowdown before --compare fails (0.2 = 20 %).
     #[arg(long, default_value = "0.2")]
     threshold: f64,
+    /// Render each project this many times and keep the fastest run (less noise).
+    #[arg(long, default_value = "1")]
+    repeat: usize,
     /// Append the results as one JSON line to this history file.
     #[arg(long, value_name = "FILE")]
     history: Option<PathBuf>,
@@ -87,6 +90,7 @@ pub fn run(args: BenchArgs) -> Result<ExitCode> {
             resources,
             args.seconds,
             args.block_size,
+            args.repeat.max(1),
         ));
     }
     let json = results_json(&results, args.block_size);
@@ -111,6 +115,7 @@ fn bench_one(
     resources: Arc<dyn Resources>,
     seconds: f64,
     block: usize,
+    repeat: usize,
 ) -> Outcome {
     let rate = f64::from(project.settings.sample_rate);
     let kinds: BTreeMap<NodePath, String> = project
@@ -167,12 +172,13 @@ fn bench_one(
     }
     // Timing itself costs a little; measure the real-time ratio separately
     // without it so the headline number isn't inflated.
-    let realtime = {
-        engine
-            .handle
-            .status()
-            .timing_enabled
-            .store(false, Ordering::Relaxed);
+    engine
+        .handle
+        .status()
+        .timing_enabled
+        .store(false, Ordering::Relaxed);
+    let mut realtime = 0.0f64;
+    for _ in 0..repeat {
         engine.handle.play_from_start();
         let t0 = now_ns();
         let mut done = 0usize;
@@ -190,8 +196,8 @@ fn bench_one(
             done += n;
         }
         let elapsed = (now_ns() - t0).max(1) as f64 / 1e9;
-        seconds / elapsed
-    };
+        realtime = realtime.max(seconds / elapsed);
+    }
     Outcome {
         name: name.to_string(),
         realtime,
