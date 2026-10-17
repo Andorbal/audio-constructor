@@ -1,0 +1,148 @@
+name: Release
+
+# Every merge request raises the workspace version and adds its section to
+# CHANGELOG.md (CLAUDE.md; CI's "Version and changelog" job enforces it). Once
+# CI passes on a main commit whose version has no tag yet, this builds the
+# binaries and publishes them as release vX.Y.Z, tagged at that commit, with
+# the changelog section as the notes. Re-running is safe: a tagged version is
+# skipped.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Releases main's current version if it has no tag yet (e.g. after a failed run).
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plan:
+    name: Plan
+    # Only green pushes to this repository's main. workflow_run also fires for
+    # pull requests, including ones from forks whose branch is called main.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      version: ${{ steps.plan.outputs.version }}
+      release: ${{ steps.plan.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: plan
+        run: |
+          version=$(python3 scripts/release.py version)
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null || status=$?
+          case $status in
+            0)
+              echo "v$version is already released; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "release=false" >> "$GITHUB_OUTPUT"
+              ;;
+            2)
+              # Fail here, before building, if the notes are missing.
+              python3 scripts/release.py notes "$version" > /dev/null
+              echo "Releasing v$version from $(git rev-parse --short HEAD)." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "release=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::couldn't list the remote's tags (git ls-remote exited $status)"
+              exit 1
+              ;;
+          esac
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - name: Install system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - run: rustup show
+      # An explicit target fails the build, rather than mislabeling the
+      # archive, if a runner image ever changes architecture.
+      - run: cargo build --release --locked --target ${{ matrix.target }} -p ac-cli -p ac-app
+      - name: Package
+        shell: bash
+        run: |
+          name="audio-constructor-v${{ needs.plan.outputs.version }}-${{ matrix.target }}"
+          exe=""
+          if [ "$RUNNER_OS" = Windows ]; then exe=".exe"; fi
+          mkdir -p "dist/$name"
+          for bin in audio-constructor audioc; do
+            cp "target/${{ matrix.target }}/release/$bin$exe" "dist/$name/"
+          done
+          # The editor opens examples/start.acproj from next to its executable.
+          cp -R README.md LICENSE CHANGELOG.md examples "dist/$name/"
+          cd dist
+          if [ "${{ matrix.archive }}" = zip ]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish v${{ needs.plan.outputs.version }}
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Create the release and its tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: |
+          python3 scripts/release.py notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" dist/* \
+            --target "$SHA" \
+            --title "v$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+          echo "Published [v$VERSION]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$VERSION)." >> "$GITHUB_STEP_SUMMARY"
