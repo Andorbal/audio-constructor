@@ -8,6 +8,8 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > line, and the desktop editor. See [docs/ROADMAP.md](docs/ROADMAP.md) for
 > where things stand and what still needs a human with audio hardware.
 
+![The Start example playing: an oscillator through a gain, meter, and scope to the output, with live meters and a flowing wire](docs/images/editor-start.png)
+
 ## The idea
 
 Most audio software hands you finished tools: a multitrack recorder, a
@@ -95,6 +97,8 @@ side panel's **Devices** tab (`N` toggles the panel). The examples in
 `examples/` are good places to start: **Start**, **Guitar Pedalboard**,
 **Subtractive Synth**, **Four Tracks**, and **Reverse Delay** (a Phase 2
 preview).
+
+![The Subtractive Synth example: MIDI note, oscillator, filter, and envelopes, with a clock-driven demo note](docs/images/editor-synth.png)
 
 ### Use the command line
 
