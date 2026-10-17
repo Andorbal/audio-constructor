@@ -32,13 +32,22 @@ and reproduce the same audio from the command line.
 - [x] Clipboard format (subgraph as JSON) with id remapping on paste.
 
 ### M1.3 Compiler and offline engine
-- [ ] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
-- [ ] Rate and channel inference; implicit conversions.
-- [ ] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
-- [ ] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
-- [ ] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
-- [ ] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
-- [ ] `assert_no_alloc` guard in debug builds around `process`.
+- [x] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
+- [x] Rate and channel inference; implicit conversions.
+- [x] Topological schedule; buffer pool with lifetime reuse; state carry-over on recompile.
+- [x] Transport and tempo map with exact beat ↔ sample conversion (tests at several rates and tempos, including tempo changes).
+- [x] Offline renderer; `audioc render` to WAV (16/24/32f); `audioc validate`, `inspect`, `nodes`.
+- [x] Golden-render harness under `tests/golden/`; determinism test (offline vs. null real-time host at block sizes 32 and 1024).
+- [x] `assert_no_alloc` guard in debug builds around `process`.
+
+*Verified:* `cargo test -p ac-engine` (25 engine tests: conversions, upmix,
+channel and type errors, cycles named and isolated, Feedback delay, nested
+groups, reroutes, carry-over, smoothing, start modes, loop/seek, buffer
+reuse, and offline vs. null host bit-for-bit at blocks 32 and 1024, all
+under the allocation guard); `cargo test -p ac-core` (tempo map at six
+rates with tempo and meter changes); `cargo test -p ac-cli --test golden`
+(golden hashes, live-vs-offline determinism, and the `audioc render` binary
+matching the library).
 
 ### M1.4 Phase 1 nodes
 Every node in NODES.md marked **P1**, with unit tests and at least one golden project per category:

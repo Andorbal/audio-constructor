@@ -307,9 +307,9 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
 - **Events in**: MIDI, gamepad, keyboard, OSC arrive on their own threads and
   are pushed into rings with timestamps; the callback assigns them block
   offsets.
-- **Telemetry out**: meters, scope snapshots, per-node timings, and the xrun
-  counter go through `triple_buffer` slots the UI reads at frame rate. Nothing
-  waits on the UI.
+- **Telemetry out**: meters, scope rings, per-socket levels, per-node
+  timings, and the xrun counter are relaxed atomics the UI reads at frame
+  rate (DECISIONS D22). Nothing waits on the UI.
 - **Multi-core** (Phase 2): the schedule's independent chains are pushed to a
   fixed pool of real-time-priority workers; the callback thread works too and
   joins at a barrier before writing the output. If a block overruns, the xrun
@@ -317,19 +317,37 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
 - **Recording** writes to a lock-free ring drained by a disk thread; the
   disk thread, not the callback, owns the file.
 
-The engine exposes one API to all hosts:
+The engine exposes one API to all hosts. Because the control side and the
+audio side live on different threads, an `Engine` is two halves joined by
+lock-free rings (`rtrb`):
 
 ```rust
-pub struct Engine { ... }
+pub struct Engine { pub handle: EngineHandle, pub processor: Processor }
 impl Engine {
-    pub fn load(project: Project) -> Result<Engine, CompileReport>;
-    pub fn edit(&mut self, edit: GraphEdit) -> CompileReport;      // recompiles, hot-swaps
-    pub fn set_param(&self, node: NodeId, socket: &str, value: Value);
-    pub fn transport(&self) -> TransportHandle;                    // play/stop/seek/record
+    pub fn new(project: Project, registry: Arc<Registry>, resources: Arc<dyn Resources>,
+               options: EngineOptions) -> (Engine, CompileReport);   // never fails; problems are in the report
+    pub fn split(self) -> (EngineHandle, Processor);
+    pub fn process(&mut self, io: &mut HostIo);                       // offline: both halves on one thread
+}
+impl EngineHandle {                                                   // control thread (UI, CLI)
+    pub fn edit(&mut self, edit: GraphEdit) -> CompileReport;         // recompiles, hot-swaps
+    pub fn set_param(&mut self, node: &NodePath, socket: &str, value: Value) -> bool;
+    pub fn fire(&mut self, node: &NodePath, socket: &str) -> bool;    // inline trigger button
+    pub fn play(&mut self); pub fn stop(&mut self); pub fn seek(&mut self, sample: u64);
+    pub fn set_recording(&mut self, on: bool); pub fn set_loop(&mut self, r: Option<(u64, u64)>);
     pub fn telemetry(&self) -> TelemetryReader;
-    pub fn process(&mut self, io: &mut HostIo);                    // called by the audio callback or the offline renderer
+    pub fn collect_garbage(&mut self);                                // drops retired graphs off the audio thread
+}
+impl Processor {                                                      // audio thread
+    pub fn process(&mut self, io: &mut HostIo);
 }
 ```
+
+Graph swap: compiled graphs travel to the processor through a ring and are
+installed at a block boundary; node state for unchanged nodes is moved into
+the new graph by swapping boxes, and the retired graph travels back through
+another ring to be dropped on the control thread. Telemetry is published
+through relaxed atomics rather than `triple_buffer` (DECISIONS D22).
 
 ## 9. Causality: live mode vs. baked nodes
 
@@ -366,7 +384,12 @@ This keeps a single project format and a single engine, with no mode switch.
   by default and bit-exactly on the reference CI platform.
 - All randomness comes from a PRNG seeded from `(project.seed, node path)`.
 - Block size must not change the output except for `Feedback` nodes, whose
-  delay is defined in blocks (documented and tested at a fixed block size).
+  delay is defined in blocks, and signals that are block-rate by definition
+  (an `Int` such as `Transport.bar`, or a block-rate value that changes
+  over time), which update once per block. Sample-accurate sources
+  (`Transport.time`, oscillators, envelopes, clocks, MIDI) are block-size
+  independent; golden projects declare which kind they are and the test
+  suite checks both.
 
 ## 11. Device layer
 

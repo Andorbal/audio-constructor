@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "name": "Math, compare, map",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 1382.300767579509,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "unary",
+        "params": {
+          "op": "sin"
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "b": 1.0,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "compare",
+        "params": {
+          "hysteresis": 0.1,
+          "op": "greater"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "out_max": 0.4,
+          "out_min": 0.1
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "unary",
+        "params": {
+          "op": "abs"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            150.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "math",
+        "params": {
+          "op": "max"
+        },
+        "ui": {
+          "pos": [
+            1260.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1440.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:time",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:a"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:a"
+      },
+      {
+        "from": "4:out",
+        "to": "7:b"
+      },
+      {
+        "from": "4:out",
+        "to": "8:in"
+      },
+      {
+        "from": "7:out",
+        "to": "9:a"
+      },
+      {
+        "from": "8:out",
+        "to": "9:b"
+      },
+      {
+        "from": "9:out",
+        "to": "a:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

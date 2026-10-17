@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "name": "Audio in to out",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "audio_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "record",
+        "config": {
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "1:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true,
+    "input": {
+      "sine": [
+        220.0,
+        0.5
+      ],
+      "channels": 1
+    }
+  }
+}
