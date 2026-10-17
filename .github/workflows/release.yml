@@ -93,8 +93,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       - run: rustup show
       # An explicit target fails the build, rather than mislabeling the
-      # archive, if a runner image ever changes architecture.
+      # archive, if a runner image ever changes architecture. The release
+      # profile's line tables would make the Linux editor ~170 MB; dropping
+      # them (symbols stay, so backtraces still name functions) makes it ~35.
       - run: cargo build --release --locked --target ${{ matrix.target }} -p ac-cli -p ac-app
+        env:
+          CARGO_PROFILE_RELEASE_STRIP: debuginfo
       - name: Package
         shell: bash
         run: |
