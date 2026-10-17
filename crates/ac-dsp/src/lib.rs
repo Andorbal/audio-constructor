@@ -8,5 +8,8 @@
 )]
 
 pub mod biquad;
+pub mod delay;
+pub mod interp;
 pub mod osc;
+pub mod smooth;
 pub mod util;
