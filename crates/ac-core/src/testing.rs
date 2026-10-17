@@ -88,6 +88,7 @@ pub struct Harness {
     fire: Vec<Vec<u64>>,
     tempo: TempoMap,
     playing: bool,
+    recording: bool,
     position: u64,
     frame: u64,
     pending_play: bool,
@@ -158,6 +159,7 @@ impl Harness {
             fire: vec![Vec::new(); n_in],
             tempo: TempoMap::constant(sample_rate, 120.0),
             playing: true,
+            recording: false,
             position: 0,
             frame: 0,
             pending_play: true,
@@ -197,6 +199,22 @@ impl Harness {
     pub fn stop(&mut self) -> &mut Self {
         self.playing = false;
         self.pending_stop = true;
+        self
+    }
+
+    /// Set the transport's recording flag (for `Record`).
+    pub fn recording(&mut self, on: bool) -> &mut Self {
+        self.recording = on;
+        self
+    }
+
+    /// Move the transport to `position` before the next block (as a seek
+    /// while playing, this also fires `play` start triggers).
+    pub fn seek(&mut self, position: u64) -> &mut Self {
+        self.position = position;
+        if self.playing {
+            self.pending_play = true;
+        }
         self
     }
 
@@ -575,7 +593,7 @@ impl Harness {
         };
         let transport = TransportView {
             playing: self.playing,
-            recording: false,
+            recording: self.recording,
             position: self.position,
             tempo: &self.tempo,
             started: auto.play,

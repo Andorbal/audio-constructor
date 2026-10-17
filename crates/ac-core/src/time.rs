@@ -107,14 +107,18 @@ impl TempoMap {
     /// Beat position (quarter notes since transport zero) at a sample.
     pub fn beat_at(&self, sample: u64) -> f64 {
         let s = self.seg_at_sample(sample);
-        s.start_beat + (sample - s.start_sample) as f64 * s.bpm / (60.0 * self.sample_rate)
+        s.start_beat
+            + sample.saturating_sub(s.start_sample) as f64 * s.bpm / (60.0 * self.sample_rate)
     }
 
     /// The sample nearest to a beat position.
     pub fn sample_at(&self, beat: f64) -> u64 {
         let beat = beat.max(0.0);
         let s = self.seg_at_beat(beat);
-        s.start_sample + ((beat - s.start_beat) * 60.0 * self.sample_rate / s.bpm).round() as u64
+        // `as u64` saturates for huge values; the add must too.
+        s.start_sample.saturating_add(
+            ((beat - s.start_beat) * 60.0 * self.sample_rate / s.bpm).round() as u64,
+        )
     }
 
     /// Exact (unrounded) sample position of a beat, for sub-sample phase.
@@ -283,6 +287,13 @@ mod tests {
         // 6/8 has three quarter-note beats per bar.
         let m = TempoMap::new(48_000.0, &[seg(0.0, 120.0, [6, 8])]);
         assert_eq!(m.bar_at(m.sample_at(3.0)), (1, 0.0));
+    }
+
+    #[test]
+    fn huge_beats_saturate_instead_of_overflowing() {
+        let m = TempoMap::new(48_000.0, &[seg(0.0, 120.0, [4, 4]), seg(1e12, 1.0, [4, 4])]);
+        assert_eq!(m.sample_at(1e300), u64::MAX);
+        assert!(m.beat_at(u64::MAX).is_finite());
     }
 
     #[test]
