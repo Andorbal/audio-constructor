@@ -9,12 +9,21 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+name = "ac_app"
+path = "src/lib.rs"
+
 [[bin]]
 name = "audio-constructor"
 path = "src/main.rs"
 
 [lints]
 workspace = true
+
+[features]
+# Audio backends that need extra system pieces at build time (see ac-io).
+jack = ["ac-io/jack"]
+asio = ["ac-io/asio"]
 
 [dependencies]
 ac-core.workspace = true
@@ -24,3 +33,10 @@ ac-io.workspace = true
 eframe.workspace = true
 egui.workspace = true
 anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rfd = "0.17"
+directories = "6.0"
+
+[dev-dependencies]
+egui_kittest.workspace = true

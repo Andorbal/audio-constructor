@@ -135,6 +135,17 @@ impl TelemetryReader {
         )
     }
 
+    /// The ring index the scope writes next. [`Self::scope`] returns the
+    /// ring starting here (oldest first); a node that publishes a ring index
+    /// (e.g. Scope's trigger position) is located in that order at
+    /// `(index - scope_position) mod len`.
+    pub fn scope_position(&self, path: &NodePath) -> Option<usize> {
+        let t = self.layout.nodes.get(path)?;
+        let n = t.scope.1 - t.scope.0;
+        let p = t.scope_pos?;
+        (n > 0).then(|| self.store.scope_pos[p].load(Ordering::Relaxed) as usize % n)
+    }
+
     pub fn socket_level(&self, path: &NodePath, socket: &str) -> Option<f32> {
         let i = *self
             .layout
