@@ -81,6 +81,8 @@ audio-constructor/
     ac-plugin/            # Phase 3: nih-plug wrapper
     ac-web/               # Phase 3: wasm glue, AudioWorklet host
   examples/               # example projects shipped with the app
+  scripts/release.py      # version bumps, changelog checks, release notes (CLAUDE.md)
+  CHANGELOG.md            # one section per release; the release notes
   blocks/                 # built-in reusable blocks (group definitions)
   tests/golden/           # reference projects and expected renders
   docs/

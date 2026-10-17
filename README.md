@@ -61,6 +61,17 @@ parts those tools are made of and lets you wire them up however you like.
 
 ## Getting started
 
+### Download
+
+Every release on the
+[releases page](https://github.com/Andorbal/audio-constructor/releases)
+has archives for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64)
+holding `audio-constructor`, `audioc`, and the examples. The binaries aren't
+signed yet: on macOS, clear the quarantine flag with
+`xattr -dr com.apple.quarantine <unpacked folder>`; on Windows, choose
+**More info → Run anyway**. What changed in each version is in
+[CHANGELOG.md](CHANGELOG.md).
+
 ### Build
 
 You need a Rust toolchain from [rustup](https://rustup.rs); the repository
@@ -140,6 +151,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
 | [docs/reference](docs/reference/README.md) | Generated reference for every node |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 
 ## License

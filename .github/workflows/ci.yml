@@ -7,7 +7,9 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # Each commit on main gets its own group so every one runs to completion: a
+  # green run on main is what releases it (release.yml).
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -15,6 +17,18 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  version:
+    name: Version and changelog
+    # Every merge request releases a new version (CLAUDE.md); main is the base
+    # it's checked against, so there's nothing to check on main itself.
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/release.py check --base "origin/${{ github.base_ref || 'main' }}"
+
   fmt:
     name: Format
     runs-on: ubuntu-latest

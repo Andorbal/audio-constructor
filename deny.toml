@@ -12,6 +12,12 @@ ignore = [
     # Wayland client-side decorations (sctk-adwaita); no maintained replacement exists
     # upstream yet. Revisit when winit moves off it.
     { id = "RUSTSEC-2026-0192", reason = "transitive via winit CSD, no upgrade available" },
+    # zvariant, zbus_names, and zvariant_derive are unmaintained (not vulnerable): zbus 6
+    # absorbed them. They reach us only through eframe's Linux screen-reader support
+    # (accesskit_unix -> atspi -> zbus 5). Revisit when egui moves to zbus 6.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant: transitive via accesskit/zbus 5, no upgrade available" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names: transitive via accesskit/zbus 5, no upgrade available" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: transitive via accesskit/zbus 5, no upgrade available" },
 ]
 
 [licenses]
