@@ -25,11 +25,11 @@ and reproduce the same audio from the command line.
 - [x] `audioc --version` and `audio-constructor` binaries build and run (empty window).
 
 ### M1.2 Core model and persistence
-- [ ] Graph, NodeInstance, Wire, GroupDef, Project types with serde and `schema_version`.
-- [ ] Signal types, units, ranges; `Signature` with dynamic sockets from config.
-- [ ] `Node` trait, `node!` macro, `Registry`.
-- [ ] Round-trip tests: load → save produces identical JSON; unknown node kinds preserved.
-- [ ] Clipboard format (subgraph as JSON) with id remapping on paste.
+- [x] Graph, NodeInstance, Wire, GroupDef, Project types with serde and `schema_version`.
+- [x] Signal types, units, ranges; `Signature` with dynamic sockets from config.
+- [x] `Node` trait, `node!` macro, `Registry`.
+- [x] Round-trip tests: load → save produces identical JSON; unknown node kinds preserved.
+- [x] Clipboard format (subgraph as JSON) with id remapping on paste.
 
 ### M1.3 Compiler and offline engine
 - [ ] Group flattening with namespaced ids; `Feedback`-only cycles; compile errors as a report, never a panic.
