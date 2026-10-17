@@ -116,8 +116,24 @@ impl Harness {
         block: usize,
         resources: &dyn Resources,
     ) -> Harness {
-        let meta = N::meta();
-        let sig = N::describe(&config);
+        let entry = crate::registry::NodeEntry {
+            meta: N::meta(),
+            describe: N::describe,
+            create: |c, ctx| Box::new(N::new(c, ctx)),
+        };
+        Self::from_entry(&entry, config, sample_rate, block, resources)
+    }
+
+    /// A harness for a registry entry (for tests that sweep every node kind).
+    pub fn from_entry(
+        entry: &crate::registry::NodeEntry,
+        config: Config,
+        sample_rate: f64,
+        block: usize,
+        resources: &dyn Resources,
+    ) -> Harness {
+        let meta = entry.meta.clone();
+        let sig = (entry.describe)(&config);
         let block = block.max(1);
         let ctx = PrepareCtx {
             sample_rate,
@@ -127,7 +143,7 @@ impl Harness {
             name: meta.name,
             resources,
         };
-        let node: Box<dyn Node> = Box::new(N::new(&config, &ctx));
+        let node: Box<dyn Node> = (entry.create)(&config, &ctx);
         let n_in = sig.inputs.len();
         Harness {
             telemetry: (0..meta.telemetry).map(|_| AtomicU32::new(0)).collect(),
