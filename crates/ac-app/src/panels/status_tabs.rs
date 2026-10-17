@@ -361,7 +361,11 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
             Severity::Warning => (icons::WARNING, theme::WARNING),
             Severity::Info => (icons::INFO, theme::ACCENT),
         };
-        let where_ = d.node.as_ref().map(|p| node_name(io, p));
+        // The node id tells apart nodes that share a name (two "Math" nodes).
+        let where_ = d
+            .node
+            .as_ref()
+            .map(|p| format!("{} #{}", node_name(io, p), p.leaf().unwrap_or_default()));
         let text = match (&where_, &d.socket) {
             (Some(n), Some(s)) => format!("{n} · {s}"),
             (Some(n), None) => n.clone(),
