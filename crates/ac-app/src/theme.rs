@@ -301,12 +301,14 @@ pub fn fonts() -> FontDefinitions {
         .get(&FontFamily::Monospace)
         .cloned()
         .unwrap_or_default();
-    let mut prop = vec!["inter".to_string(), "phosphor".to_string()];
+    // The icon fonts map only Private Use Area codepoints, so they go first:
+    // Inter has glyphs of its own in that area that would otherwise win.
+    let mut prop = vec!["phosphor".to_string(), "inter".to_string()];
     prop.extend(defaults_prop.iter().cloned());
     let mut mono = vec![
+        "phosphor".to_string(),
         "jetbrains-mono".to_string(),
         "inter".to_string(),
-        "phosphor".to_string(),
     ];
     mono.extend(defaults_mono.iter().cloned());
     let mut fill = vec!["phosphor-fill".to_string(), "inter".to_string()];

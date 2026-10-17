@@ -1,6 +1,7 @@
 //! Phosphor icon codepoints used by the editor (the regular and fill fonts in
-//! `assets/fonts/` share codepoints). Icons are plain text in the icon
-//! font, so they mix into labels and scale with the type.
+//! `assets/fonts/` share codepoints; the full set is in egui-phosphor's
+//! `codepoints.rs`). Icons are plain text in the icon font, so they mix into
+//! labels and scale with the type.
 
 pub const PLAY: &str = "\u{E3D0}";
 pub const STOP: &str = "\u{E46C}";

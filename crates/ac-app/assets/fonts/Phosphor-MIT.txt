@@ -1,5 +1,10 @@
 Phosphor Icons (https://phosphoricons.com), regular and fill weights, as
-icon fonts.
+icon fonts, from the egui-phosphor 0.14 crate. Modified: subset to the
+Private Use Area (U+E000-U+F8FF), dropping the ASCII ligature mappings, so
+the fonts can sit first in a fallback chain without shadowing text:
+
+  pyftsubset Phosphor.ttf --unicodes="E000-F8FF" --layout-features='' \
+    --notdef-outline --output-file=Phosphor-Regular.ttf
 
 MIT License
 

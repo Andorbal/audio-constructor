@@ -247,6 +247,14 @@ impl Document {
         self.history.end_coalescing();
     }
 
+    /// After a gesture that recorded a step up front (a move): forget the
+    /// step if the gesture ended where it began.
+    pub fn drop_noop_step(&mut self) {
+        if let Some(rev) = self.history.drop_if_unchanged(&self.project) {
+            self.revision = rev;
+        }
+    }
+
     /// Note that the document changed. `engine`: the engine must recompile.
     pub fn changed(&mut self, engine: bool) {
         self.revision += 1;
@@ -291,6 +299,62 @@ impl Document {
         }
         self.fix_scope();
         r
+    }
+
+    /// Rename a socket of the current group's interface; wires on every
+    /// instance follow the new name.
+    pub fn rename_interface_socket(
+        &mut self,
+        registry: &Registry,
+        input_side: bool,
+        old: &str,
+        new: &str,
+    ) {
+        let Some(def) = self.current_def().cloned() else {
+            return;
+        };
+        let before = self.snapshot("Rename group socket");
+        let renamed = edit::edit_scope(
+            &mut self.project,
+            Some(&def),
+            registry,
+            &mut self.ids,
+            |g, ctx| edit::rename_interface_socket(g, ctx, input_side, old, new),
+        );
+        if let Some(name) = renamed {
+            let fix = |g: &mut Graph| {
+                let inst: Vec<NodeId> = g
+                    .nodes
+                    .iter()
+                    .filter(|n| n.group_def().as_ref() == Some(&def))
+                    .map(|n| n.id)
+                    .collect();
+                for w in &mut g.wires {
+                    if input_side && inst.contains(&w.to.node) && w.to.socket == old {
+                        w.to.socket = name.clone();
+                    }
+                    if !input_side && inst.contains(&w.from.node) && w.from.socket == old {
+                        w.from.socket = name.clone();
+                    }
+                }
+            };
+            fix(&mut self.project.graph);
+            for d in self.project.group_defs.values_mut() {
+                fix(&mut d.graph);
+            }
+        }
+        if self.project != before.project {
+            self.history.push(before, None, 0.0);
+            self.changed(true);
+        }
+    }
+
+    /// Change project settings from a widget that reports changes every
+    /// frame while dragged: one undo step per widget and gesture.
+    pub fn edit_settings(&mut self, key: &str, now: f64, f: impl FnOnce(&mut Project)) {
+        self.checkpoint_coalesced("Change project settings", key, now);
+        f(&mut self.project);
+        self.changed(true);
     }
 
     /// Move nodes (no recompile). Coalesced per gesture by the caller.

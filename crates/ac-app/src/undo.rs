@@ -49,6 +49,17 @@ impl History {
         self.open = None;
     }
 
+    /// Drop the newest step if it recorded no change (a gesture that ended
+    /// where it began).
+    /// Returns the dropped step's revision.
+    pub fn drop_if_unchanged(&mut self, current: &Project) -> Option<u64> {
+        self.open = None;
+        if self.past.last().is_some_and(|s| s.project == *current) {
+            return self.past.pop().map(|s| s.revision);
+        }
+        None
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.past.is_empty()
     }
