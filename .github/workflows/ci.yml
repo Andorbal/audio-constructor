@@ -2,8 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Work branches get CI on every push, before a merge request exists.
+    branches: [main, "claude/**", "phase-*/**"]
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
