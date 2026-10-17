@@ -167,10 +167,22 @@ impl Node for Delay {
                 }
                 continue;
             };
+            // Constant feedback and mix (the usual case) are worked out once.
+            let fb0 = finite_or(feedback.first(), 0.0).clamp(-0.99, 0.99);
+            let m0 = finite_or(mix.first(), 0.5).clamp(0.0, 1.0);
+            let (fb_varies, m_varies) = (feedback.is_varying(), mix.is_varying());
             for (i, (o, &x)) in dst.iter_mut().zip(src).enumerate() {
                 let d = self.delays.get(i).copied().unwrap_or(last_delay);
-                let fb = finite_or(feedback.at(i), 0.0).clamp(-0.99, 0.99);
-                let m = finite_or(mix.at(i), 0.5).clamp(0.0, 1.0);
+                let fb = if fb_varies {
+                    finite_or(feedback.at(i), 0.0).clamp(-0.99, 0.99)
+                } else {
+                    fb0
+                };
+                let m = if m_varies {
+                    finite_or(mix.at(i), 0.5).clamp(0.0, 1.0)
+                } else {
+                    m0
+                };
                 let wet = line.read(d);
                 let back = x + fb * wet;
                 line.write(if back.is_finite() {

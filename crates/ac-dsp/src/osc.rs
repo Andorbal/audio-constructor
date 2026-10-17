@@ -45,7 +45,19 @@ impl Shape {
 /// Wrap a phase into `[0, 1)`.
 #[inline]
 pub fn wrap01(p: f64) -> f64 {
-    let w = p - p.floor();
+    // Phases are almost always within one cycle of [0, 1); handle that
+    // without `floor` (a library call on baseline x86-64). Each branch gives
+    // exactly `p - floor(p)`.
+    if (0.0..1.0).contains(&p) {
+        return p;
+    }
+    let w = if (1.0..2.0).contains(&p) {
+        p - 1.0
+    } else if (-1.0..0.0).contains(&p) {
+        p + 1.0
+    } else {
+        p - p.floor()
+    };
     // `p - floor(p)` can round up to exactly 1.0 for tiny negative `p`.
     if w >= 1.0 { 0.0 } else { w }
 }

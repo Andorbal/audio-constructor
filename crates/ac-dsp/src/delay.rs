@@ -50,9 +50,18 @@ impl DelayLine {
         } else {
             1.0
         };
-        let whole = d.floor();
-        let t = (d - whole) as f32;
-        let k = whole as usize;
+        // `d >= 1`, so truncating equals `floor`, without the library call
+        // `floor` costs on baseline x86-64.
+        let k = d as usize;
+        let t = (d - k as f64) as f32;
+        // Fast path: the four taps sit next to each other in the buffer
+        // without wrapping (all but a few reads per lap). Same values as `ago`.
+        if k >= 2 && k + 2 <= self.filled && self.write >= k + 2 {
+            let i = self.write - (k + 2);
+            if let Some(&[x2, x1, x0, xm1]) = self.buf.get(i..i + 4) {
+                return hermite4(xm1, x0, x1, x2, t);
+            }
+        }
         let x0 = self.ago(k);
         // At one sample the newer neighbour is the sample not yet written;
         // repeating `x0` keeps the read causal.

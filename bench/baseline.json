@@ -1,0 +1,17 @@
+{
+  "block_size": 128,
+  "projects": {
+    "oscillators-1000": {
+      "realtime": 3.9735192123369156,
+      "nodes": 1145
+    },
+    "effect-chain-200": {
+      "realtime": 5.459437314860312,
+      "nodes": 602
+    },
+    "mono-synths-16": {
+      "realtime": 19.17851070276256,
+      "nodes": 114
+    }
+  }
+}

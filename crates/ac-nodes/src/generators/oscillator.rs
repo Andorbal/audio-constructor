@@ -143,6 +143,28 @@ impl Node for Oscillator {
                     }
                     continue;
                 }
+                let constant = !freq.is_varying()
+                    && !fm.is_varying()
+                    && !width.is_varying()
+                    && !offset.is_varying();
+                if constant
+                    && let Some(seg) = out
+                        .as_slice_mut()
+                        .and_then(|b| b.get_mut(run.at..run.until))
+                {
+                    // Same arithmetic as the general loop below, with the
+                    // per-block values hoisted out (bit-identical output).
+                    let inc = increment(f64::from(freq.first()) + f64::from(fm.first()), rate);
+                    let w = f64::from(finite_or(width.first(), 0.5).clamp(0.01, 0.99));
+                    let off = f64::from(finite_or(offset.first(), 0.0));
+                    let (a, bl) = (inc.abs(), self.bandlimited);
+                    for o in seg {
+                        let p = wrap01(self.osc.phase() + off);
+                        *o = wave(shape, p, a, w, bl) as f32;
+                        self.osc.advance(inc);
+                    }
+                    continue;
+                }
                 for i in run.at..run.until {
                     let inc = increment(f64::from(freq.at(i)) + f64::from(fm.at(i)), rate);
                     let w = finite_or(width.at(i), 0.5).clamp(0.01, 0.99);
