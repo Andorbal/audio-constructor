@@ -1,0 +1,394 @@
+//! The node trait, node metadata, and the contexts nodes run in.
+
+use std::fmt;
+use std::sync::Arc;
+
+use crate::io::{AudioIn, Io};
+use crate::signal::Signature;
+use crate::time::TransportView;
+use crate::value::Config;
+
+/// Library category; maps to the header color in the editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Category {
+    Io,
+    Generators,
+    Level,
+    Filters,
+    Time,
+    Spectral,
+    Math,
+    Modulation,
+    Triggers,
+    Sequencing,
+    Controls,
+    Display,
+    Utility,
+}
+
+impl Category {
+    pub const ALL: [Category; 13] = [
+        Category::Io,
+        Category::Generators,
+        Category::Level,
+        Category::Filters,
+        Category::Time,
+        Category::Spectral,
+        Category::Math,
+        Category::Modulation,
+        Category::Triggers,
+        Category::Sequencing,
+        Category::Controls,
+        Category::Display,
+        Category::Utility,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Category::Io => "Input / Output",
+            Category::Generators => "Generators",
+            Category::Level => "Level & Dynamics",
+            Category::Filters => "Filters",
+            Category::Time => "Time",
+            Category::Spectral => "Spectral",
+            Category::Math => "Math & Logic",
+            Category::Modulation => "Modulation",
+            Category::Triggers => "Triggers & Gates",
+            Category::Sequencing => "Sequencing & Notes",
+            Category::Controls => "Controls",
+            Category::Display => "Display",
+            Category::Utility => "Utility",
+        }
+    }
+
+    /// Short identifier used in file names (`docs/reference/<slug>.md`).
+    pub fn slug(self) -> &'static str {
+        match self {
+            Category::Io => "io",
+            Category::Generators => "generators",
+            Category::Level => "level",
+            Category::Filters => "filters",
+            Category::Time => "time",
+            Category::Spectral => "spectral",
+            Category::Math => "math",
+            Category::Modulation => "modulation",
+            Category::Triggers => "triggers",
+            Category::Sequencing => "sequencing",
+            Category::Controls => "controls",
+            Category::Display => "display",
+            Category::Utility => "utility",
+        }
+    }
+}
+
+/// Whether a node can run live or needs its whole input first (ARCHITECTURE §9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Causality {
+    #[default]
+    Streaming,
+    WholeInput,
+}
+
+/// For source nodes: can the output be computed ahead of time?
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Determinism {
+    #[default]
+    Deterministic,
+    /// Fed by the outside world (devices); can't be baked.
+    Live,
+}
+
+/// Static description of a node kind: identity, docs, and engine hints.
+#[derive(Clone, Debug)]
+pub struct NodeMeta {
+    /// Registry key, stable forever (snake_case).
+    pub kind: &'static str,
+    /// Display name.
+    pub name: &'static str,
+    pub category: Category,
+    /// Markdown, from the node's doc comment (via `node!`).
+    pub doc: &'static str,
+    /// Search synonyms ("volume" finds Gain, "lpf" finds Biquad).
+    pub keywords: &'static [&'static str],
+    /// A live source for causality analysis (AudioIn, MidiIn).
+    pub live: bool,
+    /// The `Feedback` node: the compiler splits it into a read and a write step.
+    pub feedback: bool,
+    /// Config keys that hold asset paths the host must load (e.g. `"file"`).
+    pub asset_keys: &'static [&'static str],
+    /// Number of `f32` telemetry values the node publishes.
+    pub telemetry: usize,
+    /// Length of the node's scope ring (0 for none).
+    pub scope: usize,
+}
+
+impl NodeMeta {
+    pub fn new(kind: &'static str, name: &'static str, category: Category) -> Self {
+        NodeMeta {
+            kind,
+            name,
+            category,
+            doc: "",
+            keywords: &[],
+            live: false,
+            feedback: false,
+            asset_keys: &[],
+            telemetry: 0,
+            scope: 0,
+        }
+    }
+
+    pub fn with_doc(mut self, doc: &'static str) -> Self {
+        self.doc = doc;
+        self
+    }
+
+    pub fn with_keywords(mut self, k: &'static [&'static str]) -> Self {
+        self.keywords = k;
+        self
+    }
+
+    pub fn live(mut self) -> Self {
+        self.live = true;
+        self
+    }
+
+    pub fn feedback(mut self) -> Self {
+        self.feedback = true;
+        self
+    }
+
+    pub fn assets(mut self, keys: &'static [&'static str]) -> Self {
+        self.asset_keys = keys;
+        self
+    }
+
+    pub fn telemetry(mut self, values: usize) -> Self {
+        self.telemetry = values;
+        self
+    }
+
+    pub fn scope(mut self, len: usize) -> Self {
+        self.scope = len;
+        self
+    }
+
+    /// The doc comment with the single leading space of each `///` line removed.
+    pub fn doc_text(&self) -> String {
+        let mut out = String::with_capacity(self.doc.len());
+        for line in self.doc.lines() {
+            out.push_str(line.strip_prefix(' ').unwrap_or(line));
+            out.push('\n');
+        }
+        out.trim_end().to_string()
+    }
+
+    /// The first paragraph of the docs: a one-line summary.
+    pub fn summary(&self) -> String {
+        self.doc_text()
+            .split("\n\n")
+            .next()
+            .unwrap_or("")
+            .replace('\n', " ")
+            .trim()
+            .to_string()
+    }
+}
+
+/// Decoded audio, as loaded by the host (any sample rate).
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct AudioData {
+    pub sample_rate: u32,
+    /// Non-interleaved channels, all the same length.
+    pub channels: Vec<Vec<f32>>,
+}
+
+impl AudioData {
+    pub fn frames(&self) -> usize {
+        self.channels.first().map_or(0, Vec::len)
+    }
+}
+
+/// What a `Record` node asks the host for.
+#[derive(Clone, Debug)]
+pub struct RecordRequest<'a> {
+    /// Flattened node path, unique within the project.
+    pub node_key: &'a str,
+    /// Name to use for takes (the node's label or kind).
+    pub name: &'a str,
+    pub channels: usize,
+    pub sample_rate: u32,
+}
+
+/// A real-time-safe sink for recorded audio. The host's disk thread owns the
+/// file; every method here must be wait-free and allocation-free.
+pub trait RecordSink: Send {
+    /// Begin a new take.
+    fn start(&mut self);
+    /// Append one block.
+    fn write(&mut self, audio: &AudioIn<'_>);
+    /// Finish the take.
+    fn stop(&mut self);
+    /// Samples dropped because the disk thread fell behind.
+    fn dropped(&self) -> u64 {
+        0
+    }
+}
+
+/// Host-provided services available while preparing nodes. The engine never
+/// touches files or devices; hosts implement this.
+pub trait Resources: Send + Sync {
+    /// A decoded audio file referenced by a node's config (see `NodeMeta::asset_keys`).
+    fn audio_asset(&self, _path: &str) -> Option<Arc<AudioData>> {
+        None
+    }
+
+    /// A sink for a `Record` node, or `None` if recording isn't available.
+    fn recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
+        None
+    }
+}
+
+/// Resources for hosts with no assets or recording (tests, quick renders).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoResources;
+
+impl Resources for NoResources {}
+
+/// Everything a node may use while building its runtime state.
+pub struct PrepareCtx<'a> {
+    /// The engine's running rate (the device rate live, the render rate offline).
+    pub sample_rate: f64,
+    /// The largest block the node will be asked to process.
+    pub max_block: usize,
+    /// PRNG seed derived from the project seed and this node's path.
+    pub seed: u64,
+    /// Flattened node path, unique within the project.
+    pub node_key: &'a str,
+    /// Display name (label or kind name).
+    pub name: &'a str,
+    pub resources: &'a dyn Resources,
+}
+
+impl fmt::Debug for PrepareCtx<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PrepareCtx")
+            .field("sample_rate", &self.sample_rate)
+            .field("max_block", &self.max_block)
+            .field("seed", &self.seed)
+            .field("node_key", &self.node_key)
+            .finish()
+    }
+}
+
+/// Which part of a split node is running (only `Feedback` sees anything but `Main`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Phase {
+    #[default]
+    Main,
+    /// Write last block's stored input to the outputs (inputs unavailable).
+    FeedbackRead,
+    /// Store this block's input (outputs unavailable).
+    FeedbackWrite,
+}
+
+/// Per-block context.
+#[derive(Clone, Copy, Debug)]
+pub struct ProcessCtx<'a> {
+    /// Frames in this block (at most `PrepareCtx::max_block`, at least 1).
+    pub frames: usize,
+    pub sample_rate: f64,
+    pub transport: TransportView<'a>,
+    pub phase: Phase,
+}
+
+/// A node: one primitive processing step. Every built-in node implements
+/// this in its own file (DECISIONS D10).
+///
+/// `process` and `reset` run on the audio thread: no allocation, locks, I/O,
+/// syscalls, or panics (ARCHITECTURE §8).
+pub trait Node: Send + 'static {
+    /// Static metadata: name, category, docs, keywords for search.
+    fn meta() -> NodeMeta
+    where
+        Self: Sized;
+
+    /// Sockets, given this instance's config. May be dynamic (N inputs).
+    /// Inputs and outputs are indexed at runtime by their position here.
+    fn describe(config: &Config) -> Signature
+    where
+        Self: Sized;
+
+    /// Build runtime state for a given sample rate and max block size.
+    /// Allocate everything `process` will need here.
+    fn new(config: &Config, ctx: &PrepareCtx) -> Self
+    where
+        Self: Sized;
+
+    /// Process one block.
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io);
+
+    /// Samples of delay this node introduces (for latency compensation).
+    fn latency(&self) -> u32 {
+        0
+    }
+
+    /// Streaming (can run live) or WholeInput (needs the entire input first).
+    fn causality(&self) -> Causality {
+        Causality::Streaming
+    }
+
+    /// For source nodes: can the output be computed ahead of time?
+    fn determinism(&self) -> Determinism {
+        Determinism::Deterministic
+    }
+
+    /// Return to the initial state (transport restart from zero). No allocation.
+    fn reset(&mut self);
+}
+
+/// Declares a node struct and captures its doc comment for the generated
+/// reference and in-app help.
+///
+/// ```ignore
+/// node! {
+///     kind: "gain",
+///     name: "Gain",
+///     category: Level,
+///     keywords: ["volume", "amp"],
+///     /// Scales a signal by a gain in decibels.
+///     pub struct Gain { smoothed: f32 }
+/// }
+/// // Then: impl Node for Gain { fn meta() -> NodeMeta { Self::base_meta() } ... }
+/// ```
+#[macro_export]
+macro_rules! node {
+    (
+        kind: $kind:literal,
+        name: $name:literal,
+        category: $cat:ident,
+        keywords: [$($kw:literal),* $(,)?],
+        $(#[doc = $doc:literal])*
+        $(#[derive($($derive:path),* $(,)?)])?
+        $vis:vis struct $ty:ident { $($body:tt)* }
+    ) => {
+        $(#[doc = $doc])*
+        $(#[derive($($derive),*)])?
+        $vis struct $ty { $($body)* }
+
+        impl $ty {
+            /// Registry key.
+            #[allow(dead_code)]
+            pub const KIND: &'static str = $kind;
+            /// The doc comment, verbatim.
+            pub const DOC: &'static str = concat!($($doc, "\n"),*);
+
+            /// Metadata from the macro header; extend it in `Node::meta`.
+            pub fn base_meta() -> $crate::NodeMeta {
+                $crate::NodeMeta::new($kind, $name, $crate::Category::$cat)
+                    .with_doc(Self::DOC)
+                    .with_keywords(&[$($kw),*])
+            }
+        }
+    };
+}
