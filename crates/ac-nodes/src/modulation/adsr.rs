@@ -10,9 +10,9 @@ node! {
     name: "ADSR",
     category: Modulation,
     keywords: ["envelope", "eg", "adsr", "contour", "attack", "release"],
-    /// An attack-decay-sustain-release envelope: rises to 1 while the gate
-    /// opens, falls to `sustain`, holds, and falls to 0 when the gate closes.
-    /// The output is a sample-rate `Float` from 0 to 1.
+    /// An attack-decay-sustain-release envelope: when the gate opens it
+    /// rises to 1, falls to `sustain`, and holds; when the gate closes it
+    /// falls to 0. The output is a sample-rate `Float` from 0 to 1.
     ///
     /// Drive it with `gate` (a `Bool`: attack on the rising edge, release on
     /// the falling edge, detected per sample) or with the `on` and `off`

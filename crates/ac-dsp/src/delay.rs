@@ -18,6 +18,9 @@ pub struct DelayLine {
     buf: Vec<f32>,
     /// Slot the next `write` fills.
     write: usize,
+    /// Writes since the last clear (up to the buffer length). Older slots
+    /// read as silence, which makes `clear` O(1) however long the line is.
+    filled: usize,
 }
 
 /// Extra slots so the interpolator's neighbours stay inside the buffer.
@@ -29,6 +32,7 @@ impl DelayLine {
         DelayLine {
             buf: vec![0.0; max_delay.max(1) + PAD],
             write: 0,
+            filled: 0,
         }
     }
 
@@ -66,17 +70,25 @@ impl DelayLine {
         if self.write >= self.buf.len() {
             self.write = 0;
         }
+        if self.filled < self.buf.len() {
+            self.filled += 1;
+        }
     }
 
-    /// Silence the line.
+    /// Silence the line. Constant time (nothing is overwritten), so it is
+    /// safe on the audio thread even for minute-long lines.
     pub fn clear(&mut self) {
-        self.buf.fill(0.0);
         self.write = 0;
+        self.filled = 0;
     }
 
-    /// The sample written `k` writes ago (`1 <= k <= len`).
+    /// The sample written `k` writes ago (`1 <= k <= len`); silence for
+    /// anything older than the last clear.
     #[inline]
     fn ago(&self, k: usize) -> f32 {
+        if k == 0 || k > self.filled {
+            return 0.0;
+        }
         let len = self.buf.len();
         let mut i = self.write + len - k.min(len);
         if i >= len {
@@ -127,10 +139,18 @@ mod tests {
     }
 
     #[test]
-    fn clear_silences() {
-        let mut d = DelayLine::new(4);
-        d.write(1.0);
+    fn clear_silences_old_history() {
+        let mut d = DelayLine::new(8);
+        for n in 0..30 {
+            d.write(n as f32 + 1.0);
+        }
         d.clear();
-        assert_eq!(d.read(1.0), 0.0);
+        for k in 1..=8 {
+            assert_eq!(d.read(k as f64), 0.0, "{k}");
+        }
+        d.write(5.0);
+        assert_eq!(d.read(1.0), 5.0);
+        assert_eq!(d.read(2.0), 0.0);
+        assert_eq!(d.read(8.0), 0.0);
     }
 }

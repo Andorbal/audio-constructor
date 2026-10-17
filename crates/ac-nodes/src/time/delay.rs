@@ -78,7 +78,7 @@ const LIMIT: f32 = 1e9;
 
 impl Delay {
     /// Fill `self.delays` with the delay in samples for each frame.
-    fn delays(&mut self, time: FloatIn, scale: f64, frames: usize) {
+    fn fill_delays(&mut self, time: FloatIn, scale: f64, frames: usize) {
         let to_samples = |t: f32| snap_samples(f64::from(finite_or(t, 0.0)) * scale);
         if time.is_varying() {
             let mut last = to_samples(time.first());
@@ -151,7 +151,7 @@ impl Node for Delay {
             ctx.sample_rate
         };
         let frames = io.frames();
-        self.delays(io.inputs.float(TIME), scale, frames);
+        self.fill_delays(io.inputs.float(TIME), scale, frames);
         let last_delay = self.delays.last().copied().unwrap_or(1.0);
 
         let input = io.inputs.audio(IN);

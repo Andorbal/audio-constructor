@@ -22,7 +22,7 @@ node! {
     /// file when you assign it): a mono file is copied to every channel, and
     /// extra file channels are dropped. Files at another sample rate are
     /// converted once when the project loads. A missing file plays silence
-    /// and is flagged in the Problems panel.
+    /// and reports itself as missing so the editor can flag it.
     ///
     /// Generator contract: silent until `start`, which plays from the
     /// beginning (the last frame when reversed). At the end it stops and

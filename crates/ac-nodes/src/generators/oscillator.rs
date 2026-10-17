@@ -34,8 +34,8 @@ node! {
     /// apply in the order stop, start, reset, sync.
     ///
     /// **Try this:** wire a second Oscillator (`pure`, 5 Hz, sine) through a
-    /// `Map` (-1..1 → -20..20) into `fm` for vibrato, or feed an `ADSR` into a
-    /// `Gain` after a saw for a plucked synth voice.
+    /// `Map` (-1..1 → -20..20) into `fm` for vibrato, or run a saw through a
+    /// `Biquad` lowpass for a classic subtractive synth voice.
     pub struct Oscillator {
         osc: Phasor,
         playing: bool,
