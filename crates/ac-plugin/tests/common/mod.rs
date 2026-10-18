@@ -10,7 +10,11 @@ use std::path::PathBuf;
 pub fn plugin_library() -> PathBuf {
     if let Some(path) = std::env::var_os("AC_PLUGIN_LIBRARY") {
         let path = PathBuf::from(path);
-        assert!(path.is_file(), "AC_PLUGIN_LIBRARY: {} isn't a file", path.display());
+        assert!(
+            path.is_file(),
+            "AC_PLUGIN_LIBRARY: {} isn't a file",
+            path.display()
+        );
         return path;
     }
     let name = format!(

@@ -8,6 +8,11 @@
 //! Host notes become MIDI events at their sample offsets; macros that
 //! moved become control events at offset 0 of the (framework-split)
 //! sub-block, which the engine's bindings apply on that sample.
+//!
+//! A mono host bus still meets the engine as a pair, so stereo patches
+//! (the default ones included) work in every layout: a mono input feeds
+//! both of the engine's first two inputs, and a mono output gets the
+//! average of its first two outputs.
 
 use ac_core::{
     CONTROL_CAPACITY, Control, ControlEvent, MACRO_COUNT, MIDI_CAPACITY, MidiEvent, MidiMsg,
@@ -31,6 +36,10 @@ pub struct HostTransport {
 /// Scratch space and bookkeeping between the host and the processor.
 #[derive(Debug)]
 pub struct Bridge {
+    /// The host's channels.
+    host_in: usize,
+    host_out: usize,
+    /// The engine's: the host's, with mono widened to a pair.
     in_channels: usize,
     out_channels: usize,
     /// Most frames one engine call takes; longer host blocks are split.
@@ -59,7 +68,12 @@ impl Bridge {
         midi_out: bool,
     ) -> Bridge {
         let capacity = max_frames.max(1);
+        let widen = |n: usize| if n == 1 { 2 } else { n };
+        let (host_in, host_out) = (in_channels, out_channels);
+        let (in_channels, out_channels) = (widen(host_in), widen(host_out));
         Bridge {
+            host_in,
+            host_out,
             in_channels,
             out_channels,
             capacity,
@@ -158,7 +172,12 @@ impl Bridge {
             let Some(dst) = self.input.get_mut(c * n..(c + 1) * n) else {
                 continue;
             };
-            match channels.get(c).and_then(|ch| ch.get(start..start + n)) {
+            let from = if self.host_in == 1 { 0 } else { c };
+            match channels
+                .get(from)
+                .filter(|_| from < self.host_in)
+                .and_then(|ch| ch.get(start..start + n))
+            {
                 Some(src) => dst.copy_from_slice(src),
                 None => dst.fill(0.0),
             }
@@ -192,7 +211,19 @@ impl Bridge {
             let Some(dst) = ch.get_mut(start..start + n) else {
                 continue;
             };
-            match self.output.get(c * n..(c + 1) * n).filter(|_| c < oc) {
+            if self.host_out == 1 && c == 0 {
+                let l = self.output.get(..n).unwrap_or(&[]);
+                let r = self.output.get(n..2 * n).unwrap_or(&[]);
+                for ((d, a), b) in dst.iter_mut().zip(l).zip(r) {
+                    *d = 0.5 * (a + b);
+                }
+                continue;
+            }
+            match self
+                .output
+                .get(c * n..(c + 1) * n)
+                .filter(|_| c < oc && c < self.host_out)
+            {
                 Some(src) => dst.copy_from_slice(src),
                 None => dst.fill(0.0),
             }
@@ -434,6 +465,30 @@ mod tests {
         let (mut l, mut r) = (vec![1.0; 64], vec![1.0; 64]);
         run(&mut b, &mut p, &mut l, &mut r, &macros);
         assert!((20.0 * l[0].log10() + 30.0).abs() < 0.5, "{}", l[0]);
+    }
+
+    #[test]
+    fn mono_buses_meet_the_engine_as_a_pair() {
+        let (_h, mut p) = processor(64);
+        let macros = [1.0; MACRO_COUNT];
+        // Mono in and out: the stereo patch's average is the input.
+        let mut mono = Bridge::new(1, 1, 64, false);
+        let x: Vec<f32> = (0..64).map(|i| (i as f32 * 0.1).sin()).collect();
+        let mut buf = x.clone();
+        {
+            let mut ch: [&mut [f32]; 1] = [&mut buf];
+            mono.process(&mut p, &mut ch, &macros, None, |_| {});
+        }
+        assert_eq!(buf, x);
+        // Mono in, stereo out: both sides get it.
+        let mut wide = Bridge::new(1, 2, 64, false);
+        let (mut l, mut r) = (x.clone(), vec![9.0; 64]);
+        {
+            let mut ch: [&mut [f32]; 2] = [&mut l, &mut r];
+            wide.process(&mut p, &mut ch, &macros, None, |_| {});
+        }
+        assert_eq!(l, x);
+        assert_eq!(r, x);
     }
 
     #[test]
