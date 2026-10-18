@@ -23,6 +23,7 @@ const EXPECTED: &[&str] = &[
     "multiband-compressor",
     "vocoder",
     "generative-patch",
+    "tape-loop",
 ];
 
 /// Examples that only make sound from a live input.
