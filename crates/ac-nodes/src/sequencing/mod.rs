@@ -2,6 +2,7 @@
 
 use ac_core::Registry;
 
+pub mod arpeggiator;
 pub mod chord;
 pub mod midi_cc;
 pub mod midi_filter;
@@ -28,4 +29,5 @@ pub fn register(r: &mut Registry) {
     r.register::<note_to_midi::NoteToMidi>();
     r.register::<pattern::Pattern>();
     r.register::<midi_pattern::MidiPattern>();
+    r.register::<arpeggiator::Arpeggiator>();
 }
