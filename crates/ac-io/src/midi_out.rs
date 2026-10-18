@@ -354,16 +354,22 @@ mod tests {
 
     #[test]
     fn a_full_queue_drops_and_counts() {
-        let (outputs, mut queue) = MidiOutputs::new();
-        // Far in the future, so the sender holds them.
-        let t = clock::now_ns() + 60_000_000_000;
+        // A queue with no sender draining it, so exactly what doesn't fit
+        // is dropped.
+        let (tx, mut rx) = RingBuffer::new(OUT_RING);
+        let dropped = Arc::new(AtomicU64::new(0));
+        let mut queue = MidiOutQueue {
+            tx,
+            dropped: dropped.clone(),
+        };
         let events: Vec<MidiEvent> = (0..OUT_RING + 10)
             .map(|k| MidiEvent::new(k as u32, note(60)))
             .collect();
-        queue.push_block(t, 64, 48_000.0, &events);
-        // The sender may already have taken some into its own queue.
-        std::thread::sleep(Duration::from_millis(20));
-        queue.push_block(t, 64, 48_000.0, &events);
-        assert!(outputs.dropped() >= 10);
+        assert_no_alloc::assert_no_alloc(|| queue.push_block(0, 64, 48_000.0, &events));
+        assert_eq!(dropped.load(Ordering::Relaxed), 10);
+        // The ones that fit are there, in order.
+        let first = rx.pop().unwrap();
+        assert_eq!(first.msg, note(60));
+        assert_eq!(rx.slots(), OUT_RING - 1);
     }
 }
