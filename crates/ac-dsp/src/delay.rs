@@ -84,6 +84,17 @@ impl DelayLine {
         }
     }
 
+    /// The input from exactly `k` samples ago (`1 <= k <= max_delay`), with
+    /// no interpolation; silence outside that range or older than the last
+    /// clear.
+    #[inline]
+    pub fn tap(&self, k: usize) -> f32 {
+        if k as f64 > self.max_delay() {
+            return 0.0;
+        }
+        self.ago(k)
+    }
+
     /// Silence the line. Constant time (nothing is overwritten), so it is
     /// safe on the audio thread even for minute-long lines.
     pub fn clear(&mut self) {
@@ -145,6 +156,20 @@ mod tests {
         assert_eq!(d.read(-3.0), d.read(1.0));
         assert_eq!(d.read(f64::NAN), d.read(1.0));
         assert_eq!(d.read(8.0), 22.0);
+    }
+
+    #[test]
+    fn taps_read_whole_samples() {
+        let mut d = DelayLine::new(8);
+        for n in 0..5 {
+            d.write(n as f32 + 1.0);
+        }
+        assert_eq!(d.tap(1), 5.0);
+        assert_eq!(d.tap(5), 1.0);
+        assert_eq!(d.tap(6), 0.0);
+        assert_eq!(d.tap(0), 0.0);
+        assert_eq!(d.tap(9), 0.0);
+        assert_eq!(d.tap(3), d.read(3.0));
     }
 
     #[test]
