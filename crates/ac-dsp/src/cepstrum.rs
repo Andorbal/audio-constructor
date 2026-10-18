@@ -16,9 +16,11 @@
 
 use crate::fft::Fft;
 
-/// Log-magnitude floor relative to the frame's loudest bin (-120 dB), so
-/// silent bins don't send the logarithm to minus infinity.
-const FLOOR: f32 = 1e-6;
+/// Log-magnitude floor relative to the frame's loudest bin (-60 dB, about
+/// a real recording's noise floor). It keeps silent bins from sending the
+/// logarithm to minus infinity, and keeps the deep valleys between a few
+/// loud harmonics from dragging the averaged envelope far below them.
+const FLOOR: f32 = 1e-3;
 /// Absolute floor for an all-silent frame.
 const SILENT: f32 = 1e-20;
 
