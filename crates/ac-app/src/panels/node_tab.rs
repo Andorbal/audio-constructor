@@ -1,7 +1,9 @@
 //! The Node tab: the selected node's label, every parameter, its config,
 //! and its documentation.
 
-use ac_core::{ConfigExt, NodeId, SignalType, SocketSpec, Value};
+use ac_core::{
+    BlockSource, ConfigExt, GroupDef, GroupId, NodeId, Origin, SignalType, SocketSpec, Value,
+};
 use egui::RichText;
 
 use super::{PanelIo, PanelRequest, markdown, section};
@@ -881,6 +883,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 edit::group::set_polyphonic(g, id, poly);
             });
         }
+        library_buttons(ui, io, d, &def);
         if !def.description.is_empty() {
             markdown::show(ui, &def.description);
         }
@@ -891,6 +894,69 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         section(ui, "Help");
         markdown::show(ui, &e.meta.doc_text());
     }
+}
+
+/// A group definition and the library: where it came from, saving it as
+/// one of the person's blocks, and taking the library's newer version.
+fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &GroupDef) {
+    if let Some(source) = def.source.as_deref().and_then(BlockSource::parse) {
+        let text = match io.library.get(&source) {
+            Some(b) => {
+                let origin = match source.origin {
+                    Origin::Shipped => "a shipped block",
+                    Origin::User => "one of your blocks",
+                    Origin::Imported => "an imported block",
+                };
+                format!(
+                    "From {origin}, “{}” · this copy is v{}",
+                    b.name(),
+                    def.version
+                )
+            }
+            None => format!(
+                "From a block your library doesn't have ({source}) · v{}",
+                def.version
+            ),
+        };
+        ui.label(
+            RichText::new(format!("{}  {text}", icons::BOOKS))
+                .small()
+                .color(theme::TEXT_MUTED),
+        );
+    }
+    let update = io
+        .library
+        .updates(&io.doc.project)
+        .into_iter()
+        .find(|u| &u.def == d);
+    ui.horizontal_wrapped(|ui| {
+        if ui
+            .button(format!("{}  Save to library", icons::TRAY_ARROW_DOWN))
+            .on_hover_text(
+                "Save this definition as one of your blocks, so any project can add it from \
+                 the Library tab. Saving it again makes a new version.",
+            )
+            .clicked()
+        {
+            io.requests.push(PanelRequest::SaveBlock(d.clone()));
+        }
+        if let Some(u) = update
+            && ui
+                .button(format!(
+                    "{}  Update from library (v{} → v{})",
+                    icons::ARROWS_CLOCKWISE,
+                    u.from,
+                    u.to
+                ))
+                .on_hover_text(
+                    "Replace this definition with the library's newer version. Every instance \
+                     changes; values set on inputs that still exist stay.",
+                )
+                .clicked()
+        {
+            io.requests.push(PanelRequest::UpdateBlock(d.clone()));
+        }
+    });
 }
 
 fn empty_state(ui: &mut egui::Ui, io: &PanelIo) {
