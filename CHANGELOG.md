@@ -67,6 +67,11 @@ fixes and smaller changes.
 - The Keyboard node's help no longer says it plays from the computer
   keyboard: you play it with the mouse, and a Keyboard In node (with Play
   keys on) plays from the computer keys.
+- A newly added OSC In, OSC Out, Gamepad, Keyboard In, Delay, or
+  Oscillator showed none of its settings in the Node tab, so you couldn't
+  set an OSC address, pick a gamepad, choose keys, put a Delay in beats,
+  or make an Oscillator pure without editing the project file. They all
+  have their fields under **Settings** now.
 
 ## [0.6.0] - 2026-10-18
 

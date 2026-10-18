@@ -94,8 +94,9 @@ Some connections convert on their own:
 
 Anything else needs a node in between, because there's a choice to make:
 **Gate to Trigger** and **Trigger to Gate** turn gates and moments into
-each other, and **MIDI Note** and **MIDI CC** turn MIDI into numbers. A
-wire that can't work is refused, and the Problems tab says why.
+each other, and **MIDI Note** and **MIDI CC** turn MIDI into numbers.
+While you drag, a wire only snaps to sockets that can take it; the editor
+won't connect types that don't fit, and the status line says why.
 
 **Hover any socket** to see its type, unit, range, what it's for, and its
 value right now (a level in dBFS for audio, a count for events).
@@ -126,15 +127,16 @@ Select a node to see everything about it in the side panel's **Node** tab:
 - its name, category, and id; a **Label** field (the name shown on the
   card); and **Muted**;
 - its processing **Time** (see [Node timing](#node-timing));
-- an editor for nodes you draw rather than type: the curve of a Graph or
-  a Shaper, the grid of a Pattern, the piano roll of a MIDI Pattern, the
-  bands of a Band Split, the steps of a StepSequencer. **Larger editor**
-  opens it in its own window;
-- **Settings**: choices that change the node's sockets or what it loads,
-  such as a Clip's audio file (**Choose…**), a Mix's number of inputs, or
-  a Delay's unit (seconds or beats);
-- every **Input** and **Output**, with its value, and the input's
-  **Bindings** (see [Performing](performing.md#bindings));
+- an **Editor** for nodes you draw rather than type: the curve of a Graph
+  or a Shaper, the grid of a Pattern, the piano roll of a MIDI Pattern,
+  the bands of a Band Split, the steps of a StepSequencer. **Larger
+  editor** opens it in its own window;
+- every **Input**, with its control or the wire feeding it, the node's
+  **Bindings** (see [Performing](performing.md#bindings)), and every
+  **Output** with its value right now;
+- **Settings**: choices that change the node's sockets or what it loads or
+  sends to, such as a Clip's audio file (**Choose…**), a Mix's number of
+  inputs, a Delay's unit (seconds or beats), or an OSC node's address;
 - for a group, its definition (see [Groups](#groups));
 - **Help**: the node's description and its "Try this" tip, with a link to
   its full page in the Help tab.
