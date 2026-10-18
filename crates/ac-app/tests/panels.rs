@@ -554,6 +554,21 @@ fn a_dropdown_on_a_panel_picks_from_its_labels() {
 }
 
 #[test]
+fn a_node_collapsed_on_the_canvas_still_plays_on_its_panel() {
+    let mut p = nodes(&[("knob", json!({"min": 0, "max": 10}))]);
+    p.graph.nodes[0].ui.collapsed = true;
+    p.graph.nodes[0]
+        .extra
+        .insert(ac_app::edit::HIDE_UNWIRED.into(), true.into());
+    let mut h = harness(with_panel(p, "Live", &[1]));
+    press(&mut h, Modifiers::CTRL, Key::Tab);
+    let c = panel_body(&h, NodeId(1)).center();
+    drag(&mut h, c, c - egui::vec2(0.0, 100.0));
+    let v = float(param(&h, NodeId(1), "value"));
+    assert!((v - 5.0).abs() < 1e-6, "{v}");
+}
+
+#[test]
 fn a_number_on_a_panel_takes_typing() {
     let config = json!({"type": "int", "min": 0, "max": 100});
     let mut h = harness(with_panel(nodes(&[("number", config)]), "Live", &[1]));

@@ -489,7 +489,8 @@ impl PerformView {
             );
             return;
         };
-        let scene = scene::build(io.doc, io.registry, None);
+        // Cards play widgets the canvas may show collapsed.
+        let scene = scene::build_expanded(io.doc, io.registry);
         if response.hovered() {
             self.scroll -= ui.input(|i| i.smooth_scroll_delta.y);
         }
