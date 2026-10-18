@@ -59,6 +59,11 @@ fn bit(note: u8) -> u128 {
 }
 
 impl MidiFilter {
+    /// Notes passed and not yet released (each owes a note-off).
+    fn passed_count(&self) -> usize {
+        self.passed.iter().map(|m| m.count_ones() as usize).sum()
+    }
+
     fn release_channel(&mut self, tx: &mut Sender, offset: u32, channel: u8) {
         let ch = usize::from(channel & 15);
         let mut m = self.passed[ch];
@@ -137,8 +142,11 @@ impl Node for MidiFilter {
             let in_range = |note: u8| (low..=high).contains(&note);
             if let Some((ch, note, _)) = note_on_of(&msg) {
                 if on_channel && notes.at(i) && in_range(note) {
-                    self.passed[usize::from(ch)] |= bit(note);
-                    tx.send(at, msg);
+                    // Keep room for the note-offs of every note passed so far.
+                    let new = self.passed[usize::from(ch)] & bit(note) == 0;
+                    if tx.send_if_room(at, msg, self.passed_count() + usize::from(new)) {
+                        self.passed[usize::from(ch)] |= bit(note);
+                    }
                 }
             } else if let Some((ch, note, _)) = note_off_of(&msg) {
                 let held = self.passed[usize::from(ch)] & bit(note) != 0;
@@ -164,7 +172,7 @@ impl Node for MidiFilter {
                     MidiMsg::NoteOn { .. } | MidiMsg::NoteOff { .. } => false,
                 };
                 if pass {
-                    tx.send(at, msg);
+                    tx.send_if_room(at, msg, self.passed_count());
                 }
             }
         }
