@@ -3,6 +3,7 @@
 pub mod actions;
 mod app;
 pub mod audio;
+pub mod bindings;
 pub mod canvas;
 pub mod dialogs;
 pub mod document;

@@ -304,10 +304,11 @@ impl Controls {
             // Knobs turn with an up-and-down drag; number fields drag
             // sideways like inline fields.
             Some(b @ (Body::Knob | Body::Number)) => {
-                match (free("value"), io.doc.graph().node(node)) {
+                // From the value shown (a bound input's live value).
+                match (free("value"), io.shown_node(node)) {
                     (Some(spec), Some(inst)) => {
                         let knob = b == Body::Knob;
-                        let start = widgets::number(inst, &spec);
+                        let start = widgets::number(&inst, &spec);
                         let width = if knob { KNOB_TRAVEL } else { DRAG_TRAVEL };
                         self.begin_value_drag(node, "value", spec, start, origin, width, knob);
                         Grab::Control
@@ -469,9 +470,9 @@ pub fn click(io: &mut CanvasIo, n: &NodeView) -> Click {
         Some(Body::Button | Body::Keyboard | Body::XyPad) => Click::Done,
         Some(Body::Dropdown) if free("value").is_some() => Click::Choose,
         // The number itself is the field: click to type.
-        Some(Body::Number) => match (free("value"), io.doc.graph().node(node)) {
+        Some(Body::Number) => match (free("value"), io.shown_node(node)) {
             (Some(spec), Some(inst)) => Click::Type {
-                text: plain_number(widgets::number(inst, &spec), &spec),
+                text: plain_number(widgets::number(&inst, &spec), &spec),
                 spec,
             },
             _ => Click::Select,
@@ -497,10 +498,10 @@ pub fn double_click(io: &mut CanvasIo, n: &NodeView, now: f64) -> Click {
         Some(Body::Slider) => {
             match (
                 n.socket("value", true).and_then(|s| s.spec.clone()),
-                io.doc.graph().node(node),
+                io.shown_node(node),
             ) {
                 (Some(spec), Some(inst)) => Click::Type {
-                    text: plain_number(widgets::number(inst, &spec), &spec),
+                    text: plain_number(widgets::number(&inst, &spec), &spec),
                     spec,
                 },
                 _ => Click::Done,
@@ -660,9 +661,10 @@ fn choice_items(
     socket: &str,
 ) -> (Vec<(String, Value)>, Option<usize>) {
     let spec = n.socket(socket, true).and_then(|s| s.spec.clone());
-    let (Some(spec), Some(inst)) = (spec, io.doc.graph().node(n.id)) else {
+    let (Some(spec), Some(inst)) = (spec, io.shown_node(n.id)) else {
         return (Vec::new(), None);
     };
+    let inst = &inst;
     let dropdown = n
         .body
         .is_some_and(|(b, _)| b == Body::Dropdown && b.drives(socket));
@@ -764,6 +766,9 @@ pub fn paint(
     let hovered = look.hovered;
     let path = live.path(n.id);
     let held = |socket: &str| look.held.iter().any(|s| s == socket);
+    // Bound inputs at the value their bindings last set (canvas and panels
+    // alike).
+    let shown = io.shown_node(n.id);
     match body {
         Body::Button => {
             let down = held("pressed")
@@ -779,9 +784,8 @@ pub fn paint(
                 .socket_value(&path, "out")
                 .map(|v| v > 0.5)
                 .or_else(|| {
-                    io.doc
-                        .graph()
-                        .node(n.id)
+                    shown
+                        .as_ref()
                         .and_then(|x| x.params.get("value"))
                         .and_then(|v| v.as_bool())
                 })
@@ -790,7 +794,7 @@ pub fn paint(
         }
         Body::Slider => {
             let spec = n.socket("value", true).and_then(|s| s.spec.clone());
-            let node = io.doc.graph().node(n.id);
+            let node = shown.as_ref();
             if let (Some(spec), Some(node)) = (spec, node) {
                 let wired = n.socket("value", true).is_some_and(|s| s.wired);
                 let v = if wired {
@@ -813,7 +817,7 @@ pub fn paint(
         Body::Knob => {
             let input = n.socket("value", true);
             let spec = input.and_then(|s| s.spec.clone());
-            let node = io.doc.graph().node(n.id);
+            let node = shown.as_ref();
             if let (Some(spec), Some(node)) = (spec, node) {
                 let wired = input.is_some_and(|s| s.wired);
                 let v = if wired {
@@ -835,7 +839,7 @@ pub fn paint(
             }
         }
         Body::XyPad => {
-            let node = io.doc.graph().node(n.id);
+            let node = shown.as_ref();
             // Each axis from its input, or the live output when wired.
             let axis = |name: &str| -> f32 {
                 let Some(s) = n.socket(name, true) else {
@@ -858,7 +862,7 @@ pub fn paint(
             bodies::xy_pad(painter, rect, z, pos, touched, hovered, alpha);
         }
         Body::Keyboard => {
-            if let Some(node) = io.doc.graph().node(n.id) {
+            if let Some(node) = shown.as_ref() {
                 let (low, count) = piano::layout(io.registry, node);
                 let keys = piano::keys(low, count, rect);
                 // Keys played here, and keys a project holds down.
@@ -891,7 +895,7 @@ pub fn paint(
         Body::Number => {
             let input = n.socket("value", true);
             let spec = input.and_then(|s| s.spec.clone());
-            let node = io.doc.graph().node(n.id);
+            let node = shown.as_ref();
             if let (Some(spec), Some(node)) = (spec, node) {
                 let wired = input.is_some_and(|s| s.wired);
                 let active = look.editing || look.dragging;
@@ -910,7 +914,7 @@ pub fn paint(
             }
         }
         Body::Dropdown => {
-            if let Some(node) = io.doc.graph().node(n.id) {
+            if let Some(node) = shown.as_ref() {
                 let labels = ac_nodes::controls::dropdown::choices(&node.config);
                 let input = n.socket("value", true);
                 let wired = input.is_some_and(|s| s.wired);

@@ -63,6 +63,7 @@ pub const SPEAKER_SLASH: &str = "\u{E45A}";
 pub const SPEAKER_HIGH: &str = "\u{E44A}";
 pub const TIMER: &str = "\u{E492}";
 pub const LINK_BREAK: &str = "\u{E2E4}";
+pub const LINK: &str = "\u{E2E2}";
 pub const CPU: &str = "\u{E610}";
 pub const LIGHTNING: &str = "\u{E2DE}";
 

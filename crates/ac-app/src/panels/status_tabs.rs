@@ -389,6 +389,11 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     section(ui, "MIDI outputs");
     midi_outputs(ui, io, state);
     control_surfaces(ui, io);
+
+    let choice = state
+        .transport_choice
+        .get_or_insert(ac_core::TransportAction::PlayStop);
+    super::bindings_ui::transport_section(ui, io, choice);
 }
 
 fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {

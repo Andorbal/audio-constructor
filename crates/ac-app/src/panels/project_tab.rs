@@ -252,6 +252,8 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         }
     });
 
+    super::bindings_ui::project_section(ui, io);
+
     blocks(ui, io);
 
     section(ui, "Engine");

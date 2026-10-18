@@ -139,7 +139,10 @@ pub struct AutoFlags {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FloatIn<'a> {
     Const(f32),
-    /// A smoothed parameter change: `start + step * i` for `i < len`, then `end`.
+    /// A smoothed parameter change from about `start` to `end` over `len`
+    /// frames. Frame `i < len` is `end - step * (len - i)`: counted back
+    /// from the end, so a ramp split across blocks of any size gives the
+    /// same value at the same sample.
     Ramp {
         start: f32,
         step: f32,
@@ -156,14 +159,9 @@ impl FloatIn<'_> {
     pub fn at(&self, i: usize) -> f32 {
         match *self {
             FloatIn::Const(v) | FloatIn::Block(v) => v,
-            FloatIn::Ramp {
-                start,
-                step,
-                len,
-                end,
-            } => {
+            FloatIn::Ramp { step, len, end, .. } => {
                 if i < len as usize {
-                    start + step * i as f32
+                    end - step * (len as usize - i) as f32
                 } else {
                     end
                 }

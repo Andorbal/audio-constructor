@@ -77,8 +77,9 @@ slate.
   to type.
 - Wired inputs show the live value in muted text; hover a socket to see it
   large, with rate (const/block/sample) and channel count.
-- Right-click a socket: disconnect, bind to MIDI CC / key / gamepad control
-  (MIDI learn), expose as a group input, add a Reroute.
+- Right-click a socket: disconnect, **Bind…** to a MIDI controller or note,
+  key, gamepad control, or OSC address (learn; see Bindings), remove its
+  bindings, expose as a group input, add a Reroute.
 - Badges in the header: **disabled** (whole-input node fed by a live
   source), **baking…/baked**, **error** (type/channel mismatch, with the
   message on hover), **latency** (samples this node adds), **muted**.
@@ -125,11 +126,12 @@ A resizable panel (`N` toggles) with tabs:
   bindings, timing, latency.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette.
-- **Project**: sample rate, length, tempo map, seed, assets, missing files.
+- **Project**: sample rate, length, tempo map, seed, bindings, assets,
+  missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
-  xrun counter, per-core load, and OSC: a checkbox and port to listen on
-  (9000 unless changed; off until turned on), the address to send to, and
-  what has arrived and what OSC Out nodes sent.
+  xrun counter, per-core load, OSC (a checkbox and port to listen on, 9000
+  unless changed and off until turned on; the address to send to; what has
+  arrived and what OSC Out nodes sent), and transport buttons.
 - **Problems**: compile errors and disabled nodes, click to jump.
 
 ## Transport bar
@@ -198,11 +200,51 @@ pedalboard without the app providing one.
 
 ## Bindings
 
-Any `Bool`/`Trigger`/`Float` input or control node can be bound to a MIDI
-CC/note, a computer key, or a gamepad control. **Learn** mode: right-click →
-Bind → move the control. Bindings are stored in the project and listed in the
-Project tab. Gamepad buttons can be bound to transport actions (A = play,
-B = stop, X = record) in the Devices tab.
+Any unwired `Float`, `Int`, `Bool`, or `Trigger` input can be bound to a
+MIDI controller or note, a computer key, a gamepad button or axis, or an
+OSC address, and transport actions can be bound the same way. Bindings are
+stored in the project, so the editor, `audioc run`, and offline renders
+all honor them (DECISIONS D92).
+
+- **Learn**: right-click an input → **Bind…**, then move the control. The
+  status line says what's listening ("move a control: MIDI, key, gamepad,
+  or OSC… Esc cancels"). Notes, keys, and buttons bind on press; a
+  controller, stick, or OSC value binds once it really moves (8 % of its
+  span), so jitter or a resting stick doesn't bind. A key pressed on the
+  canvas while learning is a candidate too, and runs no shortcut. The new
+  binding is one undo step. Control nodes (Slider, Knob, Toggle, Button,
+  Number, Dropdown) offer **Bind…** in their title's menu for their main
+  value; an XY Pad offers **Bind X…** and **Bind Y…**.
+- **Mapping**: controllers and sticks sweep the input's range (its slider's
+  range, on a log scale where the slider is log); notes press with their
+  velocity, keys and buttons press fully; triggers fire once per press; a
+  `Bool` follows the control (momentary) or flips on each press (toggle).
+  Pressed controls learned for a `Bool` start as toggles, except inputs
+  meant to be held (a Button's `pressed`, a keyboard key, `touched`,
+  `gate`). Each binding can set its own range and be inverted (D93).
+- **On the canvas** a bound input shows a small link left of its socket
+  (in the warning color if the input is wired, since a wired input ignores
+  its binding); hovering it names the control. While the patch plays, the
+  input's widget follows the control, on the canvas and on performance
+  panels alike. That isn't an edit: nothing is added
+  to undo, the project isn't marked changed, and the stored value is what's
+  saved. Moving the widget by hand takes over until the control moves
+  again. Right-click a bound input → **Remove Bindings**.
+- **Project tab** lists every binding: the control, what it drives (click
+  to jump to the node), its range, invert, momentary or toggle, and the
+  value it last set; × removes it. The **Node tab** lists the selected
+  node's bindings.
+- **Inside groups** a binding targets the instance the group was entered
+  through, not every instance (D94). Deleting a node removes its bindings
+  in the same undo step; grouping or ungrouping keeps them with their
+  nodes.
+- **Transport buttons** (Devices tab): one click adds the gamepad preset,
+  A = play/stop, B = stop, X = record, on any gamepad; any transport action
+  (play, stop, play/stop, record, play from start) can also be learned from
+  any control. Transport bindings are listed there and in the Project tab.
+- OSC events reach the engine as a hash of their address, so learning can
+  name an OSC address only if the project already mentions it (an OSC
+  node's settings, or another OSC binding) (D95).
 
 ## Live feedback
 

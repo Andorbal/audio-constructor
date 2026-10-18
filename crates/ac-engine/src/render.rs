@@ -26,7 +26,8 @@ pub struct RenderOptions {
     pub to: Option<f64>,
     /// Audio fed to `AudioIn` nodes as if from a device (must match the rate).
     pub input: Option<AudioData>,
-    /// MIDI fed to `MidiIn` nodes, at absolute sample positions from `from`.
+    /// MIDI fed to `MidiIn` nodes (and bindings), at absolute sample
+    /// positions from `from`.
     pub midi: Vec<(u64, MidiMsg)>,
     /// Control-surface events (keys, gamepads, OSC) fed to the engine as if
     /// from the devices, at absolute sample positions from `from`. Events at

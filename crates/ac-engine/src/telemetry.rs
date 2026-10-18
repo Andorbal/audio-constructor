@@ -78,6 +78,9 @@ pub struct EngineStatus {
     pub core_load: [AtomicU32; 32],
     /// Output latency of the running graph, in samples.
     pub latency: AtomicU32,
+    /// Copy incoming MIDI and control events for the editor to learn from
+    /// (`EngineHandle::set_input_monitor`).
+    pub input_monitor: AtomicBool,
 }
 
 impl EngineStatus {

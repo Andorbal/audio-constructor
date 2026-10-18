@@ -225,11 +225,10 @@ impl Canvas {
                     .and_then(|s| s.spec.clone().map(|spec| (spec, field_rect(s))));
                 match spec {
                     Some((spec, _)) if widgets::field(&spec) == widgets::Field::Number => {
+                        // From the value shown (a bound input's live value).
                         let start = io
-                            .doc
-                            .graph()
-                            .node(node)
-                            .map_or(0.0, |n| widgets::number(n, &spec));
+                            .shown_node(node)
+                            .map_or(0.0, |n| widgets::number(&n, &spec));
                         // A fixed travel, not the field's width: narrow
                         // fields would be too touchy.
                         self.controls.begin_value_drag(
@@ -749,9 +748,10 @@ impl Canvas {
                     return;
                 };
                 let Some(spec) = s.spec.clone() else { return };
-                let Some(n) = io.doc.graph().node(node) else {
+                let Some(shown) = io.shown_node(node) else {
                     return;
                 };
+                let n = &shown;
                 match widgets::field(&spec) {
                     widgets::Field::Number => {
                         let v = widgets::number(n, &spec);

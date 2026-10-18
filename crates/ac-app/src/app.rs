@@ -109,6 +109,10 @@ pub struct EditorApp {
     pack_after_save: bool,
     /// Nodes created by the last command (tests read this).
     pub last_added: Vec<NodeId>,
+    /// Learning a binding: waiting for a control to move.
+    pub learn: Option<crate::bindings::Learn>,
+    /// Bound inputs of the current scope and their live values.
+    bound: crate::bindings::BoundInputs,
     /// The computer keys as a control source (see `play_keys.rs`).
     play_keys: PlayKeys,
     /// Play keys' state before performance mode turned it on, while
@@ -217,6 +221,8 @@ impl EditorApp {
             clipboard: None,
             pack_after_save: false,
             last_added: Vec::new(),
+            learn: None,
+            bound: crate::bindings::BoundInputs::default(),
             play_keys: PlayKeys::default(),
             play_keys_before_performance: None,
         };
@@ -326,6 +332,11 @@ impl EditorApp {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
         self.handle_keys(&ctx, now);
+        self.update_bindings(now);
+        if self.learn.is_some() {
+            // Keep polling for the control that will bind.
+            ctx.request_repaint_after(std::time::Duration::from_millis(30));
+        }
         self.perform.follow_window(&ctx);
         self.follow_performance_mode();
         if self.perform.fullscreen {
@@ -351,6 +362,7 @@ impl EditorApp {
                     missing_assets: &self.missing,
                     calm,
                     show_timing: self.show_timing,
+                    bound: &self.bound,
                     events: Vec::new(),
                 };
                 self.canvas.show(ui, &mut io);
@@ -491,6 +503,7 @@ impl EditorApp {
         let report = &self.engine.report;
         let missing = &self.missing;
         let show_timing = self.show_timing;
+        let bound = &self.bound;
         let events = self.doc.at_root(|doc| {
             let mut io = CanvasIo {
                 can_record,
@@ -501,6 +514,7 @@ impl EditorApp {
                 missing_assets: missing,
                 calm,
                 show_timing,
+                bound,
                 events: Vec::new(),
             };
             perform.show(ui, &mut io, now);
@@ -513,8 +527,21 @@ impl EditorApp {
 
     fn status_bar(&mut self, ui: &mut egui::Ui, now: f64) {
         ui.horizontal_centered(|ui| {
+            if let Some(label) = self.learn.as_ref().map(|l| l.label.clone()) {
+                // Learning a binding: say what's listening until it binds.
+                ui.label(
+                    RichText::new(format!(
+                        "{}  Binding {label}: move a control (MIDI, key, gamepad, or OSC)… Esc cancels",
+                        icons::LINK
+                    ))
+                    .small()
+                    .color(theme::ACCENT),
+                );
+                if ui.small_button("Cancel").clicked() {
+                    self.cancel_learn(now);
+                }
             // A recorded take waits here until it's made into a Clip.
-            if let Some(take) = self.takes.first().cloned() {
+            } else if let Some(take) = self.takes.first().cloned() {
                 ui.label(
                     RichText::new(format!(
                         "{}  Recorded {}",
@@ -786,6 +813,38 @@ impl EditorApp {
             self.play_keys.release_all(&mut self.engine);
         }
         let events = ctx.input(|i| i.events.clone());
+        if self.learn.is_some() && !modal && !ctx.egui_wants_keyboard_input() {
+            // Learning takes the keyboard: Esc cancels, any other key is
+            // a candidate (and runs no shortcut or Play key, so nothing
+            // Play keys held is left down).
+            if self.play_keys.is_on() {
+                self.play_keys.release_all(&mut self.engine);
+            }
+            for e in events {
+                let Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: false,
+                    ..
+                } = e
+                else {
+                    continue;
+                };
+                if key == Key::Escape {
+                    self.cancel_learn(now);
+                    return;
+                }
+                let Some(k) = crate::bindings::key_from_egui(key) else {
+                    continue;
+                };
+                let ev = ac_core::InputEvent::Control(ac_core::Control::Key(k), 1.0);
+                if let Some(source) = self.learn.as_mut().and_then(|l| l.feed(&[ev])) {
+                    self.finish_learn(source, now);
+                    return;
+                }
+            }
+            return;
+        }
         let mut played = Vec::new();
         for (n, e) in events.into_iter().enumerate() {
             // The way out of performance mode stays with the editor, like
@@ -930,7 +989,81 @@ impl EditorApp {
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
             CanvasEvent::Pin(r) => self.pin_request(r, now),
+            CanvasEvent::Bind { node, socket } => {
+                let target = ac_core::Target::Input {
+                    node: self.doc.node_path(node),
+                    socket,
+                };
+                self.start_learn(target);
+            }
         }
+    }
+
+    // ------------------------------------------------------------ bindings
+
+    /// Learn a binding for `target`: the next control that moves (seen by
+    /// the engine, or a key pressed on the canvas) is bound to it.
+    pub fn start_learn(&mut self, target: ac_core::Target) {
+        use crate::bindings::{Learn, LearnTarget};
+        let label = crate::bindings::target_label(&self.doc.project, &self.registry, &target);
+        let target = match target {
+            ac_core::Target::Input { node, socket } => LearnTarget::Input { node, socket },
+            ac_core::Target::Transport { action } => LearnTarget::Transport(action),
+        };
+        self.engine.handle.set_input_monitor(true);
+        self.learn = Some(Learn::new(target, label, &self.doc.project));
+        self.status = None;
+    }
+
+    /// Stop learning without binding anything.
+    pub fn cancel_learn(&mut self, now: f64) {
+        if self.learn.take().is_some() {
+            self.engine.handle.set_input_monitor(false);
+            self.say("Binding cancelled", now);
+        }
+    }
+
+    /// Bind the learned `source` (one undo step) and stop learning.
+    fn finish_learn(&mut self, source: ac_core::Source, now: f64) {
+        let Some(learn) = self.learn.take() else {
+            return;
+        };
+        self.engine.handle.set_input_monitor(false);
+        let ty = match &learn.target {
+            crate::bindings::LearnTarget::Input { node, socket } => self
+                .doc
+                .project
+                .node_at(node)
+                .and_then(|n| self.registry.signature_of(n, &self.doc.project.group_defs))
+                .and_then(|sig| sig.inputs.into_iter().find(|s| s.name == *socket))
+                .map(|s| s.ty),
+            crate::bindings::LearnTarget::Transport(_) => None,
+        };
+        let binding = learn.binding(source.clone(), ty);
+        if crate::bindings::add(&mut self.doc, "Bind", binding) {
+            self.say(format!("Bound {} to {}", source.label(), learn.label), now);
+        } else {
+            self.say(
+                format!("{} already drives {}", source.label(), learn.label),
+                now,
+            );
+        }
+    }
+
+    /// Learn bindings from what the engine received, and gather the bound
+    /// inputs the canvas draws (with their live values).
+    fn update_bindings(&mut self, now: f64) {
+        if self.learn.is_some() {
+            let events = self.engine.handle.take_input_events();
+            if let Some(source) = self.learn.as_mut().and_then(|l| l.feed(&events)) {
+                self.finish_learn(source, now);
+            }
+        }
+        self.bound = crate::bindings::BoundInputs::gather(
+            &self.doc.project,
+            &self.registry,
+            &self.engine.handle.binding_values(),
+        );
     }
 
     fn panel_request(&mut self, ctx: &egui::Context, r: PanelRequest, now: f64) {
@@ -961,6 +1094,7 @@ impl EditorApp {
             PanelRequest::UpdateAllBlocks => {
                 self.update_all_blocks(now);
             }
+            PanelRequest::Learn(target) => self.start_learn(target),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1647,6 +1781,9 @@ impl EditorApp {
         self.engine.synced_revision = self.doc.engine_revision;
         self.loop_sent = None;
         self.palette.close();
+        if self.learn.take().is_some() {
+            self.engine.handle.set_input_monitor(false);
+        }
         self.canvas.reset_for(&self.doc, &self.registry);
         self.perform.reset();
     }

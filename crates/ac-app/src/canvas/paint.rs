@@ -499,8 +499,8 @@ impl Canvas {
             }
         }
 
-        // Sockets and rows.
-        let doc_node = io.doc.graph().node(n.id).cloned();
+        // Sockets and rows (bound inputs at their live values).
+        let doc_node = io.shown_node(n.id);
         for s in &n.outputs {
             let p = t.to_screen(s.pos);
             if !n.collapsed && text_ok {
@@ -576,8 +576,47 @@ impl Canvas {
                 );
             }
             self.paint_socket_dot(&mut sockets, p, n, s, hover, wiring, alpha);
+            if text_ok && let Some(b) = io.bound_input(n.id, &s.name) {
+                self.paint_bound_badge(painter, p, s.wired, &b.sources, alpha);
+            }
         }
         painter.extend(sockets);
+    }
+
+    /// A small link left of a bound input's socket (where its wire would
+    /// come in), naming what drives it on hover. A wired input ignores its
+    /// binding, so the link shows in the warning color.
+    fn paint_bound_badge(
+        &mut self,
+        painter: &Painter,
+        socket: Pos2,
+        wired: bool,
+        sources: &[String],
+        alpha: f32,
+    ) {
+        let z = self.view.zoom;
+        let color = if wired { theme::WARNING } else { theme::ACCENT };
+        let galley = painter.layout_no_wrap(
+            icons::LINK.to_string(),
+            theme::canvas_font(theme::FONT_SMALL, z, false),
+            theme::fade(color, alpha),
+        );
+        let size = galley.size();
+        let pos = pos2(
+            socket.x - (theme::SOCKET_RADIUS + 3.0) * z.sqrt() - size.x,
+            socket.y - size.y / 2.0,
+        );
+        let r = Rect::from_min_size(pos, size);
+        painter.galley(pos, galley, color);
+        let tip = if wired {
+            format!(
+                "Bound to {}, but the input is wired, so the binding does nothing.",
+                sources.join(", ")
+            )
+        } else {
+            format!("Bound to {}", sources.join(", "))
+        };
+        self.tips.push((r.expand(2.0), tip));
     }
 
     #[allow(clippy::too_many_arguments)]

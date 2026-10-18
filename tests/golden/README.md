@@ -34,6 +34,12 @@ axes by their socket names (`south`, `left_bumper`, `dpad_up`, `left_x`,
 (`arg` defaults to 0). Events on the same frame play in the order listed.
 What `MIDI Out` and `OSC Out` nodes send is part of the expectation.
 
+Test MIDI and controls reach the project's bindings too, the way a real
+controller would: `bindings-midi-cc` sweeps a bound frequency (log scale)
+and level with MIDI controllers and fires a bound trigger with a note, and
+`bindings-controls` moves bound inputs with a gamepad stick, a key, and an
+OSC fader.
+
 Every node category has at least one project here. After an intentional
 change to a node's output, regenerate expectations and review the diff:
 

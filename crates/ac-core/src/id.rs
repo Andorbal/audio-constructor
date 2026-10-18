@@ -146,6 +146,20 @@ impl FromStr for NodePath {
     }
 }
 
+/// Serialized as its display form (`"1/ab"`), like node ids.
+impl Serialize for NodePath {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for NodePath {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 /// Generates fresh node ids. Deterministic for a given seed, so tests and
 /// paste operations are reproducible; the app seeds it from the clock.
 #[derive(Debug, Clone)]
@@ -194,6 +208,10 @@ mod tests {
         assert_eq!(p.to_string(), "1/ab");
         assert_eq!("1/ab".parse::<NodePath>().unwrap(), p);
         assert_eq!(p.parent(), Some(NodePath::root(NodeId(1))));
+        let json = serde_json::to_string(&p).unwrap();
+        assert_eq!(json, "\"1/ab\"");
+        assert_eq!(serde_json::from_str::<NodePath>(&json).unwrap(), p);
+        assert!(serde_json::from_str::<NodePath>("\"1//x\"").is_err());
     }
 
     #[test]

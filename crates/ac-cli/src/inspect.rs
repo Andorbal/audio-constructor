@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use ac_core::{Graph, GroupDef, Project};
+use ac_core::{Binding, GateMode, Graph, GroupDef, Project, Target};
 use ac_engine::{BakeStore, CompileOptions, Severity, WholeState, compile};
 use anyhow::{Result, anyhow};
 
@@ -114,10 +114,45 @@ pub fn inspect(path: &Path) -> Result<ExitCode> {
         println!("  loop: beats {a}..{b}");
     }
     print_graph(&project, &project.graph, &registry, "");
+    if !project.bindings.is_empty() {
+        println!("bindings ({}):", project.bindings.len());
+        for b in &project.bindings {
+            println!("  {}", describe_binding(b));
+        }
+    }
     for (id, def) in &project.group_defs {
         print_def(&project, id.0.as_str(), def, &registry);
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// One line for a binding: "MIDI CC 74 · ch 1 → 1:freq 110..880".
+fn describe_binding(b: &Binding) -> String {
+    let target = match &b.target {
+        Target::Input { node, socket } => format!("{node}:{socket}"),
+        Target::Transport { action } => format!("transport {}", action.label().to_lowercase()),
+    };
+    let mut extra = Vec::new();
+    match (b.min, b.max) {
+        (None, None) => {}
+        (lo, hi) => extra.push(format!(
+            "{}..{}",
+            lo.map_or("min".into(), |v| v.to_string()),
+            hi.map_or("max".into(), |v| v.to_string())
+        )),
+    }
+    if b.invert {
+        extra.push("inverted".into());
+    }
+    if b.mode == GateMode::Toggle {
+        extra.push("toggle".into());
+    }
+    let extra = if extra.is_empty() {
+        String::new()
+    } else {
+        format!("  ({})", extra.join(", "))
+    };
+    format!("{} → {target}{extra}", b.source)
 }
 
 fn print_def(project: &Project, id: &str, def: &GroupDef, registry: &ac_core::Registry) {

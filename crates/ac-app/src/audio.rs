@@ -187,6 +187,14 @@ impl EngineHost {
                 osc_out: Some(me.new_osc_output()),
                 ..EventPorts::default()
             }
+        } else if matches!(mode, AudioMode::Null) {
+            // No ports, but room for virtual MIDI sources (`virtual_midi`).
+            let (inputs, rx) = MidiInputs::new();
+            me.midi = Some(inputs);
+            EventPorts {
+                midi_in: Some(rx),
+                ..EventPorts::default()
+            }
         } else {
             EventPorts::default()
         };
@@ -283,6 +291,12 @@ impl EngineHost {
         queue
     }
 
+    /// A virtual MIDI source feeding the engine like a port (an on-screen
+    /// controller, a test). `None` when nothing runs MIDI input.
+    pub fn virtual_midi(&mut self, name: &str) -> Option<ac_io::MidiSender> {
+        self.midi.as_mut()?.sender(name).ok()
+    }
+
     /// Send MIDI Out nodes' messages to these ports from now on.
     pub fn set_midi_out(&mut self, choice: MidiSelect) {
         self.midi_out_choice = choice.clone();
@@ -362,6 +376,9 @@ impl EngineHost {
         self.device_sources = true;
         if ports.midi_in.is_none() {
             ports.midi_in = Some(self.new_midi_inputs());
+        } else if first_device && let Some(m) = self.midi.as_mut() {
+            // The null stream's virtual-only MIDI now takes the ports too.
+            m.connect(MidiSelect::All);
         }
         if ports.midi_out.is_none() {
             ports.midi_out = Some(self.new_midi_outputs());
@@ -430,7 +447,8 @@ impl EngineHost {
         if let Some(c) = self.controls.as_mut() {
             c.collect_garbage();
         }
-        if self.last_rescan.elapsed() > MIDI_RESCAN {
+        // Only device setups have ports to find (null MIDI is virtual).
+        if self.device_sources && self.last_rescan.elapsed() > MIDI_RESCAN {
             self.rescan_midi();
         }
         if self.latency == LatencyState::Running

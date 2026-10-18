@@ -793,6 +793,13 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 }
             });
     }
+    if sockets
+        .inputs
+        .iter()
+        .any(|s| s.spec.as_ref().is_some_and(ac_core::binding::bindable))
+    {
+        super::bindings_ui::node_section(ui, io, id);
+    }
     if !sockets.outputs.is_empty() {
         section(ui, "Outputs");
         let tele = io.engine.handle.telemetry();
