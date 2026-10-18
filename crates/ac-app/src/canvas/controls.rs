@@ -521,6 +521,10 @@ pub fn commit_value(
     now: f64,
 ) {
     match widgets::parse(text, spec) {
+        Some(Value::Text(t)) => {
+            crate::params::set_text(io.doc, node, socket, t, now);
+            io.doc.end_coalescing();
+        }
         Some(v) => {
             crate::params::set(io.doc, io.engine, node, socket, v, now);
             io.doc.end_coalescing();

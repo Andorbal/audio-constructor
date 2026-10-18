@@ -19,6 +19,8 @@ pub enum Field {
     Check,
     /// A small button that fires the trigger.
     Fire,
+    /// A text field for `Text` inputs (an address, a template).
+    Text,
     /// No widget (audio, MIDI, or unknown sockets).
     Label,
 }
@@ -31,6 +33,7 @@ pub fn field(spec: &SocketSpec) -> Field {
         SignalType::Float | SignalType::Int => Field::Number,
         SignalType::Bool => Field::Check,
         SignalType::Trigger => Field::Fire,
+        SignalType::Text => Field::Text,
         _ => Field::Label,
     }
 }
@@ -70,6 +73,13 @@ pub fn bounded_number(node: &NodeInstance, spec: &SocketSpec) -> f64 {
     }
     let v = lo.map_or(v, |lo| v.max(lo));
     hi.map_or(v, |hi| v.min(hi))
+}
+
+/// The text of a `Text` input, as the engine reads it.
+pub fn text(node: &NodeInstance, spec: &SocketSpec) -> String {
+    ac_core::param_text(spec, node.params.get(spec.name.as_ref()))
+        .as_str()
+        .to_string()
 }
 
 /// The selected choice's name.
@@ -242,7 +252,11 @@ fn trim(v: f64, decimals: usize) -> String {
 
 /// Parse typed text: a number with an optional unit (`440`, `1.2k`,
 /// `1.2 kHz`, `-6 dB`, `250 ms`, `0.5 s`). `None` if it isn't a number.
+/// A `Text` input takes the text as typed, trimmed.
 pub fn parse(text: &str, spec: &SocketSpec) -> Option<Value> {
+    if spec.ty == SignalType::Text {
+        return Some(Value::Text(text.trim().to_string()));
+    }
     let t = text.trim().to_lowercase().replace(',', ".");
     if t.is_empty() {
         return None;
@@ -386,6 +400,65 @@ fn label_and_value(
         egui::TextFormat::simple(
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
             theme::fade(theme::TEXT_MUTED, alpha),
+        ),
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(room);
+    let lg = painter.layout_job(job);
+    painter.galley(
+        pos2(rect.min.x + pad, rect.center().y - lg.size().y / 2.0),
+        lg,
+        theme::TEXT_MUTED,
+    );
+}
+
+/// A text field: label and the text, cut to fit (the end matters less
+/// than the start of an address, so it's cut on the right).
+pub fn paint_text(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    label: &str,
+    value: &str,
+    state: State,
+) {
+    let r = theme::radius(theme::WIDGET_RADIUS * zoom);
+    painter.rect_filled(rect, r, bg(state));
+    if state.active {
+        painter.rect_stroke(
+            rect,
+            r,
+            Stroke::new(1.0, theme::fade(theme::ACCENT, state.alpha)),
+            StrokeKind::Inside,
+        );
+    }
+    if zoom < 0.45 {
+        return;
+    }
+    let pad = 6.0 * zoom;
+    let mut job = egui::text::LayoutJob::single_section(
+        value.to_string(),
+        egui::TextFormat::simple(
+            theme::canvas_font(theme::FONT_VALUE, zoom, true),
+            theme::fade(theme::TEXT_STRONG, state.alpha),
+        ),
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 2.0 * pad);
+    let vg = painter.layout_job(job);
+    let vx = rect.max.x - pad - vg.size().x;
+    painter.galley(
+        pos2(vx, rect.center().y - vg.size().y / 2.0),
+        vg,
+        theme::TEXT_STRONG,
+    );
+    let room = vx - rect.min.x - 2.0 * pad;
+    if room < 14.0 * zoom {
+        return;
+    }
+    let mut job = egui::text::LayoutJob::single_section(
+        label.to_string(),
+        egui::TextFormat::simple(
+            theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
+            theme::fade(theme::TEXT_MUTED, state.alpha),
         ),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(room);

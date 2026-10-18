@@ -475,6 +475,28 @@ impl Document {
         true
     }
 
+    /// Store an unwired `Text` input's value: like [`Document::set_param`],
+    /// but the engine recompiles for it (text doesn't travel through the
+    /// parameter queue). Returns whether it changed.
+    pub fn set_text_param(&mut self, id: NodeId, socket: &str, text: String, now: f64) -> bool {
+        let value = Value::Text(text);
+        let same = self
+            .graph()
+            .node(id)
+            .and_then(|n| n.params.get(socket))
+            .is_some_and(|v| *v == value);
+        if same {
+            return false;
+        }
+        let key = format!("param:{:?}:{id}:{socket}", self.current_def());
+        self.checkpoint_coalesced("Change text", &key, now);
+        if let Some(n) = self.graph_mut_raw().node_mut(id) {
+            n.params.insert(socket.to_string(), value);
+        }
+        self.changed(true);
+        true
+    }
+
     /// Set several unwired inputs of one node that move together (an XY
     /// Pad's `x` and `y`). A gesture's changes coalesce into one undo step
     /// for the lot, however they interleave. Returns whether any changed.

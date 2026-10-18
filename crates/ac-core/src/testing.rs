@@ -25,14 +25,15 @@ use crate::events::{MidiEvent, MidiMsg};
 use crate::io::BufferRef;
 use crate::io::{
     AutoFlags, FloatSrc, HostAccess, InputSlot, Inputs, IntSrc, Io, OutputSlot, Outputs, ParamSlot,
-    TelemetryAccess, TriggerSrc,
+    TelemetryAccess, TextSrc, TriggerSrc,
 };
 use crate::node::{
     AudioData, EngineInfo, NoResources, Node, NodeMeta, Phase, PrepareCtx, ProcessCtx, Resources,
 };
-use crate::param::param_value;
+use crate::param::{param_text, param_value};
 use crate::signal::{Channels, OutRate, Rate, SignalType, Signature, SpectrumShape};
 use crate::spectrum::SpectrumBuf;
+use crate::text::TextBuf;
 use crate::time::{TempoMap, TransportView};
 use crate::value::{Config, Value};
 
@@ -48,6 +49,8 @@ enum Feed {
     Midi(Vec<(u64, MidiMsg)>),
     Spectrum(SpectrumShape, Vec<(u64, Vec<f32>)>),
     Buffer(Arc<AudioData>),
+    /// A wired `Text` input: one value per block, the last one repeating.
+    Texts(Vec<String>),
 }
 
 /// A spectrum frame as the harness collects it: absolute sample position and
@@ -71,6 +74,8 @@ pub struct Output {
     pub spectra: BTreeMap<String, Vec<Frame>>,
     /// Buffer outputs: the value after the last block.
     pub buffers: BTreeMap<String, BufferRef>,
+    /// Text outputs, one value per block.
+    pub texts: BTreeMap<String, Vec<String>>,
     /// Device output channels written by the node.
     pub host_out: Vec<Vec<f32>>,
     /// MIDI the node sent to the devices, at absolute sample positions
@@ -103,6 +108,9 @@ impl Output {
     pub fn buffer(&self, name: &str) -> Option<&Arc<AudioData>> {
         self.buffers.get(name).and_then(Option::as_ref)
     }
+    pub fn text(&self, name: &str) -> &[String] {
+        self.texts.get(name).map_or(&[], Vec::as_slice)
+    }
 }
 
 /// Drives one node through blocks with chosen inputs.
@@ -133,6 +141,8 @@ pub struct Harness {
     guard: Option<fn(&mut dyn FnMut())>,
     /// Buffer outputs persist from block to block, as in the engine.
     buffer_state: Vec<BufferRef>,
+    /// Text outputs too.
+    text_state: Vec<TextBuf>,
     engine: EngineInfo,
 }
 
@@ -205,6 +215,7 @@ impl Harness {
             phases: vec![Phase::Main],
             guard: None,
             buffer_state: Vec::new(),
+            text_state: Vec::new(),
             engine: EngineInfo::default(),
         }
     }
@@ -381,6 +392,13 @@ impl Harness {
     }
 
     /// Wire a buffer into a `Buffer` input.
+    /// Wire a `Text` input: one value per block (the last repeats).
+    pub fn texts(&mut self, name: &str, values: &[&str]) -> &mut Self {
+        let i = self.idx(name);
+        self.feeds[i] = Feed::Texts(values.iter().map(|s| s.to_string()).collect());
+        self
+    }
+
     pub fn buffer(&mut self, name: &str, data: Arc<AudioData>) -> &mut Self {
         let i = self.idx(name);
         self.feeds[i] = Feed::Buffer(data);
@@ -479,6 +497,8 @@ impl Harness {
         let mut midi: Vec<Vec<MidiEvent>> = Vec::new();
         let mut spectra: Vec<SpectrumBuf> = Vec::new();
         let mut buffers: Vec<BufferRef> = Vec::new();
+        let mut texts: Vec<TextBuf> = Vec::new();
+        let block_index = (start / self.block as u64) as usize;
         let mut slots: Vec<InputSlot> = Vec::with_capacity(n_in);
         for i in 0..n_in {
             let spec = self.sig.inputs[i].clone();
@@ -537,6 +557,22 @@ impl Harness {
                     InputSlot::Buffer(Some((buffers.len() - 1) as u32))
                 }
                 (_, SignalType::Buffer) => InputSlot::Buffer(None),
+                (Feed::Texts(v), SignalType::Text) => {
+                    let t = v
+                        .get(block_index)
+                        .or(v.last())
+                        .map_or(TextBuf::EMPTY, |s| TextBuf::new(s));
+                    texts.push(t);
+                    InputSlot::Text(TextSrc::Wired((texts.len() - 1) as u32))
+                }
+                (Feed::Const(v), SignalType::Text) => {
+                    texts.push(param_text(&spec, Some(v)));
+                    InputSlot::Text(TextSrc::Const((texts.len() - 1) as u32))
+                }
+                (_, SignalType::Text) => {
+                    texts.push(param_text(&spec, None));
+                    InputSlot::Text(TextSrc::Const((texts.len() - 1) as u32))
+                }
                 (Feed::Audio(chs), SignalType::Audio) => {
                     let first = chan_table.len() as u32;
                     let want = match spec.channels {
@@ -638,6 +674,7 @@ impl Harness {
         let mut o_midi: Vec<Vec<MidiEvent>> = Vec::new();
         let mut o_spectra: Vec<SpectrumBuf> = Vec::new();
         let mut o_buffers = std::mem::take(&mut self.buffer_state);
+        let mut o_texts = std::mem::take(&mut self.text_state);
         let mut o_slots = Vec::new();
         for spec in &self.sig.outputs {
             let slot = match spec.ty {
@@ -702,6 +739,16 @@ impl Harness {
                         o_buffers.resize(k + 1, None);
                     }
                     OutputSlot::Buffer(k as u32)
+                }
+                SignalType::Text => {
+                    let k = o_slots
+                        .iter()
+                        .filter(|s| matches!(s, OutputSlot::Text(_)))
+                        .count();
+                    if o_texts.len() <= k {
+                        o_texts.resize(k + 1, TextBuf::EMPTY);
+                    }
+                    OutputSlot::Text(k as u32)
                 }
             };
             o_slots.push(slot);
@@ -775,6 +822,7 @@ impl Harness {
                     midi: &midi,
                     spectra: &spectra,
                     buffers: &buffers,
+                    texts: &texts,
                     auto,
                 },
                 outputs: Outputs {
@@ -787,6 +835,7 @@ impl Harness {
                     midi: &mut o_midi,
                     spectra: &mut o_spectra,
                     buffers: &mut o_buffers,
+                    texts: &mut o_texts,
                 },
                 host: HostAccess {
                     input: &host_input,
@@ -865,10 +914,18 @@ impl Harness {
                     out.buffers
                         .insert(name, o_buffers.get(k as usize).cloned().flatten());
                 }
+                OutputSlot::Text(k) => {
+                    out.texts.entry(name).or_default().push(
+                        o_texts
+                            .get(k as usize)
+                            .map_or(String::new(), |t| t.as_str().to_string()),
+                    );
+                }
                 OutputSlot::None => {}
             }
         }
         self.buffer_state = o_buffers;
+        self.text_state = o_texts;
         if out.host_out.len() < self.host_out_channels {
             out.host_out.resize(self.host_out_channels, Vec::new());
         }

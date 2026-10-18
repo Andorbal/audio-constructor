@@ -152,6 +152,7 @@ mod tests {
                 midi: &[],
                 spectra: &[],
                 buffers: &[],
+                texts: &[],
                 auto: AutoFlags::default(),
             },
             outputs: Outputs {
@@ -164,6 +165,7 @@ mod tests {
                 midi: &mut [],
                 spectra: &mut [],
                 buffers: &mut [],
+                texts: &mut [],
             },
             host: HostAccess {
                 input: &[],

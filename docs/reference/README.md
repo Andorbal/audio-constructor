@@ -52,7 +52,7 @@ node. Edit the node's source, not these files.
 | [Accumulate](math.md#accumulate) | Math & Logic | Adds `in` to a running total on every `trigger`. |
 | [Clamp](math.md#clamp) | Math & Logic | Keeps `in` between `min` and `max`. |
 | [Compare](math.md#compare) | Math & Logic | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
-| [Constant](math.md#constant) | Math & Logic | A fixed `Float`, `Int`, or `Bool` value, set with its inline widget. |
+| [Constant](math.md#constant) | Math & Logic | A fixed `Float`, `Int`, `Bool`, or `Text` value, set with its inline widget. |
 | [Convert](math.md#convert) | Math & Logic | Converts `in` from one unit to another. |
 | [Counter](math.md#counter) | Math & Logic | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
 | [Differentiate](math.md#differentiate) | Math & Logic | How fast `in` is changing, in units per second. |
@@ -60,12 +60,14 @@ node. Edit the node's source, not these files.
 | [Logic](math.md#logic) | Math & Logic | Combines two gates, `a` and `b`, with a logic operation. |
 | [Map](math.md#map) | Math & Logic | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Math & Logic | Combines two values, `a` and `b`, with an arithmetic operation. |
+| [Number to Text](math.md#number-to-text) | Math & Logic | Writes numbers into a text template: `/fader/{}` with `value` 3 gives `/fader/3`. |
 | [Quantize](math.md#quantize) | Math & Logic | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
 | [Random](math.md#random) | Math & Logic | A new random value on every `trigger`, held until the next. |
 | [SampleHold](math.md#sample-hold) | Math & Logic | Samples `in` at each `trigger` and holds that value until the next. |
 | [Select](math.md#select) | Math & Logic | Passes on one of several inputs, picked by `index`. |
 | [Smooth](math.md#smooth) | Math & Logic | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
 | [Switch](math.md#switch) | Math & Logic | Passes on `a` while `select` is false and `b` while it is true. |
+| [Text to Number](math.md#text-to-number) | Math & Logic | Reads a number out of text: with the pattern `/fader/{}`, the text `/fader/3` gives 3. |
 | [Unary](math.md#unary) | Math & Logic | Applies a one-input function to `in`: trigonometry, exponentials, rounding, and the like. |
 | [ADSR](modulation.md#adsr) | Modulation | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
 | [Envelope](modulation.md#envelope) | Modulation | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |

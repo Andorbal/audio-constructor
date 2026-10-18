@@ -90,12 +90,13 @@ pub fn type_color(ty: SignalType) -> Color32 {
         SignalType::Midi => Color32::from_rgb(0xA9, 0x8B, 0xF0),
         SignalType::Spectrum => Color32::from_rgb(0x4F, 0xD1, 0xD9),
         SignalType::Buffer => Color32::from_rgb(0xC8, 0xA8, 0x78),
+        SignalType::Text => Color32::from_rgb(0xE8, 0xDF, 0xC0),
         SignalType::Any => Color32::from_rgb(0x9A, 0xA0, 0xA8),
     }
 }
 
 /// Socket shape: stream types are circles, events diamonds, and data
-/// handles (Spectrum, Buffer) squares (the colorblind-safe channel).
+/// handles (Spectrum, Buffer) and text squares (the colorblind-safe channel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SocketShape {
     Circle,
@@ -106,7 +107,7 @@ pub enum SocketShape {
 pub fn socket_shape(ty: SignalType) -> SocketShape {
     if ty.is_event() {
         SocketShape::Diamond
-    } else if ty.is_data() {
+    } else if ty.is_data() || ty == SignalType::Text {
         SocketShape::Square
     } else {
         SocketShape::Circle

@@ -20,7 +20,7 @@ use std::sync::atomic::Ordering;
 use ac_core::{
     AutoFlags, BufferRef, ControlEvent, EngineInfo, HostAccess, InputSlot, Inputs, Io, MidiEvent,
     Node, NodeMeta, NodePath, OscMessage, OutputSlot, Outputs, ParamSlot, Phase, PrepareCtx,
-    ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TransportView,
+    ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TextBuf, TransportView,
 };
 
 use crate::pool::{Job, RtPool};
@@ -109,6 +109,7 @@ pub(crate) struct Step {
     pub o_midi: Range,
     pub o_spectra: Range,
     pub o_buffers: Range,
+    pub o_texts: Range,
     pub tele_values: Range,
     pub tele_scope: Range,
     pub tele_scope_pos: Option<u32>,
@@ -136,6 +137,8 @@ pub(crate) struct Pool {
     pub midi: Vec<Vec<MidiEvent>>,
     pub spectra: Vec<SpectrumBuf>,
     pub buffers: Vec<BufferRef>,
+    /// Text values; typed values sit here too, never written by a step.
+    pub texts: Vec<TextBuf>,
 }
 
 /// One step's outputs and node state while its wave runs.
@@ -149,10 +152,12 @@ pub(crate) struct StepWork {
     midi: Vec<Vec<MidiEvent>>,
     spectra: Vec<SpectrumBuf>,
     buffers: Vec<BufferRef>,
+    texts: Vec<TextBuf>,
 }
 
 impl StepWork {
     /// Room for a step with up to these many outputs of each kind.
+    #[allow(clippy::too_many_arguments)]
     pub fn sized(
         samples: usize,
         scalars: usize,
@@ -161,6 +166,7 @@ impl StepWork {
         midi: usize,
         spectra: usize,
         buffers: usize,
+        texts: usize,
     ) -> Self {
         StepWork {
             node: Box::new(Vacant),
@@ -172,6 +178,7 @@ impl StepWork {
             midi: (0..midi).map(|_| Vec::new()).collect(),
             spectra: (0..spectra).map(|_| SpectrumBuf::default()).collect(),
             buffers: vec![None; buffers],
+            texts: vec![TextBuf::EMPTY; texts],
         }
     }
 
@@ -184,6 +191,7 @@ impl StepWork {
             self.midi.len(),
             self.spectra.len(),
             self.buffers.len(),
+            self.texts.len(),
         )
     }
 }
@@ -207,6 +215,7 @@ pub struct CompiledGraph {
     pub(crate) out_midi: Vec<u32>,
     pub(crate) out_spectra: Vec<u32>,
     pub(crate) out_buffers: Vec<u32>,
+    pub(crate) out_texts: Vec<u32>,
     pub(crate) chan_table: Vec<u32>,
     pub(crate) pool: Pool,
     pub(crate) params: Vec<ParamSlot>,
@@ -416,6 +425,7 @@ impl CompiledGraph {
                         &self.out_midi,
                         &self.out_spectra,
                         &self.out_buffers,
+                        &self.out_texts,
                         frames,
                     );
                 }
@@ -485,6 +495,7 @@ impl CompiledGraph {
                         &self.out_midi,
                         &self.out_spectra,
                         &self.out_buffers,
+                        &self.out_texts,
                     );
                 }
             }
@@ -535,6 +546,7 @@ fn move_out(
     out_midi: &[u32],
     out_spectra: &[u32],
     out_buffers: &[u32],
+    out_texts: &[u32],
     frames: usize,
 ) {
     if let StepKind::Node { node, .. } = step.kind
@@ -583,6 +595,15 @@ fn move_out(
             *s = pool.ints.get(g as usize).copied().unwrap_or(0);
         }
     }
+    for (k, &g) in range(out_texts, step.o_texts).iter().enumerate() {
+        if let Some(s) = work.texts.get_mut(k) {
+            *s = pool
+                .texts
+                .get(g as usize)
+                .copied()
+                .unwrap_or(TextBuf::EMPTY);
+        }
+    }
 }
 
 /// Undo [`move_out`].
@@ -599,6 +620,7 @@ fn move_back(
     out_midi: &[u32],
     out_spectra: &[u32],
     out_buffers: &[u32],
+    out_texts: &[u32],
 ) {
     if let StepKind::Node { node, phase } = step.kind
         && let Some(nb) = nodes.get_mut(node as usize)
@@ -640,6 +662,11 @@ fn move_back(
     }
     for (k, &g) in range(out_ints, step.o_ints).iter().enumerate() {
         if let (Some(d), Some(s)) = (pool.ints.get_mut(g as usize), work.ints.get(k)) {
+            *d = *s;
+        }
+    }
+    for (k, &g) in range(out_texts, step.o_texts).iter().enumerate() {
+        if let (Some(d), Some(s)) = (pool.texts.get_mut(g as usize), work.texts.get(k)) {
             *d = *s;
         }
     }
@@ -694,6 +721,7 @@ fn run_step(
     let n_m = (step.o_midi.1 - step.o_midi.0) as usize;
     let n_sp = (step.o_spectra.1 - step.o_spectra.0) as usize;
     let n_b = (step.o_buffers.1 - step.o_buffers.0) as usize;
+    let n_tx = (step.o_texts.1 - step.o_texts.0) as usize;
     let out_channels = if host_output.is_empty() {
         0
     } else {
@@ -714,6 +742,7 @@ fn run_step(
                 midi: &pool.midi,
                 spectra: &pool.spectra,
                 buffers: &pool.buffers,
+                texts: &pool.texts,
                 auto,
             },
             outputs: Outputs {
@@ -726,6 +755,7 @@ fn run_step(
                 midi: work.midi.get_mut(..n_m).unwrap_or(&mut []),
                 spectra: work.spectra.get_mut(..n_sp).unwrap_or(&mut []),
                 buffers: work.buffers.get_mut(..n_b).unwrap_or(&mut []),
+                texts: work.texts.get_mut(..n_tx).unwrap_or(&mut []),
             },
             host: HostAccess {
                 input: shared.host_input,
@@ -828,6 +858,11 @@ fn socket_telemetry(shared: &Shared<'_>, step: &Step, work: &StepWork, out_slots
                     .and_then(Option::as_ref)
                     .map_or(0.0, |b| b.frames() as f32 / (b.sample_rate.max(1) as f32));
                 (secs, secs, None)
+            }
+            // Value: the text's length, so a meter shows something arriving.
+            OutputSlot::Text(k) => {
+                let n = work.texts.get(k as usize).map_or(0, TextBuf::len) as f32;
+                (n, n, None)
             }
             OutputSlot::None => continue,
         };

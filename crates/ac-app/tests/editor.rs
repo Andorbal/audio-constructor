@@ -662,8 +662,8 @@ fn the_devices_tab_lists_osc_messages_and_use_sets_the_address() {
     let _ = h.get_by_label("0.5");
     h.get_by_label("Use").click();
     steps(&mut h, 3);
-    let addr = h.state().document().graph().node(NodeId(1)).unwrap().config["address"].clone();
-    assert_eq!(addr, json!("/fader/1/3"));
+    let addr = h.state().document().graph().node(NodeId(1)).unwrap().params["address"].clone();
+    assert_eq!(addr, ac_core::Value::Text("/fader/1/3".into()));
     // Clear empties the list; nothing else is selected, so no Use buttons.
     h.state_mut().doc.selection.clear();
     steps(&mut h, 2);
@@ -676,16 +676,17 @@ fn the_devices_tab_lists_osc_messages_and_use_sets_the_address() {
 }
 
 #[test]
-fn the_node_tab_edits_osc_settings_and_flags_a_bad_address() {
-    // OSC In and OSC Out keep their address, host, and port in config, so
-    // the Node tab must offer them (a node with no settings row can't be
-    // pointed at a control surface).
+fn the_node_tab_edits_osc_addresses_and_flags_a_bad_one() {
+    // An OSC node's address, host, and port are `Text` and `Int` inputs:
+    // the Node tab shows them as fields, and typing an address stores it
+    // as a param and asks the engine to recompile.
     let mut p = Project::default();
     p.graph
         .nodes
         .push(NodeInstance::new(NodeId(1), "osc_in").at(0.0, 0.0));
     let mut out = NodeInstance::new(NodeId(2), "osc_out").at(320.0, 0.0);
-    out.config = serde_json::json!({"address": "no slash"});
+    out.params
+        .insert("address".into(), ac_core::Value::Text("no slash".into()));
     p.graph.nodes.push(out);
     let mut h = harness(Some(p));
     {
@@ -696,16 +697,17 @@ fn the_node_tab_edits_osc_settings_and_flags_a_bad_address() {
     }
     steps(&mut h, 3);
     let _ = h.get_by_label("SETTINGS");
-    let _ = h.get_by_label("Address");
     let _ = h.get_by_label("Arguments");
-    assert!(h.query_by_label("Host").is_none(), "OSC In has no host");
+    let _ = h.get_by_label("address");
+    assert!(h.query_by_label("host").is_none(), "OSC In has no host");
     assert!(
         h.query_by_label_contains("The OSC address must start with")
             .is_none(),
         "the default address is fine"
     );
-    // Typing an address stores it on focus loss, so the node is rebuilt.
-    // The help quotes the default too; the field is the text input.
+    let before = h.state().doc.engine_revision;
+    // Typing an address stores it on focus loss. The help quotes the
+    // default too; the field is the text input.
     h.get_all_by_value("/fader/1")
         .find(|n| n.accesskit_node().role() == egui::accesskit::Role::TextInput)
         .expect("an address field")
@@ -716,13 +718,17 @@ fn the_node_tab_edits_osc_settings_and_flags_a_bad_address() {
     steps(&mut h, 1);
     press(&mut h, Modifiers::NONE, Key::Enter);
     steps(&mut h, 3);
-    let addr = h.state().document().graph().node(NodeId(1)).unwrap().config["address"].clone();
-    assert_eq!(addr, serde_json::json!("/fader/1/3"));
+    let addr = h.state().document().graph().node(NodeId(1)).unwrap().params["address"].clone();
+    assert_eq!(addr, ac_core::Value::Text("/fader/1/3".into()));
+    assert!(
+        h.state().doc.engine_revision > before,
+        "text changes recompile"
+    );
 
     h.state_mut().doc.selection = [NodeId(2)].into();
     steps(&mut h, 3);
-    let _ = h.get_by_label("Host");
-    let _ = h.get_by_label("Port");
+    let _ = h.get_by_label("host");
+    let _ = h.get_by_label("port");
     let _ = h.get_by_label_contains("The OSC address must start with");
 }
 
