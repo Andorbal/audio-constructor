@@ -16,13 +16,14 @@ use crate::audio::{AudioMode, EngineHost};
 use crate::canvas::{Canvas, CanvasEvent, CanvasIo, PendingWire};
 use crate::dialogs::{self, Confirm, FilePurpose, PathPrompt};
 use crate::document::Document;
-use crate::edit::{self, HIDE_UNWIRED};
+use crate::edit::{self, HIDE_UNWIRED, pins};
 use crate::export::{ExportSummary, export_wav};
 use crate::files::{self, Recent};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
+use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
 use crate::theme;
 use crate::transport::TransportState;
@@ -76,6 +77,8 @@ pub struct EditorApp {
     pub palette: Palette,
     pub engine: EngineHost,
     pub side: SidePanel,
+    /// The performance panels' view (UX.md "Panels").
+    pub perform: PerformView,
     pub recent: Recent,
     /// Shipped, saved, and imported blocks.
     pub library: Library,
@@ -108,6 +111,9 @@ pub struct EditorApp {
     pub last_added: Vec<NodeId>,
     /// The computer keys as a control source (see `play_keys.rs`).
     play_keys: PlayKeys,
+    /// Play keys' state before performance mode turned it on, while
+    /// performance mode lasts.
+    play_keys_before_performance: Option<bool>,
 }
 
 impl EditorApp {
@@ -187,6 +193,7 @@ impl EditorApp {
             palette: Palette::default(),
             engine,
             side: SidePanel::default(),
+            perform: PerformView::default(),
             recent,
             library,
             missing: missing_of(&assets),
@@ -211,6 +218,7 @@ impl EditorApp {
             pack_after_save: false,
             last_added: Vec::new(),
             play_keys: PlayKeys::default(),
+            play_keys_before_performance: None,
         };
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
@@ -245,6 +253,18 @@ impl EditorApp {
         &self.doc
     }
 
+    /// Whether the editor is in full-screen performance mode (a panel and a
+    /// minimal transport, nothing else). Control surfaces that take over
+    /// the computer keyboard can follow this.
+    pub fn performance_mode(&self) -> bool {
+        self.perform.fullscreen
+    }
+
+    /// Whether the panels are shown instead of the canvas.
+    pub fn panels_shown(&self) -> bool {
+        self.perform.shown
+    }
+
     /// Whether Play keys is on: computer keys go to the patch as control
     /// events (`Control::Key`) instead of running canvas shortcuts.
     pub fn play_keys(&self) -> bool {
@@ -256,6 +276,22 @@ impl EditorApp {
     /// releases every key held in the patch.
     pub fn set_play_keys(&mut self, on: bool) {
         self.play_keys.set(on, &mut self.engine);
+    }
+
+    /// Play keys follows performance mode: on when it starts, and back to
+    /// what it was when it ends (it can still be turned off meanwhile).
+    fn follow_performance_mode(&mut self) {
+        match (self.perform.fullscreen, self.play_keys_before_performance) {
+            (true, None) => {
+                self.play_keys_before_performance = Some(self.play_keys.is_on());
+                self.set_play_keys(true);
+            }
+            (false, Some(was)) => {
+                self.play_keys_before_performance = None;
+                self.set_play_keys(was);
+            }
+            _ => {}
+        }
     }
 
     /// The status bar's message, if one is showing (tests read this).
@@ -290,7 +326,58 @@ impl EditorApp {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
         self.handle_keys(&ctx, now);
+        self.perform.follow_window(&ctx);
+        self.follow_performance_mode();
+        if self.perform.fullscreen {
+            self.performance_frame(ui, &ctx, now);
+        } else {
+            self.chrome(ui, &ctx, now);
+        }
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(theme::CANVAS_BG))
+            .show(ui, |ui| {
+                if self.perform.shown {
+                    self.show_panels(ui, &ctx, now);
+                    return;
+                }
+                let calm = self.engine.handle.status().load_fraction() > 0.8;
+                let can_record = self.recorder.is_some();
+                let mut io = CanvasIo {
+                    can_record,
+                    doc: &mut self.doc,
+                    registry: &self.registry,
+                    engine: &mut self.engine.handle,
+                    report: &self.engine.report,
+                    missing_assets: &self.missing,
+                    calm,
+                    show_timing: self.show_timing,
+                    events: Vec::new(),
+                };
+                self.canvas.show(ui, &mut io);
+                let events = std::mem::take(&mut io.events);
+                for e in events {
+                    self.canvas_event(&ctx, e, now);
+                }
+            });
+        if !self.perform.shown {
+            self.library_drop(&ctx, now);
+        }
 
+        if let Some(p) = self
+            .palette
+            .show(&ctx, &self.registry, &self.library, &self.doc)
+        {
+            self.add_candidate(&p.candidate, p.at, p.pending, now);
+        }
+        self.dialogs(&ctx, now);
+        // Buttons this frame may have started or ended performance mode.
+        self.follow_performance_mode();
+        self.finish_frame(&ctx, now);
+    }
+
+    /// The menu bar, transport bar, status bar, and side panel.
+    fn chrome(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, now: f64) {
+        let ctx = ctx.clone();
         egui::Panel::top("menu-bar")
             .frame(
                 egui::Frame::new()
@@ -304,6 +391,7 @@ impl EditorApp {
                     has_selection: !self.doc.selection.is_empty(),
                     side_panel: self.side.open,
                     timing: self.show_timing,
+                    panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
                     play_keys: self.play_keys.is_on(),
@@ -324,10 +412,11 @@ impl EditorApp {
             )
             .exact_size(44.0)
             .show(ui, |ui| {
+                let panels = self.perform.shown;
                 let play_keys = self.play_keys.is_on();
-                let actions = self
-                    .transport
-                    .show(ui, &mut self.doc, &self.engine, play_keys, now);
+                let actions =
+                    self.transport
+                        .show(ui, &mut self.doc, &self.engine, panels, play_keys, now);
                 for a in actions {
                     self.run(&ctx, a, now);
                 }
@@ -368,38 +457,58 @@ impl EditorApp {
                     }
                 });
         }
-        egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(theme::CANVAS_BG))
+    }
+
+    /// Performance mode's only chrome: a minimal transport with the way out.
+    fn performance_frame(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, now: f64) {
+        egui::Panel::top("performance-bar")
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::PANEL_BG)
+                    .inner_margin(egui::Margin::symmetric(12, 6))
+                    .stroke(egui::Stroke::new(1.0, theme::BORDER)),
+            )
+            .exact_size(52.0)
             .show(ui, |ui| {
-                let calm = self.engine.handle.status().load_fraction() > 0.8;
-                let can_record = self.recorder.is_some();
-                let mut io = CanvasIo {
-                    can_record,
-                    doc: &mut self.doc,
-                    registry: &self.registry,
-                    engine: &mut self.engine.handle,
-                    report: &self.engine.report,
-                    missing_assets: &self.missing,
-                    calm,
-                    show_timing: self.show_timing,
-                    events: Vec::new(),
-                };
-                self.canvas.show(ui, &mut io);
-                let events = std::mem::take(&mut io.events);
-                for e in events {
-                    self.canvas_event(&ctx, e, now);
+                let play_keys = self.play_keys.is_on();
+                let actions = self
+                    .perform
+                    .performance_bar(ui, &self.doc, &self.engine, play_keys);
+                for a in actions {
+                    self.run(ctx, a, now);
                 }
             });
-        self.library_drop(&ctx, now);
+    }
 
-        if let Some(p) = self
-            .palette
-            .show(&ctx, &self.registry, &self.library, &self.doc)
-        {
-            self.add_candidate(&p.candidate, p.at, p.pending, now);
+    /// The panel view in place of the canvas. Panels pin top-level nodes,
+    /// so it sees the document at the root.
+    fn show_panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, now: f64) {
+        let calm = self.engine.handle.status().load_fraction() > 0.8;
+        let can_record = self.recorder.is_some();
+        let perform = &mut self.perform;
+        let registry = &self.registry;
+        let engine = &mut self.engine.handle;
+        let report = &self.engine.report;
+        let missing = &self.missing;
+        let show_timing = self.show_timing;
+        let events = self.doc.at_root(|doc| {
+            let mut io = CanvasIo {
+                can_record,
+                doc,
+                registry,
+                engine,
+                report,
+                missing_assets: missing,
+                calm,
+                show_timing,
+                events: Vec::new(),
+            };
+            perform.show(ui, &mut io, now);
+            io.events
+        });
+        for e in events {
+            self.canvas_event(ctx, e, now);
         }
-        self.dialogs(&ctx, now);
-        self.finish_frame(&ctx, now);
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui, now: f64) {
@@ -460,7 +569,10 @@ impl EditorApp {
                     .color(theme::ACCENT),
                 );
             } else {
-                let hint = if self.doc.selection.is_empty() {
+                let hint = if self.perform.shown {
+                    "Drag or click a widget to play it · drag a card by its edge to move it · \
+                     F11 performance mode · Ctrl+Tab canvas"
+                } else if self.doc.selection.is_empty() {
                     "Shift+A add · drag from a socket to wire · double-click empty canvas to search"
                 } else {
                     "G move · Shift+D duplicate · X delete · Ctrl+G group · M mute · H collapse"
@@ -661,8 +773,10 @@ impl EditorApp {
     // ------------------------------------------------------------ input
 
     fn handle_keys(&mut self, ctx: &egui::Context, now: f64) {
-        let typing =
-            ctx.egui_wants_keyboard_input() || self.canvas.is_typing() || self.palette.open;
+        let typing = ctx.egui_wants_keyboard_input()
+            || self.canvas.is_typing()
+            || self.palette.open
+            || self.perform.is_typing();
         let modal = self.confirm.is_some() || self.prompt.is_some();
         // Play keys: held keys come up when typing starts, a dialog opens,
         // or the window loses focus, so nothing is left down in the patch.
@@ -674,7 +788,15 @@ impl EditorApp {
         let events = ctx.input(|i| i.events.clone());
         let mut played = Vec::new();
         for (n, e) in events.into_iter().enumerate() {
+            // The way out of performance mode stays with the editor, like
+            // Escape.
+            let leaves_performance = matches!(
+                e,
+                Event::Key { key, modifiers, .. }
+                    if actions::for_key(key, modifiers) == Some(Action::PerformanceMode)
+            );
             if play
+                && !leaves_performance
                 && let Event::Key {
                     key,
                     physical_key,
@@ -713,6 +835,17 @@ impl EditorApp {
                         if self.palette.open {
                             continue; // the palette handles it
                         }
+                        if self.perform.shown {
+                            // A field takes its own Escape; then popups and
+                            // held controls; then performance mode ends.
+                            if !self.perform.is_typing()
+                                && !self.perform.cancel(&mut self.doc)
+                                && self.perform.fullscreen
+                            {
+                                self.perform.set_fullscreen(ctx, false);
+                            }
+                            continue;
+                        }
                         self.canvas.cancel(&mut self.doc);
                         continue;
                     }
@@ -745,6 +878,9 @@ impl EditorApp {
                     };
                     let Some(a) = action else { continue };
                     if typing && !a.works_while_typing() {
+                        continue;
+                    }
+                    if self.perform.shown && !a.works_in_panels() {
                         continue;
                     }
                     if repeat
@@ -793,6 +929,7 @@ impl EditorApp {
             }
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
+            CanvasEvent::Pin(r) => self.pin_request(r, now),
         }
     }
 
@@ -1080,12 +1217,25 @@ impl EditorApp {
                 if sel.is_empty() {
                     return;
                 }
+                let pins_before = pin_count(&self.doc.project);
                 if let Some((inst, _)) = self.doc.edit(&reg, "Make group", |g, ctx| {
                     edit::group::make_group(g, ctx, &sel)
                 }) {
                     self.doc.selection = [inst].into();
                     self.canvas.mark_born(&[inst], now);
-                    self.say("Grouped. Tab goes inside; Ctrl+Alt+G ungroups.", now);
+                    let dropped = pins_before.saturating_sub(pin_count(&self.doc.project));
+                    if dropped > 0 {
+                        self.say(
+                            format!(
+                                "Grouped. {dropped} pinned node{} left the panels: nodes inside \
+                                 groups can't be pinned (Ctrl+Z to undo).",
+                                plural(dropped)
+                            ),
+                            now,
+                        );
+                    } else {
+                        self.say("Grouped. Tab goes inside; Ctrl+Alt+G ungroups.", now);
+                    }
                 }
             }
             Action::Ungroup => {
@@ -1217,8 +1367,133 @@ impl EditorApp {
                     self.say("Play keys off", now);
                 }
             }
+            Action::Pin => self.pin_selection(now),
+            Action::TogglePanels => {
+                // Performance mode shows a panel until it's left.
+                if !self.perform.fullscreen {
+                    let on = !self.perform.shown;
+                    self.set_view(on);
+                }
+            }
+            Action::PerformanceMode => {
+                let on = !self.perform.fullscreen;
+                if on {
+                    self.set_view(true);
+                }
+                self.perform.set_fullscreen(ctx, on);
+            }
             Action::Shortcuts => self.show_shortcuts = true,
             Action::About => self.show_about = true,
+        }
+    }
+
+    /// Show the panels (`true`) or the canvas. Whatever the view going
+    /// away holds down lets go.
+    fn set_view(&mut self, panels: bool) {
+        if self.perform.shown == panels {
+            return;
+        }
+        if panels {
+            for _ in 0..4 {
+                if !self.canvas.cancel(&mut self.doc) {
+                    break;
+                }
+            }
+            self.canvas
+                .controls
+                .flush(&mut self.doc, &mut self.engine.handle);
+            self.palette.close();
+        } else {
+            self.perform.let_go(&mut self.doc, &mut self.engine.handle);
+        }
+        self.perform.shown = panels;
+    }
+
+    /// `P`: pin the selected controls and displays to the current panel
+    /// (making "Panel 1" if there's none), or unpin them when they're all
+    /// on it already.
+    fn pin_selection(&mut self, now: f64) {
+        if !self.doc.scope.is_empty() {
+            self.say(
+                "Only top-level nodes can be pinned: leave the group (Tab) first",
+                now,
+            );
+            return;
+        }
+        let nodes: Vec<NodeId> = self
+            .selected_real()
+            .into_iter()
+            .filter(|id| self.doc.project.graph.node(*id).is_some_and(pins::pinnable))
+            .collect();
+        if nodes.is_empty() {
+            self.say(
+                "Select a control or display to pin: a slider, knob, button, keyboard, meter, scope…",
+                now,
+            );
+            return;
+        }
+        let current = self.perform.current;
+        let all_on = self
+            .doc
+            .project
+            .panels
+            .get(current)
+            .is_some_and(|p| nodes.iter().all(|n| p.contains(*n)));
+        let panel = Some(current);
+        let r = if all_on {
+            PinRequest::Unpin { nodes, panel }
+        } else {
+            PinRequest::Pin { nodes, panel }
+        };
+        self.pin_request(r, now);
+    }
+
+    /// Pin or unpin nodes (one undo step each).
+    fn pin_request(&mut self, r: PinRequest, now: f64) {
+        match r {
+            PinRequest::Pin { nodes, panel } => {
+                let graph = &self.doc.project.graph;
+                if !nodes
+                    .iter()
+                    .any(|id| graph.node(*id).is_some_and(pins::pinnable))
+                {
+                    self.say("Only controls and displays can be pinned", now);
+                    return;
+                }
+                let (index, added, name) = self.doc.edit_panels("Pin to panel", |panels, g| {
+                    let index = match panel {
+                        Some(i) if i < panels.len() => i,
+                        _ => pins::add_panel(panels, ""),
+                    };
+                    let added = pins::pin(panels, g, index, &nodes);
+                    let name = panels.get(index).map_or(String::new(), |p| p.name.clone());
+                    (index, added, name)
+                });
+                self.perform.current = index;
+                if added > 0 {
+                    self.say(
+                        format!(
+                            "Pinned {added} node{} to {name} · Ctrl+Tab shows the panels",
+                            plural(added)
+                        ),
+                        now,
+                    );
+                } else {
+                    self.say(format!("Already pinned to {name}"), now);
+                }
+            }
+            PinRequest::Unpin { nodes, panel } => {
+                let from = panel
+                    .and_then(|i| self.doc.project.panels.get(i))
+                    .map_or("every panel".to_string(), |p| p.name.clone());
+                let removed = self
+                    .doc
+                    .edit_panels("Unpin", |panels, _| pins::unpin(panels, panel, &nodes));
+                self.say(
+                    format!("Unpinned {removed} node{} from {from}", plural(removed)),
+                    now,
+                );
+            }
         }
     }
 
@@ -1373,6 +1648,7 @@ impl EditorApp {
         self.loop_sent = None;
         self.palette.close();
         self.canvas.reset_for(&self.doc, &self.registry);
+        self.perform.reset();
     }
 
     fn save(&mut self, save_as: bool, now: f64) {
@@ -1539,18 +1815,28 @@ impl EditorApp {
         match files::import_audio(path, self.doc.path.as_deref()) {
             Ok(a) => {
                 let a2 = a.clone();
-                self.doc.edit(&self.registry, "Choose clip file", |g, _| {
-                    if let Some(n) = g.node_mut(node) {
-                        if !n.config.is_object() {
-                            n.config = ac_core::empty_config();
+                let reg = self.registry.clone();
+                let assign = |doc: &mut Document| {
+                    doc.edit(&reg, "Choose clip file", |g, _| {
+                        if let Some(n) = g.node_mut(node) {
+                            if !n.config.is_object() {
+                                n.config = ac_core::empty_config();
+                            }
+                            if let Some(obj) = n.config.as_object_mut() {
+                                obj.insert("file".into(), a2.file.clone().into());
+                                obj.insert("channels".into(), a2.channels.into());
+                                obj.insert("hash".into(), a2.hash.clone().into());
+                            }
                         }
-                        if let Some(obj) = n.config.as_object_mut() {
-                            obj.insert("file".into(), a2.file.clone().into());
-                            obj.insert("channels".into(), a2.channels.into());
-                            obj.insert("hash".into(), a2.hash.clone().into());
-                        }
-                    }
-                });
+                    })
+                };
+                // A Clip pinned to a panel is a top-level node, whatever
+                // group the canvas is in.
+                if self.doc.graph().node(node).is_some() {
+                    assign(&mut self.doc);
+                } else {
+                    self.doc.at_root(assign);
+                }
                 self.reload_assets();
                 match a.note {
                     Some(n) => self.say(n, now),
@@ -1638,6 +1924,11 @@ fn file_kind(path: &Path) -> FileKind {
         Some(ac_core::BLOCK_EXTENSION) => FileKind::Block,
         _ => FileKind::Project,
     }
+}
+
+/// Pins on every panel.
+fn pin_count(project: &Project) -> usize {
+    project.panels.iter().map(|p| p.items.len()).sum()
 }
 
 fn plural(n: usize) -> &'static str {

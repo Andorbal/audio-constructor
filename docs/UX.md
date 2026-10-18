@@ -109,6 +109,8 @@ slate.
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
 | Find | `Ctrl+F` finds nodes by name/type and jumps to them |
 | Help | `F1` on a node opens its reference in the side panel |
+| Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
+| Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
 
 Wire routing: béziers by default, with a "straight with bends" option. Wires
 behind nodes are dimmed. Long wires can be turned into named **portals**
@@ -135,7 +137,8 @@ A resizable panel (`N` toggles) with tabs:
 Play/stop/record, position in bars:beats and time, tempo and time signature
 (click to edit the tempo map), loop toggle and range, metronome toggle (a
 built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
-`R` records, `Shift+Space` plays from the start.
+`R` records, `Shift+Space` plays from the start. At its right end, a
+**Canvas | Panels** switch and the performance-mode button.
 
 The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
 keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)
@@ -144,7 +147,9 @@ canvas's shortcuts are single keys. While it's on, `Escape` and shortcuts
 with `Ctrl`/`Cmd`/`Alt` still work, text fields still get typing, holding a
 key doesn't repeat it, and every held key is released when Play keys turns
 off, a text field takes focus, or the window loses focus. The status bar
-says it's on.
+says it's on. Performance mode turns Play keys on by itself (below); the
+panel view in the editor doesn't, since you still arrange cards and use
+`Space` for the transport there.
 
 ## Panels (the "performance view")
 
@@ -155,6 +160,41 @@ a node. Several panels can exist (Live, Mixer, Debug); `Ctrl+Tab` switches
 between the canvas and the panels; a panel can be shown full-screen for a
 performance. This is how a user builds a mixer window, a drum pad, or a
 pedalboard without the app providing one.
+
+- **Pinning.** `P` pins the selected nodes that have a widget to the
+  current panel, making "Panel 1" if there is none; on nodes already
+  pinned there, `P` unpins them. Widgets are the controls (Button, Toggle,
+  Slider, Knob, XY Pad, Keyboard, Number, Dropdown), the displays (Meter,
+  Scope, Analyzer, Readout), and Clip, Record, and Audio Out. A node's
+  right-click menu pins it to any panel or a new one, and unpins it. Pinned
+  nodes carry a pin badge in their header. Only top-level nodes can be
+  pinned (the menu says so inside a group): a group's insides are shared by
+  all its instances, so a pin there couldn't say which one it plays.
+  Deleting a node, or grouping it, takes it off every panel in the same
+  undo step.
+- **Showing panels.** `Ctrl+Tab`, View ▸ Canvas / Panels, or the switch in
+  the transport bar shows the panels in place of the canvas. Tabs across the
+  top show one panel each: click to show it, double-click to rename it,
+  right-click to rename, move left or right, or delete it; `+` adds a panel
+  and names it. While the panels show, shortcuts that act on the graph are
+  off; transport, undo, and file shortcuts still work.
+- **The grid.** Each card has the node's label and its live widget, played
+  exactly as on the canvas: dragging a slider is one undo step, a held
+  button or key is momentary and never touches the project, and meters,
+  scopes, analyzers, and readouts move with the audio. Cards flow left to
+  right in pin order; the Keyboard, Scope, Analyzer, and XY Pad get bigger
+  cells. Drag a card by its edge (anywhere but its widget) to move it;
+  `−` and `+` in its corner make it smaller or bigger, and `×` unpins it.
+  Each is one undo step. A panel taller than the window scrolls.
+- **Performance mode.** `F11`, View ▸ Performance Mode, or the Perform
+  button shows the current panel full screen with bigger cells. The menu
+  bar, side panel, status bar, and transport bar go; play/stop, the
+  position, the panel tabs, a Play keys button, and Exit stay. `Esc` or
+  `F11` leaves, and so does taking the window out of full screen.
+  Performance mode turns **Play keys** on, so the computer keys play the
+  patch (`Space` too: use the play button, or `Ctrl+K` or the keyboard
+  button to turn Play keys off); leaving puts Play keys back the way it
+  was. `Esc` and `F11` always leave, even with Play keys on.
 
 ## Bindings
 

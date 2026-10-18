@@ -74,6 +74,11 @@ impl LiveState {
         *m
     }
 
+    /// The displayed channels of the meter at `path`, if it has been fed.
+    pub fn meter_reading(&self, path: &NodePath) -> Option<[MeterChannel; 2]> {
+        self.meters.get(path).copied()
+    }
+
     /// Seconds since the event count on an output last changed.
     pub fn pulse_age(&mut self, key: (NodePath, String), count: u32, now: f64) -> Option<f32> {
         let e = self.events.entry(key).or_insert((count, f64::NEG_INFINITY));

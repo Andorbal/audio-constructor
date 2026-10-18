@@ -15,6 +15,23 @@ fixes and smaller changes.
 
 ### Added
 
+- **Performance panels.** Pin controls and displays (sliders, knobs,
+  buttons, toggles, XY pads, keyboards, number fields, dropdowns, meters,
+  scopes, analyzers, readouts) to a panel with `P` or a node's right-click
+  menu, and `Ctrl+Tab` (or the Canvas | Panels switch in the transport bar)
+  shows them as a grid of live widgets without the graph: a mixer window, a
+  drum pad, or a pedalboard built from your own patch. The widgets play
+  exactly as on the canvas. Add, rename, reorder, and delete panels from
+  their tabs; move cards by dragging, make them bigger or smaller, or
+  unpin them, each one undo step. Panels are saved with the project, and
+  pinned nodes show a pin badge on the canvas.
+- **Performance mode.** `F11` shows the current panel full screen with
+  bigger cells and only play/stop, the position, and the panel tabs;
+  `Esc` or `F11` leaves.
+- **JACK and ASIO builds are covered**: the README explains how to build
+  with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
+  built with both, with the JACK build playing a project through a JACK
+  server.
 - **Gamepads**: plug in a game controller and the editor and `audioc run`
   hear its buttons, sticks, and triggers. Controllers can come and go while
   you play; each keeps its number while it's connected, and unplugging one
@@ -31,7 +48,8 @@ fixes and smaller changes.
   instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
   or Alt still work, text fields still get your typing, holding a key
   doesn't repeat it, and keys never stick when you turn it off or switch
-  windows.
+  windows. Performance mode turns it on for you and puts it back when you
+  leave.
 
 ### Changed
 

@@ -37,6 +37,7 @@ pub const ARROW_SQUARE_IN: &str = "\u{E5DC}";
 pub const ARROW_SQUARE_OUT: &str = "\u{E5DE}";
 pub const ARROW_LEFT: &str = "\u{E058}";
 pub const CORNERS_OUT: &str = "\u{E1D0}";
+pub const CORNERS_IN: &str = "\u{E1CE}";
 pub const CROSSHAIR: &str = "\u{E1D6}";
 pub const SIDEBAR: &str = "\u{EC24}";
 pub const PLUS: &str = "\u{E3D4}";
@@ -48,6 +49,9 @@ pub const CARET_RIGHT: &str = "\u{E13A}";
 pub const MAGNIFYING_GLASS: &str = "\u{E30C}";
 pub const DOTS_THREE: &str = "\u{E1FE}";
 pub const PENCIL: &str = "\u{E3B4}";
+pub const PUSH_PIN: &str = "\u{E3E2}";
+pub const PUSH_PIN_SLASH: &str = "\u{E3E4}";
+pub const SQUARES_FOUR: &str = "\u{E464}";
 
 pub const WARNING: &str = "\u{E4E0}";
 pub const WARNING_CIRCLE: &str = "\u{E4E2}";

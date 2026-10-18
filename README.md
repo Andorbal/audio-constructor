@@ -88,10 +88,20 @@ first build.
   `sudo apt install pkg-config libasound2-dev libudev-dev` (Debian/Ubuntu) or
   `sudo dnf install pkgconf alsa-lib-devel systemd-devel` (Fedora). The editor needs a
   desktop session (X11 or Wayland) and a GPU driver with Vulkan or OpenGL.
-  For JACK, build with `--features jack` (needs the JACK development
-  files); PipeWire works through its ALSA and JACK shims.
-- **Windows ASIO** (optional): build with `--features asio` and the
-  Steinberg ASIO SDK (`CPAL_ASIO_DIR`); WASAPI works without it.
+  PipeWire works through its ALSA and JACK shims without anything extra.
+- **JACK** (optional, mostly Linux): install the JACK development files
+  (`sudo apt install libjack-jackd2-dev`, or `jack-audio-connection-kit-devel`
+  on Fedora) and build with
+  `cargo build --release --features ac-app/jack,ac-cli/jack`. Pick **JACK**
+  in the Devices tab, or `audioc run --host jack`; the JACK (or
+  PipeWire-JACK) server sets the rate and buffer size.
+- **Windows ASIO** (optional): install LLVM (bindgen needs `libclang`) and
+  build with `cargo build --release --features ac-app/asio,ac-cli/asio`.
+  The build downloads the Steinberg ASIO SDK, or uses the unpacked SDK that
+  `CPAL_ASIO_DIR` points to. Pick **ASIO** in the Devices tab, or
+  `audioc run --host asio`. Binaries built with ASIO can't be passed on
+  without a license from Steinberg, so the released downloads leave it out;
+  WASAPI works without it.
 - **macOS and Windows:** nothing extra.
 
 ```
