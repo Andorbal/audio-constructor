@@ -76,6 +76,20 @@ pub enum FeedError {
     NoInput(NodeId, SignalType),
 }
 
+/// The sockets a node offers for wiring. A portal tag shows one: a
+/// sender its input, a receiver its output (the other is the portal's
+/// link, D104).
+pub fn wirable(node: Option<&NodeInstance>, mut sockets: Sockets) -> Sockets {
+    if let Some(t) = node.and_then(super::portal::tag) {
+        if t.send {
+            sockets.outputs.clear();
+        } else {
+            sockets.inputs.clear();
+        }
+    }
+    sockets
+}
+
 /// A selected node and its main output (the first one: main signal
 /// sockets come first by convention).
 #[derive(Clone, Debug)]
@@ -447,6 +461,26 @@ mod tests {
         // Into a Feedback node that reaches back: the loop goes through it.
         g.connect(ep(4, "out"), ep(1, "gain"));
         assert!(!closes_loop(&g, NodeId(2), NodeId(4), fb));
+    }
+
+    #[test]
+    fn portal_tags_wire_by_the_socket_they_show() {
+        let both = sockets(&[("in", SignalType::Any)], &[("out", SignalType::Any)]);
+        let mut tag = NodeInstance::new(NodeId(1), ac_core::REROUTE_KIND);
+        assert_eq!(wirable(Some(&tag), both.clone()), both, "a plain reroute");
+        tag.extra.insert(
+            "portal".into(),
+            serde_json::json!({"name": "Bass", "role": "send"}),
+        );
+        let s = wirable(Some(&tag), both.clone());
+        assert!(s.outputs.is_empty() && s.inputs.len() == 1);
+        tag.extra.insert(
+            "portal".into(),
+            serde_json::json!({"name": "Bass", "role": "receive"}),
+        );
+        let s = wirable(Some(&tag), both.clone());
+        assert!(s.inputs.is_empty() && s.outputs.len() == 1);
+        assert_eq!(wirable(None, both.clone()), both);
     }
 
     #[test]

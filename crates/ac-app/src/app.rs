@@ -1415,7 +1415,10 @@ impl EditorApp {
                 if feeding {
                     let sources: Vec<Source> = feed
                         .iter()
-                        .map(|n| Source::of(*n, &ctx.sockets(g, *n)))
+                        .map(|n| {
+                            let s = connect::wirable(g.node(*n), ctx.sockets(g, *n));
+                            Source::of(*n, &s)
+                        })
                         .collect();
                     let inputs = ctx.sockets(g, id).inputs;
                     fed = Some(connect::plan_feeds(&sources, &inputs).map(|plan| {

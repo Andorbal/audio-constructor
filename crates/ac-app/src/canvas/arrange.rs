@@ -96,18 +96,41 @@ impl Canvas {
                     .then_some(layout::FrameBox { index, rect })
             })
             .collect();
-        let arranged = layout::arrange(&cards, &graph.wires, &frames);
+        // A portal's link isn't drawn, so it doesn't pull its tags
+        // together: the sender stays by its source, each receiver by its
+        // destination.
+        let wires: Vec<ac_core::Wire> = graph
+            .wires
+            .iter()
+            .filter(|w| !edit::portal::is_link(graph, w))
+            .cloned()
+            .collect();
+        let arranged = layout::arrange(&cards, &wires, &frames);
+        // Where each node's position sits on its card: the top-left, a
+        // reroute's center, a portal tag's socket.
+        let offsets: Vec<(NodeId, egui::Vec2)> = graph
+            .nodes
+            .iter()
+            .filter_map(|n| {
+                let v = scene.node(n.id)?;
+                let d = egui::pos2(n.ui.pos[0], n.ui.pos[1]) - v.rect.min;
+                let fallback = if n.kind == REROUTE_KIND {
+                    egui::Vec2::splat(theme::REROUTE_RADIUS)
+                } else {
+                    egui::Vec2::ZERO
+                };
+                Some((n.id, if d.is_finite() { d } else { fallback }))
+            })
+            .collect();
         doc.checkpoint("Auto-layout");
         let g = doc.graph_mut_raw();
         for (id, min) in &arranged.cards {
+            let d = offsets
+                .iter()
+                .find(|(i, _)| i == id)
+                .map_or(egui::Vec2::ZERO, |(_, d)| *d);
             if let Some(n) = g.node_mut(*id) {
-                // A reroute's position is its center (see `scene`).
-                let r = if n.kind == REROUTE_KIND {
-                    theme::REROUTE_RADIUS
-                } else {
-                    0.0
-                };
-                n.ui.pos = [min.x + r, min.y + r];
+                n.ui.pos = [min.x + d.x, min.y + d.y];
             }
         }
         for (i, r) in &arranged.frames {
@@ -210,7 +233,10 @@ impl Canvas {
                 .map(|w| w.to.socket.clone())
                 .collect()
         };
-        let (sl, sr) = (sockets(left.id), sockets(right.id));
+        let (sl, sr) = (
+            connect::wirable(graph.node(left.id), sockets(left.id)),
+            connect::wirable(graph.node(right.id), sockets(right.id)),
+        );
         // A wire that would close a loop without a Feedback node is never
         // made (the compiler would leave the loop out, D25).
         let feedback = |id: NodeId| {

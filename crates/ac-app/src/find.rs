@@ -90,13 +90,19 @@ fn walk(
     out: &mut Vec<Found>,
 ) {
     for n in &graph.nodes {
-        let title = connect::title(n, registry, defs);
+        let portal = crate::edit::portal::tag(n);
+        let title = match &portal {
+            Some(t) => t.name.clone(),
+            None => connect::title(n, registry, defs),
+        };
         let def = n
             .group_def()
             .filter(|_| n.kind == GROUP_KIND || n.kind == VOICES_KIND);
-        let kind = match def.as_ref().and_then(|d| defs.get(d)) {
-            Some(d) => format!("Group {}", d.name),
-            None => registry
+        let kind = match (def.as_ref().and_then(|d| defs.get(d)), &portal) {
+            (Some(d), _) => format!("Group {}", d.name),
+            (None, Some(t)) if t.send => "Portal sender".to_string(),
+            (None, Some(_)) => "Portal receiver".to_string(),
+            (None, None) => registry
                 .get(&n.kind)
                 .map_or_else(|| n.kind.clone(), |e| e.meta.name.to_string()),
         };
@@ -375,6 +381,24 @@ mod tests {
         assert_eq!(f[0].kind, "Group Strip");
         assert!(search(&p, &r, "   ").is_empty());
         assert!(search(&p, &r, "qqq").is_empty());
+    }
+
+    #[test]
+    fn portal_tags_are_found_by_their_name() {
+        let r = ac_nodes::registry();
+        let mut p = project();
+        for (id, role) in [(20u64, "send"), (21, "receive")] {
+            let mut tag = NodeInstance::new(NodeId(id), ac_core::REROUTE_KIND);
+            tag.extra.insert(
+                "portal".into(),
+                serde_json::json!({"name": "Sub bus", "role": role}),
+            );
+            p.graph.nodes.push(tag);
+        }
+        let f = search(&p, &r, "sub b");
+        let kinds: Vec<&str> = f.iter().map(|f| f.kind.as_str()).collect();
+        assert_eq!(kinds, vec!["Portal sender", "Portal receiver"]);
+        assert!(f.iter().all(|f| f.title == "Sub bus"));
     }
 
     #[test]

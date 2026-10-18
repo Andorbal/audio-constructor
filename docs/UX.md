@@ -182,7 +182,9 @@ Each of these is one undo step; moving cards never interrupts the sound.
   (notes, mostly) line up in a row above or below, on the side they were
   on. A frame whose nodes are all being laid out moves and resizes with
   them; a frame only partly selected stays put. Cards keep their sizes:
-  collapsed pills, reroutes, and notes take the room they're drawn with.
+  collapsed pills, reroutes, portal tags, and notes take the room they're
+  drawn with. A portal's sender goes just after its source and each
+  receiver just before its destination, however far apart they end up.
 - **Align / distribute** (`Shift+Alt+A`, since `Alt+A` is select none):
   align left, center, right, top, middle, or bottom, or distribute
   horizontally or vertically with equal gaps (the two outer cards stay).
@@ -193,7 +195,8 @@ Each of these is one undo step; moving cards never interrupts the sound.
   (`out` → `in`, `out_l` → `in_l`, `midi` → `midi`); among one output's
   choices, an input of the same type beats one that converts. If nothing
   fits left to right, it tries right to left. It never makes a loop
-  without a `Feedback` node. Press it again for the next free input.
+  without a `Feedback` node, and a portal tag offers only the socket it
+  shows. Press it again for the next free input.
 - **Connect selected to new node**: with two or more nodes selected,
   the node added from the palette (`Shift+A`, which says so) or the Add
   menu is wired from them, each one's first output in the order they
@@ -205,7 +208,8 @@ Each of these is one undo step; moving cards never interrupts the sound.
   node doesn't fit, nothing is wired, the node goes where it was added,
   and the status line says why.
 - **Find** (`Ctrl+F`) searches labels, kind names, and ids (from their
-  start) in every graph of the project, and notes by their text. A node
+  start) in every graph of the project, portals by name, and notes by
+  their text. A node
   inside a group shows the group it's in, once per instance of it.
   `Enter` enters the group, selects the node, and centers it; the bar
   stays open for the next result until `Esc` or a click elsewhere.

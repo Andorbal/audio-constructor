@@ -368,8 +368,10 @@ fn lay_out_and_check(app: &mut EditorApp, what: &str) {
             .node(w.from.node)
             .and_then(|n| registry.get(&n.kind))
             .is_some_and(|e| e.meta.feedback);
+        // A portal's link isn't drawn: its tags go where they're wired.
+        let link = ac_app::edit::portal::is_link(graph, w);
         assert!(
-            feedback || a.rect.max.x < b.rect.min.x,
+            feedback || link || a.rect.max.x < b.rect.min.x,
             "{what}: {} → {} runs backwards",
             a.title,
             b.title
@@ -420,4 +422,67 @@ fn auto_layout_tidies_every_example_and_its_groups() {
             assert!(app.doc.leave_group());
         }
     }
+}
+
+#[test]
+fn auto_layout_keeps_portal_tags_by_what_they_join() {
+    // osc → gain → gain → mix, and osc's portal into the mix's other input.
+    let tag = |id: u64, x: f32, send: bool| {
+        let mut n = node(id, ac_core::REROUTE_KIND, x, 500.0);
+        let role = if send { "send" } else { "receive" };
+        n.extra.insert(
+            "portal".into(),
+            serde_json::json!({"name": "Osc", "role": role}),
+        );
+        n
+    };
+    let mut p = Project::default();
+    p.graph.nodes.push(node(1, "oscillator", 900.0, 0.0));
+    p.graph.nodes.push(node(2, "gain", 0.0, 300.0));
+    p.graph.nodes.push(node(3, "gain", 600.0, 600.0));
+    p.graph.nodes.push(node(4, "mix", 300.0, 0.0));
+    p.graph.nodes.push(tag(5, 50.0, true));
+    p.graph.nodes.push(tag(6, 1200.0, false));
+    for (a, out, b, inp) in [
+        (1, "out", 2, "in"),
+        (2, "out", 3, "in"),
+        (3, "out", 4, "in_0"),
+        (1, "out", 5, "in"),
+        (5, "out", 6, "in"),
+        (6, "out", 4, "in_1"),
+    ] {
+        p.graph.wires.push(wire(a, out, b, inp));
+    }
+    let mut h = harness(p);
+    hover_canvas(&mut h);
+    press(&mut h, Modifiers::COMMAND, Key::L);
+    let rect = |h: &Harness<'static, EditorApp>, id| {
+        let app = h.state();
+        let scene = ac_app::canvas::scene::build(app.document(), &app.registry, None);
+        scene.node(NodeId(id)).expect("drawn").rect
+    };
+    let (osc, g2, g3, mix) = (rect(&h, 1), rect(&h, 2), rect(&h, 3), rect(&h, 4));
+    let (send, receive) = (rect(&h, 5), rect(&h, 6));
+    // The sender is in the column after the oscillator, the receiver in
+    // the one before the mix: no line runs between them to shorten.
+    assert!(osc.max.x < send.min.x && send.min.x < g3.min.x, "{send:?}");
+    assert_eq!(send.min.x, g2.min.x);
+    assert!(
+        g2.max.x < receive.min.x && receive.max.x < mix.min.x,
+        "{receive:?}"
+    );
+    let cards = [osc, g2, g3, mix, send, receive];
+    for (i, a) in cards.iter().enumerate() {
+        for b in &cards[i + 1..] {
+            assert!(!a.intersects(*b), "{a:?} overlaps {b:?}");
+        }
+    }
+    // Still a portal: the link is there, just not drawn.
+    assert!(
+        h.state()
+            .document()
+            .graph()
+            .wires
+            .contains(&wire(5, "out", 6, "in"))
+    );
 }
