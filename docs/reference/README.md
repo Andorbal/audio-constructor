@@ -12,11 +12,22 @@ node. Edit the node's source, not these files.
 | [MIDI Out](io.md#midi-out) | Input / Output | Sends MIDI to the connected devices. |
 | [Record](io.md#record) | Input / Output | Writes audio to a file, one take at a time. |
 | [Clip](generators.md#clip) | Generators | Plays an audio file, with looping, reverse, and variable speed. |
+| [Graph](generators.md#graph) | Generators | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
+| [Impulse](generators.md#impulse) | Generators | A single-sample click on each `trigger`, as a sample-rate `Float`. |
+| [Noise](generators.md#noise) | Generators | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |
 | [Oscillator](generators.md#oscillator) | Generators | A periodic waveform (sine, triangle, saw, square, or pulse) at `freq` + `fm` Hz, as a sample-rate `Float` that wires into audio or into any parameter. |
+| [Sampler](generators.md#sampler) | Generators | Plays a recorded sound at any pitch, with start and end points, a sustain loop, and the generator contract: the building block for drum machines and sampled instruments. |
 | [Transport](generators.md#transport) | Generators | Song time as signals: seconds, beats, bars, tempo, and play state. |
+| [Wavetable](generators.md#wavetable) | Generators | An oscillator that plays single-cycle waveforms from a table and morphs between them with `position`, as a sample-rate `Float`. |
+| [Crossfade](level.md#crossfade) | Level & Dynamics | Blends two signals: `mix` 0 is all `a`, 1 is all `b`, and values in between mix them. |
+| [Envelope Follower](level.md#envelope-follower) | Level & Dynamics | Measures how loud a signal is, moment to moment: `level` (linear, 0 to 1 for full scale) and `level_db` (decibels, never below −120), both at sample rate. |
 | [Gain](level.md#gain) | Level & Dynamics | Scales a signal by a gain in decibels. Works on any number of channels. |
+| [Gain Computer](level.md#gain-computer) | Level & Dynamics | Turns a level into a gain change: the decision-making half of a compressor, limiter, expander, or gate. |
+| [Lookahead](level.md#lookahead) | Level & Dynamics | Lets a level detector see the signal before it is heard: `out` is the input delayed by `time`, and `early` is the input as it comes in, `time` ahead of `out`. |
 | [Mix](level.md#mix) | Level & Dynamics | Sums several audio signals into one, each with its own gain in decibels. |
+| [Normalize](level.md#normalize) | Level & Dynamics | Turns a whole signal up or down so its peak, or its loudness, lands on `target`. |
 | [Pan](level.md#pan) | Level & Dynamics | Places a mono signal in the stereo field, or shifts the balance of a stereo one. The output is always stereo. |
+| [Shaper](level.md#shaper) | Level & Dynamics | Waveshaping: bends the signal through a curve for saturation, clipping, folding, or any transfer function you draw. |
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Reverse](time.md#reverse) | Time | Plays its input backwards. |

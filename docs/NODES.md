@@ -65,10 +65,10 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Oscillator` | P1 | `freq: Float(Hz)`, `shape` (sine, tri, saw, square, pulse with `width`), `phase: Float`, `sync: Trigger` (hard sync), `fm: Float` (linear FM). Out: `out: Float` at sample rate (wires to Audio or to any parameter). Band-limited for audio use; a `pure` config flag disables anti-aliasing for LFO-style use. |
 | `Clip` | P1 | Plays an audio file. Generator contract (start/stop/loop/reverse/rate). `position: Float(Seconds)` input for seeking; outputs `out: Audio`, `position: Float`, `end: Trigger`. Resamples to engine rate on load. |
 | `Transport` | P1 | Song time as signals: `time: Float(Seconds)`, `beat: Float(Beats)`, `bar: Int`, `beat_in_bar: Int`, `bpm: Float`, `playing: Bool`, `play: Trigger`, `stop: Trigger`. (The user's "SongTime".) |
-| `Noise` | P2 | White, pink, brown; seeded. `gain`, `seed` config. |
-| `Graph` | P2 | A hand-drawn curve (lines or béziers, editable in the node) with `duration: Float(Seconds or Beats)`; generator contract. Out: `out: Float`. Doubles as an envelope and, via `Shaper`, as a transfer function. |
-| `Sampler` | P2 | Plays a `Buffer` with pitch (`note`/`freq`), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
-| `Wavetable` | P2 | Scans a table (from a `Buffer` or built-in set) with `position: Float` morphing. |
+| `Noise` | P2 | White, pink, brown at the same RMS; seeded. `gain`, `seed` config; start/stop/reset. |
+| `Graph` | P2 | A hand-drawn curve (straight, held, smooth, or bent segments, drawn in the node editor) with `duration: Float(Seconds or Beats)`; generator contract. Out: `out: Float`, `position`. Doubles as an envelope. |
+| `Sampler` | P2 | Plays a `Buffer` (or, unwired, an audio file) with pitch (`note` against a `root` config), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
+| `Wavetable` | P2 | Scans a table (from a `Buffer` or the built-in sine → triangle → saw → square set) with `position: Float` morphing; band-limited per octave; `freq`, `phase`, `sync`, `fm`. |
 | `Impulse` | P2 | A single-sample click on `trigger`; for testing filters and building percussion. |
 | `Granular` | P3 | Grain cloud over a `Buffer`: grain size, density, spray, pitch, each a socket. |
 
@@ -79,12 +79,12 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Gain` | P1 | `in: Audio`, `gain: Float(dB)`. Channel-polymorphic. (Also "Volume".) |
 | `Pan` | P1 | Mono or stereo in, stereo out, `pan: Float(-1..1)`: constant-power law for mono, balance (far side fades, near side stays at unity) for stereo. |
 | `Mix` | P1 | N inputs (config), each with `gain: Float(dB)`; sums to `out`. Select four nodes and add a Mix to auto-wire them. |
-| `Crossfade` | P2 | `a`, `b`, `mix: Float(0..1)`. Works for `Audio` and `Float`. |
-| `EnvelopeFollower` | P2 | `in: Audio` → `level: Float` (peak or RMS, attack/release). Half of a compressor, all of a sidechain detector. |
-| `GainComputer` | P2 | `level: Float(dB)` → `gain_reduction: Float(dB)` from `threshold`, `ratio`, `knee`; `expand` mode for gates/expanders. The other half of a compressor; also a sidechain compressor when the detector is wired to a different source. |
-| `Lookahead` | P2 | Delays `in` by `time` and reports it as latency so `GainComputer` can see transients early. Lookahead + follower + computer + gain = limiter block. |
-| `Shaper` | P2 | Waveshaping: built-in curves (tanh, hard clip, fold, tube-ish) or a `Graph` as transfer function; `drive`, `bias`. |
-| `Normalize` | P2, WI | Scales a whole signal to a target peak or LUFS. |
+| `Crossfade` | P2 | `a`, `b`, `mix: Float(0..1)`, linear or equal-power `curve`. Works for `Audio` and `Float`. |
+| `EnvelopeFollower` | P2 | `in: Audio` → `level: Float` and `level_db` (peak or RMS, attack/release, channels linked). Half of a compressor, all of a sidechain detector. |
+| `GainComputer` | P2 | `level: Float(dB)` → `gain_reduction: Float(dB)` and linear `gain` from `threshold`, `ratio`, `knee`; `expand` mode for gates/expanders. The other half of a compressor; also a sidechain compressor when the detector is wired to a different source. |
+| `Lookahead` | P2 | Two outputs from one input: `out`, delayed by `time` (reported as latency), and `early`, undelayed, for the detector, so it sees transients before they arrive. Lookahead + follower + computer + gain = limiter block. |
+| `Shaper` | P2 | Waveshaping: built-in curves (tanh, hard clip, soft clip, fold, tube) or a custom transfer curve drawn in the node editor; `drive`, `bias`, `mix`; 2× oversampled. |
+| `Normalize` | P2, WI | Scales a whole signal to a target sample peak or integrated loudness (LUFS, ITU-R BS.1770); `mode` config. |
 
 ## Filters
 

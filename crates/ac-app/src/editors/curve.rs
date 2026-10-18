@@ -13,9 +13,9 @@ use egui::{Align2, Pos2, Shape as Paint, Stroke, pos2};
 use super::{Edit, area, grid, load, store};
 use crate::theme;
 
-const GRAPH_DEFAULT: &[(f64, f64)] = &[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)];
+const GRAPH_DEFAULT: &[(f64, f64)] = ac_nodes::generators::graph::DEFAULT_POINTS;
 const ENVELOPE_DEFAULT: &[(f64, f64)] = ac_nodes::modulation::envelope::DEFAULT_POINTS;
-const SHAPER_DEFAULT: &[(f64, f64)] = &[(-1.0, -1.0), (1.0, 1.0)];
+const SHAPER_DEFAULT: &[(f64, f64)] = ac_nodes::level::shaper::DEFAULT_POINTS;
 /// Pixels within which the pointer grabs a point.
 const GRAB: f32 = 8.0;
 /// Fewest points a curve keeps.

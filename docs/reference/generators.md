@@ -56,6 +56,157 @@ the second one's `start`.
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
 
+<a id="graph"></a>
+## Graph
+
+Kind: `graph` · Also found by: curve, envelope, automation, breakpoint, draw, line, ramp, shape, lfo
+
+A hand-drawn curve played over time: an envelope, an automation
+lane, or (looped) a custom LFO, as a sample-rate `Float`.
+
+The curve lives in the `points` config as `[x, y]` breakpoints:
+`x` is the fraction of the way through (0 at the start, 1 at the
+end) and `y` is the output value, any range. A third entry bends the
+segment that starts at that point: `"step"` holds `y` until the next
+point, `"smooth"` eases in and out, and a number from −1 to 1 bows
+the segment (positive rises late, negative rises early); without it
+the segment is a straight line. Before the first point and after
+the last the curve holds their values. The default rises from 0 to 1
+and falls back: `[[0, 0], [0.5, 1], [1, 0]]`.
+
+`duration` is how long one pass takes: seconds, or quarter-note
+beats that follow the tempo when the `unit` config is `"beats"`.
+Durations shorter than a sample take one sample.
+
+`out` is the curve at the playhead. Before the first `start` it
+holds the value at `x` = 0; after a pass finishes it holds the end
+value (the value at 1, or at 0 when reversed). `position` reports
+the playhead (0 to 1, once per block).
+
+Generator contract: `start` plays from the beginning (from the end
+when reversed). A pass lasts `duration`; on its last frame `out`
+reaches the end value, `end` fires, and the Graph stops, or wraps
+around and keeps going if `loop` is on (a looped pass repeats
+exactly every `duration`). `stop` freezes the playhead, holding the
+current value, and fires `end`; `reset` jumps back to the beginning
+without changing whether it plays. `reverse` flips the direction
+and `rate` scales the speed (negative plays backwards). Events at
+the same frame apply in the order reverse, stop, start, reset.
+
+**Try this:** wire a `Clock` into `start` and `out` into a `Gain`
+(through a `Map` into decibels) for a hand-drawn envelope on every
+beat, or set `loop` with `unit` beats and `duration` 4 for a
+one-bar modulation shape that stays in time.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `duration` | Float (s) | 1 | 0 … 10 | How long one pass takes. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+| `loop` | Bool | false |  | Wrap around at the end. |
+| `reverse` | Trigger | — |  | Toggles playback direction. |
+| `rate` | Float (×) | 1 | 0 … 4 | Playback speed. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The curve at the playhead. |
+| `position` | Float | Playhead, 0 to 1. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="impulse"></a>
+## Impulse
+
+Kind: `impulse` · Also found by: click, dirac, spike, ping, test signal, impulse response
+
+A single-sample click on each `trigger`, as a sample-rate `Float`.
+
+The output is `gain` (default 1) on the exact frame of each trigger
+and 0 everywhere else; several triggers on one frame make one click.
+Negative `gain` clicks downwards. Unwired, `trigger` fires when the
+transport starts (or on load, or never: pick in the dropdown), so
+pressing play sends one click; its button fires one by hand.
+
+A click contains every frequency at once, which makes it the
+standard way to hear (or measure) what a filter, delay, or reverb
+does: what comes out is the patch's impulse response.
+
+**Try this:** wire it into a `Biquad` with high `q` for a pitched
+"ping", or into a `Delay` with high `feedback` to hear the echo
+pattern; drive `trigger` from a `Clock` for a metronome click.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `trigger` | Trigger | `play` | `play`, `load`, `never` | Each trigger makes one click. Unwired: on transport play, on load, or never. |
+| `gain` | Float | 1 | -1 … 1 | Height of the click. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The clicks; 0 between them. |
+
+<a id="noise"></a>
+## Noise
+
+Kind: `noise` · Also found by: white noise, pink noise, brown noise, hiss, random, static, rumble
+
+Random noise in three colors: white, pink, or brown, as a
+sample-rate `Float` that wires into audio or into any parameter.
+
+- `color`: **white** has equal energy at every frequency (bright
+  hiss); **pink** loses 3 dB per octave, so every octave carries the
+  same energy (closer to rain or a waterfall, and the usual test
+  signal for mixes); **brown** loses 6 dB per octave (a deep rumble).
+  All three come out at about the same level, roughly −5 dBFS RMS
+  before `gain`; pink and brown can peak above 1 at 0 dB `gain`.
+- `gain`: output level in decibels (default −12). At −60 dB and below
+  the output is silent.
+
+The noise is seeded, so a project renders the same every time. Each
+node draws its own sequence (from the project seed and the node's
+place in the patch); the `seed` config (a whole number, default 0)
+picks a different one, so two Noise nodes can be made to differ or
+match exactly. Changing `color` while playing switches smoothly: all
+three colors are computed from the same random values.
+
+Generator contract: silent until `start`. Each start continues the
+random sequence, so repeated bursts are all different; `reset`
+re-seeds without changing whether it plays, so the sequence starts
+over, as it does when the transport returns to zero. `stop` silences
+it and fires `end`. Events at the same frame apply in the order
+stop, start, reset.
+
+**Try this:** wire a `Clock` into an `ADSR` (short decay) and
+multiply it with white Noise through a `Biquad` bandpass for a
+snare or hi-hat, or feed pink Noise into a `Meter` and a `Biquad` to
+hear what a filter does across the whole spectrum.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `color` | Int | `white` | `white`, `pink`, `brown` | White, pink, or brown. |
+| `gain` | Float (dB) | -12 | -60 … 12 | Output level in decibels. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The noise. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
 <a id="oscillator"></a>
 ## Oscillator
 
@@ -109,6 +260,88 @@ apply in the order stop, start, reset, sync.
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
 
+<a id="sampler"></a>
+## Sampler
+
+Kind: `sampler` · Also found by: sample, one shot, drum, pitch, keyboard, instrument, loop, buffer
+
+Plays a recorded sound at any pitch, with start and end points,
+a sustain loop, and the generator contract: the building block for
+drum machines and sampled instruments.
+
+**Source.** A wired `buffer` (for example a `Record` node's last
+take) is played; with `buffer` unwired, the `file` config (an audio
+file in the project, assigned in the side panel) is played instead,
+converted to the engine's rate once when the project loads. A wired
+`buffer` that holds nothing yet, or a missing file, plays silence
+(a missing file is flagged in the editor). A new buffer takes effect
+at the next `start`, so a sound never changes under a playing note.
+The output has `channels` channels (config, 1 to 64, default 2): a
+mono sound goes to every channel and extra channels are dropped.
+
+**Pitch.** `note` is a MIDI note number (fractions bend it); at the
+`root` config note (default 60, middle C) the sound plays at its own
+speed, and each semitone above multiplies the speed by 2^(1/12).
+`rate` multiplies on top. Fractional speeds are interpolated (cubic
+Hermite); a buffer recorded at another sample rate still plays at
+its own pitch. `gain` is in decibels (silent at −60 and below).
+
+**Region and loop.** `start_point` and `end_point` (0 to 1, fractions
+of the whole sound) mark the part that plays; if `end_point` is
+before `start_point` the two swap. With `loop` on, playback runs
+from `start_point` into the loop (`loop_start` to `loop_end`, also
+fractions of the whole sound, kept inside the region) and repeats
+it until stopped, or until `loop` turns off, when it plays on to
+`end_point`. A loop shorter than one sample loops the whole region.
+`crossfade` (seconds of the sound) blends the end of each pass into
+the audio just before `loop_start` (equal-power), hiding the seam;
+it is shortened to fit the audio available there and the loop's
+length. Points are followed sample by sample, so they can be
+modulated.
+
+**Generator contract.** `start` (re)triggers from `start_point`
+(from `end_point` when reversed). Reaching the end stops it and
+fires `end`; `stop` silences it and fires `end`; `reset` jumps back
+to the beginning without changing whether it plays. `reverse` flips
+the direction (backward loops cross-fade into the audio just after
+`loop_end`). Events at the same frame apply in the order reverse,
+stop, start, reset. Nothing to play (an empty sound or region)
+fires `end` as soon as it starts. `position` reports where playback
+is, in seconds from the beginning of the sound.
+
+**Try this:** inside a `Voices` body, wire the `Voice` node's
+`trigger` into `start` and its `note` into `note` for a playable
+sampled instrument; or wire a `Record` node's `buffer` here and a
+`Clock` into `start` to loop a phrase you just played.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `buffer` | Buffer | — |  | Sound to play; unwired, the `file` config plays. |
+| `note` | Float | 60 | 0 … 127 | MIDI note; the `root` note plays at the sound's own pitch. |
+| `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+| `start_point` | Float | 0 | 0 … 1 | Where playback starts (fraction of the sound). |
+| `end_point` | Float | 1 | 0 … 1 | Where playback ends (fraction of the sound). |
+| `loop_start` | Float | 0 | 0 … 1 | Start of the loop (fraction of the sound). |
+| `loop_end` | Float | 1 | 0 … 1 | End of the loop (fraction of the sound). |
+| `crossfade` | Float (s) | 0 | 0 … 0.5 | Blend across the loop seam. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+| `loop` | Bool | false |  | Wrap around at the end. |
+| `reverse` | Trigger | — |  | Toggles playback direction. |
+| `rate` | Float (×) | 1 | 0 … 4 | Playback speed. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The sound. |
+| `position` | Float (s) | Playback position in the sound. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
 <a id="transport"></a>
 ## Transport
 
@@ -139,4 +372,71 @@ into an envelope's trigger to restart it whenever the song starts.
 | `playing` | Bool | True while the transport plays. |
 | `play` | Trigger | Fires when the transport starts. |
 | `stop` | Trigger | Fires when the transport stops. |
+
+<a id="wavetable"></a>
+## Wavetable
+
+Kind: `wavetable` · Also found by: wave table, morph, scan, oscillator, single cycle, frames, synth
+
+An oscillator that plays single-cycle waveforms from a table and
+morphs between them with `position`, as a sample-rate `Float`.
+
+The `table` config chooses the waveforms:
+- `"basic"` (default): sine, triangle, saw, and square, in that
+  order, with the shapes and phase of the `Oscillator` node.
+- `"buffer"`: the waveforms come from a `table` `Buffer` input
+  (adds the socket), such as a `Record` node's take: channel 0 is
+  cut into consecutive frames of `frame_size` samples (config,
+  default 2048), each one cycle. A trailing partial frame is
+  ignored, and so are frames past `max_frames` (config, default 64).
+
+`position` (0 to 1) scans the frames, crossfading between
+neighbours: with the basic table, 0 is the sine, 1/3 the triangle,
+2/3 the saw, and 1 the square. `freq` + `fm` sets the pitch in hertz
+(linear FM; negative totals run the waveform backwards), `phase`
+offsets it by a fraction of a cycle, and `sync` resets the phase to
+0 (hard sync, not band-limited).
+
+Every frame is stored once per octave with the harmonics that would
+alias at that pitch removed, and playback fades between octaves, so
+sweeps stay clean and high notes lose their top harmonics smoothly.
+Preparing those copies takes time, and the audio thread can't stop
+to do it all at once: when a new buffer arrives, its frames are
+prepared one piece at a time while playback goes on (a 2048-sample
+frame every 4 ms or so at 48 kHz, a full 64-frame table in about a
+quarter of a second). Meanwhile `position` scans the frames that are
+ready, and the output is silent until the first one is. Memory for
+`max_frames` frames is reserved up front (about 5.8 MB at the
+defaults), which is why the frame count has a limit.
+
+Generator contract: silent until `start`, which starts from phase
+0. `stop` silences it and fires `end`; `reset` returns to phase 0
+without changing whether it plays. Events at the same frame apply in
+the order stop, start, reset, sync.
+
+**Try this:** sweep `position` with a slow `Oscillator` (`pure`,
+mapped to 0..1) for an evolving pad, or record a few seconds of
+sound into a `Record` node and wire its `buffer` into a `"buffer"`
+Wavetable to play it back as a scanned waveform.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `freq` | Float (Hz) | 440 | 20 … 20000 | Frequency in hertz. |
+| `position` | Float | 0 | 0 … 1 | Scans the frames (0 is the first, 1 the last). |
+| `phase` | Float | 0 | 0 … 1 | Phase offset in cycles. |
+| `sync` | Trigger | — |  | Hard sync: resets the phase to 0. |
+| `fm` | Float (Hz) | 0 | -1000 … 1000 | Linear FM: hertz added to `freq`. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The waveform. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
 

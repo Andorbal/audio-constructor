@@ -224,6 +224,77 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: 8,
             },
         )],
+        "noise" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
+        "graph" => vec![f(
+            "unit",
+            "Duration in",
+            Kind::Choice {
+                choices: &["seconds", "beats"],
+                default: "seconds",
+            },
+        )],
+        "sampler" => vec![
+            f("file", "File (when `buffer` is unwired)", Kind::File),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 2,
+                },
+            ),
+            f(
+                "root",
+                "Root note (plays at its own pitch)",
+                Kind::Number { default: 60.0 },
+            ),
+        ],
+        "wavetable" => vec![
+            f(
+                "table",
+                "Table",
+                Kind::Choice {
+                    choices: &["basic", "buffer"],
+                    default: "basic",
+                },
+            ),
+            f(
+                "frame_size",
+                "Frame size (buffer)",
+                Kind::Count {
+                    min: 32,
+                    max: 8192,
+                    default: 2048,
+                },
+            ),
+            f(
+                "max_frames",
+                "Most frames (buffer)",
+                Kind::Count {
+                    min: 1,
+                    max: 256,
+                    default: 64,
+                },
+            ),
+        ],
+        "lookahead" => vec![f("time", "Look ahead (s)", Kind::Number { default: 0.005 })],
+        "normalize" => vec![f(
+            "mode",
+            "Measure",
+            Kind::Choice {
+                choices: &["peak", "lufs"],
+                default: "peak",
+            },
+        )],
         "midi_cc" => vec![f(
             "initial",
             "Start at (0–1 of the range)",
@@ -932,6 +1003,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                 .filter(|(k, _)| !known.iter().any(|f| f.key == k.as_str()))
                 .filter(|(k, _)| {
                     !(node.kind == "clip" && (k.as_str() == "channels" || k.as_str() == "hash"))
+                        && !(node.kind == "sampler" && k.as_str() == "hash")
                 })
                 .filter(|(k, _)| node.kind != "group" || k.as_str() != "def")
                 // The node editor shows its own key.
