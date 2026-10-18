@@ -268,7 +268,7 @@ fn describe(info: &portal::Info) -> String {
             .to_string(),
         (true, 1) => "Sends to 1 receiver.".to_string(),
         (true, n) => format!("Sends to {n} receivers."),
-        (false, 0) => "Its sender is gone, so nothing arrives here.".to_string(),
+        (false, 0) => "No sender is linked to it.".to_string(),
         (false, _) => "Receives from its sender.".to_string(),
     };
     format!(

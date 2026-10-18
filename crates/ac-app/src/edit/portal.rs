@@ -123,30 +123,54 @@ impl Info {
     }
 }
 
-/// Every portal tag in a graph.
+/// Every portal tag in a graph, in one pass over its nodes and wires (the
+/// canvas builds this every frame).
 pub fn index(graph: &Graph) -> BTreeMap<NodeId, Info> {
-    let mut out = BTreeMap::new();
-    for n in &graph.nodes {
-        let Some(t) = tag(n) else { continue };
-        let info = if t.send {
-            Info {
-                name: t.name,
-                send: true,
-                partners: receivers_of(graph, n.id),
+    let mut out: BTreeMap<NodeId, Info> = graph
+        .nodes
+        .iter()
+        .filter_map(|n| {
+            let t = tag(n)?;
+            Some((
+                n.id,
+                Info {
+                    name: t.name,
+                    send: t.send,
+                    partners: Vec::new(),
+                },
+            ))
+        })
+        .collect();
+    if out.is_empty() {
+        return out;
+    }
+    let links: Vec<(NodeId, NodeId)> = graph
+        .wires
+        .iter()
+        .filter(|w| is_link_in(&out, w))
+        .map(|w| (w.from.node, w.to.node))
+        .collect();
+    for (s, r) in links {
+        let name = out.get(&s).map(|i| i.name.clone());
+        if let Some(i) = out.get_mut(&s) {
+            i.partners.push(r);
+        }
+        if let Some(i) = out.get_mut(&r) {
+            i.partners = vec![s];
+            if let Some(name) = name {
+                i.name = name;
             }
-        } else {
-            let sender = sender_of(graph, n.id);
-            Info {
-                name: sender
-                    .and_then(|s| tag_of(graph, s))
-                    .map_or(t.name, |s| s.name),
-                send: false,
-                partners: sender.into_iter().collect(),
-            }
-        };
-        out.insert(n.id, info);
+        }
     }
     out
+}
+
+/// [`is_link`] against an [`index`] of the graph.
+pub fn is_link_in(index: &BTreeMap<NodeId, Info>, w: &Wire) -> bool {
+    w.from.socket == "out"
+        && w.to.socket == "in"
+        && index.get(&w.from.node).is_some_and(|i| i.send)
+        && index.get(&w.to.node).is_some_and(|i| !i.send)
 }
 
 /// The tags of the portal `id` belongs to: its sender (if any) and every

@@ -380,7 +380,7 @@ fn build_with(
     let mut wires = Vec::new();
     for w in &graph.wires {
         // A portal's link is drawn as its two tags, not as a line.
-        if portal::is_link(&graph, w) {
+        if portal::is_link_in(&portals, w) {
             continue;
         }
         let (Some(a), Some(b)) = (index.get(&w.from.node), index.get(&w.to.node)) else {
