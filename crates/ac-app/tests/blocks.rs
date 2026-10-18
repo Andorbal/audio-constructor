@@ -370,6 +370,11 @@ fn opening_a_block_file_imports_it() {
     );
     assert_eq!(status(&h), "Imported My Fx into your library");
     assert_eq!(h.state().side.tab, Tab::Library);
+    assert_eq!(
+        h.state().side.block_filter.origin,
+        Some(Origin::Imported),
+        "the Library tab shows where it landed"
+    );
     let doc = h.state().document();
     assert!(doc.is_dirty() && doc.path.is_none(), "the document stays");
     assert_eq!(doc.graph().nodes.len(), 3);

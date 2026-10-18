@@ -4,14 +4,14 @@
 
 use std::path::Path;
 
-use ac_core::{Block, BlockSource, GroupId, update_def};
+use ac_core::{Block, BlockSource, GroupId, Origin, update_def};
 use ac_io::Update;
 
 use super::{EditorApp, plural};
 use crate::dialogs::FilePurpose;
 use crate::files;
 use crate::palette;
-use crate::panels::Tab;
+use crate::panels::{BlockFilter, Tab};
 
 impl EditorApp {
     /// Clipboard text holding one instance of library block `source`, its
@@ -43,8 +43,13 @@ impl EditorApp {
         match self.library.import(block, &hint) {
             Ok(_) if known => self.say(format!("{name} is already in your library"), now),
             Ok(_) => {
+                // Show it where it landed.
                 self.side.open = true;
                 self.side.tab = Tab::Library;
+                self.side.block_filter = BlockFilter {
+                    origin: Some(Origin::Imported),
+                    tag: None,
+                };
                 self.say(format!("Imported {name} into your library"), now);
             }
             Err(e) => self.warn(format!("Couldn't import {name}: {e}"), now),

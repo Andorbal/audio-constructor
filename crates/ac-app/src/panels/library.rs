@@ -186,7 +186,10 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
                     } else {
                         theme::TEXT_MUTED
                     });
-                let chip = egui::Button::selectable(on, text).corner_radius(theme::radius(9.0));
+                let chip = egui::Button::new(text)
+                    .selected(on)
+                    .fill(if on { theme::ACCENT_DIM } else { theme::BORDER })
+                    .corner_radius(theme::radius(9.0));
                 let hint = if on {
                     "Click again to show every tag"
                 } else {
