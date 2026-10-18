@@ -197,7 +197,9 @@ fn blurb(cat: Category) -> &'static str {
             "Widgets you play by hand, on the canvas or on a performance panel: knobs, \
              sliders, buttons, pads, and a keyboard."
         }
-        Category::Display => "Meters, scopes, readouts, and analyzers that show what a signal is doing.",
+        Category::Display => {
+            "Meters, scopes, readouts, and analyzers that show what a signal is doing."
+        }
         Category::Utility => {
             "Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel \
              tools, notes on the canvas, and the engine's vital signs."
@@ -253,7 +255,12 @@ pub fn write_docs(registry: &Registry, dir: &Path) -> Result<()> {
     }
     for (cat, entries) in &cats {
         let cat = *cat;
-        let _ = writeln!(index, "\n<a id=\"{}\"></a>\n## {}\n", cat.slug(), cat.name());
+        let _ = writeln!(
+            index,
+            "\n<a id=\"{}\"></a>\n## {}\n",
+            cat.slug(),
+            cat.name()
+        );
         let _ = writeln!(
             index,
             "{} All on one page: [{}]({}.md).\n",
