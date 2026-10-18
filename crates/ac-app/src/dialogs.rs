@@ -251,6 +251,8 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                             ),
                             ("Type a value", "Click a value"),
                             ("Delete", "X or Delete"),
+                            ("Move a panel card", "Drag it by its edge"),
+                            ("Leave performance mode", "Esc or F11"),
                         ] {
                             ui.label(what);
                             ui.label(RichText::new(how).color(theme::TEXT_MUTED));

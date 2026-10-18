@@ -30,12 +30,14 @@ pub fn position_text(tempo: &TempoMap, sample: u64) -> (String, String) {
 }
 
 impl TransportState {
-    /// Draw the bar; returns commands to run.
+    /// Draw the bar; returns commands to run. `panels`: the panels are
+    /// shown instead of the canvas.
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,
         doc: &mut Document,
         engine: &EngineHost,
+        panels: bool,
         now: f64,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
@@ -251,6 +253,8 @@ impl TransportState {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.add_space(6.0);
+                view_switch(ui, panels, &mut actions);
+                ui.add_space(10.0);
                 // Xruns and load.
                 let xruns = status.total_xruns();
                 let x_color = if xruns > 0 {
@@ -327,6 +331,40 @@ impl TransportState {
         } else {
             format!("Master peak {:.1} dBFS", 20.0 * hold.log10())
         });
+    }
+}
+
+/// Canvas or panels, and performance mode (right to left).
+fn view_switch(ui: &mut egui::Ui, panels: bool, actions: &mut Vec<Action>) {
+    let perform = ui
+        .add(
+            egui::Button::new(RichText::new(icons::CORNERS_OUT).size(16.0))
+                .min_size(vec2(30.0, 28.0)),
+        )
+        .on_hover_text("Performance mode: the current panel full screen (F11)");
+    if perform.clicked() {
+        actions.push(Action::PerformanceMode);
+    }
+    for (on, icon, label, tip) in [
+        (
+            true,
+            icons::SQUARES_FOUR,
+            "Panels",
+            "Panels: the pinned controls without the graph (Ctrl+Tab)",
+        ),
+        (
+            false,
+            icons::TREE_STRUCTURE,
+            "Canvas",
+            "The node canvas (Ctrl+Tab)",
+        ),
+    ] {
+        let b = egui::Button::new(RichText::new(format!("{icon}  {label}")).size(theme::FONT_UI))
+            .selected(panels == on)
+            .min_size(vec2(0.0, 28.0));
+        if ui.add(b).on_hover_text(tip).clicked() && panels != on {
+            actions.push(Action::TogglePanels);
+        }
     }
 }
 
