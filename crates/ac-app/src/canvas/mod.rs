@@ -14,6 +14,7 @@ mod menu;
 mod paint;
 pub mod piano;
 pub mod scene;
+mod timing;
 pub mod view;
 pub mod widgets;
 pub mod wires;
@@ -76,7 +77,8 @@ pub struct CanvasIo<'a> {
     pub missing_assets: &'a BTreeSet<String>,
     /// Skip animations while the audio thread is heavily loaded (UX.md).
     pub calm: bool,
-    pub show_timing: bool,
+    /// Per-node timing for the headers, while it's shown (`Ctrl+T`).
+    pub timing: Option<&'a crate::timing::Timings>,
     /// Record nodes can write takes (the project is saved somewhere).
     pub can_record: bool,
     /// Bound inputs, with the values their bindings last set.
@@ -279,6 +281,8 @@ pub struct Canvas {
     pub hint: Option<String>,
     /// Hover-sensitive rectangles (screen) with their tooltip text.
     tips: Vec<(Rect, String)>,
+    /// The timing chips drawn in headers last frame (tests read them).
+    pub header_timing: Vec<(NodeId, String)>,
     /// The view was set from the document (load, scope change).
     view_scope: Option<Vec<NodeId>>,
     /// The view each group scope was last left at.
@@ -315,6 +319,7 @@ impl Default for Canvas {
             last_scene: None,
             hint: None,
             tips: Vec::new(),
+            header_timing: Vec::new(),
             view_scope: None,
             scope_views: HashMap::new(),
             graph_cache: ac_core::Graph::default(),
@@ -705,6 +710,7 @@ impl Canvas {
 
         let painter = ui.painter_at(rect);
         self.tips.clear();
+        self.header_timing.clear();
         self.paint(ui, &painter, io, &scene, now, dt);
         self.show_inline_edit(ui, io, now);
         self.show_menus(ui, io, &scene, now);

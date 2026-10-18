@@ -120,10 +120,6 @@ impl<'a> Live<'a> {
     pub fn scope(&self, id: NodeId) -> Option<Vec<f32>> {
         self.tele.scope(&self.path(id))
     }
-
-    pub fn node_time_ns(&self, id: NodeId) -> Option<u32> {
-        self.tele.node_time_ns(&self.path(id))
-    }
 }
 
 /// The engine path and socket that produce the signal on `ep` (an output

@@ -424,24 +424,10 @@ impl Canvas {
                 self.tips.push((r.expand(2.0), b.tip.clone()));
                 right -= w + 5.0 * z;
             }
-            if io.show_timing
-                && let Some(ns) = live.node_time_ns(n.id)
+            if let Some(timing) = io.timing
+                && let Some(r) = timing.node(n.id)
             {
-                let ms = f64::from(ns) / 1e6;
-                let heat = (ms / 0.2).clamp(0.0, 1.0) as f32;
-                let color = theme::mix(theme::text_faint(), theme::warning(), heat);
-                let g = painter.layout_no_wrap(
-                    format!("{ms:.2} ms"),
-                    theme::canvas_font(theme::FONT_SMALL, z, true),
-                    color,
-                );
-                let w = g.size().x;
-                painter.galley(
-                    pos2(right - w, header.center().y - g.size().y / 2.0),
-                    g,
-                    color,
-                );
-                right -= w + 6.0 * z;
+                right = self.paint_timing(painter, header, right, &r, timing, n, alpha);
             }
             let caret_w = if matches!(n.class, Class::Interface { .. }) {
                 0.0

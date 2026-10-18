@@ -732,6 +732,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             io.doc.enter_group(id);
         }
     });
+    timing_line(ui, io, id);
 
     // A node drawn rather than typed shows its editor first.
     node_editor(ui, io, id, &node);
@@ -901,6 +902,69 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         section(ui, "Help");
         markdown::show(ui, &e.meta.doc_text());
     }
+}
+
+/// The selected node's processing time per block (the same reading as its
+/// header with `Ctrl+T`), or a button that starts measuring.
+fn timing_line(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId) {
+    use crate::actions::Action;
+    use crate::timing;
+    let shortcut = Action::ShowTiming
+        .shortcut()
+        .map(|s| ui.ctx().format_shortcut(&s))
+        .unwrap_or_default();
+    let voices = io
+        .doc
+        .graph()
+        .node(id)
+        .is_some_and(|n| n.kind == ac_core::VOICES_KIND);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{}  Time", icons::TIMER)).color(theme::text_muted()));
+        let Some(t) = io.timing else {
+            let r = ui.small_button("Measure").on_hover_text(format!(
+                "Measure how long every node takes each block ({shortcut}). \
+                 Measuring costs a little, so it's off until asked for."
+            ));
+            if r.clicked() {
+                io.requests.push(PanelRequest::Run(Action::ShowTiming));
+            }
+            return;
+        };
+        let Some(r) = t.node(id) else {
+            ui.label(
+                RichText::new("— (doesn't run in the engine)")
+                    .small()
+                    .color(theme::text_faint()),
+            );
+            return;
+        };
+        let color = theme::heat(r.heat());
+        let (bar, _) = ui.allocate_exact_size(egui::vec2(56.0, 6.0), egui::Sense::hover());
+        ui.painter()
+            .rect_filled(bar, theme::radius(3.0), theme::meter_bg());
+        let k = r.share.unwrap_or(0.0).clamp(0.0, 1.0);
+        if k > 0.0 {
+            let fill = egui::Rect::from_min_size(
+                bar.min,
+                egui::vec2((bar.width() * k).max(2.0), bar.height()),
+            );
+            ui.painter().rect_filled(fill, theme::radius(3.0), color);
+        }
+        let text = match r.share {
+            Some(s) => format!(
+                "{} · {} of budget",
+                timing::format_ns(r.ns),
+                timing::format_share(s)
+            ),
+            None => timing::format_ns(r.ns),
+        };
+        ui.label(
+            RichText::new(text)
+                .font(theme::mono_font(theme::FONT_VALUE))
+                .color(color),
+        )
+        .on_hover_text(timing::describe(&r, t.budget_ns(), voices));
+    });
 }
 
 /// A group definition and the library: where it came from, saving it as
