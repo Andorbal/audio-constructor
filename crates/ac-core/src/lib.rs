@@ -49,8 +49,8 @@ pub use group::{GroupDef, GroupInput, GroupOutput};
 pub use id::{GroupId, IdGen, NodeId, NodePath};
 pub use io::{
     AudioIn, AudioOut, AutoFlags, BoolIn, BufferRef, FloatIn, FloatOut, FloatSrc, HostAccess,
-    InputSlot, Inputs, IntSrc, Io, MidiOut, OutputSlot, Outputs, ParamSlot, TelemetryAccess,
-    TriggerOut, TriggerSrc,
+    InputSlot, Inputs, IntSrc, Io, LOCAL, Local, MidiOut, OutputSlot, Outputs, ParamSlot,
+    TelemetryAccess, TriggerOut, TriggerSrc,
 };
 pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,

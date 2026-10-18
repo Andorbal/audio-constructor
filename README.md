@@ -4,15 +4,16 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: Phase 1 (foundation) is built: the engine, the command line, and
-> the desktop editor. Phase 2 is under way: polyphony, nodes that bake their
-> whole input, latency compensation, multi-core processing, and the Phase 2
-> node library (about eighty nodes, with editors for curves, step grids,
-> piano rolls, and bands) are in, as are blocks (23 ship, from reverbs to a
-> drum machine), packs for sharing projects, and control surfaces
-> (gamepads, the computer keyboard, OSC, bindings with learn, and
-> performance panels), and editor conveniences (auto-layout, find,
-> portals, a minimap, a light theme, UI scale, and F1 help). See
+> Status: Phases 1 (foundation) and 2 (depth) are built. Phase 1 gave the
+> engine, the command line, and the desktop editor. Phase 2 added
+> polyphony, nodes that bake their whole input, latency compensation,
+> multi-core processing, the Phase 2 node library (with editors for
+> curves, step grids, piano rolls, and bands), 23 shipped blocks, packs
+> for sharing projects, control surfaces (gamepads, the computer keyboard,
+> OSC, bindings with learn, performance panels), editor conveniences
+> (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
+> help), 14 example projects, and a [user guide](docs/guide/README.md).
+> Phase 3 (plugins, the web, packaging) is next. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
@@ -69,6 +70,9 @@ parts those tools are made of and lets you wire them up however you like.
 
 ## Getting started
 
+New to it? The [user guide](docs/guide/README.md) takes you from installing
+to building, playing, and rendering your own patches, step by step.
+
 ### Download
 
 Every release on the
@@ -122,14 +126,40 @@ cargo run --release -p ac-app -- examples/guitar-pedalboard.acproj
 ```
 
 Press `Space` to play, `Shift+A` to add a node, drag between sockets to
-wire, `Ctrl+Z` to undo. Pick your audio interface and MIDI keyboard in the
-side panel's **Devices** tab (`N` toggles the panel). `F1` on a node opens
+wire, `Ctrl+Z` to undo. Pick your audio interface in the side panel's
+**Devices** tab (`N` toggles the panel); MIDI inputs are opened on their own
+and listed there. `F1` on a node opens
 its help, with a "Try this" tip and the blocks and examples that use it.
 View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
-interface from 75 % to 200 %. The examples in
-`examples/` are good places to start: **Start**, **Guitar Pedalboard**,
-**Subtractive Synth**, **Four Tracks**, and **Reverse Delay** (a Phase 2
-preview).
+interface from 75 % to 200 %.
+
+The examples in `examples/` are good places to start. Each is a working
+patch with notes on the canvas saying what each part does and what to try:
+
+- **Start**: an oscillator to the output, and a first tour of the editor.
+- **Guitar Pedalboard**: a guitar through a tone filter and an echo, live.
+- **Subtractive Synth**: a mono synth played from a MIDI keyboard.
+- **Four Tracks**: four looping clips, each through a Track group, mixed.
+- **Sidechain Pump**: a pad that ducks under the kick drum, in time with the
+  tempo.
+- **Drum Machine**: the Drum Machine block, and a kit of Samplers played
+  from its triggers.
+- **Build a Keyboard**: a polyphonic synth played from the computer keys and
+  an on-screen keyboard at once, along with a demo phrase, with a
+  performance panel to play it full screen.
+- **Reverse Delay**: echoes that play backwards, and why Reverse bakes from
+  a Clip but switches off on Audio In.
+- **Gamepad Jam**: drums on the face buttons, chords on the D-pad, and a
+  filter on the stick, with bindings and a panel for a game controller.
+- **Multiband Compressor**: a mix compressed in three bands, with a meter
+  per band.
+- **Vocoder**: a synth chord that talks, with a robot voice built from
+  filters or with yours.
+- **Generative Patch**: Euclidean rhythms and seeded random notes, snapped
+  to a scale.
+- **Tape Loop**: phrases circling a worn, wobbling tape loop until they
+  fade.
+- **Guitar-to-Synth**: a synth that follows a guitar's pitch and dynamics.
 
 ![The Subtractive Synth example: MIDI note, oscillator, filter, and envelopes, with a clock-driven demo note](docs/images/editor-synth.png)
 
@@ -168,12 +198,13 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 
 | Document | What it covers |
 | --- | --- |
+| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, and troubleshooting |
+| [docs/reference](docs/reference/README.md) | Every node, by category: what it does, a tip, and each socket (generated from the nodes' own documentation) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases, milestones, and acceptance criteria |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Engine, signal model, scheduling, real-time rules, persistence |
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
-| [docs/reference](docs/reference/README.md) | Generated reference for every node |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 

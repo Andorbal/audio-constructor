@@ -1,0 +1,1694 @@
+{
+  "schema_version": 1,
+  "name": "Drum Machine",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 13.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 110.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "A drum machine you can open up. Press Space to play.\n\nThe Drum Machine block plays a sixteen-step pattern in time with the transport: a Clock inside steps through a Pattern and each row fires a synthesized drum. It also sends out one trigger per drum, and here those triggers play a second kit of Samplers cut from one audio file. Click the Sampled kit switch to hear the same pattern on either kit."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -264.0
+          ],
+          "size": [
+            700.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "knob",
+        "config": {
+          "min": 0.125,
+          "max": 1.0,
+          "unit": "beats"
+        },
+        "params": {
+          "value": 0.25
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Step (beats)"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "group",
+        "config": {
+          "def": "drum-machine"
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Drum Machine"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "comment",
+        "config": {
+          "text": "Tab into the Drum Machine (or double-click it) to see the Pattern and the four synthesized drums. Select the Pattern and click its cells in the Node tab to change the beat. Step 0.5 plays it at half speed."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            190.0
+          ],
+          "size": [
+            466.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.125,
+          "gain": -6.0,
+          "start_point": 0.0
+        },
+        "ui": {
+          "pos": [
+            640.0,
+            0.0
+          ],
+          "label": "Kick slice"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": 3.0,
+          "note": 48.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            910.0,
+            0.0
+          ],
+          "label": "Snare: hat an octave down"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -6.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            640.0,
+            380.0
+          ],
+          "label": "Closed hat slice"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -8.0,
+          "note": 53.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            910.0,
+            380.0
+          ],
+          "label": "Open hat: hat lower"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "mix",
+        "config": {
+          "inputs": 4
+        },
+        "ui": {
+          "pos": [
+            1180.0,
+            200.0
+          ],
+          "label": "Sampled kit"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "comment",
+        "config": {
+          "text": "Every Sampler plays a slice of assets/drums.wav: start_point and end_point are fractions of the file. The snare and open hat are the hi-hat slice played lower (note below the root of 60 plays slower and deeper). Assign your own file in the Node tab to swap a sound."
+        },
+        "ui": {
+          "pos": [
+            640.0,
+            770.0
+          ],
+          "size": [
+            736.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "b",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            1450.0,
+            -150.0
+          ],
+          "label": "Sampled kit"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            1450.0,
+            0.0
+          ],
+          "label": "Kit"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "group",
+        "config": {
+          "def": "plate-reverb"
+        },
+        "params": {
+          "damping": 0.5,
+          "decay": 0.9,
+          "mix": 0.15,
+          "predelay": 0.01
+        },
+        "ui": {
+          "pos": [
+            1720.0,
+            0.0
+          ],
+          "label": "Room"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1990.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "f",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2260.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Change the tempo in the Project tab: the pattern follows it.\n• Wire a Clock (interval 2 beats) into a Sampler's start for an extra hit the pattern doesn't have.\n• Add a Probability between a trigger output and its Sampler so some hits drop out.\n• Turn Room's mix up for a bigger space, or set it to 0 for a dry kit."
+        },
+        "ui": {
+          "pos": [
+            1450.0,
+            200.0
+          ],
+          "size": [
+            560.0,
+            128.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:out",
+        "to": "3:step"
+      },
+      {
+        "from": "3:kick",
+        "to": "5:start"
+      },
+      {
+        "from": "3:snare",
+        "to": "6:start"
+      },
+      {
+        "from": "3:closed_hat",
+        "to": "7:start"
+      },
+      {
+        "from": "3:open_hat",
+        "to": "8:start"
+      },
+      {
+        "from": "5:out",
+        "to": "9:in_0"
+      },
+      {
+        "from": "6:out",
+        "to": "9:in_1"
+      },
+      {
+        "from": "7:out",
+        "to": "9:in_2"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in_3"
+      },
+      {
+        "from": "3:out",
+        "to": "c:a"
+      },
+      {
+        "from": "9:out",
+        "to": "c:b"
+      },
+      {
+        "from": "b:out",
+        "to": "c:select"
+      },
+      {
+        "from": "c:out",
+        "to": "d:in"
+      },
+      {
+        "from": "d:out",
+        "to": "e:in"
+      },
+      {
+        "from": "e:out",
+        "to": "f:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Pattern and synthesized kit",
+        "rect": [
+          -24.0,
+          -52.0,
+          514.0,
+          346.0
+        ]
+      },
+      {
+        "label": "Sampled kit, from the same triggers",
+        "rect": [
+          616.0,
+          -52.0,
+          784.0,
+          926.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "drum-machine": {
+      "name": "Drum Machine",
+      "description": "A four-voice drum machine playing a sixteen-step pattern: kick, snare, closed hi-hat, and open hi-hat. It plays while the transport runs, in time with the project's tempo, starting from the first step on play.\n\n- `step` is the length of one step in beats: 0.25 is sixteenth notes, 0.5 plays the pattern at half speed.\n- `kick_level`, `snare_level`, `closed_hat_level`, and `open_hat_level` set each drum's loudness in decibels (−60 is silent).\n- `out` is the mix, mono.\n- `kick`, `snare`, `closed_hat`, and `open_hat` fire a trigger on every hit of their row. Wire them into the `start` of Samplers loaded with your own drum sounds, and turn the matching level down to −60 to replace a drum.\n\nThe beat is a basic rock groove. To change it, open the block and click cells in the Pattern (rows from the top: kick, snare, closed hat, open hat). The pattern belongs to the block's definition, so every instance in a project plays the same beat. The drums are synthesized rather than sampled because a block can't carry audio files.\n\nInside: a Clock ticks every `step` beats and drives a Pattern of 16 steps and 4 rows, and each row's trigger starts one drum. The kick is a sine Oscillator restarted on every hit, its pitch dropping fast from 200 to 45 Hz (an ADSR through an exponential Map) under a longer ADSR for the volume. The snare is white Noise through a highpass Biquad plus a short 185 Hz triangle for the body, each with its own envelope, balanced by a small Mix. Both hi-hats share the Noise through a 7 kHz highpass: the closed one with a short envelope, the open one with a long envelope that the closed hat cuts off through the ADSR's `off` input, as on a real kit. A Mix sets the levels.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "drums",
+        "rhythm",
+        "pattern",
+        "sequencer",
+        "instrument"
+      ],
+      "source": "shipped:drum-machine",
+      "inputs": [
+        {
+          "name": "step",
+          "type": "float",
+          "unit": "beats",
+          "default": 0.25,
+          "range": [
+            0.0625,
+            1.0
+          ],
+          "targets": [
+            "1:interval"
+          ]
+        },
+        {
+          "name": "kick_level",
+          "type": "float",
+          "unit": "db",
+          "default": -3.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_0"
+          ]
+        },
+        {
+          "name": "snare_level",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_1"
+          ]
+        },
+        {
+          "name": "closed_hat_level",
+          "type": "float",
+          "unit": "db",
+          "default": -10.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_2"
+          ]
+        },
+        {
+          "name": "open_hat_level",
+          "type": "float",
+          "unit": "db",
+          "default": -12.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_3"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "15:out"
+        },
+        {
+          "name": "kick",
+          "type": "trigger",
+          "source": "2:trigger_0"
+        },
+        {
+          "name": "snare",
+          "type": "trigger",
+          "source": "2:trigger_1"
+        },
+        {
+          "name": "closed_hat",
+          "type": "trigger",
+          "source": "2:trigger_2"
+        },
+        {
+          "name": "open_hat",
+          "type": "trigger",
+          "source": "2:trigger_3"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "clock",
+            "params": {
+              "duty": 0.5
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pattern",
+            "config": {
+              "steps": 16,
+              "rows": 4,
+              "cells": [
+                "x.......x.x.....",
+                "....x.......x...",
+                "x.x.x.x.x.x.x...",
+                "..............x."
+              ]
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.06,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Kick pitch drop"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "map",
+            "params": {
+              "curve": "exponential",
+              "in_max": 1.0,
+              "in_min": 0.0,
+              "out_max": 200.0,
+              "out_min": 45.0
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "45 to 200 Hz"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Kick"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.45,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                300.0
+              ],
+              "label": "Kick volume"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ],
+              "label": "Kick VCA"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "noise",
+            "params": {
+              "color": "white",
+              "gain": -6.0,
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.18,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Snare noise volume"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 1500.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "Snare highpass"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Snare noise VCA"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.07,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                980.0
+              ],
+              "label": "Snare body volume"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "oscillator",
+            "params": {
+              "freq": 185.0,
+              "shape": "triangle",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                980.0
+              ],
+              "label": "Snare body"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                980.0
+              ],
+              "label": "Snare body VCA"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": 0.0,
+              "gain_1": -6.0
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                680.0
+              ],
+              "label": "Snare"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 7000.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                1340.0
+              ],
+              "label": "Hi-hat highpass"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.05,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                1340.0
+              ],
+              "label": "Closed hat volume"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.5,
+              "release": 0.03,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                1640.0
+              ],
+              "label": "Open hat volume"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                1340.0
+              ],
+              "label": "Closed hat"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                1640.0
+              ],
+              "label": "Open hat"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "2:clock"
+          },
+          {
+            "from": "2:trigger_0",
+            "to": "3:on"
+          },
+          {
+            "from": "2:trigger_0",
+            "to": "6:on"
+          },
+          {
+            "from": "2:trigger_0",
+            "to": "5:start"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:freq"
+          },
+          {
+            "from": "5:out",
+            "to": "7:a"
+          },
+          {
+            "from": "6:out",
+            "to": "7:b"
+          },
+          {
+            "from": "2:trigger_1",
+            "to": "9:on"
+          },
+          {
+            "from": "2:trigger_1",
+            "to": "c:on"
+          },
+          {
+            "from": "2:trigger_1",
+            "to": "d:start"
+          },
+          {
+            "from": "8:out",
+            "to": "a:in"
+          },
+          {
+            "from": "a:out",
+            "to": "b:a"
+          },
+          {
+            "from": "9:out",
+            "to": "b:b"
+          },
+          {
+            "from": "d:out",
+            "to": "e:a"
+          },
+          {
+            "from": "c:out",
+            "to": "e:b"
+          },
+          {
+            "from": "b:out",
+            "to": "f:in_0"
+          },
+          {
+            "from": "e:out",
+            "to": "f:in_1"
+          },
+          {
+            "from": "8:out",
+            "to": "10:in"
+          },
+          {
+            "from": "2:trigger_2",
+            "to": "11:on"
+          },
+          {
+            "from": "2:trigger_3",
+            "to": "12:on"
+          },
+          {
+            "from": "2:trigger_2",
+            "to": "12:off"
+          },
+          {
+            "from": "10:out",
+            "to": "13:a"
+          },
+          {
+            "from": "11:out",
+            "to": "13:b"
+          },
+          {
+            "from": "10:out",
+            "to": "14:a"
+          },
+          {
+            "from": "12:out",
+            "to": "14:b"
+          },
+          {
+            "from": "7:out",
+            "to": "15:in_0"
+          },
+          {
+            "from": "f:out",
+            "to": "15:in_1"
+          },
+          {
+            "from": "13:out",
+            "to": "15:in_2"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in_3"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Clock and pattern",
+            "rect": [
+              -24.0,
+              -40.0,
+              494.0,
+              470.0
+            ]
+          },
+          {
+            "label": "Kick",
+            "rect": [
+              476.0,
+              -40.0,
+              994.0,
+              638.0
+            ]
+          },
+          {
+            "label": "Snare",
+            "rect": [
+              226.0,
+              640.0,
+              1244.0,
+              660.0
+            ]
+          },
+          {
+            "label": "Hi-hats",
+            "rect": [
+              476.0,
+              1300.0,
+              744.0,
+              638.0
+            ]
+          }
+        ]
+      }
+    },
+    "plate-reverb": {
+      "name": "Plate Reverb",
+      "description": "A dense, bright plate reverb: a burst of echoes that thickens at once into a smooth, shimmering tail. Mono or stereo in (summed to mono, as a plate is), wide stereo out.\n\n- `in`: the signal.\n- `predelay` (s): a gap before the reverb starts, which keeps the dry attack clear; 0.01 to 0.04 s for vocals and snares.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60).\n- `damping` (0 to 1): how much faster the highs die away than the lows; 0 is a bright metal plate, 0.5 a darker, softer one.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; 0.2 to 0.35 sits a sound in a mix, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the figure-eight tank from Jon Dattorro's \"Effect Design, Part 1: Reverberator and Other Filters\" (JAES, 1997), with his delay lengths converted to seconds. The input is summed to mono, delayed by `predelay`, and smeared by four input Allpasses (4.8, 3.6, 12.7, and 9.3 ms). It then enters two tank halves, each an Allpass whose delay wobbles slightly (a slow sine Oscillator through a Map, to keep the tail from ringing), a feedforward Comb used as a delay line with the damping lowpass and the decay gain, a second Allpass, and another Comb as a delay with the decay gain. Each half feeds the other: the left half goes straight into the right, and the right comes back to the left through a Feedback node, the loop's only cycle (its one block of delay barely lengthens a loop of about 0.73 s). The decay gain comes from `decay` through Math and Convert: the loop applies it four times per trip, so each is −60 dB × 0.19 s ÷ `decay`. As in the original, each output reads the opposite half: the left channel mixes the outputs of the right half's four stages, and the right channel the left half's. A Mid/Side encode and decode at width 1.6 then widens the pair until the two sides are uncorrelated, and an equal-power Crossfade blends that with the dry input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "reverb",
+        "space",
+        "plate",
+        "stereo",
+        "effect"
+      ],
+      "source": "shipped:plate-reverb",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "26:a"
+          ]
+        },
+        {
+          "name": "predelay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.02,
+          "range": [
+            0.0,
+            0.25
+          ],
+          "targets": [
+            "2:time"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 2.5,
+          "range": [
+            0.3,
+            20.0
+          ],
+          "targets": [
+            "10:b"
+          ]
+        },
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.25,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "14:damping",
+            "19:damping"
+          ]
+        },
+        {
+          "name": "mix",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "26:mix"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "26:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Mono sum"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.5
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                0.0
+              ],
+              "label": "Predelay"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.004771,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                0.0
+              ],
+              "label": "Input diffuser 1"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.003595,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                130.0
+              ],
+              "label": "Input diffuser 2"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.012735,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                0.0
+              ],
+              "label": "Input diffuser 3"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.009307,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                130.0
+              ],
+              "label": "Input diffuser 4"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "freq": 0.7,
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                300.0
+              ],
+              "label": "Wobble"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.023118,
+              "out_min": 0.022042
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                300.0
+              ],
+              "label": "Left wobble (s)"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.029972,
+              "out_min": 0.031048
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                520.0
+              ],
+              "label": "Right wobble (s)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "a": -11.4,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "dB per pass"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Decay gain"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                300.0
+              ],
+              "label": "Into left half"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                300.0
+              ],
+              "label": "Left diffuser"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.149625,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                300.0
+              ],
+              "label": "Left delay 1 + damping"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.060482,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                300.0
+              ],
+              "label": "Left allpass"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.124996,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                300.0
+              ],
+              "label": "Left delay 2"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                600.0
+              ],
+              "label": "Into right half"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                600.0
+              ],
+              "label": "Right diffuser"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.141696,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                600.0
+              ],
+              "label": "Right delay 1 + damping"
+            }
+          },
+          {
+            "id": "20",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.089244,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                600.0
+              ],
+              "label": "Right allpass"
+            }
+          },
+          {
+            "id": "21",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.10628,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                600.0
+              ],
+              "label": "Right delay 2"
+            }
+          },
+          {
+            "id": "22",
+            "kind": "feedback",
+            "ui": {
+              "pos": [
+                1920.0,
+                820.0
+              ],
+              "label": "Back to the left half"
+            }
+          },
+          {
+            "id": "23",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                300.0
+              ],
+              "label": "Left: right-half taps"
+            }
+          },
+          {
+            "id": "24",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                560.0
+              ],
+              "label": "Right: left-half taps"
+            }
+          },
+          {
+            "id": "25",
+            "kind": "merge_channels",
+            "ui": {
+              "pos": [
+                2400.0,
+                300.0
+              ],
+              "label": "Stereo"
+            }
+          },
+          {
+            "id": "27",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                2400.0,
+                440.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "28",
+            "kind": "mid_side",
+            "config": {
+              "mode": "decode"
+            },
+            "params": {
+              "width": 1.6
+            },
+            "ui": {
+              "pos": [
+                2400.0,
+                560.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "26",
+            "kind": "crossfade",
+            "params": {
+              "curve": "equal_power"
+            },
+            "ui": {
+              "pos": [
+                2640.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:mid",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "7:out",
+            "to": "9:in"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "6:out",
+            "to": "12:in_0"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:in"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "16:in"
+          },
+          {
+            "from": "11:out",
+            "to": "14:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "16:feedback"
+          },
+          {
+            "from": "6:out",
+            "to": "17:in_0"
+          },
+          {
+            "from": "17:out",
+            "to": "18:in"
+          },
+          {
+            "from": "18:out",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "20:in"
+          },
+          {
+            "from": "20:out",
+            "to": "21:in"
+          },
+          {
+            "from": "11:out",
+            "to": "19:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "21:feedback"
+          },
+          {
+            "from": "8:out",
+            "to": "13:delay"
+          },
+          {
+            "from": "9:out",
+            "to": "18:delay"
+          },
+          {
+            "from": "16:out",
+            "to": "17:in_1"
+          },
+          {
+            "from": "21:out",
+            "to": "22:in"
+          },
+          {
+            "from": "22:out",
+            "to": "12:in_1"
+          },
+          {
+            "from": "18:out",
+            "to": "23:in_0"
+          },
+          {
+            "from": "19:out",
+            "to": "23:in_1"
+          },
+          {
+            "from": "20:out",
+            "to": "23:in_2"
+          },
+          {
+            "from": "21:out",
+            "to": "23:in_3"
+          },
+          {
+            "from": "13:out",
+            "to": "24:in_0"
+          },
+          {
+            "from": "14:out",
+            "to": "24:in_1"
+          },
+          {
+            "from": "15:out",
+            "to": "24:in_2"
+          },
+          {
+            "from": "16:out",
+            "to": "24:in_3"
+          },
+          {
+            "from": "23:out",
+            "to": "25:in_0"
+          },
+          {
+            "from": "24:out",
+            "to": "25:in_1"
+          },
+          {
+            "from": "25:out",
+            "to": "27:in"
+          },
+          {
+            "from": "27:mid",
+            "to": "28:mid"
+          },
+          {
+            "from": "27:side",
+            "to": "28:side"
+          },
+          {
+            "from": "28:out",
+            "to": "26:b"
+          }
+        ]
+      }
+    }
+  }
+}

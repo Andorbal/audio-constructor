@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position.
+
 <a id="clip"></a>
 ## Clip
 

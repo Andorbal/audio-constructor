@@ -37,6 +37,14 @@ fn text(o: &Output) -> (String, String) {
 }
 
 /// A fresh directory with the smoke project in it.
+/// The transport position, in seconds, on the last status line (`pos M:SS.mmm`).
+fn last_position(out: &str) -> Option<f64> {
+    let at = out.rfind("pos ")? + 4;
+    let field = out.get(at..)?.split_whitespace().next()?;
+    let (min, sec) = field.split_once(':')?;
+    Some(min.parse::<f64>().ok()? * 60.0 + sec.parse::<f64>().ok()?)
+}
+
 fn project(tag: &str) -> (PathBuf, PathBuf) {
     let dir = std::env::temp_dir().join(format!("audioc-live-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -76,7 +84,14 @@ fn run_null_plays_in_real_time_and_stops() {
     assert!(t0.elapsed().as_secs_f64() >= 1.2, "paced to real time");
     assert!(out.contains("audio: null"), "{out}");
     assert!(out.contains("playing"), "{out}");
-    assert!(out.contains("pos 0:01."), "{out}");
+    // The status line comes once a second of wall time, and playback starts
+    // a few milliseconds after the clock does, so the position it shows is
+    // just under or just over a second.
+    let pos = last_position(&out).unwrap_or_else(|| panic!("no position in {out}"));
+    assert!(
+        (0.9..1.3).contains(&pos),
+        "position {pos} s after a second: {out}"
+    );
     assert!(out.contains("xruns 0"), "{out}");
     // Nothing was recording: no takes.
     assert!(!dir.join("assets").exists());

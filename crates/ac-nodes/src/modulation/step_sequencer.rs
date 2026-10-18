@@ -9,7 +9,7 @@ use crate::segments::Runs;
 
 node! {
     kind: "step_sequencer",
-    name: "StepSequencer",
+    name: "Step Sequencer",
     category: Modulation,
     keywords: ["sequencer", "steps", "pattern", "melody", "arp", "cv", "analog sequencer"],
     /// A row of step values played one after another, moving on with each

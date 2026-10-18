@@ -507,14 +507,93 @@ Needs manual verification (in the PR):
 - the minimap's placement.
 
 ### M2.6 Examples and docs
-- [ ] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).
-- [ ] Generated node reference published with the repo; user guide in `docs/guide/`.
+- [x] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).
+- [x] Generated node reference published with the repo; user guide in `docs/guide/`.
+
+*Verified:* `examples/` holds 14 projects: the 10 above, plus Start,
+Guitar Pedalboard, Subtractive Synth, and Four Tracks. Each one:
+- has notes on the canvas saying what each part does and what to try;
+- opens from File ▸ Examples as an untitled copy;
+- plays without hardware. Examples that need a live input default to a
+  stand-in (DECISIONS D111).
+
+`cargo test -p ac-cli --test examples` checks every example:
+- the expected examples ship;
+- each is canonical and compiles cleanly;
+- its block copies are exactly the shipped versions;
+- panels and bindings point at real controls;
+- examples without live inputs make sound and don't clip.
+
+It also checks single examples:
+- Generative Patch follows its seed;
+- Reverse Delay bakes from a Clip and is disabled on Audio In;
+- Guitar-to-Synth follows its riff and a guitar on Audio In within 2 %;
+- Build a Keyboard plays from the demo, the computer keys, and the
+  on-screen keys;
+- Gamepad Jam plays its demo and follows a controller (buttons, D-pad
+  chords, sticks, and its six bindings).
+
+`cargo test -p ac-app --test examples_layout` lays every example out as
+the editor draws it: no overlapping cards, and frames hold whole cards.
+
+Docs:
+- The user guide is `docs/guide/`, 11 chapters: getting started, the
+  editor, building sounds, live and baked, blocks, performing, recording
+  and rendering, the command line, an examples tour, and
+  troubleshooting.
+- The generated node reference (`audioc nodes --docs docs/reference`)
+  opens with an index of categories and nodes. A test keeps it in step
+  with the code.
+- The README links both.
+- `cargo test -p ac-cli --test docs_links` fails on a broken relative
+  link or anchor, a guide chapter missing from the index, or an example
+  missing from the tour.
+
+Needs manual verification (in the PR):
+- listen to every example;
+- play Build a Keyboard and Gamepad Jam with the real keyboard and a
+  gamepad;
+- read the guide for accuracy, clicking through its first-synth
+  walkthrough in a real window.
 
 **Phase 2 acceptance**
 - A 16-voice subtractive synth with per-voice filter and envelope runs at 128-frame buffers on a 4-core laptop under 30 % CPU.
 - The Reverse Delay example shows the Reverse node disabled when fed from AudioIn and baked when fed from a Clip, and renders correctly offline.
 - A block exported from one project imports into another and updates its instances when the library copy changes.
 - The bench suite shows the multi-core scheduler scaling on independent chains.
+
+*Verified* (figures are in `bench/README.md`, measured on a 4-vCPU
+2.1 GHz VM with a release build and 128-frame blocks):
+- **16-voice synth.** `audioc bench`'s `subtractive-voices-16` runs 16
+  voices of the shipped Subtractive Synth Voice block, each with its own
+  ladder filter and envelopes, all sounding. It takes 6–8.4 % of one core
+  on one thread. With chain fusion (DECISIONS D114) each voice runs as its
+  own job, so four threads make it 1.9–2.4× faster again.
+- **Reverse Delay.** `reverse_delay_bakes_from_a_clip_and_is_disabled_from_audio_in`
+  (`crates/ac-cli/tests/examples.rs`) checks three things: the Clip path
+  bakes and the Audio In path reports itself disabled while live, the
+  baked live output matches the offline render sample for sample, and the
+  render is its input reversed slice by slice.
+- **Block export, import, and update.**
+  `a_block_exported_from_one_project_updates_its_instances_in_another`
+  (`crates/ac-cli/tests/phase2_acceptance.rs`):
+  - project A saves a group to a library as `user:trim`;
+  - project B uses two instances of it;
+  - A saves a changed version (v2: a different gain and a new input);
+  - `audioc block-update --library` reports and applies the update;
+  - B ends up with the v2 interface, keeps its wires, and renders at half
+    the RMS.
+- **Multi-core scaling.** Chain fusion runs each linear chain, and each
+  voice of a Voices node, as one job. On four threads:
+  - `parallel-chains-8` (8 independent chains, 24 nodes deep) is
+    2.2–2.65× faster than on one thread, up from 0.96–1.10× before
+    fusion, because its 27 waves per block become 3;
+  - heavy chains scale too: `diffuser-16` up to 2.7×, `fft-chains-16`
+    1.8–1.9×.
+
+  Tests in `crates/ac-engine/tests/phase2.rs` check that output is
+  bit-identical on 1, 2, and 4 threads and matches the unfused schedule.
+  Golden hashes are unchanged.
 
 ---
 

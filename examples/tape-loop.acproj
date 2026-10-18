@@ -1,0 +1,494 @@
+{
+  "schema_version": 1,
+  "name": "Tape Loop",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 24.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "A tape loop: what goes in comes round again every four seconds, a little darker, a little more worn, and slightly out of tune, until it fades away. Press Space to play.\n\nA phrase plays every three bars. The loop is built from parts: a Delay is the length of tape between the record and play heads, a Shaper saturates it, two filters wear it down, and a Gain and a Feedback node record it back over itself. Slow and fast LFOs wobble the delay time like a stretched tape on an uneven motor."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -312.0
+          ],
+          "size": [
+            780.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "clock",
+        "params": {
+          "duty": 0.5,
+          "interval": 12.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Every 3 bars"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "clip",
+        "config": {
+          "file": "assets/chords.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": false
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            140.0
+          ],
+          "label": "Phrase"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": 0.0
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            140.0
+          ],
+          "label": "Record head"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "delay",
+        "config": {
+          "max_time": 8.0
+        },
+        "params": {
+          "feedback": 0.0,
+          "mix": 1.0,
+          "time": 4.0
+        },
+        "ui": {
+          "pos": [
+            570.0,
+            140.0
+          ],
+          "label": "Tape"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "shaper",
+        "params": {
+          "drive": 4.0,
+          "shape": "tanh"
+        },
+        "ui": {
+          "pos": [
+            840.0,
+            140.0
+          ],
+          "label": "Saturation"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "biquad",
+        "params": {
+          "cutoff": 4000.0,
+          "mode": "lowpass",
+          "q": 0.6
+        },
+        "ui": {
+          "pos": [
+            1110.0,
+            140.0
+          ],
+          "label": "Worn highs"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "biquad",
+        "params": {
+          "cutoff": 90.0,
+          "mode": "highpass",
+          "q": 0.6
+        },
+        "ui": {
+          "pos": [
+            1380.0,
+            140.0
+          ],
+          "label": "Thin lows"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            1650.0,
+            140.0
+          ],
+          "label": "Feedback amount"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "feedback",
+        "ui": {
+          "pos": [
+            1110.0,
+            370.0
+          ],
+          "label": "Back to the record head"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "comment",
+        "config": {
+          "text": "Each trip round the loop passes the Shaper and both filters again, so the oldest repeats are the darkest and most saturated. Keep the loop's gain below 0 dB: the Shaper adds its drive for quiet signals, so Feedback amount has to take back more than that, or the loop grows until it is all distortion. The Feedback node adds one block (about 5 ms) to the loop."
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            470.0
+          ],
+          "size": [
+            736.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "lfo",
+        "params": {
+          "rate": 0.4,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            820.0
+          ],
+          "label": "Wow"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "lfo",
+        "params": {
+          "rate": 6.0,
+          "shape": "triangle"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            1050.0
+          ],
+          "label": "Flutter"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 0.003,
+          "out_min": -0.003
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            820.0
+          ],
+          "label": "±3 ms"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 0.0002,
+          "out_min": -0.0002
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            1050.0
+          ],
+          "label": "±0.2 ms"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            820.0
+          ],
+          "label": "Wobble"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "knob",
+        "config": {
+          "min": 0.5,
+          "max": 8.0,
+          "unit": "seconds"
+        },
+        "params": {
+          "value": 4.0
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            970.0
+          ],
+          "label": "Loop length"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            820.0
+          ],
+          "label": "Tape time"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "comment",
+        "config": {
+          "text": "Changing a delay time bends the pitch of what is passing through it, as tape speeding up and slowing down does: a slow, deep wobble (wow) and a fast, shallow one (flutter), added to the loop length."
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            970.0
+          ],
+          "size": [
+            466.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "14",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -3.0,
+          "gain_1": 0.0
+        },
+        "ui": {
+          "pos": [
+            1920.0,
+            140.0
+          ],
+          "label": "Phrase + tape"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            2190.0,
+            140.0
+          ]
+        }
+      },
+      {
+        "id": "16",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2460.0,
+            140.0
+          ]
+        }
+      },
+      {
+        "id": "17",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Raise Feedback amount towards −4 dB for a loop that lasts much longer (and saturates).\n• Set Loop length to 3 s, out of step with the phrases, so each new phrase lands somewhere else in the loop and the layers build up.\n• Widen the ±3 ms Map to ±10 ms (out_min −0.01, out_max 0.01) for a seasick tape, or raise Flutter's rate to 12 Hz.\n• Swap the Phrase's file for assets/lead.wav, or give the Record head a third input (Node tab) and wire an Audio In into it to loop yourself."
+        },
+        "ui": {
+          "pos": [
+            1920.0,
+            330.0
+          ],
+          "size": [
+            560.0,
+            176.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:trigger",
+        "to": "3:start"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in_0"
+      },
+      {
+        "from": "a:out",
+        "to": "4:in_1"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:out",
+        "to": "a:in"
+      },
+      {
+        "from": "c:out",
+        "to": "e:in"
+      },
+      {
+        "from": "d:out",
+        "to": "f:in"
+      },
+      {
+        "from": "e:out",
+        "to": "10:a"
+      },
+      {
+        "from": "f:out",
+        "to": "10:b"
+      },
+      {
+        "from": "10:out",
+        "to": "12:a"
+      },
+      {
+        "from": "11:out",
+        "to": "12:b"
+      },
+      {
+        "from": "12:out",
+        "to": "5:time"
+      },
+      {
+        "from": "3:out",
+        "to": "14:in_0"
+      },
+      {
+        "from": "9:out",
+        "to": "14:in_1"
+      },
+      {
+        "from": "14:out",
+        "to": "15:in"
+      },
+      {
+        "from": "15:out",
+        "to": "16:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Source",
+        "rect": [
+          -24.0,
+          -52.0,
+          244.0,
+          437.0
+        ]
+      },
+      {
+        "label": "The loop",
+        "rect": [
+          276.0,
+          88.0,
+          1594.0,
+          502.0
+        ]
+      },
+      {
+        "label": "Wow and flutter",
+        "rect": [
+          -24.0,
+          768.0,
+          1324.0,
+          495.0
+        ]
+      }
+    ]
+  }
+}

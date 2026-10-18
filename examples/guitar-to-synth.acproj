@@ -1,0 +1,460 @@
+{
+  "schema_version": 1,
+  "name": "Guitar-to-Synth",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 10.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Play a guitar and hear a synth follow you. Plug a guitar into input 1 of your audio interface, pick it in the Devices tab, and switch on Guitar in. Until then a recorded riff stands in, so the patch plays when you press Space (and when it's rendered).\n\nPitch Detect hears which note you play and tunes two oscillators to it; an Envelope Follower hears how hard you play and sets the synth's volume and brightness. Play single notes: Pitch Detect follows one note at a time."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -312.0
+          ],
+          "size": [
+            760.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "audio_in",
+        "config": {
+          "channel": 0,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Guitar"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "clip",
+        "config": {
+          "file": "assets/lead.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            110.0
+          ],
+          "label": "Demo riff"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Guitar in"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            150.0
+          ],
+          "label": "Source"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "pitch_detect",
+        "params": {
+          "max_freq": 1400.0,
+          "min_freq": 70.0,
+          "threshold": 0.75
+        },
+        "ui": {
+          "pos": [
+            560.0,
+            0.0
+          ],
+          "label": "Pitch Detect"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "smooth",
+        "params": {
+          "fall": 0.015,
+          "mode": "exponential",
+          "rise": 0.015
+        },
+        "ui": {
+          "pos": [
+            830.0,
+            0.0
+          ],
+          "label": "Glide"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "b": 0.5,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            830.0,
+            160.0
+          ],
+          "label": "Octave down"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load",
+          "stop": "never"
+        },
+        "ui": {
+          "pos": [
+            1100.0,
+            0.0
+          ],
+          "label": "Saw"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "oscillator",
+        "params": {
+          "shape": "square",
+          "start": "load",
+          "stop": "never"
+        },
+        "ui": {
+          "pos": [
+            1100.0,
+            260.0
+          ],
+          "label": "Sub"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": -10.0
+        },
+        "ui": {
+          "pos": [
+            1370.0,
+            0.0
+          ],
+          "label": "Oscillators"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "envelope_follower",
+        "params": {
+          "attack": 0.003,
+          "mode": "peak",
+          "release": 0.12
+        },
+        "ui": {
+          "pos": [
+            560.0,
+            620.0
+          ],
+          "label": "How hard"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 0.5,
+          "in_min": 0.0,
+          "out_max": 6000.0,
+          "out_min": 250.0
+        },
+        "ui": {
+          "pos": [
+            830.0,
+            620.0
+          ],
+          "label": "Brightness"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "math",
+        "params": {
+          "b": 3.0,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            830.0,
+            840.0
+          ],
+          "label": "Synth level (dB)"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "comment",
+        "config": {
+          "text": "level (0 to 1) opens the filter through Brightness; level_db goes straight into the Gain, which takes decibels, so the synth swells and fades with your playing and goes silent between notes (a Gain is off at −60 dB)."
+        },
+        "ui": {
+          "pos": [
+            1100.0,
+            620.0
+          ],
+          "size": [
+            466.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "svf",
+        "params": {
+          "resonance": 0.35
+        },
+        "ui": {
+          "pos": [
+            1640.0,
+            0.0
+          ],
+          "label": "Filter"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            1910.0,
+            0.0
+          ],
+          "label": "Volume"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": -12.0
+        },
+        "ui": {
+          "pos": [
+            2180.0,
+            0.0
+          ],
+          "label": "Synth + dry"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            2450.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "14",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "15",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Change Octave down's b to 2 for an octave up, or to 1.5 for a fifth above.\n• Lengthen Glide to 0.1 s for portamento between notes.\n• Wire Pitch Detect's confidence through a Compare (greater than 0.6) and a Switch to mute the synth whenever the pitch is unclear.\n• Wire onset into an ADSR and multiply it in for a fresh attack on every note.\n• Turn Synth + dry's gain_1 up to hear the guitar under the synth."
+        },
+        "ui": {
+          "pos": [
+            1640.0,
+            300.0
+          ],
+          "size": [
+            560.0,
+            144.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "3:out",
+        "to": "5:a"
+      },
+      {
+        "from": "2:out",
+        "to": "5:b"
+      },
+      {
+        "from": "4:out",
+        "to": "5:select"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:freq",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "9:freq"
+      },
+      {
+        "from": "7:out",
+        "to": "8:a"
+      },
+      {
+        "from": "8:out",
+        "to": "a:freq"
+      },
+      {
+        "from": "9:out",
+        "to": "b:in_0"
+      },
+      {
+        "from": "a:out",
+        "to": "b:in_1"
+      },
+      {
+        "from": "5:out",
+        "to": "c:in"
+      },
+      {
+        "from": "c:level",
+        "to": "d:in"
+      },
+      {
+        "from": "c:level_db",
+        "to": "e:a"
+      },
+      {
+        "from": "b:out",
+        "to": "10:in"
+      },
+      {
+        "from": "d:out",
+        "to": "10:cutoff"
+      },
+      {
+        "from": "10:lowpass",
+        "to": "11:in"
+      },
+      {
+        "from": "e:out",
+        "to": "11:gain"
+      },
+      {
+        "from": "11:out",
+        "to": "12:in_0"
+      },
+      {
+        "from": "5:out",
+        "to": "12:in_1"
+      },
+      {
+        "from": "12:out",
+        "to": "13:in"
+      },
+      {
+        "from": "13:out",
+        "to": "14:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Source",
+        "rect": [
+          -24.0,
+          -52.0,
+          514.0,
+          407.0
+        ]
+      },
+      {
+        "label": "Which note: pitch to oscillators",
+        "rect": [
+          536.0,
+          -52.0,
+          1054.0,
+          569.0
+        ]
+      },
+      {
+        "label": "How hard: level to filter and volume",
+        "rect": [
+          536.0,
+          568.0,
+          1054.0,
+          397.0
+        ]
+      }
+    ]
+  }
+}

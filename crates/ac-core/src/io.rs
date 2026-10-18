@@ -36,6 +36,36 @@ const SILENCE: &[f32] = &[0.0; 4096];
 /// One trigger at frame 0.
 const TRIGGER_AT_ZERO: &[u32] = &[0];
 
+/// Set on a value index (in an [`InputSlot`] or the channel table) that
+/// reads from [`Inputs::local`] instead of the shared pool: an output of a
+/// step that ran earlier in the same chain of the schedule, still in that
+/// chain's work space (ARCHITECTURE §7, DECISIONS D114).
+pub const LOCAL: u32 = 1 << 31;
+
+/// Outputs of the steps that ran before this one in its chain, indexed by
+/// [`LOCAL`] indices without the bit. Empty outside a chain.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Local<'a> {
+    pub scalars: &'a [f32],
+    pub ints: &'a [i32],
+    pub samples: &'a [Vec<f32>],
+    pub triggers: &'a [Vec<u32>],
+    pub midi: &'a [Vec<MidiEvent>],
+    pub spectra: &'a [SpectrumBuf],
+    pub buffers: &'a [BufferRef],
+}
+
+/// Element `k` of the shared values, or of the chain's own when `k` has the
+/// [`LOCAL`] bit.
+#[inline]
+fn pick<'a, T>(shared: &'a [T], local: &'a [T], k: u32) -> Option<&'a T> {
+    if k & LOCAL == 0 {
+        shared.get(k as usize)
+    } else {
+        local.get((k & !LOCAL) as usize)
+    }
+}
+
 /// Where a `Float` or `Bool` input reads from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FloatSrc {
@@ -230,6 +260,8 @@ impl BoolIn<'_> {
 #[derive(Clone, Copy, Debug)]
 pub struct AudioIn<'a> {
     samples: &'a [Vec<f32>],
+    /// The chain's own buffers, for channels with the [`LOCAL`] bit.
+    local: &'a [Vec<f32>],
     chans: &'a [u32],
     frames: usize,
 }
@@ -238,6 +270,7 @@ impl<'a> AudioIn<'a> {
     pub fn new(samples: &'a [Vec<f32>], chans: &'a [u32], frames: usize) -> Self {
         AudioIn {
             samples,
+            local: &[],
             chans,
             frames,
         }
@@ -247,6 +280,7 @@ impl<'a> AudioIn<'a> {
     pub fn silent(frames: usize) -> AudioIn<'static> {
         AudioIn {
             samples: &[],
+            local: &[],
             chans: &[],
             frames,
         }
@@ -264,8 +298,8 @@ impl<'a> AudioIn<'a> {
         if self.chans.is_empty() {
             return silence(self.frames);
         }
-        let idx = self.chans[c % self.chans.len()] as usize;
-        match self.samples.get(idx) {
+        let idx = self.chans[c % self.chans.len()];
+        match pick(self.samples, self.local, idx) {
             Some(buf) => buf.get(..self.frames).unwrap_or(buf),
             None => silence(self.frames),
         }
@@ -295,6 +329,8 @@ pub struct Inputs<'a> {
     pub spectra: &'a [SpectrumBuf],
     pub buffers: &'a [BufferRef],
     pub auto: AutoFlags,
+    /// What steps before this one in its chain produced ([`LOCAL`] indices).
+    pub local: Local<'a>,
 }
 
 impl<'a> Inputs<'a> {
@@ -310,9 +346,7 @@ impl<'a> Inputs<'a> {
             InputSlot::Int(IntSrc::Param(p)) => FloatIn::Const(self.param(p).value),
             InputSlot::Audio { start, count } if count > 0 => {
                 // Audio → Float: channel 0 at sample rate.
-                FloatIn::Sample(
-                    AudioIn::new(self.samples, self.chans(start, count), self.frames).channel(0),
-                )
+                FloatIn::Sample(self.audio_in(start, count).channel(0))
             }
             _ => FloatIn::Const(0.0),
         }
@@ -333,10 +367,12 @@ impl<'a> Inputs<'a> {
                     FloatIn::Const(s.value)
                 }
             }
-            FloatSrc::Scalar(k) => {
-                FloatIn::Block(self.scalars.get(k as usize).copied().unwrap_or(0.0))
-            }
-            FloatSrc::Sample(k) => match self.samples.get(k as usize) {
+            FloatSrc::Scalar(k) => FloatIn::Block(
+                pick(self.scalars, self.local.scalars, k)
+                    .copied()
+                    .unwrap_or(0.0),
+            ),
+            FloatSrc::Sample(k) => match pick(self.samples, self.local.samples, k) {
                 Some(buf) => FloatIn::Sample(buf.get(..self.frames).unwrap_or(buf)),
                 None => FloatIn::Const(0.0),
             },
@@ -368,9 +404,7 @@ impl<'a> Inputs<'a> {
     /// An `Audio` input.
     pub fn audio(&self, i: usize) -> AudioIn<'a> {
         match self.slot(i) {
-            InputSlot::Audio { start, count } => {
-                AudioIn::new(self.samples, self.chans(start, count), self.frames)
-            }
+            InputSlot::Audio { start, count } => self.audio_in(start, count),
             _ => AudioIn::silent(self.frames),
         }
     }
@@ -379,7 +413,7 @@ impl<'a> Inputs<'a> {
     pub fn triggers(&self, i: usize) -> &'a [u32] {
         match self.slot(i) {
             InputSlot::Trigger(TriggerSrc::Wired(k)) => {
-                self.triggers.get(k as usize).map_or(&[], Vec::as_slice)
+                pick(self.triggers, self.local.triggers, k).map_or(&[], Vec::as_slice)
             }
             InputSlot::Trigger(TriggerSrc::Unwired { param, auto }) => {
                 let p = self.param(param);
@@ -408,7 +442,9 @@ impl<'a> Inputs<'a> {
     /// MIDI events in this block, ascending by offset.
     pub fn midi(&self, i: usize) -> &'a [MidiEvent] {
         match self.slot(i) {
-            InputSlot::Midi(Some(k)) => self.midi.get(k as usize).map_or(&[], Vec::as_slice),
+            InputSlot::Midi(Some(k)) => {
+                pick(self.midi, self.local.midi, k).map_or(&[], Vec::as_slice)
+            }
             _ => &[],
         }
     }
@@ -416,7 +452,9 @@ impl<'a> Inputs<'a> {
     /// The spectrum frames in this block (empty when unwired).
     pub fn spectrum(&self, i: usize) -> &'a SpectrumBuf {
         match self.slot(i) {
-            InputSlot::Spectrum(Some(k)) => self.spectra.get(k as usize).unwrap_or(&EMPTY_SPECTRUM),
+            InputSlot::Spectrum(Some(k)) => {
+                pick(self.spectra, self.local.spectra, k).unwrap_or(&EMPTY_SPECTRUM)
+            }
             _ => &EMPTY_SPECTRUM,
         }
     }
@@ -424,7 +462,9 @@ impl<'a> Inputs<'a> {
     /// The buffer a `Buffer` input holds, if any.
     pub fn buffer(&self, i: usize) -> Option<&'a Arc<AudioData>> {
         match self.slot(i) {
-            InputSlot::Buffer(Some(k)) => self.buffers.get(k as usize).and_then(Option::as_ref),
+            InputSlot::Buffer(Some(k)) => {
+                pick(self.buffers, self.local.buffers, k).and_then(Option::as_ref)
+            }
             _ => None,
         }
     }
@@ -453,7 +493,16 @@ impl<'a> Inputs<'a> {
     }
 
     fn int_at(&self, k: u32) -> i32 {
-        self.ints.get(k as usize).copied().unwrap_or(0)
+        pick(self.ints, self.local.ints, k).copied().unwrap_or(0)
+    }
+
+    fn audio_in(&self, start: u32, count: u32) -> AudioIn<'a> {
+        AudioIn {
+            samples: self.samples,
+            local: self.local.samples,
+            chans: self.chans(start, count),
+            frames: self.frames,
+        }
     }
 
     fn chans(&self, start: u32, count: u32) -> &'a [u32] {
@@ -1031,5 +1080,60 @@ pub struct Io<'a> {
 impl Io<'_> {
     pub fn frames(&self) -> usize {
         self.inputs.frames
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_indices_read_the_chain_and_others_the_pool() {
+        let shared = vec![vec![0.0f32; 4], vec![1.0; 4]];
+        let local = vec![vec![2.0f32; 4], vec![3.0; 4]];
+        let chan_table = [1, LOCAL | 1, 0];
+        let slots = [
+            InputSlot::Audio { start: 0, count: 2 },
+            InputSlot::Float(FloatSrc::Sample(LOCAL)),
+            InputSlot::Float(FloatSrc::Scalar(LOCAL)),
+            InputSlot::Int(IntSrc::Int(0)),
+            InputSlot::Trigger(TriggerSrc::Wired(LOCAL)),
+            InputSlot::Audio { start: 2, count: 1 },
+            InputSlot::Float(FloatSrc::Sample(LOCAL | 7)),
+        ];
+        let inputs = Inputs {
+            slots: &slots,
+            frames: 4,
+            params: &[],
+            scalars: &[5.0],
+            ints: &[6],
+            samples: &shared,
+            chan_table: &chan_table,
+            triggers: &[],
+            midi: &[],
+            spectra: &[],
+            buffers: &[],
+            auto: AutoFlags::default(),
+            local: Local {
+                scalars: &[8.0],
+                ints: &[9],
+                samples: &local,
+                triggers: &[vec![2]],
+                ..Local::default()
+            },
+        };
+        let a = inputs.audio(0);
+        assert_eq!(a.channel(0), &[1.0; 4]);
+        assert_eq!(a.channel(1), &[3.0; 4]);
+        assert_eq!(inputs.float(1).at(2), 2.0);
+        assert_eq!(inputs.float(2).first(), 8.0);
+        assert_eq!(inputs.int(3), 6);
+        assert_eq!(inputs.triggers(4), &[2]);
+        // Silence stays the pool's buffer 0 and still reads as unwired;
+        // a chain input is wired.
+        assert!(!inputs.is_wired(5));
+        assert!(inputs.is_wired(0));
+        // Out of range reads as silence, never a panic.
+        assert_eq!(inputs.float(6).at(0), 0.0);
     }
 }

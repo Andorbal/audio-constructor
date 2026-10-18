@@ -133,8 +133,8 @@ slate.
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
 
-Wire routing: béziers by default, with a "straight with bends" option. Wires
-behind nodes are dimmed. Long wires can be turned into named **portals**
+Wire routing: béziers (a "straight with bends" option is planned, not built
+yet). Wires behind nodes are dimmed. Long wires can be turned into named **portals**
 (a pair of Reroutes that are drawn as labels instead of a line) to tame
 spaghetti:
 
@@ -248,8 +248,9 @@ only their icons, named on hover.
 ## Transport bar
 
 Play/stop/record, position in bars:beats and time, tempo and time signature
-(click to edit the tempo map), loop toggle and range, metronome toggle (a
-built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
+(click to edit the tempo map), loop toggle and range, master meter, CPU and
+xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
+**Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
 `R` records, `Shift+Space` plays from the start. At its right end, a
 **Canvas | Panels** switch and the performance-mode button.
 
@@ -361,7 +362,8 @@ all honor them (DECISIONS D92).
 
 - Socket meters: audio sockets show a small level bar; float sockets show a
   tick on their range.
-- Hover a wire to see its live value or a mini-scope.
+- Hover a socket to see its live value large. (Hovering a wire for its value
+  or a mini-scope is planned, not built yet.)
 - Optional per-node timing in headers (`Ctrl+T`, View ▸ Node Timing),
   heat-colored, so a slow patch shows where its time goes: each header shows
   the node's processing time per block (`37 µs`), steadied over about half
@@ -380,10 +382,11 @@ all honor them (DECISIONS D92).
 
 - First launch opens a **Start** project with a guided patch: an oscillator
   wired to the output with comments explaining what to try.
-- **Examples** menu with the shipped projects (see ROADMAP). Each is a
-  working patch and a lesson: "Guitar Pedalboard", "Subtractive Synth",
-  "Four Tracks", "Sidechain Pump", "Drum Machine", "Build a Keyboard",
-  "Reverse Delay", "Gamepad Jam".
+- **File ▸ Examples** lists the shipped projects (see ROADMAP and
+  `docs/guide/examples.md`) and opens one as an untitled copy, so saving
+  asks where to put it instead of overwriting the example. Each is a
+  working patch and a lesson, from "Start" and "Guitar Pedalboard" to
+  "Build a Keyboard" and "Gamepad Jam".
 - Every node's help has "try this" tips and links to blocks that use it:
   the Help tab (`F1`) shows the tip highlighted and lists, under **Used
   in**, the blocks and examples built with the node. Every node's doc

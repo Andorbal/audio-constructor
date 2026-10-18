@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time.
+
 <a id="adsr"></a>
 ## ADSR
 
@@ -188,7 +190,7 @@ a sample-and-hold warble.
 | `out` | Float | The wave, once per block. |
 
 <a id="random-walk"></a>
-## RandomWalk
+## Random Walk
 
 Kind: `random_walk` · Also found by: drift, wander, brownian, smooth random, jitter, organic, noise
 
@@ -231,7 +233,7 @@ around the stereo field.
 | `out` | Float | The wandering value. |
 
 <a id="step-sequencer"></a>
-## StepSequencer
+## Step Sequencer
 
 Kind: `step_sequencer` · Also found by: sequencer, steps, pattern, melody, arp, cv, analog sequencer
 

@@ -11,6 +11,115 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.7.0] - 2026-10-18
+
+The end of Phase 2: fourteen example projects to learn from, a user guide,
+and an engine that spreads light patches and polyphonic synths across
+cores.
+
+### Added
+
+- Nine new example projects, each a working patch with notes on the canvas
+  saying what each part does and what to try. All of them play when you
+  press Space, and render with `audioc render`, without any hardware:
+  - **Sidechain Pump**: a pad that ducks under a four-on-the-floor kick
+    through the Sidechain Ducker block, with the release set in beats so
+    the pump follows the tempo, and a switch to hear it without.
+  - **Drum Machine**: the Drum Machine block playing from the transport,
+    and its per-drum triggers playing a second kit of Samplers cut from
+    one audio file; a switch flips between the two kits.
+  - **Build a Keyboard**: the Subtractive Synth Voice block made
+    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) and
+    an on-screen Keyboard at once, with velocity, octave, and timbre
+    knobs, all on a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo
+    phrase plays along through a Merge node; turn Demo off to play on your
+    own.
+  - **Gamepad Jam**: drums on a game controller's face buttons, strummed
+    chords stepped by the D-pad, a filter on the left stick, and strum
+    strength and echo on the analog triggers, with bindings for play/stop
+    on Start and for the sticks and triggers, and a **Jam** panel. A demo
+    pattern plays the same parts until you press Select on the controller
+    to take over.
+  - **Multiband Compressor**: a four-track loop through the Multiband
+    Compressor block, with before and after meters, a bypass switch, and a
+    meter per band showing how hard each band is turned down.
+  - **Vocoder**: a saw chord made to talk by the Vocoder block, with a
+    robot voice built from a buzz and two moving formant filters; switch
+    on Audio In to vocode your own voice.
+  - **Generative Patch**: two Euclidean rhythms, random notes snapped to a
+    scale, a plucked string and an FM bass. It plays the same tune every
+    time until you change the project's seed.
+  - **Tape Loop**: phrases recorded onto a four-second loop that saturates,
+    darkens, and wobbles with wow and flutter on every pass until they
+    fade.
+  - **Guitar-to-Synth**: a synth that follows the pitch and dynamics of a
+    guitar on Audio In, with a recorded riff standing in until you switch
+    the guitar on.
+- `audioc bench` has a ninth stress project, `subtractive-voices-16`:
+  sixteen voices of the shipped Subtractive Synth Voice block (two saws, a
+  ladder filter, and an envelope each), all sounding at once. It is the
+  synth the Phase 2 performance target is measured on; the results are in
+  `bench/README.md`.
+- A **user guide** in [docs/guide](docs/guide/README.md), written for
+  musicians and sound designers rather than programmers: getting started
+  and setting up your sound card, the editor, building a first synth and
+  making it polyphonic, live and baked nodes and latency, blocks and
+  packs, performing with panels, MIDI, the computer keyboard, gamepads,
+  phones, and bindings, recording and rendering, every `audioc` command,
+  a tour of every example, and troubleshooting.
+- The **node reference** in [docs/reference](docs/reference/README.md) now
+  opens with an index: every category with a sentence on what's in it and
+  how many nodes it has, then every node under its category with a
+  one-line summary, marking live sources and nodes that need their whole
+  input. `audioc nodes --docs` writes it.
+- **File ▸ Examples** lists every shipped example and opens the one you
+  pick as an untitled copy, so saving never overwrites the example.
+- A **Merge** node (Math & Logic) combines several MIDI or trigger streams
+  into one, so a MIDI keyboard, the computer keys, and a pattern can all
+  play one instrument at once. Its settings choose how many inputs it has
+  (2 to 16) and whether it carries MIDI or triggers. A note played from
+  two sources at once sounds once and ends when the last of them lets go,
+  the sustain pedal stays down while any source holds it, and restarting
+  the transport releases everything still held, so no note hangs.
+
+### Changed
+
+- **More engine threads now speed up patches built from many light
+  nodes.** A run of nodes that only feed each other (an effect chain), and
+  each voice of a Voices node, now runs as one job on one core, so the
+  cores spend their time on audio instead of passing work back and forth.
+  On four threads, eight chains of two dozen filters and delays render
+  2.2–2.7× faster (they gained nothing before) and sixteen voices of the
+  Subtractive Synth Voice about twice as fast (Engine threads in the
+  Devices tab, `audioc run --threads`, `audioc bench --threads`). One
+  thread is as fast as before, and the output is the same sample for
+  sample on any number of threads. The Project tab's Schedule line counts
+  the chains.
+- **Sample & Hold**, **Random Walk**, and **Step Sequencer** are now named
+  in words like every other node (they showed as SampleHold, RandomWalk,
+  and StepSequencer). Projects that use them are unaffected.
+- The **Reverse Delay** example is the real thing now, not a placeholder:
+  a melody whose echoes play backwards, built once on a Clip, where
+  Reverse bakes and plays, and once on Audio In, where it switches itself
+  off while live, with notes on the canvas explaining why.
+
+### Fixed
+
+- Stopping the transport (`Space` or the stop button) now ends recording,
+  as a bound Stop button already did, so a take ends when you stop instead
+  of running on until you press `R` again.
+- Gamepads are numbered from 1 in the Devices tab, `audioc devices`, and
+  `audioc run`, as a Gamepad node's `pad` setting and bindings ("Pad 1")
+  count them. They were listed from 0, one less than the number to use.
+- The Keyboard node's help no longer says it plays from the computer
+  keyboard: you play it with the mouse, and a Keyboard In node (with Play
+  keys on) plays from the computer keys.
+- A newly added OSC In, OSC Out, Gamepad, Keyboard In, Delay, or
+  Oscillator showed none of its settings in the Node tab, so you couldn't
+  set an OSC address, pick a gamepad, choose keys, put a Delay in beats,
+  or make an Oscillator pure without editing the project file. They all
+  have their fields under **Settings** now.
+
 ## [0.6.0] - 2026-10-18
 
 Editor conveniences: tidy, align, and wire faster, find anything, keep
@@ -399,6 +508,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.7.0]: https://github.com/Andorbal/audio-constructor/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0

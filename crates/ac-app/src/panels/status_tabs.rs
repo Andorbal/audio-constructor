@@ -472,10 +472,10 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                 ui.label(format!(
                     "{}  {}  {}",
                     icons::GAME_CONTROLLER,
-                    p.index,
+                    p.number(),
                     p.name
                 ))
-                .on_hover_text(format!("Gamepad {} in Gamepad nodes and bindings", p.index));
+                .on_hover_text(format!("Pad {} in Gamepad nodes and bindings", p.number()));
             }
             // Hot-plugging shows up without a click.
             ui.ctx()
