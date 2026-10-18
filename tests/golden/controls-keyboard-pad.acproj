@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "name": "Keyboard and pad",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "keyboard",
+        "params": {
+          "key_12": true,
+          "velocity": 0.8
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "midi_note",
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "dropdown",
+        "config": {
+          "choices": [
+            "sine",
+            "triangle",
+            "saw",
+            "square"
+          ]
+        },
+        "params": {
+          "value": 2
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "knob",
+        "config": {
+          "min": -24.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -6.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "xy_pad",
+        "params": {
+          "touched": true,
+          "x": 0.5,
+          "y": 0.9
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "number",
+        "config": {
+          "min": 0.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.75
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            450.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "b",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "e",
+        "kind": "trigger_to_gate",
+        "params": {
+          "length": 0.01
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "f",
+        "kind": "math",
+        "params": {
+          "b": 0.1,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            250.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2000.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:freq",
+        "to": "4:freq"
+      },
+      {
+        "from": "3:out",
+        "to": "4:shape"
+      },
+      {
+        "from": "4:out",
+        "to": "6:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:gain"
+      },
+      {
+        "from": "6:out",
+        "to": "9:a"
+      },
+      {
+        "from": "2:gate",
+        "to": "9:b"
+      },
+      {
+        "from": "9:out",
+        "to": "a:a"
+      },
+      {
+        "from": "7:x",
+        "to": "a:b"
+      },
+      {
+        "from": "a:out",
+        "to": "b:a"
+      },
+      {
+        "from": "7:y",
+        "to": "b:b"
+      },
+      {
+        "from": "b:out",
+        "to": "c:a"
+      },
+      {
+        "from": "8:out",
+        "to": "c:b"
+      },
+      {
+        "from": "c:out",
+        "to": "d:a"
+      },
+      {
+        "from": "7:gate",
+        "to": "d:b"
+      },
+      {
+        "from": "7:touch",
+        "to": "e:in"
+      },
+      {
+        "from": "e:gate",
+        "to": "f:a"
+      },
+      {
+        "from": "d:out",
+        "to": "10:a"
+      },
+      {
+        "from": "f:out",
+        "to": "10:b"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
