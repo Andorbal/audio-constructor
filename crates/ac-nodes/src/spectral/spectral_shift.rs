@@ -21,15 +21,16 @@ node! {
     ///   pulls harmonics out of tune with each other: small shifts sound
     ///   metallic and bell-like, larger ones robotic.
     ///
-    /// It works as a phase vocoder: each bin's exact frequency is worked out
-    /// from how far its phase moved since the previous frame, its energy
-    /// moves to the bin nearest the new frequency, and the output phase
-    /// advances at the new frequency, so moved partials stay smooth across
-    /// overlapping frames. Use an `FFT` overlap of 4 or more; overlap 1 or 2
-    /// can't follow phases and sounds rough. Bins that land on the same
-    /// output bin add up; partials moved below 0 Hz or past half the sample
-    /// rate are dropped. With `scale` 1 and `shift` 0 frames pass through
-    /// exactly.
+    /// It works as a peak-locked phase vocoder: each spectral peak's exact
+    /// frequency is worked out from how far its phase moved since the
+    /// previous frame, the peak and the bins around it move together to the
+    /// new frequency (keeping the partial's shape and level, to within
+    /// about 0.3 dB), and the output phase advances at the new frequency,
+    /// so moved partials stay smooth across overlapping frames. Use an
+    /// `FFT` overlap of 4 or more; overlap 1 or 2 can't follow phases and
+    /// sounds rough. Partials that land on top of each other add up;
+    /// partials moved below 0 Hz or past half the sample rate are dropped.
+    /// With `scale` 1 and `shift` 0 frames pass through exactly.
     ///
     /// Inputs are read at each frame's own sample. The output has the
     /// input's frame size and hop. Phase tracking starts over after a reset
