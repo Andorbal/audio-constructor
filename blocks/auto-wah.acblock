@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "name": "Auto-Wah",
+  "description": "A wah that plays itself: the louder you play, the higher a resonant bandpass filter opens, so every note or hit sweeps up with its attack and back down as it fades. Mono or stereo; the output has as many channels as the input.\n\n- `in`: the signal (funky guitar, electric piano, synth bass, drums).\n- `sensitivity` (dB): boosts the measured level before it moves the filter. The filter sits at `low` while the boosted level is at −36 dBFS or below and reaches `high` at 0 dBFS, so raise this until your loudest notes open it fully.\n- `low`, `high` (Hz): where the filter rests when quiet and how far it opens; the sweep between them is even in octaves.\n- `resonance` (0 to 1): how sharp and vocal the peak is; 0.3 to 0.5 is the classic quack. A narrower band passes less of a full sound, so the filter is turned up to match and the overall level stays about the same as you raise it.\n- `attack`, `release` (s): how fast the filter follows the level up and back down. A fast attack and a slower release give each note a quick upward 'wow'.\n- `mix` (0 to 1): 1 is only the filtered signal; lower values blend the dry signal back in. A bandpass keeps only one band of the sound, so bass-heavy material comes out quieter; a `mix` around 0.7 keeps some body.\n- `out`: the result.\n\nInside: an Envelope Follower measures the input's peak level in dB, a Math node adds `sensitivity`, and an exponential Map turns −36..0 dB into `low`..`high` hertz (clamped). That drives the `cutoff` of an SVF every sample. Its `bandpass` output is 0 dB at the peak and narrows as the resonance raises the filter's Q (0.5 × 200^`resonance`), so a Gain lifts it by √Q (two Math nodes work out 10·log10 Q in dB), which keeps a broadband sound at about the same loudness. A Crossfade blends the result with the dry input.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "filter",
+    "envelope",
+    "wah",
+    "modulation",
+    "effect"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "1:in",
+        "4:in",
+        "5:a"
+      ]
+    },
+    {
+      "name": "sensitivity",
+      "type": "float",
+      "unit": "db",
+      "default": 12.0,
+      "range": [
+        0.0,
+        40.0
+      ],
+      "targets": [
+        "2:b"
+      ]
+    },
+    {
+      "name": "low",
+      "type": "float",
+      "unit": "hz",
+      "default": 300.0,
+      "range": [
+        50.0,
+        2000.0
+      ],
+      "targets": [
+        "3:out_min"
+      ]
+    },
+    {
+      "name": "high",
+      "type": "float",
+      "unit": "hz",
+      "default": 2500.0,
+      "range": [
+        500.0,
+        8000.0
+      ],
+      "targets": [
+        "3:out_max"
+      ]
+    },
+    {
+      "name": "resonance",
+      "type": "float",
+      "default": 0.4,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "4:resonance",
+        "6:a"
+      ]
+    },
+    {
+      "name": "attack",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.005,
+      "range": [
+        0.0,
+        0.2
+      ],
+      "targets": [
+        "1:attack"
+      ]
+    },
+    {
+      "name": "release",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.15,
+      "range": [
+        0.01,
+        1.0
+      ],
+      "targets": [
+        "1:release"
+      ]
+    },
+    {
+      "name": "mix",
+      "type": "float",
+      "default": 1.0,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "5:mix"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "5:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "envelope_follower",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Level"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            0.0
+          ],
+          "label": "Level + sensitivity"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "map",
+        "params": {
+          "clamp": true,
+          "curve": "exponential",
+          "in_max": 0.0,
+          "in_min": -36.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            0.0
+          ],
+          "label": "Cutoff (Hz)"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "svf",
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "math",
+        "params": {
+          "b": 23.0103,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            260.0
+          ],
+          "label": "Make-up"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "math",
+        "params": {
+          "b": -3.0103,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            260.0
+          ],
+          "label": "Make-up (dB)"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            960.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "crossfade",
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:level_db",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:cutoff"
+      },
+      {
+        "from": "6:out",
+        "to": "7:a"
+      },
+      {
+        "from": "7:out",
+        "to": "8:gain"
+      },
+      {
+        "from": "4:bandpass",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "5:b"
+      }
+    ]
+  }
+}

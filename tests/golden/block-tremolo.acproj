@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "name": "Block: Tremolo",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "group",
+        "config": {
+          "def": "tremolo"
+        },
+        "params": {
+          "depth": 0.8,
+          "rate": 4.0
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            0.0
+          ],
+          "label": "Tremolo"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "tremolo": {
+      "name": "Tremolo",
+      "description": "Pulses the volume up and down. `rate` sets how fast (Hz) and `depth` how far: 0 leaves the signal alone, 1 dips to silence at the bottom of each cycle. Mono or stereo.\n\nInside: a sine Oscillator remapped to a gain between 1 − depth and 1, converted to decibels for a Gain.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "modulation",
+        "amplitude",
+        "effect"
+      ],
+      "source": "shipped:tremolo",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "4:in"
+          ]
+        },
+        {
+          "name": "rate",
+          "type": "float",
+          "unit": "hz",
+          "default": 5.0,
+          "range": [
+            0.1,
+            20.0
+          ],
+          "targets": [
+            "1:freq"
+          ]
+        },
+        {
+          "name": "depth",
+          "type": "float",
+          "default": 0.5,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "2:b"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "4:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "a": 1.0,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                260.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 1.0
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "5",
+            "kind": "convert",
+            "params": {
+              "op": "gain_to_db"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "3:in"
+          },
+          {
+            "from": "2:out",
+            "to": "3:out_min"
+          },
+          {
+            "from": "3:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "4:gain"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

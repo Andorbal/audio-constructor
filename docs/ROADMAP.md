@@ -266,10 +266,64 @@ tone, Sampler loop crossfades), the feel of the Knob, XY Pad, and
 Keyboard, and MIDI Out timing against a hardware synth.
 
 ### M2.3 Blocks and sharing
-- [ ] Block library directory, `.acblock` save/load, metadata, versioning, "update instances from library".
-- [ ] All blocks listed in NODES.md built and tested as golden projects.
-- [ ] `audioc pack`/`unpack`; the app opens `.acpack`.
-- [ ] Library tab shows user, shipped, and imported blocks with search and tags.
+- [x] Block library directory, `.acblock` save/load, metadata, versioning, "update instances from library".
+- [x] All blocks listed in NODES.md built and tested as golden projects.
+- [x] `audioc pack`/`unpack`; the app opens `.acpack`.
+- [x] Library tab shows user, shipped, and imported blocks with search and tags.
+
+*Verified:* blocks have three origins: shipped (built into the app from
+`blocks/`), the person's own, and imported. Each has a source
+`<origin>:<id>` and a version. DECISIONS D79–D84 cover the design.
+
+`cargo test -p ac-core block`:
+- Block files round-trip with nested definitions.
+- A pasted instance keeps its source.
+- Updating keeps parameter values and drops wires to sockets the new
+  version no longer has.
+
+`cargo test -p ac-io`:
+- Library tests: every shipped block loads; the person's blocks save,
+  bump their version, and reload; imports dedupe and rename; search
+  matches names, tags, and descriptions; a project's stale and unknown
+  blocks are found; someone else's block with the same name is adopted,
+  not confused with one of ours.
+- Pack tests: round trips with assets inside and outside the project
+  folder; damaged packs are reported.
+- ZIP tests: round trips; reads an archive made by another tool; refuses
+  entry names that leave the folder (on write and on read); damage is
+  reported, never panicked on.
+
+`cargo test -p ac-cli --test blocks_cli` runs `audioc blocks`
+(`--json` too), `block-update` (`--check` writes nothing), and
+`pack`/`unpack`, refusing to unpack over a folder without `--force`. The
+unpacked project then renders.
+
+The 23 blocks: each `blocks/<id>.acblock` has a golden,
+`tests/golden/block-<id>.acproj`. A golden test fails if a golden's copy
+of its block differs from the shipped file or doesn't play it. The block
+goldens pass the hash, block-independence, and live-vs-offline checks
+like every other golden. Each golden plays its block the way it's meant to
+be used: the gate on a tone over hiss, the ducker pumping a pad with a
+kick, the instruments from golden MIDI, the drum blocks for a bar from
+the transport. The Plate and Hall Reverb decay times were checked by
+Schroeder integration of rendered impulse responses.
+
+Editor (`cargo test -p ac-app --test blocks`):
+- The palette adds a shipped block as one undo step.
+- A block with a Voice inside comes in as Voices.
+- Saving a group sets its source and bumps its version, and an older
+  copy is offered the update from the Node and Project tabs.
+- Removing a saved block leaves projects alone.
+- File ▸ Open opens a pack's project and imports block files without
+  touching the document.
+- Export Pack saves first (asking where for an untitled project) and
+  writes a pack that unpacks again.
+- The library folder keeps saved blocks between runs.
+
+`panels::library` unit tests cover the origin, tag, and search filters.
+
+Needs manual verification (in the PR): listening to each block's golden
+render, and how the Library tab feels with a large library.
 
 ### M2.4 Control surfaces
 - [ ] Gamepad (gilrs), KeyboardIn, OSC in/out nodes; binding/learn UI for MIDI, keys, gamepad; transport bindings.

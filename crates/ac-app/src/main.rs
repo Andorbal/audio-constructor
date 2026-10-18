@@ -1,7 +1,9 @@
 //! `audio-constructor`: the desktop editor.
 //!
-//! `audio-constructor [project.acproj]` opens a project; with no argument
-//! it opens the Start example (or a fresh Oscillator → Audio Out patch).
+//! `audio-constructor [project.acproj]` opens a project (or a pack, or
+//! imports a block file); with no argument it opens the Start example (or a
+//! fresh Oscillator → Audio Out patch). The person's blocks live in the
+//! platform data folder, under `blocks/`.
 
 use ac_app::audio::AudioMode;
 use ac_app::files::Recent;
@@ -19,6 +21,8 @@ fn main() -> eframe::Result {
         recent: Recent::load_default(),
         native_dialogs: std::env::var_os("AC_NO_NATIVE_DIALOGS").is_none(),
         seed,
+        library: directories::ProjectDirs::from("", "", "Audio Constructor")
+            .map(|d| d.data_dir().join("blocks")),
     };
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

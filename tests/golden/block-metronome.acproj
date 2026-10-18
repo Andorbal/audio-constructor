@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "name": "Block: Metronome",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 3.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "group",
+        "config": {
+          "def": "metronome"
+        },
+        "params": {
+          "beats_per_bar": 4.0,
+          "volume": -6.0
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ],
+          "label": "Metronome"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            880.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "20",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "21",
+        "kind": "compare",
+        "params": {
+          "b": 0.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "22",
+        "kind": "compare",
+        "params": {
+          "b": 2.25,
+          "op": "less"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            320.0
+          ]
+        }
+      },
+      {
+        "id": "23",
+        "kind": "logic",
+        "params": {
+          "op": "and"
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            160.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "23:out",
+        "to": "1:enabled"
+      },
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "20:time",
+        "to": "21:a"
+      },
+      {
+        "from": "20:time",
+        "to": "22:a"
+      },
+      {
+        "from": "21:out",
+        "to": "23:a"
+      },
+      {
+        "from": "22:out",
+        "to": "23:b"
+      }
+    ]
+  },
+  "group_defs": {
+    "metronome": {
+      "name": "Metronome",
+      "description": "Clicks on every beat while the transport plays, with a higher click on the first beat of each bar. Follows the project tempo.\n\n- `volume` (dB): how loud the clicks are.\n- `enabled`: switch the clicks on or off (with a 5 ms fade).\n- `beats_per_bar`: beats in a bar, counted from the start of the song; set it to match the time signature (3 for a waltz).\n- `out` (audio, mono): the clicks. Send it to its own output to make a click track only you hear.\n\nInside: one Clock ticks on every beat and another on every bar. The bar ticks start the accent click; a Switch in trigger mode passes the beat ticks only while the bar clock's short gate is low, so the downbeat doesn't get both clicks. Each click is a sine Oscillator, restarted from the top of its cycle by the tick so every click sounds the same, multiplied by an ADSR that jumps up and dies away in about 40 ms. The accent sounds an octave higher (1760 Hz against 880 Hz) and 3 dB louder. A Mix adds the two, a Gain sets the volume, and a Switch in audio mode turns the result on and off.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "rhythm",
+        "utility",
+        "click",
+        "tempo"
+      ],
+      "source": "shipped:metronome",
+      "inputs": [
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "11:gain"
+          ]
+        },
+        {
+          "name": "enabled",
+          "type": "bool",
+          "default": true,
+          "targets": [
+            "12:select"
+          ]
+        },
+        {
+          "name": "beats_per_bar",
+          "type": "float",
+          "unit": "beats",
+          "default": 4.0,
+          "range": [
+            1.0,
+            16.0
+          ],
+          "targets": [
+            "2:interval"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "12:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "clock",
+            "params": {
+              "duty": 0.5,
+              "interval": 1.0
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Beat"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "clock",
+            "params": {
+              "duty": 0.02
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Bar"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "switch",
+            "config": {
+              "type": "trigger"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not the downbeat"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.04,
+              "release": 0.01,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Accent envelope"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "oscillator",
+            "params": {
+              "freq": 1760.0,
+              "shape": "sine",
+              "start": "play"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                160.0
+              ],
+              "label": "Accent tone"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "7",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.04,
+              "release": 0.01,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Beat envelope"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "oscillator",
+            "params": {
+              "freq": 880.0,
+              "shape": "sine",
+              "start": "play"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                480.0
+              ],
+              "label": "Beat tone"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                320.0
+              ]
+            }
+          },
+          {
+            "id": "10",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": 0.0,
+              "gain_1": -3.0
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "11",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1100.0,
+                160.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                1320.0,
+                160.0
+              ],
+              "label": "Enabled"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "3:a"
+          },
+          {
+            "from": "2:gate",
+            "to": "3:select"
+          },
+          {
+            "from": "2:trigger",
+            "to": "4:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "5:sync"
+          },
+          {
+            "from": "4:out",
+            "to": "6:a"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "3:out",
+            "to": "7:on"
+          },
+          {
+            "from": "3:out",
+            "to": "8:sync"
+          },
+          {
+            "from": "7:out",
+            "to": "9:a"
+          },
+          {
+            "from": "8:out",
+            "to": "9:b"
+          },
+          {
+            "from": "6:out",
+            "to": "10:in_0"
+          },
+          {
+            "from": "9:out",
+            "to": "10:in_1"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "11:out",
+            "to": "12:b"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

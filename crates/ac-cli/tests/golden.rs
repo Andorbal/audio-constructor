@@ -355,7 +355,14 @@ fn golden_renders_are_deterministic_live_and_offline() {
 
 #[test]
 fn audioc_render_matches_the_library() {
-    let path = projects().into_iter().next().expect("a golden project");
+    // The CLI can't feed a golden's test MIDI or input: use one without.
+    let path = projects()
+        .into_iter()
+        .find(|p| {
+            let i = inputs(&ac_io::load_project(p).expect("loads"));
+            i.midi.is_empty() && i.input.is_none()
+        })
+        .expect("a golden project without test inputs");
     let out_wav = std::env::temp_dir().join(format!("ac-golden-cli-{}.wav", std::process::id()));
     let status = std::process::Command::new(env!("CARGO_BIN_EXE_audioc"))
         .args(["render", "-q", "--bit-depth", "32f", "-o"])
@@ -372,4 +379,46 @@ fn audioc_render_matches_the_library() {
         assert_eq!(&a[..n], &b[..n]);
     }
     std::fs::remove_file(out_wav).ok();
+}
+
+/// Every shipped block (`blocks/*.acblock`) has a golden project,
+/// `tests/golden/block-<id>.acproj`, that plays an exact copy of it (and of
+/// the definitions it uses), so the goldens test the blocks as shipped.
+#[test]
+fn every_shipped_block_has_a_golden_project_with_its_current_copy() {
+    let mut problems = Vec::new();
+    for lib in ac_io::shipped_blocks() {
+        let id = &lib.source.id;
+        let path = golden_dir().join(format!("block-{id}.acproj"));
+        let Ok(project) = ac_io::load_project(&path) else {
+            problems.push(format!("{}: missing or unreadable", path.display()));
+            continue;
+        };
+        let source = lib.source.to_string();
+        let Some((def_id, _)) = project
+            .group_defs
+            .iter()
+            .find(|(_, d)| d.source.as_deref() == Some(source.as_str()))
+        else {
+            problems.push(format!("{}: no definition from {source}", path.display()));
+            continue;
+        };
+        let copy = ac_core::Block::from_project(&project, def_id).expect("definition exists");
+        if copy != lib.block {
+            problems.push(format!(
+                "{}: its copy of {source} differs from blocks/{id}.acblock; paste the block's \
+                 definition (and `uses`) into the project again",
+                path.display()
+            ));
+        }
+        let used = project
+            .graph
+            .nodes
+            .iter()
+            .any(|n| n.group_def().as_ref() == Some(def_id));
+        if !used {
+            problems.push(format!("{}: doesn't play the block", path.display()));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

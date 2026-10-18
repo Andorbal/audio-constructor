@@ -9,6 +9,62 @@ use super::{PanelIo, PanelRequest, section};
 use crate::icons;
 use crate::theme;
 
+/// Blocks the project uses that the library has newer versions of.
+fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
+    section(ui, "Blocks");
+    let from_library = io
+        .doc
+        .project
+        .group_defs
+        .values()
+        .filter(|d| d.source.is_some())
+        .count();
+    let updates = io.library.updates(&io.doc.project);
+    if updates.is_empty() {
+        let text = if from_library == 0 {
+            "This project uses no library blocks."
+        } else {
+            "The library blocks this project uses are up to date."
+        };
+        ui.label(RichText::new(text).color(theme::TEXT_MUTED));
+        return;
+    }
+    egui::Grid::new("project-block-updates")
+        .num_columns(3)
+        .spacing(egui::vec2(10.0, 6.0))
+        .show(ui, |ui| {
+            for u in &updates {
+                let name = io
+                    .doc
+                    .project
+                    .group_defs
+                    .get(&u.def)
+                    .map_or_else(|| u.def.0.clone(), |d| d.name.clone());
+                ui.label(RichText::new(name).color(theme::TEXT));
+                ui.label(
+                    RichText::new(format!("v{} → v{}", u.from, u.to))
+                        .font(theme::mono_font(theme::FONT_VALUE))
+                        .color(theme::TEXT_MUTED),
+                );
+                if ui
+                    .small_button(format!("{}  Update", icons::ARROWS_CLOCKWISE))
+                    .on_hover_text(format!("Take the library's version ({})", u.source))
+                    .clicked()
+                {
+                    io.requests.push(PanelRequest::UpdateBlock(u.def.clone()));
+                }
+                ui.end_row();
+            }
+        });
+    if ui
+        .button(format!("{}  Update all", icons::ARROWS_CLOCKWISE))
+        .on_hover_text("Update every block above, as one undo step.")
+        .clicked()
+    {
+        io.requests.push(PanelRequest::UpdateAllBlocks);
+    }
+}
+
 pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
     let now = io.now;
     let s = io.doc.project.settings.clone();
@@ -195,6 +251,8 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                 .edit_settings("loop", now, |p| p.settings.loop_region = region);
         }
     });
+
+    blocks(ui, io);
 
     section(ui, "Engine");
     let stats = io.engine.report.stats.clone();

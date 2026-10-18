@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "name": "Flanger",
+  "description": "The jet-plane swoosh: the signal is mixed with a copy of itself delayed by a few milliseconds, and as the delay sweeps up and down, the comb of notches and peaks this makes sweeps through the spectrum. Feedback sharpens the peaks into a metallic ring. Mono or stereo; the output has as many channels as the input.\n\n- `in`: the signal.\n- `rate` (Hz): sweeps per second; slow (0.05 to 0.5 Hz) is the classic swoosh.\n- `depth` (0 to 1): how far the delay sweeps, from 0.25 ms up to 0.25 + `depth` × 6 ms. At 0 the delay stays at 0.25 ms and the comb stands still.\n- `feedback` (0 to 0.95): how much of the delayed copy goes round again. More feedback, higher and narrower peaks.\n- `mix` (0 to 1): 0 is dry, 1 is only the delayed copy (a pitch wobble, no comb); 0.5 gives the deepest notches.\n- `out`: the flanged signal.\n\nInside: a `pure` triangle Oscillator at `rate`, mapped from −1..1 onto 0.25 ms up to the longest delay (worked out from `depth` with two Math nodes), drives the `time` of one Delay. The Delay's own `feedback` and `mix` do the rest, so the feedback loop is tight, with no extra block of delay. A triangle sweeps the delay at an even speed, so the notches move evenly instead of lingering at the ends.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "modulation",
+    "flanger",
+    "delay",
+    "comb",
+    "effect"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "5:in"
+      ]
+    },
+    {
+      "name": "rate",
+      "type": "float",
+      "unit": "hz",
+      "default": 0.25,
+      "range": [
+        0.02,
+        5.0
+      ],
+      "targets": [
+        "1:freq"
+      ]
+    },
+    {
+      "name": "depth",
+      "type": "float",
+      "default": 0.7,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "2:a"
+      ]
+    },
+    {
+      "name": "feedback",
+      "type": "float",
+      "default": 0.5,
+      "range": [
+        0.0,
+        0.95
+      ],
+      "targets": [
+        "5:feedback"
+      ]
+    },
+    {
+      "name": "mix",
+      "type": "float",
+      "default": 0.5,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "5:mix"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "5:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "shape": "triangle",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "LFO"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 0.006,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            280.0
+          ],
+          "label": "Sweep (s)"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "b": 0.00025,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            280.0
+          ],
+          "label": "Longest"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_min": 0.00025
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "delay",
+        "config": {
+          "max_time": 0.01
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:out",
+        "to": "3:a"
+      },
+      {
+        "from": "1:out",
+        "to": "4:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:out_max"
+      },
+      {
+        "from": "4:out",
+        "to": "5:time"
+      }
+    ]
+  }
+}

@@ -1,0 +1,869 @@
+{
+  "schema_version": 1,
+  "name": "Block: Karplus-Strong String",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "voices",
+        "config": {
+          "def": "karplus-strong-string",
+          "voices": 6,
+          "steal": "oldest"
+        },
+        "params": {
+          "decay": 3.0,
+          "release": 0.4
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            0.0
+          ],
+          "label": "Karplus-Strong String"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            750.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "karplus-strong-string": {
+      "name": "Karplus-Strong String",
+      "description": "A plucked string, played polyphonically. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one, wire MIDI into its `midi` input, and every note plucks its own string, tuned to the note.\n\n- `damping` (0 to 1) darkens the string: the upper harmonics die away sooner than the fundamental, and high notes ring shorter than low ones, as on a real string. 0 is a bright, metallic wire.\n- `decay` is how long a held note rings, in seconds, before it has faded by 60 dB (with damping, high notes fade sooner).\n- `release` is the same for the time after the note is let go: short mutes the string like a lifted finger; set it to `decay` to let every note ring on like a harp.\n- `tone` (Hz) is the brightness of the pluck itself: low for a soft, thumb-like pluck, high for a hard pick.\n- `level` (dB) is how hard the string is plucked; each note's velocity scales it further.\n- `out` is the string's sound, mono.\n\nInside: a Voice node gives each note's frequency, trigger, gate, and velocity. On every trigger an ADSR opens for exactly one period of the note and lets through a burst of white Noise, scaled by velocity and softened by a lowpass Biquad (`tone`). The burst goes into a feedback Comb whose delay is one period, so it recirculates and rings at the note's pitch (the Karplus-Strong algorithm), while the Comb's damping lowpass, inside the loop, takes a little treble off on every pass. The Ring time row works out the feedback: a Switch picks `decay` while the gate is held and `release` after, and −60 dB divided by the number of periods in that time, as a gain, is what each pass keeps. The Tuning rows subtract the delay the damping filter adds (its phase at the note's frequency, from an atan2) from the period, which keeps the string in tune at any damping. A DC Block removes the offset a burst can leave circulating.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "string",
+        "pluck",
+        "physical model",
+        "polyphonic"
+      ],
+      "source": "shipped:karplus-strong-string",
+      "inputs": [
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.2,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "7:damping",
+            "12:b",
+            "16:in"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 4.0,
+          "range": [
+            0.1,
+            20.0
+          ],
+          "targets": [
+            "9:b"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.5,
+          "range": [
+            0.05,
+            20.0
+          ],
+          "targets": [
+            "9:a"
+          ]
+        },
+        {
+          "name": "tone",
+          "type": "float",
+          "unit": "hz",
+          "default": 8000.0,
+          "range": [
+            200.0,
+            20000.0
+          ],
+          "targets": [
+            "6:cutoff"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "2:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "8:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "noise",
+            "params": {
+              "color": "white",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "linear",
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                240.0
+              ],
+              "label": "Burst: one period"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Velocity"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "biquad",
+            "params": {
+              "mode": "lowpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Pick tone"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "comb",
+            "params": {
+              "mix": 1.0,
+              "mode": "feedback"
+            },
+            "ui": {
+              "pos": [
+                2250.0,
+                0.0
+              ],
+              "label": "String"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "dc_block",
+            "ui": {
+              "pos": [
+                2500.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "switch",
+            "ui": {
+              "pos": [
+                1250.0,
+                260.0
+              ],
+              "label": "Decay or release"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                260.0
+              ],
+              "label": "Periods in the ring"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "math",
+            "params": {
+              "a": -60.0,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                260.0
+              ],
+              "label": "dB per period"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                2000.0,
+                260.0
+              ],
+              "label": "Feedback"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "a": 1.0,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                640.0
+              ],
+              "label": "Period (s)"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                640.0
+              ],
+              "label": "Cycles per sample"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "b": 6.283185307179586,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                640.0
+              ],
+              "label": "ω (radians per sample)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "unary",
+            "params": {
+              "op": "sin"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                640.0
+              ]
+            }
+          },
+          {
+            "id": "11",
+            "kind": "unary",
+            "params": {
+              "op": "cos"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                780.0
+              ]
+            }
+          },
+          {
+            "id": "12",
+            "kind": "math",
+            "params": {
+              "a": 0.01,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                920.0
+              ],
+              "label": "Corner ÷ 20 kHz"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                920.0
+              ],
+              "label": "÷ sample rate"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "b": -125663.70614359171,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                920.0
+              ],
+              "label": "× −2π·20 kHz"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "unary",
+            "params": {
+              "op": "exp"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                920.0
+              ]
+            }
+          },
+          {
+            "id": "16",
+            "kind": "map",
+            "params": {
+              "clamp": true,
+              "in_max": 0.05,
+              "in_min": 0.0,
+              "out_max": 1.0,
+              "out_min": 0.0
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                1130.0
+              ],
+              "label": "Fade-in below 0.05"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                920.0
+              ],
+              "label": "Damping pole p"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                640.0
+              ],
+              "label": "p·sin ω"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                780.0
+              ],
+              "label": "p·cos ω"
+            }
+          },
+          {
+            "id": "1a",
+            "kind": "math",
+            "params": {
+              "a": 1.0,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                780.0
+              ],
+              "label": "1 − p·cos ω"
+            }
+          },
+          {
+            "id": "1b",
+            "kind": "math",
+            "params": {
+              "op": "atan2"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                640.0
+              ],
+              "label": "Filter phase"
+            }
+          },
+          {
+            "id": "1c",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                640.0
+              ],
+              "label": "Filter delay (samples)"
+            }
+          },
+          {
+            "id": "1d",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                780.0
+              ],
+              "label": "Filter delay (s)"
+            }
+          },
+          {
+            "id": "1e",
+            "kind": "math",
+            "params": {
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                2000.0,
+                640.0
+              ],
+              "label": "Comb delay"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "3:on"
+          },
+          {
+            "from": "d:out",
+            "to": "3:decay"
+          },
+          {
+            "from": "2:out",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "4:out",
+            "to": "5:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "6:out",
+            "to": "7:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "1:gate",
+            "to": "9:select"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:freq",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:b"
+          },
+          {
+            "from": "b:out",
+            "to": "c:in"
+          },
+          {
+            "from": "c:out",
+            "to": "7:feedback"
+          },
+          {
+            "from": "1:freq",
+            "to": "d:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "e:in"
+          },
+          {
+            "from": "e:out",
+            "to": "f:a"
+          },
+          {
+            "from": "f:out",
+            "to": "10:in"
+          },
+          {
+            "from": "f:out",
+            "to": "11:in"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:a"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "17:a"
+          },
+          {
+            "from": "16:out",
+            "to": "17:b"
+          },
+          {
+            "from": "17:out",
+            "to": "18:a"
+          },
+          {
+            "from": "10:out",
+            "to": "18:b"
+          },
+          {
+            "from": "17:out",
+            "to": "19:a"
+          },
+          {
+            "from": "11:out",
+            "to": "19:b"
+          },
+          {
+            "from": "19:out",
+            "to": "1a:b"
+          },
+          {
+            "from": "18:out",
+            "to": "1b:a"
+          },
+          {
+            "from": "1a:out",
+            "to": "1b:b"
+          },
+          {
+            "from": "1b:out",
+            "to": "1c:a"
+          },
+          {
+            "from": "f:out",
+            "to": "1c:b"
+          },
+          {
+            "from": "1c:out",
+            "to": "1d:in"
+          },
+          {
+            "from": "d:out",
+            "to": "1e:a"
+          },
+          {
+            "from": "1d:out",
+            "to": "1e:b"
+          },
+          {
+            "from": "1e:out",
+            "to": "7:delay"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Pluck",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              578.0
+            ]
+          },
+          {
+            "label": "Ring time",
+            "rect": [
+              1226.0,
+              220.0,
+              994.0,
+              184.0
+            ]
+          },
+          {
+            "label": "String",
+            "rect": [
+              2226.0,
+              -40.0,
+              494.0,
+              250.0
+            ]
+          },
+          {
+            "label": "Tuning: one period, minus the delay of the damping filter",
+            "rect": [
+              226.0,
+              600.0,
+              1994.0,
+              762.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true,
+    "midi": [
+      [
+        0,
+        [
+          144,
+          52,
+          100
+        ]
+      ],
+      [
+        12000,
+        [
+          144,
+          59,
+          100
+        ]
+      ],
+      [
+        24000,
+        [
+          144,
+          64,
+          100
+        ]
+      ],
+      [
+        36000,
+        [
+          144,
+          67,
+          100
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          52,
+          0
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          59,
+          0
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          64,
+          0
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          67,
+          0
+        ]
+      ]
+    ]
+  }
+}

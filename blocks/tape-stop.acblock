@@ -1,0 +1,247 @@
+{
+  "schema_version": 1,
+  "name": "Tape Stop",
+  "description": "Brings the sound to a halt like a tape machine or a turntable losing power: on `stop` the playback slows down over `time`, the pitch sliding down with it, until it stops dead; `start` brings the sound straight back. Mono or stereo.\n\n- `in` (audio): the signal to stop.\n- `stop` (trigger): start slowing down.\n- `start` (trigger): back to normal at once, in time with the music (a 5 ms fade keeps it from clicking). A real tape would have to spin up again and fall behind; dropping straight back in is how the effect is used to end a break on the downbeat.\n- `time` (seconds): how long the tape takes to come to a stop.\n\nInside: a Latch remembers whether the tape is stopped, and a Logic `not` turns that into whether it runs. A Smooth in linear mode turns that into the speed: on `stop` it falls in a straight line from 1 to 0 over `time`, as a motor braking evenly would. An Integrate adds up how far playback falls behind (1 − speed, per second) and that lag sets a Delay's time: as the lag grows faster and faster, the Delay reads its input more and more slowly, which lowers pitch and tempo together exactly the way a slowing tape does. The level falls with the speed too, as a tape's does as it slows (a Convert turns the speed into decibels for a Gain), so the sound fades out as it grinds to a halt. A Switch in audio mode plays the input while running and the slowed copy while stopped; the lag is reset on each stop, so the switch over is seamless.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "effect",
+    "time",
+    "pitch",
+    "performance"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "7:in",
+        "10:a"
+      ]
+    },
+    {
+      "name": "stop",
+      "type": "trigger",
+      "targets": [
+        "1:set"
+      ]
+    },
+    {
+      "name": "start",
+      "type": "trigger",
+      "targets": [
+        "1:reset"
+      ]
+    },
+    {
+      "name": "time",
+      "type": "float",
+      "unit": "seconds",
+      "default": 1.0,
+      "range": [
+        0.05,
+        4.0
+      ],
+      "targets": [
+        "3:fall"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "10:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "latch",
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ],
+          "label": "Stopped"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "logic",
+        "params": {
+          "op": "not"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            160.0
+          ],
+          "label": "Running"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "smooth",
+        "params": {
+          "mode": "linear",
+          "rise": 0.0
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            160.0
+          ],
+          "label": "Speed"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "a": 1.0,
+          "op": "subtract"
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            160.0
+          ],
+          "label": "1 − speed"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "gate_to_trigger",
+        "params": {
+          "edge": "rising"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            320.0
+          ],
+          "label": "On stop"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "integrate",
+        "ui": {
+          "pos": [
+            880.0,
+            160.0
+          ],
+          "label": "Lag"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "delay",
+        "config": {
+          "max_time": 4.0
+        },
+        "params": {
+          "feedback": 0.0,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            1100.0,
+            0.0
+          ],
+          "label": "Tape"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "convert",
+        "params": {
+          "op": "gain_to_db"
+        },
+        "ui": {
+          "pos": [
+            880.0,
+            320.0
+          ],
+          "label": "Speed in dB"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            1320.0,
+            0.0
+          ],
+          "label": "Head level"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            1540.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:b"
+      },
+      {
+        "from": "1:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:reset"
+      },
+      {
+        "from": "4:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:time"
+      },
+      {
+        "from": "3:out",
+        "to": "8:in"
+      },
+      {
+        "from": "7:out",
+        "to": "9:in"
+      },
+      {
+        "from": "8:out",
+        "to": "9:gain"
+      },
+      {
+        "from": "9:out",
+        "to": "10:b"
+      },
+      {
+        "from": "1:out",
+        "to": "10:select"
+      }
+    ]
+  }
+}

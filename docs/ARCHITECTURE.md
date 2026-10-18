@@ -495,13 +495,27 @@ like the computer keyboard, pushes into the same per-source rings, and one
 - **Project**: `name.acproj`, a JSON document with `schema_version`. Node
   params by socket name; node ids stable. Formatted with stable key order so
   diffs are readable.
-- **Block**: `name.acblock`, a JSON `GroupDef` with metadata. Blocks live in a
-  per-user library directory and in `blocks/` in the repo (built-ins).
-  Projects embed copies of the defs they use.
+- **Block**: `name.acblock`, a JSON `GroupDef` with metadata (name,
+  description, version, author, tags) and the project `schema_version`, plus
+  `uses`: the definitions its own group nodes reference. Blocks live in
+  `blocks/` in the repo (shipped, compiled into `ac-io` by its build script),
+  in a per-user library directory (the person's own), and under its
+  `imported/` folder (other people's, from packs or files). A block's id is
+  its file name; its **source** is `<origin>:<id>` (`shipped:compressor`).
+  Projects embed copies of the defs they use, and a copy records its source,
+  so the editor (and `audioc block-update`) can offer the library's newer
+  version: the definition is replaced, instance parameters carry over by
+  socket name, and wires to sockets the new version lacks are dropped
+  (DECISIONS D79–D80).
 - **Assets**: audio clips are referenced by relative path plus content hash.
   Recordings land in `<project>/assets/` by default. `audioc pack` bundles a
-  project and its assets into a zip (`.acpack`) for sharing; the app opens
-  packs directly.
+  project and its assets into a zip (`.acpack`) for sharing: a
+  `manifest.json`, the project at the root, and its assets at their relative
+  paths; assets from outside the project's folder are copied in under
+  `assets/` and the packed project points at the copies. Unpacking refuses
+  names that would leave its folder (absolute paths, `..`). The app opens
+  packs directly, unpacking them into a new folder next to the pack, and
+  imports the blocks they carry that its library doesn't know (D81).
 - **Migrations**: a `schema_version` bump comes with a migration function and
   a test fixture of the old format.
 - **Clipboard**: copy serializes selected nodes and internal wires as JSON
@@ -522,7 +536,9 @@ All hosts call the same `Engine`.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
   - `audioc devices` lists audio devices and MIDI inputs and outputs.
   - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
-  - `audioc pack` / `audioc unpack`.
+  - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
+  - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.
+  - `audioc fmt` canonicalizes `.acproj` and `.acblock` files.
 - **Plugin** (Phase 3, `ac-plugin`): nih-plug exposes the engine as a CLAP and
   VST3 effect and instrument. The plugin's audio input and output map to
   `AudioIn`/`AudioOut` nodes; host MIDI maps to `MidiIn`; a configurable set of

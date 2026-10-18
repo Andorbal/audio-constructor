@@ -11,6 +11,51 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.4.0] - 2026-10-18
+
+### Added
+
+- **Blocks**: a group saved to its own `.acblock` file (name, description,
+  version, author, tags), so a patch built once can be used in any project.
+  Projects keep a copy of every block they use and remember where it came
+  from, so a newer version in the library can update them.
+- `audioc blocks` lists the block library, and `audioc block-update`
+  brings a project's copies of library blocks up to date (`--check` only
+  reports).
+- **Packs**: `audioc pack song.acproj` bundles a project and the audio files
+  it uses into one `.acpack` to share, copying in files from outside the
+  project's folder; `audioc unpack` unpacks one, and never writes outside
+  the folder it unpacks into.
+- **Blocks in the editor.** The palette (Shift+A) and the Library tab find
+  blocks by name, tag, or description; the Library tab lists shipped, your
+  own, and imported blocks with origin filters and tag chips, and imports
+  block files. A group's Node tab saves it to your library, and when the
+  library has a newer version of a block a project uses, the Node and
+  Project tabs offer to update it (one undo step; values you set carry
+  over).
+- **File ▸ Open** opens packs (unpacked into a folder next to them) and
+  imports block files; **File ▸ Export Pack…** shares the current project
+  with its audio. Blocks a pack carries join your library.
+- Shipped blocks: **Tremolo**, **Compressor**, **Limiter** (keeps peaks under a
+  ceiling, with lookahead), **Noise Gate**, **Sidechain Ducker**,
+  **Multiband Compressor**, **Track** (volume, pan, mute, and solo for a
+  mix), **Metronome**, and **Tape Stop**.
+- Instrument blocks for Voices (tick **Polyphonic** and play MIDI into
+  them): **Karplus-Strong String** (a plucked string, in tune across the
+  keyboard), **Subtractive Synth Voice** (two detuned saws through a ladder
+  filter with an envelope sweep), and **FM Operator Pair**. Rhythm and
+  voice blocks: **Drum Machine** (a 16-step pattern playing synthesized
+  kick, snare, and hats), **Euclidean Drummer**, and **Vocoder** (12 bands).
+- Space and modulation blocks: **Plate Reverb** (a figure-eight tank),
+  **Hall Reverb** (parallel damped combs into allpasses), **Chorus**,
+  **Flanger**, **Phaser** (2–4 notches), **Vibrato** (depth in semitones),
+  **Auto-Wah**, and **Stutter** (repeats a beat-sized slice).
+
+### Changed
+
+- File ▸ Open shows the file dialog first and asks about unsaved changes
+  only when the file will replace the open project.
+
 ## [0.3.0] - 2026-10-18
 
 Milestone M2.2 of the roadmap: the Phase 2 node library, about eighty new
@@ -170,6 +215,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Andorbal/audio-constructor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Andorbal/audio-constructor/releases/tag/v0.1.0

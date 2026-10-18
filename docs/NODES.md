@@ -245,4 +245,21 @@ mute/solo), Vocoder (BandSplit × 2 + EnvelopeFollowers), Tape Stop,
 Stutter, Euclidean Drummer.
 
 Every block is also an example of good patching and is linked from the
-in-app help for the nodes it uses.
+in-app help for the nodes it uses. Each is a file in `blocks/` with a golden
+project (`tests/golden/block-<id>.acproj`) that plays it.
+
+Notes on the blocks as built:
+
+- A block's insides are shared by all its instances (DECISIONS D82), so
+  **Track** takes audio in (wire a `Clip` into it) rather than holding a
+  Clip, and **Drum Machine** and **Euclidean Drummer** synthesize their
+  drums; both also output a trigger per drum to play your own `Sampler`s.
+  Track's `soloed`/`any_solo` sockets make solo work across a mix.
+- The three instruments (**Karplus-Strong String**, **Subtractive Synth
+  Voice**, **FM Operator Pair**) are bodies for `Voices`: add one, tick
+  Polyphonic in the Node tab, and play MIDI into it.
+- **Phaser** has no feedback control: a loop around its allpasses needs a
+  `Feedback` node, whose one-block delay would turn it into a static,
+  block-size-dependent comb. **Flanger** feedback is 0–0.95.
+- **Multiband Compressor** uses the Compressor block inside and has fixed
+  crossover frequencies (BandSplit's `edges` are config).

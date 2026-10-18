@@ -117,6 +117,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Save, icons::FLOPPY_DISK, true);
             entry(ui, &mut out, Action::SaveAs, icons::FLOPPY_DISK, true);
             entry(ui, &mut out, Action::ExportWav, icons::EXPORT, true);
+            entry(ui, &mut out, Action::ExportPack, icons::PACKAGE, true);
             ui.separator();
             entry(ui, &mut out, Action::Quit, icons::SIGN_OUT, true);
         });
@@ -194,14 +195,12 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                             .on_hover_text(e.meta.summary())
                             .clicked()
                         {
-                            out.push(MenuCommand::Add(Candidate {
-                                name: e.meta.name.to_string(),
-                                kind: e.meta.kind.to_string(),
-                                category: Some(e.meta.category),
-                                summary: e.meta.summary(),
-                                config: ac_core::empty_config(),
-                                socket: None,
-                            }));
+                            out.push(MenuCommand::Add(Candidate::node(
+                                e.meta.name,
+                                e.meta.kind,
+                                Some(e.meta.category),
+                                e.meta.summary(),
+                            )));
                             ui.close();
                         }
                     }

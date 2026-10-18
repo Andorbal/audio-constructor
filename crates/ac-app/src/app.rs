@@ -8,7 +8,7 @@ use std::sync::mpsc::Receiver;
 
 use ac_core::{Endpoint, GROUP_KIND, NodeId, Project, Registry, TempoMap};
 use ac_io::assets::AssetIssue;
-use ac_io::{AssetStore, FileResources};
+use ac_io::{AssetStore, FileResources, Library};
 use egui::{Event, Key, RichText, vec2};
 
 use crate::actions::{self, Action};
@@ -26,6 +26,8 @@ use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::theme;
 use crate::transport::TransportState;
 
+mod sharing;
+
 /// How to start the editor.
 pub struct AppOptions {
     pub audio: AudioMode,
@@ -38,6 +40,9 @@ pub struct AppOptions {
     pub native_dialogs: bool,
     /// Seed for node ids (fixed in tests, from the clock otherwise).
     pub seed: u64,
+    /// The folder of the person's own and imported blocks. `None` keeps
+    /// them in memory, with only the shipped blocks to start from.
+    pub library: Option<PathBuf>,
 }
 
 impl AppOptions {
@@ -50,6 +55,7 @@ impl AppOptions {
             recent: Recent::in_memory(),
             native_dialogs: false,
             seed: 1,
+            library: None,
         }
     }
 }
@@ -58,7 +64,7 @@ impl AppOptions {
 #[derive(Clone, Debug, PartialEq)]
 enum AfterConfirm {
     New,
-    Open(Option<PathBuf>),
+    Open(PathBuf),
     Quit,
 }
 
@@ -70,6 +76,8 @@ pub struct EditorApp {
     pub engine: EngineHost,
     pub side: SidePanel,
     pub recent: Recent,
+    /// Shipped, saved, and imported blocks.
+    pub library: Library,
     assets: AssetStore,
     missing: BTreeSet<String>,
     loaded_assets: Vec<(String, Option<String>)>,
@@ -93,6 +101,8 @@ pub struct EditorApp {
     close_now: bool,
     /// The last subgraph copied (for pastes that don't carry text).
     clipboard: Option<String>,
+    /// Export Pack is waiting for an untitled project to be saved.
+    pack_after_save: bool,
     /// Nodes created by the last command (tests read this).
     pub last_added: Vec<NodeId>,
 }
@@ -101,8 +111,18 @@ impl EditorApp {
     pub fn new(ctx: &egui::Context, opts: AppOptions) -> EditorApp {
         theme::apply(ctx);
         let registry = Arc::new(ac_nodes::registry());
+        let mut library = match &opts.library {
+            Some(dir) => Library::open(dir),
+            None => Library::shipped_only(),
+        };
         let mut status = None;
-        let (project, path, base, assets) = match &opts.project {
+        // A pack or a block file given at startup opens once the editor is
+        // up, the way File ▸ Open does.
+        let (first, later) = match opts.project.clone() {
+            Some(p) if !is_project_file(&p) => (None, Some(p)),
+            p => (p, None),
+        };
+        let (project, path, base, assets) = match &first {
             Some(p) => match files::open_project(p, &registry) {
                 Ok((proj, assets)) => (proj, Some(p.clone()), files::project_dir(p), assets),
                 Err(e) => {
@@ -111,7 +131,9 @@ impl EditorApp {
                     (proj, None, cwd(), AssetStore::default())
                 }
             },
-            None => match files::find_start_example().filter(|_| opts.start_example) {
+            None => match files::find_start_example()
+                .filter(|_| opts.start_example && later.is_none())
+            {
                 Some(p) => match files::open_project(&p, &registry) {
                     // The example opens as an untitled copy, so saving
                     // doesn't overwrite the shipped file. Its stored view
@@ -146,6 +168,9 @@ impl EditorApp {
                 .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
         });
         let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
+        if path.is_some() {
+            library.import_unknown(&project);
+        }
         let doc = Document::new(project, path.clone(), base, opts.seed);
         let mut recent = opts.recent;
         if let Some(p) = &path {
@@ -160,6 +185,7 @@ impl EditorApp {
             engine,
             side: SidePanel::default(),
             recent,
+            library,
             missing: missing_of(&assets),
             assets,
             transport: TransportState::default(),
@@ -179,14 +205,45 @@ impl EditorApp {
             space_shift: false,
             close_now: false,
             clipboard: None,
+            pack_after_save: false,
             last_added: Vec::new(),
         };
         app.canvas.reset_for(&app.doc, &app.registry);
+        if let Some(p) = later {
+            app.open(&p, 0.0);
+        }
+        app.report_library_issues();
         app
+    }
+
+    /// Block files in the library folder that couldn't be read, said once
+    /// at startup (after anything else worth saying).
+    fn report_library_issues(&mut self) {
+        let Some(first) = self.library.issues.first() else {
+            return;
+        };
+        let n = self.library.issues.len();
+        let text = format!(
+            "{n} block file{} in your library couldn't be read ({first})",
+            plural(n)
+        );
+        match &mut self.status {
+            Some((s, _, warn)) => {
+                s.push_str(" · ");
+                s.push_str(&text);
+                *warn = true;
+            }
+            None => self.status = Some((text, 0.0, true)),
+        }
     }
 
     pub fn document(&self) -> &Document {
         &self.doc
+    }
+
+    /// The status bar's message, if one is showing (tests read this).
+    pub fn status(&self) -> Option<&str> {
+        self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
 
     fn say(&mut self, text: impl Into<String>, now: f64) {
@@ -276,6 +333,7 @@ impl EditorApp {
                     let mut io = PanelIo {
                         doc: &mut self.doc,
                         registry: &self.registry,
+                        library: &self.library,
                         engine: &mut self.engine,
                         assets: &self.assets,
                         missing: &self.missing,
@@ -313,7 +371,10 @@ impl EditorApp {
             });
         self.library_drop(&ctx, now);
 
-        if let Some(p) = self.palette.show(&ctx, &self.registry, &self.doc) {
+        if let Some(p) = self
+            .palette
+            .show(&ctx, &self.registry, &self.library, &self.doc)
+        {
             self.add_candidate(&p.candidate, p.at, p.pending, now);
         }
         self.dialogs(&ctx, now);
@@ -556,6 +617,7 @@ impl EditorApp {
                 "hash": hash,
             }),
             socket: None,
+            block: None,
         };
         self.add_candidate(&c, at + vec2(theme::NODE_WIDTH / 2.0, 14.0), None, now);
         self.takes.retain(|t| t.path != take.path);
@@ -675,6 +737,15 @@ impl EditorApp {
                 }
             }
             PanelRequest::Status(s) => self.say(s, now),
+            PanelRequest::ImportBlockFile => self.file_dialog(FilePurpose::ImportBlock, now),
+            PanelRequest::RemoveBlock(source) => self.remove_block(&source, now),
+            PanelRequest::SaveBlock(def) => self.save_block(&def, now),
+            PanelRequest::UpdateBlock(def) => {
+                self.update_block(&def, now);
+            }
+            PanelRequest::UpdateAllBlocks => {
+                self.update_all_blocks(now);
+            }
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -697,7 +768,7 @@ impl EditorApp {
     fn menu_command(&mut self, ctx: &egui::Context, c: MenuCommand, now: f64) {
         match c {
             MenuCommand::Run(a) => self.run(ctx, a, now),
-            MenuCommand::OpenRecent(p) => self.request_open(Some(p), now),
+            MenuCommand::OpenRecent(p) => self.request_open(p, now),
             MenuCommand::ForgetRecent(p) => self.recent.remove(&p),
             MenuCommand::ClearRecent => self.recent.clear(),
             MenuCommand::Add(c) => {
@@ -733,8 +804,8 @@ impl EditorApp {
 
     // ------------------------------------------------------------ commands
 
-    /// Add a node from the palette or library at canvas position `at`,
-    /// completing a pending wire if there is one.
+    /// Add a node or a library block from the palette or library at canvas
+    /// position `at`, completing a pending wire if there is one.
     pub fn add_candidate(
         &mut self,
         c: &Candidate,
@@ -747,6 +818,17 @@ impl EditorApp {
             Some(_) => at - vec2(theme::NODE_WIDTH - 14.0, 40.0),
             None => at - vec2(theme::NODE_WIDTH / 2.0, 14.0),
         };
+        // A block pastes as an instance of its definition.
+        let block = match &c.block {
+            Some(source) => match self.block_instance(source) {
+                Some(text) => Some(text),
+                None => {
+                    self.warn(format!("{} is no longer in the library", c.name), now);
+                    return None;
+                }
+            },
+            None => None,
+        };
         let kind = c.kind.clone();
         let config = c.config.clone();
         let socket = c.socket.clone();
@@ -754,7 +836,15 @@ impl EditorApp {
         let id = self
             .doc
             .edit(&self.registry, &format!("Add {}", c.name), |g, ctx| {
-                let id = if kind == ac_core::VOICES_KIND && config.get("def").is_none() {
+                let id = if let Some(text) = &block {
+                    match edit::paste(g, ctx, text, [pos.x, pos.y]) {
+                        Ok(ids) => *ids.first()?,
+                        Err(e) => {
+                            error = Some(e);
+                            return None;
+                        }
+                    }
+                } else if kind == ac_core::VOICES_KIND && config.get("def").is_none() {
                     edit::group::add_voices(g, ctx, [pos.x, pos.y])
                 } else {
                     edit::add_node(g, ctx, &kind, config, [pos.x, pos.y])
@@ -773,11 +863,12 @@ impl EditorApp {
                         error = Some(e.to_string());
                     }
                 }
-                id
+                Some(id)
             });
         if let Some(e) = error {
             self.warn(e, now);
         }
+        let id = id?;
         self.doc.selection = [id].into();
         self.canvas.mark_born(&[id], now);
         self.last_added = vec![id];
@@ -824,10 +915,11 @@ impl EditorApp {
         let reg = self.registry.clone();
         match a {
             Action::New => self.request(AfterConfirm::New, now),
-            Action::Open => self.request(AfterConfirm::Open(None), now),
+            Action::Open => self.file_dialog(FilePurpose::Open, now),
             Action::Save => self.save(false, now),
             Action::SaveAs => self.save(true, now),
             Action::ExportWav => self.file_dialog(FilePurpose::Export, now),
+            Action::ExportPack => self.export_pack(now),
             Action::Quit => self.request(AfterConfirm::Quit, now),
             Action::Undo => {
                 if self.doc.undo() {
@@ -1057,8 +1149,14 @@ impl EditorApp {
         }
     }
 
-    fn request_open(&mut self, path: Option<PathBuf>, now: f64) {
-        self.request(AfterConfirm::Open(path), now);
+    /// Open a file the person chose. A block file only joins the library,
+    /// so it never asks about unsaved changes; projects and packs do.
+    fn request_open(&mut self, path: PathBuf, now: f64) {
+        if file_kind(&path) == FileKind::Block {
+            self.import_block_file(&path, now);
+        } else {
+            self.request(AfterConfirm::Open(path), now);
+        }
     }
 
     fn proceed(&mut self, after: AfterConfirm, now: f64) {
@@ -1068,8 +1166,7 @@ impl EditorApp {
                 self.replace_document(p, None, cwd(), AssetStore::default());
                 self.say("New project", now);
             }
-            AfterConfirm::Open(Some(path)) => self.open(&path, now),
-            AfterConfirm::Open(None) => self.file_dialog(FilePurpose::Open, now),
+            AfterConfirm::Open(path) => self.open(&path, now),
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -1077,32 +1174,77 @@ impl EditorApp {
         }
     }
 
-    /// Open a project file. Missing files and unknown nodes still open.
+    /// Open a file: a project (missing files and unknown nodes still
+    /// open), a pack (unpacked into a new folder beside it, then opened),
+    /// or a block file (imported into the library; the document stays).
     pub fn open(&mut self, path: &Path, now: f64) {
-        match files::open_project(path, &self.registry) {
-            Ok((project, assets)) => {
-                let missing = assets.issues.len();
-                self.replace_document(
-                    project,
-                    Some(path.to_path_buf()),
-                    files::project_dir(path),
-                    assets,
-                );
-                self.recent.add(path);
-                if missing > 0 {
-                    self.warn(
-                        format!(
-                            "Opened {} — {missing} audio file problem(s); see the Project tab",
-                            path.display()
-                        ),
-                        now,
-                    );
-                } else {
-                    self.say(format!("Opened {}", path.display()), now);
+        match file_kind(path) {
+            FileKind::Project => {
+                if let Err(e) = self.open_project(path, format!("Opened {}", path.display()), now) {
+                    self.warn(format!("Couldn't open: {e}"), now);
                 }
             }
-            Err(e) => self.warn(format!("Couldn't open: {e}"), now),
+            FileKind::Pack => match ac_io::unpack_beside(path) {
+                Ok(project) => {
+                    let dir = files::project_dir(&project);
+                    let mut what = format!("Unpacked {} into {}", file_name(path), dir.display());
+                    // Someone else's blocks: import them and point the
+                    // copies at the imports, before the project opens.
+                    if let Ok(mut p) = ac_io::load_project(&project) {
+                        let adopted = self.library.adopt(&mut p);
+                        if adopted > 0 && ac_io::save_project(&project, &p).is_ok() {
+                            what.push_str(&format!(
+                                " · added {adopted} block{} from it to your library",
+                                plural(adopted)
+                            ));
+                        }
+                    }
+                    if let Err(e) = self.open_project(&project, what, now) {
+                        self.warn(
+                            format!(
+                                "Unpacked into {}, but couldn't open the project: {e}",
+                                dir.display()
+                            ),
+                            now,
+                        );
+                    }
+                }
+                Err(e) => self.warn(format!("Couldn't unpack {}: {e}", path.display()), now),
+            },
+            FileKind::Block => self.import_block_file(path, now),
         }
+    }
+
+    /// Replace the document with the project at `path`. The status starts
+    /// with `what` and adds the blocks it brought and any missing files.
+    fn open_project(&mut self, path: &Path, what: String, now: f64) -> Result<(), String> {
+        let (project, assets) = files::open_project(path, &self.registry)?;
+        let missing = assets.issues.len();
+        self.replace_document(
+            project,
+            Some(path.to_path_buf()),
+            files::project_dir(path),
+            assets,
+        );
+        self.recent.add(path);
+        // Other people's blocks the project carries join the library.
+        let blocks = self.library.import_unknown(&self.doc.project);
+        let mut text = what;
+        if blocks > 0 {
+            text.push_str(&format!(
+                " · added {blocks} block{} it uses to your library",
+                plural(blocks)
+            ));
+        }
+        if missing > 0 {
+            text.push_str(&format!(
+                " — {missing} audio file problem(s); see the Project tab"
+            ));
+            self.warn(text, now);
+        } else {
+            self.say(text, now);
+        }
+        Ok(())
     }
 
     /// Show `project` as a new, unsaved document (examples, tests).
@@ -1228,6 +1370,11 @@ impl EditorApp {
                     .unwrap_or_else(|| home().join(format!("{}.wav", slug(&self.doc.title())))),
             ),
             FilePurpose::Locate(old) => Some(self.doc.base_dir.join(old)),
+            FilePurpose::ExportPack => self
+                .doc
+                .path
+                .as_ref()
+                .map(|p| p.with_extension(ac_io::PACK_EXTENSION)),
             _ => self
                 .doc
                 .path
@@ -1238,17 +1385,36 @@ impl EditorApp {
         if self.native_dialogs {
             match dialogs::native(&purpose, suggested.as_deref()) {
                 Ok(Some(p)) => return self.file_chosen(purpose, p, now),
-                Ok(None) => return,
+                Ok(None) => return self.dialog_cancelled(&purpose),
                 Err(dialogs::NoDialog) => {} // no system dialog: type the path instead
             }
         }
         self.prompt = Some(PathPrompt::new(purpose, suggested));
     }
 
+    /// The path prompt shown instead of a system file dialog, if one is
+    /// open (tests type into it).
+    pub fn prompt_mut(&mut self) -> Option<&mut PathPrompt> {
+        self.prompt.as_mut()
+    }
+
+    fn dialog_cancelled(&mut self, purpose: &FilePurpose) {
+        if *purpose == FilePurpose::SaveAs {
+            self.pack_after_save = false;
+        }
+    }
+
     fn file_chosen(&mut self, purpose: FilePurpose, path: PathBuf, now: f64) {
         match purpose {
-            FilePurpose::Open => self.open(&path, now),
-            FilePurpose::SaveAs => self.save_to(&path, now),
+            FilePurpose::Open => self.request_open(path, now),
+            FilePurpose::SaveAs => {
+                self.save_to(&path, now);
+                if std::mem::take(&mut self.pack_after_save) && !self.doc.is_dirty() {
+                    self.file_dialog(FilePurpose::ExportPack, now);
+                }
+            }
+            FilePurpose::ExportPack => self.export_pack_to(&path, now),
+            FilePurpose::ImportBlock => self.import_block_file(&path, now),
             FilePurpose::Export => self.export(path, now),
             FilePurpose::ChooseClip(node) => self.assign_clip(node, &path, now),
             FilePurpose::Locate(old) => {
@@ -1321,8 +1487,9 @@ impl EditorApp {
         {
             let purpose = p.purpose.clone();
             self.prompt = None;
-            if let Some(path) = result {
-                self.file_chosen(purpose, path, now);
+            match result {
+                Some(path) => self.file_chosen(purpose, path, now),
+                None => self.dialog_cancelled(&purpose),
             }
         }
         dialogs::shortcuts(ctx, &mut self.show_shortcuts);
@@ -1349,6 +1516,42 @@ fn missing_of(assets: &AssetStore) -> BTreeSet<String> {
             AssetIssue::Changed { .. } => None,
         })
         .collect()
+}
+
+/// Whether `path` is a project (anything but a pack or a block file).
+fn is_project_file(path: &Path) -> bool {
+    !matches!(file_kind(path), FileKind::Pack | FileKind::Block)
+}
+
+/// What File ▸ Open does with a file, by its extension.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FileKind {
+    Project,
+    Pack,
+    Block,
+}
+
+fn file_kind(path: &Path) -> FileKind {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some(ac_io::PACK_EXTENSION) => FileKind::Pack,
+        Some(ac_core::BLOCK_EXTENSION) => FileKind::Block,
+        _ => FileKind::Project,
+    }
+}
+
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().to_string(),
+    )
 }
 
 fn cwd() -> PathBuf {
