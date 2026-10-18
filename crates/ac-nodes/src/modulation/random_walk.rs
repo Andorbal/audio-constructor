@@ -15,9 +15,11 @@ node! {
     /// About `rate` times a second it picks a new point to head for, a
     /// random step away from the last one (bouncing back off the edges), and
     /// a smooth curve passes through the points, so the output drifts like
-    /// something alive rather than jumping. Over time it visits the whole
-    /// span `center − range` to `center + range` evenly. A negative `rate`
-    /// counts as positive; 0 freezes it.
+    /// something alive rather than jumping. Over time it roams the whole
+    /// span, spending most of its time within four fifths of `range` of
+    /// `center` (the curve only reaches the edges when it swings past a
+    /// point near them). A negative `rate` counts as positive; 0 freezes
+    /// it.
     ///
     /// The `seed` config (an integer, default 0) is mixed with the
     /// project's seed and this node's place in the patch: two RandomWalks
