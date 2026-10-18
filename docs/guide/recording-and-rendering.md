@@ -50,9 +50,10 @@ dropped.
 From the command line, `audioc run --record` plays a project live with
 recording on, and the takes land in the same `assets/` folder.
 
-> **Try this:** open the **Tape Loop** example and follow its last tip:
-> give the record head a third input, wire an Audio In into it, and loop
-> yourself.
+> **Try this:** open the **Guitar Pedalboard**, save it under a new name,
+> and wire the Level's `out` into a Record node too. Press `R`, play a
+> phrase, press `R` again, and click **Create Clip from take** to hear it
+> back.
 
 ## Rendering
 
