@@ -59,10 +59,10 @@ node! {
     /// fires `end` as soon as it starts. `position` reports where playback
     /// is, in seconds from the beginning of the sound.
     ///
-    /// **Try this:** wire a `Voices` body's `Voice` `trigger` into `start`
-    /// and its note (through a `Constant` or the MIDI note) into `note` for
-    /// a playable sampled instrument; or wire a `Record` node's `buffer`
-    /// here and a `Clock` into `start` to loop a phrase you just played.
+    /// **Try this:** inside a `Voices` body, wire the `Voice` node's
+    /// `trigger` into `start` and its `note` into `note` for a playable
+    /// sampled instrument; or wire a `Record` node's `buffer` here and a
+    /// `Clock` into `start` to loop a phrase you just played.
     pub struct Sampler {
         /// The `file` config's audio at the engine rate, if any.
         file: Option<Arc<AudioData>>,

@@ -333,6 +333,22 @@ mod tests {
     }
 
     #[test]
+    fn changing_duration_keeps_the_place_on_the_curve() {
+        // Halfway through a 480-frame pass the duration doubles: the
+        // playhead stays at the middle and the rest takes 480 more frames.
+        let mut h = harness(json!({ "points": [[0, 0], [1, 1]] }), 64);
+        let duration: Vec<f32> = (0..2_000)
+            .map(|i| if i < 240 { 0.01 } else { 0.02 })
+            .collect();
+        h.set_samples("duration", duration);
+        let out = h.run(2_000);
+        let o = out.float("out");
+        assert!((o[240] - 0.5).abs() < 1e-6, "{}", o[240]);
+        assert!((o[480] - 0.75).abs() < 1e-6, "{}", o[480]);
+        assert_eq!(out.triggers("end"), &[720]);
+    }
+
+    #[test]
     fn beats_follow_the_tempo() {
         let mut h = harness(json!({ "unit": "beats", "points": [[0, 0], [1, 1]] }), 256);
         h.tempo(TempoMap::constant(48_000.0, 120.0))
