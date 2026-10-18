@@ -11,6 +11,8 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.3.0] - 2026-10-18
+
 ## [0.2.0] - 2026-10-18
 
 Milestone M2.1 of the roadmap, engine depth: polyphony, nodes that need
@@ -100,5 +102,6 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Andorbal/audio-constructor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Andorbal/audio-constructor/releases/tag/v0.1.0
