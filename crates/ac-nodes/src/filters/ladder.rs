@@ -31,8 +31,10 @@ node! {
     ///
     /// Like the circuit it models, resonance thins out the bass of the
     /// lowpass modes (feedback divides their passband by up to 5). Half of
-    /// that loss is made up, so full resonance costs about 4.5 dB of
-    /// passband instead of 14; the bandpass and highpass need no make-up.
+    /// that loss is made up by raising the input level with resonance, so
+    /// full resonance costs about 4.5 dB of passband instead of 14 (and
+    /// drives the input stage a little harder); the bandpass and highpass
+    /// need no make-up.
     ///
     /// The ladder is solved with zero-delay feedback, so cutoff stays in
     /// tune and resonance stays stable when either is swept at audio rate.
@@ -71,8 +73,8 @@ const MAX_CHANNELS: usize = 64;
 /// 0.95) and gives it a usable level.
 const MAX_FEEDBACK: f64 = 4.2;
 
-/// How much of the lowpass passband loss to resonance is made up: the gain
-/// is `1 + COMPENSATION · k` against a loss of `1 + k`.
+/// How much of the lowpass passband loss to resonance is made up: the input
+/// gain is `1 + COMPENSATION · k` against a loss of `1 + k`.
 const COMPENSATION: f64 = 0.5;
 
 /// Drive is kept within ±48 dB.
@@ -200,9 +202,11 @@ impl Node for Ladder {
                 } else {
                     drive0
                 };
-                let taps = st.tick(k, f64::from(x * d));
+                // The make-up goes in ahead of the saturator, so it restores
+                // the small-signal passband without lifting the ceiling.
                 let makeup = 1.0 + comp * k.feedback();
-                *o = (mode.mix(&taps) * makeup) as f32;
+                let taps = st.tick(k, f64::from(x * d) * makeup);
+                *o = mode.mix(&taps) as f32;
             }
             st.flush();
         }
@@ -326,6 +330,17 @@ mod tests {
         let clean = render(-24.0);
         let hot = render(24.0);
         assert!(peak(&hot) < 1.2, "{}", peak(&hot));
+        // The resonance make-up doesn't lift the ceiling either.
+        for mode in LadderMode::NAMES {
+            let mut h = Harness::new::<Ladder>(json!({}));
+            h.set_audio("in", vec![x.clone()])
+                .set("mode", *mode)
+                .set("cutoff", 800.0)
+                .set("resonance", 1.0)
+                .set("drive", 24.0);
+            let p = peak(&h.run(24_000).audio("out")[0]);
+            assert!(p < 1.2, "{mode}: {p}");
+        }
         // Clean is a scaled copy of the input; hot has a big third harmonic.
         let h3 = |o: &[f32]| {
             tone_magnitude(&o[4_800..], 330.0, RATE) / tone_magnitude(&o[4_800..], 110.0, RATE)
