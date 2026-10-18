@@ -332,6 +332,11 @@ render, and how the Library tab feels with a large library.
 - [x] Devices tab lists the last OSC and MIDI messages received, with
   addresses as the sender wrote them; Use sets a selected OSC In's address
   (D101).
+- [x] `Text` signals (D102): OSC In's `address` and OSC Out's `address`,
+  `host`, and `port` are inputs, so a block can expose them; `Constant`
+  holds text; `Number to Text` and `Text to Number` build and read
+  addresses. Project files are version 2 (OSC settings become params on
+  load).
 
 *Verified:* keys, gamepads, and OSC reach the engine as `ControlEvent`s,
 like MIDI: one ring per source, one block late, with a sample offset.
