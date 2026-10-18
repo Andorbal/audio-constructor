@@ -292,6 +292,8 @@ struct WindowApp {
     /// Set when the editor panicked in this window: the window says so
     /// instead of drawing it again (the host keeps running).
     failed: Option<String>,
+    /// The modifier keys held, followed through each frame's events.
+    modifiers: egui::Modifiers,
 }
 
 impl WindowApp {
@@ -299,11 +301,14 @@ impl WindowApp {
         WindowApp {
             editor,
             failed: None,
+            modifiers: egui::Modifiers::NONE,
         }
     }
 
     /// Draw one frame; the color to clear the window with.
     fn frame(&mut self, ui: &mut egui::Ui) -> egui::Rgba {
+        let mods = &mut self.modifiers;
+        ui.ctx().input_mut(|i| recover_keys(&mut i.events, mods));
         self.frame_with(ui, EditorApp::ui)
     }
 
@@ -345,6 +350,51 @@ fn failed(ui: &mut egui::Ui, why: &str) {
             }
         });
     });
+}
+
+/// Key presses egui-baseview 0.9 drops, recovered from the text they typed.
+///
+/// It turns only unshifted letters, digits, and a few named keys into key
+/// events, so Shift+A (add node), Shift+D (duplicate), `.` (frame the
+/// selection), `+` and `-` (zoom) would reach the editor as text alone.
+/// Each such character typed without Ctrl or Cmd becomes the key press it
+/// came from, with the modifiers held at the time. What leaves no text
+/// can't be recovered: function keys, and Ctrl or Cmd with Shift or a
+/// symbol (their menu entries still work).
+fn recover_keys(events: &mut Vec<egui::Event>, modifiers: &mut egui::Modifiers) {
+    let mut out = Vec::with_capacity(events.len());
+    for e in events.drain(..) {
+        match &e {
+            egui::Event::ModifiersChanged(m) => *modifiers = *m,
+            egui::Event::WindowFocused(false) => *modifiers = egui::Modifiers::NONE,
+            egui::Event::Text(t) => {
+                let mut chars = t.chars();
+                let key = match (chars.next(), chars.next()) {
+                    (Some(c), None) if c.is_ascii_uppercase() || c.is_ascii_punctuation() => {
+                        egui::Key::from_name(t)
+                    }
+                    _ => None,
+                };
+                let sent = |k: egui::Key| {
+                    out.iter().any(
+                        |o| matches!(o, egui::Event::Key { key, pressed: true, .. } if *key == k),
+                    )
+                };
+                if let Some(k) = key.filter(|k| !sent(*k)) {
+                    out.push(egui::Event::Key {
+                        key: k,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: *modifiers,
+                    });
+                }
+            }
+            _ => {}
+        }
+        out.push(e);
+    }
+    *events = out;
 }
 
 impl egui_baseview::App for WindowApp {
@@ -391,6 +441,58 @@ mod tests {
             assert!(check_parent(wide).is_err(), "XIDs are 32 bits");
             assert!(check_parent(RawWindowHandle::Xlib(XlibWindowHandle::new(42))).is_ok());
         }
+    }
+
+    #[test]
+    fn shifted_letters_and_symbols_become_key_presses_again() {
+        use egui::{Event, Key, Modifiers};
+        let key = |key, modifiers| Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        };
+        let text = |t: &str| Event::Text(t.into());
+        let mut mods = Modifiers::NONE;
+        let mut events = vec![
+            Event::ModifiersChanged(Modifiers::SHIFT),
+            text("A"),
+            Event::ModifiersChanged(Modifiers::NONE),
+            text("+"),
+            // Already a key event: left alone.
+            key(Key::G, Modifiers::NONE),
+            text("g"),
+            // Not keys.
+            text("é"),
+            text("ab"),
+        ];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(
+            events,
+            vec![
+                Event::ModifiersChanged(Modifiers::SHIFT),
+                key(Key::A, Modifiers::SHIFT),
+                text("A"),
+                Event::ModifiersChanged(Modifiers::NONE),
+                key(Key::Plus, Modifiers::NONE),
+                text("+"),
+                key(Key::G, Modifiers::NONE),
+                text("g"),
+                text("é"),
+                text("ab"),
+            ]
+        );
+        // Held modifiers carry over to the next frame, and losing focus
+        // lets go of them.
+        let mut events = vec![Event::ModifiersChanged(Modifiers::SHIFT)];
+        recover_keys(&mut events, &mut mods);
+        let mut events = vec![text("D")];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(events[0], key(Key::D, Modifiers::SHIFT));
+        let mut events = vec![Event::WindowFocused(false), text(".")];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(events[1], key(Key::Period, Modifiers::NONE));
     }
 
     #[test]
