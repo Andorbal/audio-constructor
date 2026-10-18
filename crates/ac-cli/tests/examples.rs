@@ -21,6 +21,7 @@ const EXPECTED: &[&str] = &[
     "drum-machine",
     "reverse-delay",
     "multiband-compressor",
+    "vocoder",
 ];
 
 /// Examples that only make sound from a live input.
