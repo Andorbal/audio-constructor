@@ -1,9 +1,10 @@
 //! Real-time hygiene for sequencing nodes in configurations the default
 //! sweep in `all_nodes.rs` doesn't reach: a filled Pattern grid, a MIDI
-//! Pattern with notes, the MIDI type of Scale Quantize, custom chords, and
-//! floods of MIDI. Each runs at block sizes 1, 64, and 1024 with every input
-//! driven, under an allocation guard, and must never send more note-offs
-//! than note-ons for any note.
+//! Pattern with notes, the MIDI type of Scale Quantize, custom chords, a
+//! Merge fed the same notes on every input, and floods of MIDI. Each runs
+//! at block sizes 1, 64, and 1024 with every input driven, under an
+//! allocation guard, and must never send more note-offs than note-ons for
+//! any note.
 
 use ac_core::testing::Harness;
 use ac_core::{MidiMsg, NoResources, SignalType, TempoMap};
@@ -142,6 +143,9 @@ fn configured_sequencing_nodes_process_without_allocating() {
         ("midi_transpose", json!({})),
         ("midi_filter", json!({})),
         ("midi_cc", json!({ "initial": 0.5 })),
+        // The same notes from every input at once, and floods of them.
+        ("merge", json!({})),
+        ("merge", json!({ "inputs": 16 })),
     ];
     let reg = ac_nodes::registry();
     for (kind, config) in cases {
@@ -195,11 +199,13 @@ fn configured_sequencing_nodes_process_without_allocating() {
                         _ => {}
                     }
                 }
-                let mut all = h.run(total).midi("midi").to_vec();
+                // Merge's output is `out`; every other node's is `midi`.
+                let out = if kind == "merge" { "out" } else { "midi" };
+                let mut all = h.run(total).midi(out).to_vec();
                 h.stop();
-                all.extend_from_slice(h.run(block).midi("midi"));
+                all.extend_from_slice(h.run(block).midi(out));
                 h.reset();
-                all.extend_from_slice(h.run(block).midi("midi"));
+                all.extend_from_slice(h.run(block).midi(out));
                 assert!(
                     all.windows(2).all(|w| w[0].0 <= w[1].0),
                     "{kind}: events out of order"

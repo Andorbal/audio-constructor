@@ -148,6 +148,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Accumulate` | P2 | Adds `in` on `trigger`, from `initial`; `reset`. |
 | `Select` | P2 | N inputs (config), `index: Int` picks one (wrapping). Works for any type; audio crossfades over 5 ms, MIDI releases held notes when the route changes. |
 | `Switch` | P2 | `a`/`b` by `Bool`, any type, with the same crossfade and note release as `Select`. |
+| `Merge` | P2 (added in M2.6) | 2–16 `Midi` or `Trigger` inputs (config `inputs`, `type`) → one `out`, so several sources play one instrument at once. Triggers on one sample fire once; MIDI comes in time order (lower input first on a sample), a note held from several inputs sounds once and ends with its last holder, the sustain pedal stays down while any input holds it, and a reset releases what's held. Note-offs never give way to a full block. |
 
 ## Modulation and envelopes
 

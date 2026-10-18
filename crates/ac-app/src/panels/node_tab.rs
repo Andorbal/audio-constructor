@@ -198,6 +198,25 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
+        "merge" => vec![
+            f(
+                "inputs",
+                "Inputs",
+                Kind::Count {
+                    min: 2,
+                    max: 16,
+                    default: 2,
+                },
+            ),
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: &["midi", "trigger"],
+                    default: "midi",
+                },
+            ),
+        ],
         "lfo" => vec![f(
             "unit",
             "Rate in",
@@ -1804,6 +1823,7 @@ mod tests {
             ("keyboard_in", &["keys", "low", "channel"]),
             ("osc_in", &["address", "args"]),
             ("osc_out", &["host", "port", "address", "args"]),
+            ("merge", &["inputs", "type"]),
         ] {
             let fields: Vec<&str> = schema(kind).iter().map(|f| f.key).collect();
             for k in keys {

@@ -1,7 +1,8 @@
 //! Real-time hygiene for math and modulation configurations the default
 //! sweep in `all_nodes.rs` doesn't reach: Select and Switch for every
 //! `type` (with the index moving, so audio crossfades and MIDI releases
-//! run), a beats-mode LFO, a looping Envelope, and a 64-step sequencer.
+//! run), Merge for both of its types at its widest, a beats-mode LFO, a
+//! looping Envelope, and a 64-step sequencer.
 //! Each runs at block sizes 1, 64, and 1024 with every input driven, under
 //! an allocation guard.
 
@@ -64,6 +65,10 @@ fn configured_nodes_process_without_allocating() {
         cases.push(("select", json!({ "type": ty, "inputs": 64 })));
         cases.push(("select", json!({ "type": ty, "inputs": 3 })));
         cases.push(("switch", json!({ "type": ty })));
+    }
+    for ty in ["midi", "trigger"] {
+        cases.push(("merge", json!({ "type": ty, "inputs": 16 })));
+        cases.push(("merge", json!({ "type": ty })));
     }
     cases.extend([
         ("lfo", json!({ "unit": "beats" })),

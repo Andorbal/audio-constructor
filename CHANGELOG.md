@@ -25,10 +25,11 @@ fixes and smaller changes.
     and its per-drum triggers playing a second kit of Samplers cut from
     one audio file; a switch flips between the two kits.
   - **Build a Keyboard**: the Subtractive Synth Voice block made
-    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) or
-    an on-screen Keyboard, with velocity, octave, and timbre knobs, all on
-    a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo phrase plays
-    until you pick a keyboard in its Play with menu.
+    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) and
+    an on-screen Keyboard at once, with velocity, octave, and timbre
+    knobs, all on a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo
+    phrase plays along through a Merge node; turn Demo off to play on your
+    own.
   - **Gamepad Jam**: drums on a game controller's face buttons, strummed
     chords stepped by the D-pad, a filter on the left stick, and strum
     strength and echo on the analog triggers, with bindings for play/stop
@@ -69,6 +70,13 @@ fixes and smaller changes.
   input. `audioc nodes --docs` writes it.
 - **File ▸ Examples** lists every shipped example and opens the one you
   pick as an untitled copy, so saving never overwrites the example.
+- A **Merge** node (Math & Logic) combines several MIDI or trigger streams
+  into one, so a MIDI keyboard, the computer keys, and a pattern can all
+  play one instrument at once. Its settings choose how many inputs it has
+  (2 to 16) and whether it carries MIDI or triggers. A note played from
+  two sources at once sounds once and ends when the last of them lets go,
+  the sustain pedal stays down while any source holds it, and restarting
+  the transport releases everything still held, so no note hangs.
 
 ### Changed
 
