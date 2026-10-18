@@ -5,7 +5,7 @@ use ac_core::{Endpoint, NodeId, SignalType, Value, Wire};
 use egui::{Align2, Pos2, Rect, RichText, vec2};
 
 use super::live::source_path;
-use super::scene::{Class, Scene};
+use super::scene::{Body, Class, Scene};
 use super::{Canvas, CanvasEvent, CanvasIo, EditTarget, Hit, InlineEdit, widgets};
 use crate::actions::Action;
 use crate::edit::{self, GROUP_IN};
@@ -85,16 +85,7 @@ impl Canvas {
             0
         };
         if let Some((node, socket, at)) = self.choice.clone() {
-            let spec = scene
-                .node(node)
-                .and_then(|n| n.socket(&socket, true))
-                .and_then(|s| s.spec.clone());
-            let current = io
-                .doc
-                .graph()
-                .node(node)
-                .zip(spec.as_ref())
-                .map(|(n, s)| widgets::choice(n, s));
+            let (items, current) = choice_items(io, scene, node, &socket);
             let mut close = false;
             let area = egui::Area::new(egui::Id::unique("canvas-choice"))
                 .order(egui::Order::Foreground)
@@ -103,27 +94,21 @@ impl Canvas {
                 .show(&ctx, |ui| {
                     egui::Frame::menu(ui.style()).show(ui, |ui| {
                         ui.set_min_width(140.0);
-                        if let Some(spec) = &spec {
-                            for c in spec.choices {
-                                let selected = current.as_deref() == Some(*c);
-                                if ui
-                                    .selectable_label(selected, widgets::choice_label(spec, c))
-                                    .clicked()
-                                {
-                                    Self::send_param(
-                                        io,
-                                        node,
-                                        &socket,
-                                        Value::Text(c.to_string()),
-                                        now,
-                                    );
-                                    io.doc.end_coalescing();
-                                    close = true;
-                                }
-                            }
-                        } else {
+                        if items.is_empty() {
                             close = true;
                         }
+                        // A Dropdown can hold dozens of labels.
+                        egui::ScrollArea::vertical()
+                            .max_height(320.0)
+                            .show(ui, |ui| {
+                                for (i, (label, value)) in items.iter().enumerate() {
+                                    if ui.selectable_label(current == Some(i), label).clicked() {
+                                        Self::send_param(io, node, &socket, value.clone(), now);
+                                        io.doc.end_coalescing();
+                                        close = true;
+                                    }
+                                }
+                            });
                     });
                 });
             let clicked_outside = self.choice_age > 0
@@ -668,6 +653,48 @@ impl Canvas {
             }
         });
     }
+}
+
+/// What a choice popup offers for an input: each label with the value
+/// picking it stores, and which one is chosen now. A Dropdown's `value`
+/// lists the labels from its config and stores their index; other choice
+/// inputs list their socket's named choices.
+fn choice_items(
+    io: &CanvasIo,
+    scene: &Scene,
+    node: NodeId,
+    socket: &str,
+) -> (Vec<(String, Value)>, Option<usize>) {
+    let spec = scene
+        .node(node)
+        .and_then(|n| n.socket(socket, true))
+        .and_then(|s| s.spec.clone());
+    let (Some(spec), Some(inst)) = (spec, io.doc.graph().node(node)) else {
+        return (Vec::new(), None);
+    };
+    let dropdown = scene
+        .node(node)
+        .and_then(|n| n.body)
+        .is_some_and(|(b, _)| b == Body::Dropdown && b.drives(socket));
+    if dropdown {
+        let labels = ac_nodes::controls::dropdown::choices(&inst.config);
+        let last = labels.len().saturating_sub(1) as f64;
+        let current = widgets::number(inst, &spec).round().clamp(0.0, last) as usize;
+        let items = labels
+            .into_iter()
+            .enumerate()
+            .map(|(i, l)| (l, Value::Int(i as i64)))
+            .collect();
+        return (items, Some(current));
+    }
+    let chosen = widgets::choice(inst, &spec);
+    let items = spec
+        .choices
+        .iter()
+        .map(|c| (widgets::choice_label(&spec, c), Value::Text(c.to_string())))
+        .collect();
+    let current = spec.choices.iter().position(|c| *c == chosen);
+    (items, current)
 }
 
 fn tooltip(ui: &egui::Ui, p: Pos2, add: impl FnOnce(&mut egui::Ui)) {
