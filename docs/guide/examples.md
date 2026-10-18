@@ -93,7 +93,8 @@ computer keyboard through a Keyboard In node (turn on Play keys with
 choosing between MIDI sources, and a panel for playing without the wires
 in view.
 
-**Try:** turn on Play keys and hold several letter keys for chords, then
+**Try:** pick the computer keys as the source (the canvas notes say
+how), turn on Play keys, and hold several letter keys for chords; then
 press `Ctrl+Tab` for the panel and `F11` to play it full screen.
 
 ## Sidechain Pump
