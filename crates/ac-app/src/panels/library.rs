@@ -241,11 +241,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
     let (rect, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
     let p = ui.painter();
     if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2B, 0x2F, 0x37),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     p.rect_filled(
         egui::Rect::from_min_size(rect.min + vec2(4.0, 7.0), vec2(3.0, rect.height() - 14.0)),
@@ -363,11 +359,7 @@ fn item(ui: &mut egui::Ui, io: &mut PanelIo, c: &Candidate) {
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 38.0), Sense::click_and_drag());
     let p = ui.painter();
     if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2B, 0x2F, 0x37),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     let color = c
         .category

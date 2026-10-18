@@ -25,7 +25,8 @@ use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
-use crate::theme;
+use crate::settings::{self, AppSettings};
+use crate::theme::{self, ThemeChoice};
 use crate::transport::TransportState;
 
 mod sharing;
@@ -45,6 +46,8 @@ pub struct AppOptions {
     /// The folder of the person's own and imported blocks. `None` keeps
     /// them in memory, with only the shipped blocks to start from.
     pub library: Option<PathBuf>,
+    /// The editor's theme and UI scale, and where they're saved.
+    pub settings: AppSettings,
 }
 
 impl AppOptions {
@@ -58,6 +61,7 @@ impl AppOptions {
             native_dialogs: false,
             seed: 1,
             library: None,
+            settings: AppSettings::in_memory(),
         }
     }
 }
@@ -67,6 +71,8 @@ impl AppOptions {
 enum AfterConfirm {
     New,
     Open(PathBuf),
+    /// A shipped example, opened as an untitled copy.
+    OpenExample(PathBuf),
     Quit,
 }
 
@@ -118,6 +124,8 @@ pub struct EditorApp {
     /// Play keys' state before performance mode turned it on, while
     /// performance mode lasts.
     play_keys_before_performance: Option<bool>,
+    /// Theme and UI scale (View menu), saved as they change.
+    settings: AppSettings,
 }
 
 impl EditorApp {
@@ -225,7 +233,9 @@ impl EditorApp {
             bound: crate::bindings::BoundInputs::default(),
             play_keys: PlayKeys::default(),
             play_keys_before_performance: None,
+            settings: opts.settings,
         };
+        app.apply_settings(ctx);
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
             app.open(&p, 0.0);
@@ -305,6 +315,33 @@ impl EditorApp {
         self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
 
+    /// The editor's settings (theme and UI scale).
+    pub fn settings(&self) -> &AppSettings {
+        &self.settings
+    }
+
+    /// Show the settings' theme and scale in `ctx`.
+    fn apply_settings(&self, ctx: &egui::Context) {
+        theme::set_choice(ctx, self.settings.prefs.theme);
+        ctx.set_zoom_factor(self.settings.prefs.ui_scale);
+    }
+
+    /// View ▸ Theme: switch now and remember the choice.
+    pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
+        self.settings.set_theme(choice);
+        theme::set_choice(ctx, choice);
+        ctx.request_repaint();
+    }
+
+    /// View ▸ UI Scale: everything (canvas text included) scales by
+    /// `scale` from the next frame, and the choice is remembered.
+    pub fn set_ui_scale(&mut self, ctx: &egui::Context, scale: f32, now: f64) {
+        self.settings.set_ui_scale(scale);
+        let scale = self.settings.prefs.ui_scale;
+        ctx.set_zoom_factor(scale);
+        self.say(format!("Interface at {:.0} %", scale * 100.0), now);
+    }
+
     fn say(&mut self, text: impl Into<String>, now: f64) {
         self.status = Some((text.into(), now, false));
     }
@@ -324,8 +361,11 @@ impl EditorApp {
         let themed = egui::Id::unique("audio-constructor-theme");
         if !ctx.data(|d| d.get_temp::<bool>(themed).unwrap_or(false)) {
             theme::apply(&ctx);
+            self.apply_settings(&ctx);
             ctx.data_mut(|d| d.insert_temp(themed, true));
         }
+        // Draw with the theme egui shows (Follow System can change it).
+        theme::follow(&ctx);
         // The canvas is keyboard-driven: with nothing focused, Tab and the
         // arrow keys belong to it, not to egui's focus navigation.
         if ctx.memory(|m| m.focused().is_none()) {
@@ -407,6 +447,8 @@ impl EditorApp {
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
                     play_keys: self.play_keys.is_on(),
+                    theme: self.settings.prefs.theme,
+                    ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
                     registry: &self.registry,
                 };
@@ -930,9 +972,12 @@ impl EditorApp {
                     let action = match key {
                         Key::Delete | Key::Backspace if !modifiers.any() => Some(Action::Delete),
                         // `+` needs Shift on most layouts; `=` is the same key.
-                        Key::Plus | Key::Equals if !modifiers.command && !modifiers.alt => {
-                            Some(Action::ZoomIn)
+                        // With Ctrl (Cmd), they scale the whole interface.
+                        Key::Plus | Key::Equals if modifiers.alt => None,
+                        Key::Plus | Key::Equals if modifiers.command || modifiers.ctrl => {
+                            Some(Action::UiScaleUp)
                         }
+                        Key::Plus | Key::Equals => Some(Action::ZoomIn),
                         _ => actions::for_key(key, modifiers),
                     };
                     let Some(a) = action else { continue };
@@ -983,8 +1028,8 @@ impl EditorApp {
             }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
+                self.side.show_help(kind.as_deref());
             }
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
@@ -1095,6 +1140,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
+            PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1120,6 +1167,8 @@ impl EditorApp {
             MenuCommand::OpenRecent(p) => self.request_open(p, now),
             MenuCommand::ForgetRecent(p) => self.recent.remove(&p),
             MenuCommand::ClearRecent => self.recent.clear(),
+            MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
+            MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
                 self.add_candidate(&c, at, None, now);
@@ -1420,8 +1469,17 @@ impl EditorApp {
                 }
             }),
             Action::NodeHelp => {
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                // One node: its reference. Otherwise the list of every node.
+                let sel = self.selected_real();
+                let kind = sel
+                    .first()
+                    .filter(|_| sel.len() == 1)
+                    .and_then(|id| self.doc.graph().node(*id))
+                    .map(|n| n.kind.clone());
+                if kind.is_none() {
+                    self.side.help.kind = None;
+                }
+                self.side.show_help(kind.as_deref());
             }
             Action::FitAll => self.canvas.fit_all(&self.doc, &reg),
             Action::FitSelection => self.canvas.fit_selection(&self.doc, &reg),
@@ -1434,6 +1492,15 @@ impl EditorApp {
                 self.canvas.fit(None, 1.0);
                 self.canvas.view = v;
             }
+            Action::UiScaleUp => {
+                let s = settings::scale_up(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleDown => {
+                let s = settings::scale_down(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleReset => self.set_ui_scale(ctx, 1.0, now),
             Action::ToggleSidePanel => self.side.open = !self.side.open,
             Action::ShowTiming => {
                 self.show_timing = !self.show_timing;
@@ -1673,6 +1740,7 @@ impl EditorApp {
                 self.say("New project", now);
             }
             AfterConfirm::Open(path) => self.open(&path, now),
+            AfterConfirm::OpenExample(path) => self.open_example(&path, now),
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -1751,6 +1819,31 @@ impl EditorApp {
             self.say(text, now);
         }
         Ok(())
+    }
+
+    /// Open a shipped example the way the Start project opens: as an
+    /// untitled copy, so saving never overwrites the shipped file. Its
+    /// audio files still load from beside it.
+    pub fn open_example(&mut self, path: &Path, now: f64) {
+        match files::open_project(path, &self.registry) {
+            Ok((mut project, assets)) => {
+                // Its stored view was set on someone else's window.
+                project.view = None;
+                let name = if project.name.trim().is_empty() {
+                    file_name(path)
+                } else {
+                    project.name.clone()
+                };
+                self.replace_document(project, None, files::project_dir(path), assets);
+                self.say(
+                    format!(
+                        "Opened the example “{name}” as a new project: Save As keeps your changes"
+                    ),
+                    now,
+                );
+            }
+            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+        }
     }
 
     /// Show `project` as a new, unsaved document (examples, tests).

@@ -430,8 +430,8 @@ Needs manual verification (in the PR):
 
 ### M2.5 Editor conveniences
 - [ ] Auto-layout, align/distribute, portals, find, lazy connect, connect-selected-to-new-node, per-node timing display, minimap.
-- [ ] Light theme; UI scale.
-- [ ] Node help with "try this" tips and links to blocks.
+- [x] Light theme; UI scale.
+- [x] Node help with "try this" tips and links to blocks.
 
 ### M2.6 Examples and docs
 - [ ] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).

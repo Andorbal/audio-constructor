@@ -674,6 +674,16 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                     .small()
                     .color(theme::text_muted()),
             );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .small_button(format!("{}  Help", icons::BOOK_OPEN))
+                    .on_hover_text("The node's reference: sockets, tips, and what uses it (F1)")
+                    .clicked()
+                {
+                    io.requests
+                        .push(PanelRequest::Help(e.meta.kind.to_string()));
+                }
+            });
         }
     });
     ui.label(
@@ -896,10 +906,23 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         }
     }
 
-    // Documentation.
+    // Documentation, with the tip highlighted; the Help tab has the rest.
     if let Some(e) = entry {
         section(ui, "Help");
-        markdown::show(ui, &e.meta.doc_text());
+        markdown::show(ui, &e.meta.description());
+        if let Some(tip) = e.meta.tip() {
+            super::help_tab::tip_box(ui, &tip);
+        }
+        if ui
+            .link(format!(
+                "{}  Sockets, and the blocks and examples that use it",
+                icons::BOOK_OPEN
+            ))
+            .clicked()
+        {
+            io.requests
+                .push(PanelRequest::Help(e.meta.kind.to_string()));
+        }
     }
 }
 

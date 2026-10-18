@@ -362,6 +362,26 @@ mod tests {
         assert_eq!(m.category, Category::Level);
         assert_eq!(m.summary(), "Scales a signal.");
         assert!(m.doc_text().contains("Try this: wire it."));
+        assert_eq!(m.tip().as_deref(), Some("Wire it."));
+        assert_eq!(m.description(), "Scales a signal.");
+    }
+
+    #[test]
+    fn tips_split_from_the_docs() {
+        use crate::node::split_tip;
+        let doc = "Does a thing.\n\n**Try this:** wire `out`\ninto a `Meter`.\n\nMore after.";
+        let (rest, tip) = split_tip(doc);
+        assert_eq!(rest, "Does a thing.\n\nMore after.");
+        assert_eq!(tip.as_deref(), Some("Wire `out`\ninto a `Meter`."));
+        // Bold label with the colon outside, any case.
+        let (_, tip) = split_tip("A.\n\n**TRY THIS**: `MIDI In` → it.");
+        assert_eq!(tip.as_deref(), Some("`MIDI In` → it."));
+        // Only a paragraph that starts with the label is a tip.
+        let (rest, tip) = split_tip("Never try this at home.\n\nTry thistle tea.");
+        assert_eq!(tip, None);
+        assert_eq!(rest, "Never try this at home.\n\nTry thistle tea.");
+        assert_eq!(split_tip("No tip.").1, None);
+        assert_eq!(split_tip("A.\n\n**Try this:**").1, None, "an empty tip");
     }
 
     #[test]
