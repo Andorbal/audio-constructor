@@ -7,9 +7,10 @@
 //!    (D4), so a wire leaving a Feedback node on a loop is turned round
 //!    first; any loop still left (an error the compiler reports) loses the
 //!    wires a depth-first search finds going back.
-//! 2. **Layers** by longest path from the sources; then each source moves
-//!    right to just before the first node it feeds, so a modulator sits
-//!    next to what it modulates.
+//! 2. **Layers** by longest path from the sources; then, from the sinks
+//!    back, each node with no more wires in than out moves right to just
+//!    before the first node it feeds, so a source or a modulator sits next
+//!    to what it drives (its wires get no longer overall).
 //! 3. **Order** each layer to reduce crossings: wires spanning several
 //!    layers get a dummy point in each, and layers are sorted by the
 //!    barycenter of their neighbours' sockets, sweeping down and up from
@@ -18,13 +19,16 @@
 //! 4. **Place**: a column per layer, as wide as its widest card. Within a
 //!    column the cards keep their order and move as close as they can to
 //!    the sockets they're wired to: a least-squares fit under the spacing
-//!    constraints, which pool-adjacent-violators solves exactly.
+//!    constraints, which pool-adjacent-violators solves exactly. A node
+//!    wired to many pulls each of them less, so a Mix's inputs line up
+//!    with what feeds them rather than bunching at the Mix.
 //!
 //! A frame whose nodes are all laid out is laid out as one block: its
 //! insides first, then the block among its neighbours, so the frame stays
 //! around its contents (D102). Separate pieces of the graph stack top to
-//! bottom in the order they were in, and unwired cards line up in a row
-//! underneath. The result keeps the top-left corner where it was.
+//! bottom in the order they were in; unwired cards (notes, mostly) line up
+//! in a row above them or below, on the side they were on. The result
+//! keeps the top-left corner where it was, in whole canvas units.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -128,14 +132,18 @@ pub fn arrange(cards: &[Card], wires: &[Wire], frames: &[FrameBox]) -> Arrangeme
         .reduce(|a, b| a.union(b))
         .map_or(Pos2::ZERO, |r| r.min)
         .to_vec2();
+    // Whole canvas units keep project files tidy; every gap is wider than
+    // the rounding.
     let mut out = Arrangement::default();
     for (i, c) in cards.iter().enumerate() {
         let at = placed.cards.get(&i).copied().unwrap_or(Vec2::ZERO);
-        out.cards.push((c.id, (at + anchor).to_pos2()));
+        out.cards.push((c.id, (at + anchor).to_pos2().round()));
     }
     for (f, r) in &placed.frames {
         if let Some(fb) = frames.get(*f) {
-            out.frames.push((fb.index, r.translate(anchor)));
+            let r = r.translate(anchor);
+            out.frames
+                .push((fb.index, Rect::from_min_max(r.min.round(), r.max.round())));
         }
     }
     out
@@ -383,7 +391,8 @@ struct Edge {
 }
 
 /// Lay out `nodes`: each connected piece on its own, stacked top to bottom
-/// in the order they were, then the unwired ones in a row. Returns each
+/// in the order they were, and the unwired ones in a row above them (those
+/// that were above the rest) and a row below (the others). Returns each
 /// node's top-left corner and the size of the whole.
 fn layered(nodes: &[Node], edges: &[Edge]) -> (Vec<Pos2>, Vec2) {
     let mut out = vec![Pos2::ZERO; nodes.len()];
@@ -405,37 +414,58 @@ fn layered(nodes: &[Node], edges: &[Edge]) -> (Vec<Pos2>, Vec2) {
         let (pa, pb) = (top_left(a), top_left(b));
         pa.y.total_cmp(&pb.y).then(pa.x.total_cmp(&pb.x))
     });
-    let mut y = 0.0f32;
-    let mut width = 0.0f32;
-    let mut height = 0.0f32;
-    for piece in &pieces {
-        let (pos, size) = layer_piece(nodes, edges, piece);
-        for (i, p) in piece.iter().zip(pos) {
-            out[*i] = p + vec2(0.0, y);
-        }
-        width = width.max(size.x);
-        height = y + size.y;
-        y += size.y + PIECE_GAP;
-    }
-    let mut row = isolated;
-    row.sort_by(|a, b| {
+    // Notes and loose nodes keep their side: above the wired pieces' middle
+    // goes in the top row.
+    let wired: Vec<f32> = pieces.iter().flatten().map(|i| nodes[*i].seed.y).collect();
+    let middle = if wired.is_empty() {
+        f32::INFINITY
+    } else {
+        wired.iter().sum::<f32>() / wired.len() as f32
+    };
+    let (mut above, mut below): (Vec<usize>, Vec<usize>) = isolated
+        .into_iter()
+        .partition(|i| nodes[*i].seed.y < middle);
+    let by_x = |a: &usize, b: &usize| {
         let (pa, pb) = (nodes[*a].seed, nodes[*b].seed);
         pa.x.total_cmp(&pb.x)
             .then(pa.y.total_cmp(&pb.y))
             .then(a.cmp(b))
-    });
+    };
+    above.sort_by(by_x);
+    below.sort_by(by_x);
+    let mut y = 0.0f32;
+    let mut size = Vec2::ZERO;
+    let mut stack = |block: Vec2, y: &mut f32| {
+        size = vec2(size.x.max(block.x), *y + block.y);
+        *y += block.y + PIECE_GAP;
+    };
+    if !above.is_empty() {
+        stack(row(nodes, &above, y, &mut out), &mut y);
+    }
+    for piece in &pieces {
+        let (pos, piece_size) = layer_piece(nodes, edges, piece);
+        for (i, p) in piece.iter().zip(pos) {
+            out[*i] = p + vec2(0.0, y);
+        }
+        stack(piece_size, &mut y);
+    }
+    if !below.is_empty() {
+        stack(row(nodes, &below, y, &mut out), &mut y);
+    }
+    (out, size)
+}
+
+/// Put `list` side by side, left to right, at height `y`; returns the
+/// row's size.
+fn row(nodes: &[Node], list: &[usize], y: f32, out: &mut [Pos2]) -> Vec2 {
     let mut x = 0.0f32;
-    let mut row_height = 0.0f32;
-    for i in &row {
+    let mut tallest = 0.0f32;
+    for i in list {
         out[*i] = pos2(x, y);
         x += nodes[*i].size.x + ISOLATED_GAP;
-        row_height = row_height.max(nodes[*i].size.y);
+        tallest = tallest.max(nodes[*i].size.y);
     }
-    if !row.is_empty() {
-        width = width.max(x - ISOLATED_GAP);
-        height = y + row_height;
-    }
-    (out, vec2(width, height))
+    vec2((x - ISOLATED_GAP).max(0.0), tallest)
 }
 
 /// Connected pieces (wires taken either way), each sorted, in order of
@@ -730,8 +760,10 @@ fn strongly_connected(adj: &[Vec<usize>]) -> Vec<usize> {
     comp
 }
 
-/// Longest-path layers, with sources pulled right to just before the
-/// first node they feed.
+/// Longest-path layers. Then, from the sinks back, a node with no more
+/// wires in than out moves right to just before the first node it feeds:
+/// that shortens its wires overall (or keeps them as long), and keeps a
+/// source or a modulator next to what it drives.
 fn layers(n: usize, dag: &[Edge], order: &[usize]) -> Vec<usize> {
     let mut preds: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut succs: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -764,11 +796,11 @@ fn layers(n: usize, dag: &[Edge], order: &[usize]) -> Vec<usize> {
             }
         }
     }
-    for &v in &topo {
-        if preds[v].is_empty()
+    for &v in topo.iter().rev() {
+        if preds[v].len() <= succs[v].len()
             && let Some(first) = succs[v].iter().map(|s| layer[*s]).min()
         {
-            layer[v] = first.saturating_sub(1);
+            layer[v] = layer[v].max(first.saturating_sub(1));
         }
     }
     let min = layer.iter().copied().min().unwrap_or(0);
@@ -928,25 +960,33 @@ fn place(
             let mut want = Vec::with_capacity(col.len());
             let mut weight = Vec::with_capacity(col.len());
             for &p in col {
-                let mut targets = Vec::new();
+                // Each wired neighbour pulls; one wired to many pulls each
+                // of them less (a Mix doesn't drag its inputs together,
+                // they line up with what feeds them).
+                let mut pull = 0.0f32;
+                let mut sum = 0.0f32;
                 if last || down {
                     for &s in &ups[p] {
                         let seg = segs[s];
-                        targets.push(y[seg.upper] + seg.upper_y - seg.lower_y);
+                        let w = 1.0 / downs[seg.upper].len().max(1) as f32;
+                        pull += w;
+                        sum += w * (y[seg.upper] + seg.upper_y - seg.lower_y);
                     }
                 }
                 if last || !down {
                     for &s in &downs[p] {
                         let seg = segs[s];
-                        targets.push(y[seg.lower] + seg.lower_y - seg.upper_y);
+                        let w = 1.0 / ups[seg.lower].len().max(1) as f32;
+                        pull += w;
+                        sum += w * (y[seg.lower] + seg.lower_y - seg.upper_y);
                     }
                 }
-                if targets.is_empty() {
+                if pull > 0.0 {
+                    want.push(sum / pull);
+                    weight.push(pull);
+                } else {
                     want.push(y[p]);
                     weight.push(0.25);
-                } else {
-                    want.push(targets.iter().sum::<f32>() / targets.len() as f32);
-                    weight.push(targets.len() as f32);
                 }
             }
             let space: Vec<f32> = col
@@ -1261,7 +1301,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_frames_nest_and_loose_cards_line_up_below() {
+    fn nested_frames_nest_and_loose_cards_keep_their_side() {
         let cards = vec![
             card(1, 10.0, 10.0, 60.0, &[], &["out"]),
             card(2, 400.0, 10.0, 60.0, &["in"], &["out"]),
@@ -1290,12 +1330,12 @@ mod tests {
         assert!(!f[&1].intersects(r[&NodeId(1)]));
         assert!(r[&NodeId(1)].max.x < f[&1].min.x);
         assert!(f[&0].max.x < r[&NodeId(5)].min.x);
-        // The unwired cards share a row under the rest, left to right as
-        // they were.
+        // The unwired cards keep their side: the one that was up top goes
+        // in a row above the rest, the one that was low in a row below.
         let (a3, a4) = (r[&NodeId(3)], r[&NodeId(4)]);
-        assert_eq!(a3.min.y, a4.min.y);
-        assert!(a4.max.x < a3.min.x);
-        assert!(a3.min.y > f[&0].max.y);
+        assert!(a3.max.y < f[&0].min.y, "{a3:?} {:?}", f[&0]);
+        assert!(a4.min.y > f[&0].max.y, "{a4:?} {:?}", f[&0]);
+        assert_eq!(a3.min.x, a4.min.x, "each row starts at the left");
     }
 
     #[test]

@@ -313,3 +313,111 @@ fn ctrl_f_finds_a_node_inside_a_group_and_jumps_into_it() {
     press(&mut h, Modifiers::NONE, Key::ArrowUp);
     assert_eq!(h.state().find.selected, 0);
 }
+
+/// Lay out the graph the editor shows (all of it) and check the result:
+/// no card overlaps another, every wire but those leaving a Feedback node
+/// runs left to right, and frames still hold what they held.
+fn lay_out_and_check(app: &mut EditorApp, what: &str) {
+    use ac_app::canvas::scene;
+    app.doc.selection.clear();
+    let before = scene::build(&app.doc, &app.registry, None);
+    let frames: Vec<(usize, Vec<NodeId>)> = app
+        .doc
+        .graph()
+        .frames
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            let r = ac_app::canvas::frame_rect(f);
+            let inside = before
+                .nodes
+                .iter()
+                .filter(|n| !ac_app::edit::is_virtual(n.id) && r.contains(n.rect.center()))
+                .map(|n| n.id)
+                .collect();
+            (i, inside)
+        })
+        .collect();
+    let registry = app.registry.clone();
+    let result = app.canvas.auto_layout(&mut app.doc, &registry);
+    if app.doc.graph().nodes.len() >= 2 {
+        assert!(result.is_ok(), "{what}: {result:?}");
+    }
+    let after = scene::build(&app.doc, &app.registry, None);
+    let cards: Vec<&scene::NodeView> = after
+        .nodes
+        .iter()
+        .filter(|n| !ac_app::edit::is_virtual(n.id))
+        .collect();
+    for (i, a) in cards.iter().enumerate() {
+        for b in &cards[i + 1..] {
+            assert!(
+                !a.rect.intersects(b.rect),
+                "{what}: {} overlaps {}",
+                a.title,
+                b.title
+            );
+        }
+    }
+    let graph = app.doc.graph();
+    for w in &graph.wires {
+        let (Some(a), Some(b)) = (after.node(w.from.node), after.node(w.to.node)) else {
+            continue;
+        };
+        let feedback = graph
+            .node(w.from.node)
+            .and_then(|n| registry.get(&n.kind))
+            .is_some_and(|e| e.meta.feedback);
+        assert!(
+            feedback || a.rect.max.x < b.rect.min.x,
+            "{what}: {} → {} runs backwards",
+            a.title,
+            b.title
+        );
+    }
+    for (i, inside) in frames {
+        let r = ac_app::canvas::frame_rect(&graph.frames[i]);
+        for id in inside {
+            let n = after.node(id).expect("still drawn");
+            assert!(
+                r.contains_rect(n.rect),
+                "{what}: {} left its frame",
+                n.title
+            );
+        }
+    }
+}
+
+#[test]
+fn auto_layout_tidies_every_example_and_its_groups() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+        .expect("the examples folder")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "acproj"))
+        .collect();
+    paths.sort();
+    assert!(paths.len() >= 4);
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(&ctx, AppOptions::headless());
+    for path in &paths {
+        app.open(path, 0.0);
+        let name = path.display().to_string();
+        lay_out_and_check(&mut app, &name);
+        // Inside each group, through its first instance.
+        let mut seen = std::collections::BTreeSet::new();
+        let groups: Vec<NodeId> = app
+            .doc
+            .graph()
+            .nodes
+            .iter()
+            .filter(|n| n.group_def().is_some_and(|d| seen.insert(d)))
+            .map(|n| n.id)
+            .collect();
+        for g in groups {
+            assert!(app.doc.enter_group(g), "{name}: enter {g}");
+            lay_out_and_check(&mut app, &format!("{name} › {g}"));
+            assert!(app.doc.leave_group());
+        }
+    }
+}
