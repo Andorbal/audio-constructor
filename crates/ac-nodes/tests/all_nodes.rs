@@ -187,10 +187,6 @@ fn socket_names_are_unique_snake_case() {
     }
 }
 
-/// Phase 2 nodes in docs/NODES.md that come with a later milestone
-/// (ROADMAP M2.4, control surfaces).
-const P2_LATER: &[&str] = &["osc_out"];
-
 /// A NODES.md name as a registry kind: `EnvelopeFollower` → `envelope_follower`,
 /// `XYPad` → `xy_pad`, `MidiCC` → `midi_cc`, `IFFT` → `ifft`.
 fn kind_of(name: &str) -> String {
@@ -231,16 +227,11 @@ fn every_phase2_node_in_the_catalog_is_registered() {
         kinds.extend(names.split('`').skip(1).step_by(2).map(kind_of));
     }
     assert!(kinds.len() >= 80, "found only {} P2 nodes", kinds.len());
-    let missing: Vec<_> = kinds
-        .iter()
-        .filter(|k| !P2_LATER.contains(&k.as_str()) && !reg.contains(k))
-        .collect();
+    let missing: Vec<_> = kinds.iter().filter(|k| !reg.contains(k)).collect();
     assert!(missing.is_empty(), "missing P2 nodes: {missing:?}");
-    for k in P2_LATER {
-        assert!(
-            kinds.iter().any(|x| x == k),
-            "{k} isn't in NODES.md any more"
-        );
+    // The control surfaces share rows and end in `In`/`Out`.
+    for k in ["gamepad", "keyboard_in", "osc_in", "osc_out"] {
+        assert!(kinds.iter().any(|x| x == k), "{k} isn't read from NODES.md");
     }
 }
 

@@ -29,6 +29,11 @@ fixes and smaller changes.
 - **OSC In** node: Open Sound Control messages to one address (a fader or
   button on a phone or tablet control surface, say) come in as up to four
   numbers that hold their last value, plus a trigger for each message.
+- **OSC Out** node: sends up to four numbers from the patch as Open Sound
+  Control messages to an address, host, and port, on a trigger or
+  whenever they change. Changes are sent at most once per `interval`
+  (20 ms by default), so a moving signal can't flood the network, and the
+  latest values always arrive in the end.
 
 ## [0.4.0] - 2026-10-18
 

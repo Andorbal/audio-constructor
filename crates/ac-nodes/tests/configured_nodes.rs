@@ -170,6 +170,12 @@ fn control_surface_nodes_process_without_allocating() {
         ("osc_in", json!({})),
         ("osc_in", json!({ "address": "/x", "args": 4 })),
         ("osc_in", json!({ "address": "bad" })),
+        ("osc_out", json!({})),
+        (
+            "osc_out",
+            json!({ "host": "::1", "port": 9, "address": "/x/y", "args": 4 }),
+        ),
+        ("osc_out", json!({ "host": "nowhere" })),
     ];
     let reg = ac_nodes::registry();
     for (kind, config) in cases {

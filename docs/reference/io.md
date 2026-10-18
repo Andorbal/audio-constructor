@@ -345,6 +345,47 @@ room.
 | `value` | Float | The message's first argument, held until the next. |
 | `received` | Trigger | Fires on each message. |
 
+<a id="osc-out"></a>
+## OSC Out
+
+Kind: `osc_out` · Also found by: open sound control, network, send, phone, tablet, remote, control surface, wireless, output
+
+Sends numbers from the patch as Open Sound Control messages, to move
+the faders of a phone or tablet control surface or to drive
+anything else on the network that speaks OSC.
+
+`host` and `port` (config) say where to send: an IP address such as
+`192.168.1.20`, or `localhost` (default `127.0.0.1`, port 9000).
+Names other than `localhost` aren't looked up. `address` is the OSC
+address (default `/fader/1`), and `args` (1–4, default 1) how many
+numbers each message carries, from `value` and then `value_2` to
+`value_4`.
+
+A message goes out on every `send` trigger, and, while `on_change`
+is on (the default), whenever the values change, at most once every
+`interval` seconds (default 0.02, so a moving signal sends 50
+messages a second; never more often than every millisecond). The
+latest values always go out once the interval has passed, so the far
+end ends up in sync. With `on_change` on, the current values are
+also sent when the patch starts and when the transport restarts from
+zero. Values that aren't numbers are sent as 0.
+
+A config it can't send to (an invalid address, host, or port) sends
+nothing. The host passes the messages to the network.
+
+**Try this:** wire an `LFO` into `value` and watch a fader on your
+phone follow it, or wire a `Clock` into `send` and a `Transport`'s
+`bar` into `value` to show the bar number on a remote display.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `value` | Float | 0 |  | The message's first number. |
+| `send` | Trigger | — |  | Sends the values now. |
+| `on_change` | Bool | true |  | Also send whenever the values change, at most once per interval. |
+| `interval` | Float (s) | 0.02 | 0.001 … 1 | Shortest time between messages sent for changes. |
+
 <a id="record"></a>
 ## Record
 
