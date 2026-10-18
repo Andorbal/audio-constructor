@@ -40,18 +40,23 @@
 pub mod assets;
 pub mod audio;
 pub mod clock;
+pub mod control;
 pub mod convert;
 pub mod engine_threads;
+pub mod gamepad;
 pub mod latency;
 pub mod library;
 pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
 pub mod null;
+pub mod osc;
+pub mod osc_out;
 pub mod pack;
 pub mod priority;
 pub mod project_file;
 pub mod record;
+pub mod rings;
 pub mod runtime;
 pub mod wav;
 pub mod zip;
@@ -60,18 +65,22 @@ pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
     AudioConfig, CpalAudio, DeviceInfo, HostInfo, InputChoice, RunningAudio, enumerate,
 };
+pub use control::{ControlError, ControlInputs, ControlReceiver, ControlSender};
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
+pub use gamepad::{GamepadError, GamepadInfo, Gamepads, list_gamepads};
 pub use latency::{Latency, LatencyError, find_delay};
 pub use library::{Library, LibraryBlock, Update, shipped_blocks};
 pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, block_offset};
 pub use midi_file::{midi_file_bytes, write_midi_file};
 pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
 pub use null::{NullAudio, NullHost, NullStream};
+pub use osc::{DEFAULT_OSC_PORT, OscInput, OscStats};
+pub use osc_out::{OscOutQueue, OscOutput};
 pub use pack::{PACK_EXTENSION, PackReport, unpack, unpack_beside, write_pack};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{
-    AudioError, AudioHost, AudioStream, MidiPorts, StartError, Stopped, StreamInfo, StreamStats,
+    AudioError, AudioHost, AudioStream, EventPorts, StartError, Stopped, StreamInfo, StreamStats,
 };
 pub use wav::{BitDepth, read_wav, write_wav};
 

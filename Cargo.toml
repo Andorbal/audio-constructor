@@ -37,6 +37,10 @@ cpal = "0.18"
 flate2 = "1"
 crc32fast = "1"
 midir = "0.11"
+# Gamepads. On Linux it links libudev (`libudev-dev` to build).
+gilrs = "0.11"
+# OSC encoding and decoding; `std` only adds time conversions we don't use.
+rosc = { version = "0.11", default-features = false }
 realfft = "3.5"
 ctrlc = "3.5"
 thread-priority = "3.1"

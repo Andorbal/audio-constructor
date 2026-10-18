@@ -8,9 +8,8 @@ use std::time::{Duration, Instant};
 
 use ac_engine::{Engine, EngineHandle, EngineOptions, Severity, required_output_channels};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, DiskRecorder, FileResources,
-    InputChoice, MidiInputs, MidiOutputs, MidiPorts, MidiSelect, NullAudio, StreamInfo, Take,
-    worker_pool,
+    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, DiskRecorder, EventPorts, FileResources,
+    InputChoice, MidiInputs, MidiOutputs, MidiSelect, NullAudio, StreamInfo, Take, worker_pool,
 };
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
@@ -189,9 +188,10 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     let mut stream = host
         .start_with(
             processor,
-            MidiPorts {
-                input: Some(midi_rx),
-                output: Some(midi_out_queue),
+            EventPorts {
+                midi_in: Some(midi_rx),
+                midi_out: Some(midi_out_queue),
+                ..EventPorts::default()
             },
         )
         .map_err(|e| anyhow!("{e}\nhint: try another `--buffer-size`, or `--null`"))?;

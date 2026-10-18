@@ -9,24 +9,28 @@
 //!   the processor back when stopped so the editor can switch devices
 //!   without rebuilding the engine.
 //! - [`CallbackCore`]: the device callback both hosts run. It pulls
-//!   device input out of the duplex ring, drains MIDI, runs the processor
-//!   (or the latency probe), and hands each processed chunk to the host to
-//!   write in the device's format. It never allocates, locks, or blocks.
+//!   device input out of the duplex ring, drains MIDI and control-surface
+//!   events ([`EventPorts`]), runs the processor (or the latency probe),
+//!   queues the MIDI and OSC the patch sent, and hands each processed chunk
+//!   to the host to write in the device's format. It never allocates,
+//!   locks, or blocks.
 
 use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
-use ac_core::MidiEvent;
+use ac_core::{ControlEvent, MidiEvent, OSC_OUT_CAPACITY, OscMessage};
 use ac_engine::{EngineStatus, HostIo, Processor};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::clock;
+use crate::control::{ControlReceiver, MAX_CONTROLS_PER_CALLBACK};
 use crate::convert::deinterleave_parts;
 use crate::latency::{Latency, LatencyError, Probe};
 use crate::midi::{MAX_EVENTS_PER_CALLBACK, MidiReceiver};
 use crate::midi_out::MidiOutQueue;
+use crate::osc_out::OscOutQueue;
 
 /// Frames processed per pass. Device callbacks larger than this are split;
 /// scratch buffers are sized for it once, up front.
@@ -180,13 +184,29 @@ impl fmt::Display for AudioError {
 
 impl std::error::Error for AudioError {}
 
-/// The MIDI a stream connects to its engine.
+/// The event sources and sinks a stream connects to its engine: MIDI in and
+/// out, control surfaces (keys, gamepads, OSC) in, and OSC out. Each is
+/// optional; a stream without one passes the engine nothing for it.
 #[derive(Debug, Default)]
-pub struct MidiPorts {
-    /// Messages from the devices, for `MidiIn` nodes.
-    pub input: Option<MidiReceiver>,
+pub struct EventPorts {
+    /// Messages from MIDI devices, for `MidiIn` nodes.
+    pub midi_in: Option<MidiReceiver>,
     /// Where `MidiOut` nodes' messages go.
-    pub output: Option<MidiOutQueue>,
+    pub midi_out: Option<MidiOutQueue>,
+    /// Key, gamepad, and OSC events, for control-surface nodes and bindings.
+    pub controls: Option<ControlReceiver>,
+    /// Where `OscOut` nodes' messages go.
+    pub osc_out: Option<OscOutQueue>,
+}
+
+impl EventPorts {
+    /// MIDI input only.
+    pub fn midi(midi_in: Option<MidiReceiver>) -> EventPorts {
+        EventPorts {
+            midi_in,
+            ..EventPorts::default()
+        }
+    }
 }
 
 /// A configured audio backend, ready to run an engine built at
@@ -202,20 +222,15 @@ pub trait AudioHost {
         processor: Processor,
         midi: Option<MidiReceiver>,
     ) -> Result<Box<dyn AudioStream>, StartError> {
-        self.start_with(
-            processor,
-            MidiPorts {
-                input: midi,
-                output: None,
-            },
-        )
+        self.start_with(processor, EventPorts::midi(midi))
     }
 
-    /// [`AudioHost::start`] with MIDI output as well.
+    /// [`AudioHost::start`] with every event port: MIDI and OSC output, and
+    /// control-surface input.
     fn start_with(
         self: Box<Self>,
         processor: Processor,
-        midi: MidiPorts,
+        ports: EventPorts,
     ) -> Result<Box<dyn AudioStream>, StartError>;
 }
 
@@ -271,34 +286,23 @@ pub trait AudioStream: Send {
         }
     }
 
-    /// Stop the stream and take the processor (and MIDI receiver) back, to
-    /// restart on another device at the same rate. `None` if the backend
+    /// Stop the stream and take the processor (and its event ports) back,
+    /// to restart on another device at the same rate. `None` if the backend
     /// didn't give them back in time.
     fn stop(self: Box<Self>) -> Option<Stopped>;
 }
 
-/// What a stopped stream hands back.
+/// What a stopped stream hands back: the processor and the event ports, to
+/// start the next stream with.
 pub struct Stopped {
     pub processor: Processor,
-    pub midi: Option<MidiReceiver>,
-    pub midi_out: Option<MidiOutQueue>,
-}
-
-impl Stopped {
-    /// The MIDI to start the next stream with.
-    pub fn midi_ports(&mut self) -> MidiPorts {
-        MidiPorts {
-            input: self.midi.take(),
-            output: self.midi_out.take(),
-        }
-    }
+    pub ports: EventPorts,
 }
 
 impl fmt::Debug for Stopped {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stopped")
-            .field("midi", &self.midi.is_some())
-            .field("midi_out", &self.midi_out.is_some())
+            .field("ports", &self.ports)
             .finish_non_exhaustive()
     }
 }
@@ -493,11 +497,13 @@ pub(crate) struct CallbackCore {
     input: Vec<f32>,
     output: Vec<f32>,
     input_ring: Option<InputRing>,
-    midi: Option<MidiReceiver>,
+    ports: EventPorts,
     midi_all: Vec<MidiEvent>,
     midi_chunk: Vec<MidiEvent>,
-    midi_out: Option<MidiOutQueue>,
     midi_out_chunk: Vec<MidiEvent>,
+    controls_all: Vec<ControlEvent>,
+    controls_chunk: Vec<ControlEvent>,
+    osc_out_chunk: Vec<OscMessage>,
     probe: ProbeAudio,
     /// Ask for real-time priority on the first callback (see `priority.rs`).
     promote: bool,
@@ -510,7 +516,7 @@ pub(crate) struct CoreParts {
     pub in_channels: usize,
     pub out_channels: usize,
     pub input_ring: Option<InputRing>,
-    pub midi: MidiPorts,
+    pub ports: EventPorts,
     pub promote: bool,
 }
 
@@ -531,15 +537,11 @@ impl CallbackCore {
             in_channels,
             out_channels,
             input_ring,
-            midi,
+            ports,
             promote,
         } = parts;
         clock::init();
         processor.set_clock(Some(clock::now_ns));
-        let MidiPorts {
-            input: midi,
-            output: midi_out,
-        } = midi;
         let (probe_ctl, probe) = probe_pair(sample_rate, in_channels);
         let (return_tx, returned) = mpsc::channel();
         let core = CallbackCore {
@@ -553,11 +555,13 @@ impl CallbackCore {
             input: vec![0.0; in_channels * CHUNK_FRAMES],
             output: vec![0.0; out_channels.max(1) * CHUNK_FRAMES],
             input_ring,
-            midi,
+            ports,
             midi_all: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
             midi_chunk: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
-            midi_out,
             midi_out_chunk: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
+            controls_all: Vec::with_capacity(MAX_CONTROLS_PER_CALLBACK),
+            controls_chunk: Vec::with_capacity(MAX_CONTROLS_PER_CALLBACK),
+            osc_out_chunk: Vec::with_capacity(OSC_OUT_CAPACITY),
             probe,
             promote,
         };
@@ -598,12 +602,17 @@ impl CallbackCore {
                 .max_callback_frames
                 .fetch_max(frames as u64, Ordering::Relaxed);
             if frames == 0 {
-                // Leave MIDI queued for a callback that can place it.
+                // Leave events queued for a callback that can place them.
                 return;
             }
-            match self.midi.as_mut() {
-                Some(m) => m.drain(t, frames, self.sample_rate, &mut self.midi_all),
+            let rate = self.sample_rate;
+            match self.ports.midi_in.as_mut() {
+                Some(m) => m.drain(t, frames, rate, &mut self.midi_all),
                 None => self.midi_all.clear(),
+            }
+            match self.ports.controls.as_mut() {
+                Some(c) => c.drain(t, frames, rate, &mut self.controls_all),
+                None => self.controls_all.clear(),
             }
             let (ic, oc) = (self.in_channels, self.out_channels.max(1));
             let mut done = 0;
@@ -622,12 +631,23 @@ impl CallbackCore {
                             .push(MidiEvent::new((off - done) as u32, e.msg));
                     }
                 }
+                self.controls_chunk.clear();
+                for e in &self.controls_all {
+                    let off = e.offset as usize;
+                    if off >= done && off < done + n {
+                        self.controls_chunk.push(ControlEvent {
+                            offset: (off - done) as u32,
+                            ..*e
+                        });
+                    }
+                }
                 let output = &mut self.output[..oc * n];
                 let probing = self.probe.step(&self.input[..ic * n], ic, output, oc, n);
                 if !probing {
                     match self.processor.as_mut() {
                         Some(p) => {
                             self.midi_out_chunk.clear();
+                            self.osc_out_chunk.clear();
                             let mut io = HostIo {
                                 frames: n,
                                 input: &self.input[..ic * n],
@@ -636,16 +656,24 @@ impl CallbackCore {
                                 out_channels: oc,
                                 midi: &self.midi_chunk,
                                 midi_out: self
+                                    .ports
                                     .midi_out
                                     .is_some()
                                     .then_some(&mut self.midi_out_chunk),
-                                controls: &[],
-                                osc_out: None,
+                                controls: &self.controls_chunk,
+                                osc_out: self
+                                    .ports
+                                    .osc_out
+                                    .is_some()
+                                    .then_some(&mut self.osc_out_chunk),
                             };
                             p.process(&mut io);
-                            if let Some(q) = self.midi_out.as_mut() {
-                                let t_chunk = t + (done as f64 * 1e9 / self.sample_rate) as u64;
-                                q.push_block(t_chunk, n, self.sample_rate, &self.midi_out_chunk);
+                            let t_chunk = t + (done as f64 * 1e9 / rate) as u64;
+                            if let Some(q) = self.ports.midi_out.as_mut() {
+                                q.push_block(t_chunk, n, rate, &self.midi_out_chunk);
+                            }
+                            if let Some(q) = self.ports.osc_out.as_mut() {
+                                q.push_block(t_chunk, n, rate, &self.osc_out_chunk);
                             }
                         }
                         None => output.fill(0.0),
@@ -665,8 +693,7 @@ impl Drop for CallbackCore {
         if let (Some(processor), Some(tx)) = (self.processor.take(), self.return_tx.take()) {
             let _ = tx.send(Stopped {
                 processor,
-                midi: self.midi.take(),
-                midi_out: self.midi_out.take(),
+                ports: std::mem::take(&mut self.ports),
             });
         }
     }
@@ -794,10 +821,7 @@ mod tests {
             in_channels: 2,
             out_channels: 2,
             input_ring: Some(InputRing::new(rx, 2, buffer)),
-            midi: MidiPorts {
-                input: midi,
-                output: None,
-            },
+            ports: EventPorts::midi(midi),
             promote: false,
         });
         (core, ctl, tx, counters)
@@ -950,7 +974,7 @@ mod tests {
         let (core, ctl, _tx, _) = core(p, 64, Some(rx));
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
-        assert!(back.midi.is_some());
+        assert!(back.ports.midi_in.is_some());
     }
 
     #[test]
@@ -976,9 +1000,10 @@ mod tests {
             in_channels: 0,
             out_channels: 2,
             input_ring: None,
-            midi: MidiPorts {
-                input: Some(rx),
-                output: Some(queue),
+            ports: EventPorts {
+                midi_in: Some(rx),
+                midi_out: Some(queue),
+                ..EventPorts::default()
             },
             promote: false,
         });
@@ -1003,7 +1028,7 @@ mod tests {
         assert!(got[0].0 >= t + 15_000_000, "{} vs {}", got[0].0, t);
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
-        assert!(back.midi_out.is_some());
+        assert!(back.ports.midi_out.is_some());
     }
 
     #[test]

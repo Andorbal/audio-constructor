@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use ac_core::{Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, Latency, LatencyError, MidiInputs,
-    MidiOutputs, MidiPorts, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
+    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, EventPorts, Latency, LatencyError,
+    MidiInputs, MidiOutputs, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
 };
 
 /// Rate and buffer of the null stream when there's no device.
@@ -144,12 +144,13 @@ impl EngineHost {
             baker: Baker::new(),
         };
         let ports = if matches!(mode, AudioMode::Device(_)) {
-            MidiPorts {
-                input: Some(me.new_midi_inputs()),
-                output: Some(me.new_midi_outputs()),
+            EventPorts {
+                midi_in: Some(me.new_midi_inputs()),
+                midi_out: Some(me.new_midi_outputs()),
+                ..EventPorts::default()
             }
         } else {
-            MidiPorts::default()
+            EventPorts::default()
         };
         match host {
             Some(h) => me.run(h, processor, ports, project),
@@ -188,12 +189,12 @@ impl EngineHost {
         &mut self,
         host: Box<dyn AudioHost>,
         mut processor: Processor,
-        midi: MidiPorts,
+        ports: EventPorts,
         project: &Project,
     ) {
         processor.set_workers(worker_pool(self.config.threads));
         let is_null = host.info().host == "null";
-        match host.start_with(processor, midi) {
+        match host.start_with(processor, ports) {
             Ok(s) => {
                 self.info = s.info().clone();
                 self.stream = Some(s);
@@ -208,11 +209,7 @@ impl EngineHost {
                     return;
                 }
                 let null = Box::new(null_host(project, self.info.sample_rate));
-                let ports = MidiPorts {
-                    input: back.midi,
-                    output: back.midi_out,
-                };
-                match null.start_with(back.processor, ports) {
+                match null.start_with(back.processor, back.ports) {
                     Ok(s) => {
                         self.info = s.info().clone();
                         self.stream = Some(s);
@@ -248,17 +245,14 @@ impl EngineHost {
         self.latency = LatencyState::Idle;
         let stopped = self.stream.take().and_then(|s| s.stop());
         let (processor, mut midi) = match stopped {
-            Some(mut s) => {
-                let ports = s.midi_ports();
-                (Some(s.processor), ports)
-            }
-            None => (self.idle.take(), MidiPorts::default()),
+            Some(s) => (Some(s.processor), s.ports),
+            None => (self.idle.take(), EventPorts::default()),
         };
-        if midi.input.is_none() {
-            midi.input = Some(self.new_midi_inputs());
+        if midi.midi_in.is_none() {
+            midi.midi_in = Some(self.new_midi_inputs());
         }
-        if midi.output.is_none() {
-            midi.output = Some(self.new_midi_outputs());
+        if midi.midi_out.is_none() {
+            midi.midi_out = Some(self.new_midi_outputs());
         }
         let same_rate = host.info().sample_rate == self.info.sample_rate;
         let processor = match processor {
