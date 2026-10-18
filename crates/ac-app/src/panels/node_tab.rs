@@ -35,6 +35,12 @@ enum Kind {
     Text {
         multiline: bool,
     },
+    /// An array of strings, edited one per line.
+    Lines,
+    /// A number that may be absent (no limit); a checkbox adds or removes it.
+    Optional {
+        default: f64,
+    },
     File,
 }
 
@@ -65,7 +71,7 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
-        "slider" => vec![
+        "slider" | "knob" => vec![
             f("min", "Minimum", Kind::Number { default: 0.0 }),
             f("max", "Maximum", Kind::Number { default: 1.0 }),
             f(
@@ -86,6 +92,62 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             ),
         ],
         "comment" => vec![f("text", "Text", Kind::Text { multiline: true })],
+        "xy_pad" => vec![
+            f("x_min", "X minimum", Kind::Number { default: 0.0 }),
+            f("x_max", "X maximum", Kind::Number { default: 1.0 }),
+            f("y_min", "Y minimum", Kind::Number { default: 0.0 }),
+            f("y_max", "Y maximum", Kind::Number { default: 1.0 }),
+        ],
+        "keyboard" => vec![
+            f(
+                "low",
+                "Lowest note",
+                Kind::Count {
+                    min: 0,
+                    max: 127,
+                    default: 48,
+                },
+            ),
+            f(
+                "keys",
+                "Keys",
+                Kind::Count {
+                    min: 1,
+                    max: 88,
+                    default: 25,
+                },
+            ),
+            f(
+                "channel",
+                "MIDI channel",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+        ],
+        "number" => vec![
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: &["float", "int"],
+                    default: "float",
+                },
+            ),
+            f("min", "Minimum", Kind::Optional { default: 0.0 }),
+            f("max", "Maximum", Kind::Optional { default: 1.0 }),
+        ],
+        "dropdown" => vec![f("choices", "Choices (one per line)", Kind::Lines)],
+        "trigger_delay" | "trigger_to_gate" => vec![f(
+            "unit",
+            "Time in",
+            Kind::Choice {
+                choices: &["seconds", "beats"],
+                default: "seconds",
+            },
+        )],
         "audio_out" => vec![
             f(
                 "channel",
@@ -709,6 +771,14 @@ fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value)
     });
 }
 
+fn remove_config(io: &mut PanelIo, id: NodeId, key: &str) {
+    io.doc.edit(io.registry, "Change setting", |g, _| {
+        if let Some(o) = g.node_mut(id).and_then(|n| n.config.as_object_mut()) {
+            o.remove(key);
+        }
+    });
+}
+
 fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
     let known = schema(&node.kind);
     let extra: Vec<(String, serde_json::Value)> = node
@@ -779,6 +849,62 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         if r.lost_focus() && t != node.config.get_str_or(f.key, "") {
                             set_config(io, id, f.key, t.into());
                         }
+                    }
+                    Kind::Lines => {
+                        let stored: Vec<String> = node
+                            .config
+                            .get(f.key)
+                            .and_then(|v| v.as_array())
+                            .map(|a| {
+                                a.iter()
+                                    .map(|v| match v {
+                                        serde_json::Value::String(s) => s.clone(),
+                                        other => other.to_string(),
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let mut t = stored.join("\n");
+                        let r = ui.add(
+                            egui::TextEdit::multiline(&mut t)
+                                .desired_rows(3)
+                                .desired_width(f32::INFINITY),
+                        );
+                        if r.lost_focus() {
+                            let lines: Vec<String> = t
+                                .lines()
+                                .map(str::trim)
+                                .filter(|l| !l.is_empty())
+                                .map(str::to_string)
+                                .collect();
+                            if lines != stored {
+                                set_config(io, id, f.key, lines.into());
+                            }
+                        }
+                    }
+                    Kind::Optional { default } => {
+                        let current = node.config.get(f.key).and_then(|v| v.as_f64());
+                        ui.horizontal(|ui| {
+                            let mut on = current.is_some();
+                            if ui.checkbox(&mut on, "").changed() {
+                                if on {
+                                    set_config(io, id, f.key, (*default).into());
+                                } else {
+                                    remove_config(io, id, f.key);
+                                }
+                            }
+                            match current {
+                                Some(mut v) => {
+                                    let speed = 0.01 * (v.abs() + 1.0);
+                                    if ui.add(egui::DragValue::new(&mut v).speed(speed)).changed() {
+                                        set_config(io, id, f.key, v.into());
+                                    }
+                                }
+                                None => {
+                                    ui.label(RichText::new("none").color(theme::TEXT_FAINT));
+                                }
+                            }
+                        });
                     }
                     Kind::File => {
                         let file = node.config.get_str_or(f.key, "").to_string();
