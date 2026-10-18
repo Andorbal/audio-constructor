@@ -1122,10 +1122,286 @@ fn a_polyphonic_synth_sounds_and_is_identical_on_many_cores() {
     assert!(peak > 0.05, "peak {peak}");
     assert_eq!(render_with(Some(3)), one);
     let e = live(synth(16), block);
-    // The 16 voice copies run side by side: waves stay as deep as one voice.
-    assert!(
-        e.handle.report().stats.waves <= 9,
-        "{}",
-        e.handle.report().stats.waves
-    );
+    // Each voice copy is one chain and the 16 run side by side: MIDI In and
+    // the allocator, the voices, the sum and gain, then the output.
+    let stats = &e.handle.report().stats;
+    assert_eq!((stats.waves, stats.chains), (4, 18), "{stats:?}");
+    // One voice has nothing to run beside it, so its body keeps its own
+    // branches apart: the oscillator and filter beside the envelope.
+    let stats = live(synth(1), block).handle.report().stats.clone();
+    assert_eq!((stats.waves, stats.chains), (4, 4), "{stats:?}");
+}
+
+// --- chain fusion ---------------------------------------------------------------
+
+/// Device output (both channels) of `p` played live for `blocks` blocks on
+/// `threads` threads (the audio thread plus workers), with `midi` at
+/// absolute sample positions.
+fn on_threads(
+    p: &Project,
+    threads: usize,
+    block: usize,
+    blocks: u64,
+    midi: &[(u64, MidiMsg)],
+) -> Vec<f32> {
+    let mut e = live(p.clone(), block);
+    if threads > 1 {
+        e.processor
+            .set_workers(Some(Arc::new(RtPool::new(threads - 1, None, None))));
+    }
+    e.handle.play();
+    let mut out = vec![0.0f32; 2 * block];
+    let mut all = Vec::new();
+    for b in 0..blocks {
+        let at = b * block as u64;
+        let events: Vec<MidiEvent> = midi
+            .iter()
+            .filter(|(t, _)| (at..at + block as u64).contains(t))
+            .map(|(t, m)| MidiEvent::new((t - at) as u32, *m))
+            .collect();
+        let mut io = HostIo {
+            frames: block,
+            input: &[],
+            in_channels: 0,
+            output: &mut out,
+            out_channels: 2,
+            midi: &events,
+            midi_out: None,
+            controls: &[],
+            osc_out: None,
+        };
+        e.process(&mut io);
+        all.extend_from_slice(&out);
+    }
+    all
+}
+
+/// Render on 1, 2, and 4 threads; all three must be bit-identical and not
+/// silent. Returns the one-thread render.
+fn same_on_any_threads(p: &Project, midi: &[(u64, MidiMsg)]) -> Vec<f32> {
+    let one = on_threads(p, 1, 128, 40, midi);
+    assert!(one.iter().any(|&v| v.abs() > 1e-3), "silent");
+    for threads in [2, 4] {
+        assert!(
+            on_threads(p, threads, 128, 40, midi) == one,
+            "{threads} threads differ"
+        );
+    }
+    one
+}
+
+/// Every node output also feeds a Gain that goes nowhere, so no step feeds
+/// only the next and nothing fuses: the schedule steps had before chains.
+fn unfused(mut p: Project) -> Project {
+    let registry = registry();
+    let mut probes = Vec::new();
+    for n in &p.graph.nodes {
+        let Some(entry) = registry.get(&n.kind) else {
+            continue;
+        };
+        for out in (entry.describe)(&n.config).outputs {
+            if matches!(out.ty, SignalType::Audio | SignalType::Float) {
+                probes.push((n.id, out.name.to_string()));
+            }
+        }
+    }
+    for (k, (id, socket)) in probes.into_iter().enumerate() {
+        let probe = NodeId(90_000 + k as u64);
+        p.graph.nodes.push(NodeInstance::new(probe, "gain"));
+        p.graph.wires.push(Wire::new(
+            Endpoint::new(id, &socket),
+            Endpoint::new(probe, "in"),
+        ));
+    }
+    p
+}
+
+/// `chains` oscillators, each through `stages` × (Biquad → Delay), mixed:
+/// the bench's `parallel-chains-8`.
+fn deep_chains(chains: u64, stages: u64) -> Project {
+    let mix = 1u64;
+    let mut p = P::new()
+        .node_with(NodeInstance::new(NodeId(mix), "mix").with_config(json!({ "inputs": chains })))
+        .node(2, "audio_out")
+        .wire(mix, "out", 2, "in");
+    let mut id = 10u64;
+    for c in 0..chains {
+        p = p
+            .node(id, "oscillator")
+            .param(id, "freq", 80.0 + c as f64 * 37.0)
+            .param(id, "shape", "saw");
+        let mut prev = id;
+        id += 1;
+        for i in 0..stages {
+            p = p
+                .node(id, "biquad")
+                .param(id, "cutoff", 500.0 + (i % 10) as f64 * 400.0)
+                .node(id + 1, "delay")
+                .param(id + 1, "time", 0.001 + (i % 5) as f64 * 0.0005)
+                .param(id + 1, "feedback", 0.1)
+                .wire(prev, "out", id, "in")
+                .wire(id, "out", id + 1, "in");
+            prev = id + 1;
+            id += 2;
+        }
+        p = p.wire(prev, "out", mix, &format!("in_{c}"));
+    }
+    p.build()
+}
+
+#[test]
+fn eight_chains_of_twenty_four_nodes_are_three_waves() {
+    let p = deep_chains(8, 12);
+    let stats = live(p.clone(), 128).handle.report().stats.clone();
+    // The chains side by side, then the mix, then the output. The pool
+    // holds silence, the chains' ends, and the mix; each chain hands two
+    // buffers of its own along instead of keeping 24.
+    assert_eq!((stats.waves, stats.chains), (3, 9), "{stats:?}");
+    assert_eq!(stats.sample_buffers, 1 + 8 + 1 + 8 * 2, "{stats:?}");
+    let apart = live(unfused(p.clone()), 128).handle.report().stats.clone();
+    assert_eq!(apart.waves, 27, "{apart:?}");
+    let fused = same_on_any_threads(&p, &[]);
+    assert!(fused == on_threads(&unfused(p), 1, 128, 40, &[]));
+}
+
+#[test]
+fn fans_skips_and_several_outputs_fuse_without_changing_a_sample() {
+    // osc → four branches of Biquad → Delay → Gain, mixed with the dry osc
+    // (a skip past every branch); three device outputs at different depths
+    // sum into the same channels.
+    let mut p = P::new()
+        .node(1, "oscillator")
+        .param(1, "freq", 110.0)
+        .param(1, "shape", "saw")
+        .node_with(NodeInstance::new(NodeId(2), "mix").with_config(json!({ "inputs": 5 })))
+        .wire(1, "out", 2, "in_4")
+        .node(3, "audio_out")
+        .wire(2, "out", 3, "in")
+        .node(4, "gain")
+        .param(4, "gain", -12.0)
+        .wire(1, "out", 4, "in")
+        .node(5, "audio_out")
+        .wire(4, "out", 5, "in")
+        .node(6, "audio_out");
+    for c in 0..4u64 {
+        let base = 10 * (c + 1);
+        p = p
+            .node(base, "biquad")
+            .param(base, "cutoff", 300.0 + 500.0 * c as f64)
+            .node(base + 1, "delay")
+            .param(base + 1, "time", 0.002 * (c + 1) as f64)
+            .node(base + 2, "gain")
+            .param(base + 2, "gain", -6.0)
+            .wire(1, "out", base, "in")
+            .wire(base, "out", base + 1, "in")
+            .wire(base + 1, "out", base + 2, "in")
+            .wire(base + 2, "out", 2, &format!("in_{c}"));
+    }
+    let p = p.wire(11, "out", 6, "in").build();
+    let report = live(p.clone(), 128).handle.report().clone();
+    assert!(report.diagnostics.is_empty(), "{report}");
+    // osc | the branches and the dry gain | the mix | outputs.
+    assert_eq!(report.stats.waves, 4, "{:?}", report.stats);
+    let fused = same_on_any_threads(&p, &[]);
+    assert!(fused == on_threads(&unfused(p), 1, 128, 40, &[]));
+}
+
+#[test]
+fn feedback_loops_inside_chains_fuse_without_changing_a_sample() {
+    // Loop 1: osc → mix ← feedback; mix → Biquad → Delay → Gain → feedback,
+    // and the gain to the output. Loop 2: the feedback's read is tapped,
+    // so the loop's filter, gain, and the feedback's write make one chain.
+    // Loop 3 runs only through its Feedback node.
+    let p = P::new()
+        .node(1, "oscillator")
+        .param(1, "freq", 220.0)
+        .param(1, "shape", "saw")
+        .node_with(NodeInstance::new(NodeId(2), "mix").with_config(json!({ "inputs": 2 })))
+        .node(3, "biquad")
+        .param(3, "cutoff", 900.0)
+        .node(4, "delay")
+        .param(4, "time", 0.004)
+        .node(5, "gain")
+        .param(5, "gain", -6.0)
+        .node(6, "feedback")
+        .node(7, "audio_out")
+        .wire(1, "out", 2, "in_0")
+        .wire(6, "out", 2, "in_1")
+        .wire(2, "out", 3, "in")
+        .wire(3, "out", 4, "in")
+        .wire(4, "out", 5, "in")
+        .wire(5, "out", 6, "in")
+        .wire(5, "out", 7, "in")
+        .node(20, "feedback")
+        .node(21, "biquad")
+        .param(21, "cutoff", 2000.0)
+        .node_with(NodeInstance::new(NodeId(22), "mix").with_config(json!({ "inputs": 2 })))
+        .node(23, "audio_out")
+        .wire(20, "out", 21, "in")
+        .wire(1, "out", 22, "in_0")
+        .wire(21, "out", 22, "in_1")
+        .wire(22, "out", 20, "in")
+        .wire(20, "out", 23, "in")
+        .node(30, "feedback")
+        .node(31, "gain")
+        .param(31, "gain", -3.0)
+        .wire(30, "out", 31, "in")
+        .wire(31, "out", 30, "in")
+        .build();
+    let report = live(p.clone(), 128).handle.report().clone();
+    assert!(report.diagnostics.is_empty(), "{report}");
+    let fused = same_on_any_threads(&p, &[]);
+    assert!(fused == on_threads(&unfused(p), 1, 128, 40, &[]));
+}
+
+/// [`synth`] with its filter's cutoff an input of the Voices node, swept by
+/// an LFO three nodes deep outside it.
+fn modulated_synth(voices: u64) -> Project {
+    let mut p = synth(voices);
+    if let Some(def) = p.group_defs.get_mut(&GroupId::from("synth")) {
+        def.inputs.push(GroupInput {
+            name: "cutoff".into(),
+            ty: SignalType::Float,
+            unit: Unit::Hz,
+            default: Some(1200.0.into()),
+            range: None,
+            targets: vec![Endpoint::new(NodeId(3), "cutoff")],
+        });
+    }
+    let lfo = |id: u64, kind: &str| NodeInstance::new(NodeId(id), kind);
+    p.graph.nodes.extend([
+        lfo(10, "oscillator").with_param("freq", 3.0),
+        lfo(11, "map")
+            .with_param("in_min", -1.0)
+            .with_param("out_min", 400.0)
+            .with_param("out_max", 3000.0),
+        lfo(12, "math")
+            .with_param("op", "multiply")
+            .with_param("b", 1.0),
+    ]);
+    for (f, o, t, i) in [
+        (10, "out", 11, "in"),
+        (11, "out", 12, "a"),
+        (12, "out", 2, "cutoff"),
+    ] {
+        p.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(f), o),
+            Endpoint::new(NodeId(t), i),
+        ));
+    }
+    p
+}
+
+#[test]
+fn voice_chains_are_identical_on_any_thread_count() {
+    let chord: Vec<(u64, MidiMsg)> = [48u8, 52, 55, 60, 64, 67]
+        .iter()
+        .enumerate()
+        .map(|(k, &n)| (k as u64 * 500, on(n)))
+        .chain([(3_000, off(52))])
+        .collect();
+    for p in [synth(8), modulated_synth(8)] {
+        let fused = same_on_any_threads(&p, &chord);
+        assert!(fused == on_threads(&unfused(p), 1, 128, 40, &chord));
+    }
 }
