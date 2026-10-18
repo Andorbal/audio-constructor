@@ -39,6 +39,7 @@ impl Canvas {
             Some(p) if self.screen.contains(p) => self.hit(scene, io.doc, p),
             _ => Hit::None,
         };
+        self.portal_lit = super::portal::lit(scene, hover.node(), &io.doc.selection);
 
         // Frames, behind everything.
         for (i, f) in io.doc.graph().frames.iter().enumerate() {
@@ -242,6 +243,7 @@ impl Canvas {
             }
             _ => {}
         }
+        self.paint_minimap(painter, scene, io.doc);
         self.paint_overlay(painter, io);
     }
 
@@ -319,6 +321,10 @@ impl Canvas {
         let hovered_node = hover.node() == Some(n.id);
         let mut sockets: Vec<Shape> = Vec::new();
 
+        if let Class::Portal(info) = &n.class {
+            self.paint_portal(painter, n, info, hover, wiring, alpha);
+            return;
+        }
         if n.class == Class::Reroute {
             let c = t.to_screen(n.rect.center());
             let ty = n.outputs.first().map_or(SignalType::Any, |s| s.ty);
@@ -615,7 +621,7 @@ impl Canvas {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint_socket_dot(
+    pub(super) fn paint_socket_dot(
         &self,
         out: &mut Vec<Shape>,
         p: Pos2,

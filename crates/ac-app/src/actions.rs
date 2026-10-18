@@ -33,6 +33,8 @@ pub enum Action {
     Group,
     Ungroup,
     EnterLeaveGroup,
+    /// Turn wires into portals, or portals back into wires.
+    Portal,
 
     Mute,
     Collapse,
@@ -45,6 +47,7 @@ pub enum Action {
     ZoomOut,
     ToggleSidePanel,
     ShowTiming,
+    Minimap,
 
     Pin,
     TogglePanels,
@@ -112,6 +115,7 @@ impl Action {
         Action::Group,
         Action::Ungroup,
         Action::EnterLeaveGroup,
+        Action::Portal,
         Action::Mute,
         Action::Collapse,
         Action::HideUnwired,
@@ -122,6 +126,7 @@ impl Action {
         Action::ZoomOut,
         Action::ToggleSidePanel,
         Action::ShowTiming,
+        Action::Minimap,
         Action::Pin,
         Action::TogglePanels,
         Action::PerformanceMode,
@@ -162,6 +167,7 @@ impl Action {
             Action::Group => "Make Group",
             Action::Ungroup => "Ungroup",
             Action::EnterLeaveGroup => "Enter / Leave Group",
+            Action::Portal => "Make Portal / Back to Wire",
             Action::Mute => "Mute",
             Action::Collapse => "Collapse",
             Action::HideUnwired => "Hide Unwired Sockets",
@@ -172,6 +178,7 @@ impl Action {
             Action::ZoomOut => "Zoom Out",
             Action::ToggleSidePanel => "Side Panel",
             Action::ShowTiming => "Node Timing",
+            Action::Minimap => "Minimap",
             Action::Pin => "Pin to Panel",
             Action::TogglePanels => "Canvas / Panels",
             Action::PerformanceMode => "Performance Mode",
@@ -214,6 +221,7 @@ impl Action {
             Action::Group => sc(CMD, Key::G),
             Action::Ungroup => sc(CMD_ALT, Key::G),
             Action::EnterLeaveGroup => sc(NONE, Key::Tab),
+            Action::Portal => sc(SHIFT, Key::P),
             Action::Mute => sc(NONE, Key::M),
             Action::Collapse => sc(NONE, Key::H),
             Action::HideUnwired => sc(CMD, Key::H),
@@ -224,6 +232,7 @@ impl Action {
             Action::ZoomOut => sc(NONE, Key::Minus),
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
+            Action::Minimap => sc(SHIFT, Key::M),
             Action::Pin => sc(NONE, Key::P),
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
@@ -337,6 +346,9 @@ mod tests {
         );
         assert_eq!(for_key(Key::Q, Modifiers::NONE), None);
         assert_eq!(for_key(Key::P, Modifiers::NONE), Some(Action::Pin));
+        assert_eq!(for_key(Key::P, Modifiers::SHIFT), Some(Action::Portal));
+        assert_eq!(for_key(Key::M, Modifiers::NONE), Some(Action::Mute));
+        assert_eq!(for_key(Key::M, Modifiers::SHIFT), Some(Action::Minimap));
         assert_eq!(
             for_key(Key::Tab, Modifiers::CTRL),
             Some(Action::TogglePanels)

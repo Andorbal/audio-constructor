@@ -687,7 +687,20 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     }
 
     ui.add_space(4.0);
-    let current = node.ui.label.clone().unwrap_or_default();
+    // A portal tag's label is the portal's name, shared by all its tags.
+    let portal = edit::portal::tag(&node);
+    if let Some(t) = &portal {
+        let role = if t.send {
+            "Portal sender: the wire continues at its receivers"
+        } else {
+            "Portal receiver: the wire arrives from its sender"
+        };
+        ui.label(RichText::new(role).small().color(theme::text_muted()));
+    }
+    let current = match &portal {
+        Some(t) => t.name.clone(),
+        None => node.ui.label.clone().unwrap_or_default(),
+    };
     let field_id = egui::Id::unique(("node-label", id));
     let focused = ui.memory(|m| m.has_focus(field_id));
     // Follow the document unless the user is typing here.
@@ -702,16 +715,26 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         let r = ui.add(
             egui::TextEdit::singleline(text)
                 .id(field_id)
-                .hint_text(format!("Label (default: {name})"))
+                .hint_text(if portal.is_some() {
+                    "Portal name".to_string()
+                } else {
+                    format!("Label (default: {name})")
+                })
                 .desired_width(f32::INFINITY),
         );
         if r.lost_focus() && text.trim() != current {
             let label = text.trim().to_string();
-            io.doc.edit(io.registry, "Rename", |g, _| {
-                if let Some(n) = g.node_mut(id) {
-                    n.ui.label = (!label.is_empty()).then_some(label);
-                }
-            });
+            if portal.is_some() {
+                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                    edit::portal::rename(g, id, &label);
+                });
+            } else {
+                io.doc.edit(io.registry, "Rename", |g, _| {
+                    if let Some(n) = g.node_mut(id) {
+                        n.ui.label = (!label.is_empty()).then_some(label);
+                    }
+                });
+            }
         }
     }
 

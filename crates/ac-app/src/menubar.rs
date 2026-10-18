@@ -28,6 +28,7 @@ pub struct MenuState<'a> {
     pub has_selection: bool,
     pub side_panel: bool,
     pub timing: bool,
+    pub minimap: bool,
     /// The panels are shown instead of the canvas.
     pub panels: bool,
     pub playing: bool,
@@ -162,12 +163,14 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Mute, icons::SPEAKER_SLASH, sel);
             entry(ui, &mut out, Action::Collapse, icons::CARET_DOWN, sel);
             entry(ui, &mut out, Action::HideUnwired, icons::SELECTION, sel);
+            entry(ui, &mut out, Action::Portal, icons::TAG, sel);
             ui.separator();
             entry(ui, &mut out, Action::Pin, icons::PUSH_PIN, sel && !s.panels);
         });
         ui.menu_button("View", |ui| {
             toggle(ui, &mut out, Action::ToggleSidePanel, s.side_panel);
             toggle(ui, &mut out, Action::ShowTiming, s.timing);
+            toggle(ui, &mut out, Action::Minimap, s.minimap);
             ui.separator();
             toggle(ui, &mut out, Action::TogglePanels, s.panels);
             entry(

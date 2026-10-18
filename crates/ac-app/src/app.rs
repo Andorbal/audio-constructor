@@ -412,6 +412,7 @@ impl EditorApp {
                     has_selection: !self.doc.selection.is_empty(),
                     side_panel: self.side.open,
                     timing: self.show_timing,
+                    minimap: self.canvas.minimap,
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
@@ -1398,10 +1399,13 @@ impl EditorApp {
                 }
                 let mut all = Vec::new();
                 for g_id in groups {
-                    if let Some(new) = self
-                        .doc
-                        .edit(&reg, "Ungroup", |g, ctx| edit::group::ungroup(g, ctx, g_id))
-                    {
+                    let ungrouped = self.doc.edit(&reg, "Ungroup", |g, ctx| {
+                        let new = edit::group::ungroup(g, ctx, g_id)?;
+                        // Portals that come out keep names of their own.
+                        edit::portal::after_paste(g, &new);
+                        Some(new)
+                    });
+                    if let Some(new) = ungrouped {
                         all.extend(new);
                     }
                 }
@@ -1444,6 +1448,11 @@ impl EditorApp {
                 self.canvas.view = v;
             }
             Action::ToggleSidePanel => self.side.open = !self.side.open,
+            Action::Minimap => self.canvas.minimap = !self.canvas.minimap,
+            Action::Portal => match self.canvas.toggle_portal(&mut self.doc, &reg, now) {
+                Ok(text) => self.say(text, now),
+                Err(text) => self.warn(text, now),
+            },
             Action::ShowTiming => {
                 self.show_timing = !self.show_timing;
                 self.timing.clear();
