@@ -11,6 +11,8 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.7.0] - 2026-10-18
+
 ## [0.6.0] - 2026-10-18
 
 Matching a control surface no longer means guessing: the Devices tab shows
@@ -348,6 +350,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.7.0]: https://github.com/Andorbal/audio-constructor/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
