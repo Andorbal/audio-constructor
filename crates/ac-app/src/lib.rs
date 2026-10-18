@@ -12,6 +12,7 @@ pub mod editors;
 pub mod export;
 pub mod files;
 pub mod find;
+pub mod help;
 pub mod icons;
 pub mod menubar;
 pub mod palette;
@@ -19,7 +20,9 @@ pub mod panels;
 pub mod params;
 pub mod perform;
 pub mod play_keys;
+pub mod settings;
 pub mod theme;
+pub mod timing;
 pub mod transport;
 pub mod undo;
 

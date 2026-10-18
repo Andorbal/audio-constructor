@@ -39,6 +39,7 @@ impl Canvas {
             Some(p) if self.screen.contains(p) => self.hit(scene, io.doc, p),
             _ => Hit::None,
         };
+        self.portal_lit = super::portal::lit(scene, hover.node(), &io.doc.selection);
 
         // Frames, behind everything.
         for (i, f) in io.doc.graph().frames.iter().enumerate() {
@@ -242,6 +243,7 @@ impl Canvas {
             }
             _ => {}
         }
+        self.paint_minimap(painter, scene, io.doc);
         self.paint_overlay(painter, io);
     }
 
@@ -261,7 +263,7 @@ impl Canvas {
             painter.rect_filled(
                 pill,
                 theme::radius(pill.height() / 2.0),
-                Color32::from_rgba_premultiplied(0x2A, 0x3A, 0x36, 0xE8),
+                theme::breadcrumb_bg(),
             );
             painter.galley(pill.min + vec2(10.0, 5.0), galley, theme::text());
             painter.text(
@@ -279,11 +281,7 @@ impl Canvas {
                 pos2(r.center().x, r.max.y - 24.0),
                 galley.size() + vec2(24.0, 10.0),
             );
-            painter.rect_filled(
-                pill,
-                theme::radius(pill.height() / 2.0),
-                Color32::from_rgba_premultiplied(0x10, 0x11, 0x14, 0xD8),
-            );
+            painter.rect_filled(pill, theme::radius(pill.height() / 2.0), theme::hint_bg());
             painter.galley(pill.min + vec2(12.0, 5.0), galley, theme::text());
         }
         painter.text(
@@ -319,6 +317,10 @@ impl Canvas {
         let hovered_node = hover.node() == Some(n.id);
         let mut sockets: Vec<Shape> = Vec::new();
 
+        if let Class::Portal(info) = &n.class {
+            self.paint_portal(painter, n, info, hover, wiring, alpha);
+            return;
+        }
         if n.class == Class::Reroute {
             let c = t.to_screen(n.rect.center());
             let ty = n.outputs.first().map_or(SignalType::Any, |s| s.ty);
@@ -424,24 +426,10 @@ impl Canvas {
                 self.tips.push((r.expand(2.0), b.tip.clone()));
                 right -= w + 5.0 * z;
             }
-            if io.show_timing
-                && let Some(ns) = live.node_time_ns(n.id)
+            if let Some(timing) = io.timing
+                && let Some(r) = timing.node(n.id)
             {
-                let ms = f64::from(ns) / 1e6;
-                let heat = (ms / 0.2).clamp(0.0, 1.0) as f32;
-                let color = theme::mix(theme::text_faint(), theme::warning(), heat);
-                let g = painter.layout_no_wrap(
-                    format!("{ms:.2} ms"),
-                    theme::canvas_font(theme::FONT_SMALL, z, true),
-                    color,
-                );
-                let w = g.size().x;
-                painter.galley(
-                    pos2(right - w, header.center().y - g.size().y / 2.0),
-                    g,
-                    color,
-                );
-                right -= w + 6.0 * z;
+                right = self.paint_timing(painter, header, right, &r, timing, n, alpha);
             }
             let caret_w = if matches!(n.class, Class::Interface { .. }) {
                 0.0
@@ -629,7 +617,7 @@ impl Canvas {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint_socket_dot(
+    pub(super) fn paint_socket_dot(
         &self,
         out: &mut Vec<Shape>,
         p: Pos2,

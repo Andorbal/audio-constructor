@@ -288,7 +288,7 @@ fn row(ui: &mut egui::Ui, f: &Found, selected: bool, width: f32) -> egui::Respon
     if selected {
         p.rect_filled(rect, theme::radius(5.0), theme::accent_dim());
     } else if resp.hovered() {
-        p.rect_filled(rect, theme::radius(5.0), theme::widget_bg_hover());
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     p.text(
         rect.left_top() + vec2(10.0, 4.0),

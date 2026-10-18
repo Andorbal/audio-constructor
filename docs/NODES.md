@@ -11,7 +11,9 @@ losing performance or clarity, it should be a *block* (a saved group) in
 
 - **One file per node** in `crates/ac-nodes/src/<category>/<name>.rs`, with a
   doc comment that becomes its entry in the generated reference and the
-  in-app help panel. Include one or two "try this" wiring tips.
+  in-app help panel. Include one or two "try this" wiring tips, as their
+  own paragraph starting with `**Try this:**`: the help panel shows that
+  paragraph highlighted, and a test fails for a node without one.
 - **Sockets by name**, snake_case, stable forever. Prefer `in`/`out` for the
   main signal, descriptive names for the rest (`cutoff`, `resonance`).
 - **Every numeric input is a `Float` socket** with a unit hint and a soft

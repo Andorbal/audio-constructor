@@ -78,6 +78,9 @@ pub const CPU: &str = "\u{E610}";
 pub const LIGHTNING: &str = "\u{E2DE}";
 
 pub const BOOK_OPEN: &str = "\u{E0E6}";
+pub const LIGHTBULB: &str = "\u{E2DC}";
+pub const CIRCLE_HALF: &str = "\u{E1BC}";
+pub const TEXT_AA: &str = "\u{E6EE}";
 pub const BOOKS: &str = "\u{E758}";
 pub const SLIDERS: &str = "\u{E434}";
 pub const GEAR: &str = "\u{E270}";

@@ -27,7 +27,8 @@ use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
-use crate::theme;
+use crate::settings::{self, AppSettings};
+use crate::theme::{self, ThemeChoice};
 use crate::transport::TransportState;
 
 mod sharing;
@@ -47,6 +48,8 @@ pub struct AppOptions {
     /// The folder of the person's own and imported blocks. `None` keeps
     /// them in memory, with only the shipped blocks to start from.
     pub library: Option<PathBuf>,
+    /// The editor's theme and UI scale, and where they're saved.
+    pub settings: AppSettings,
 }
 
 impl AppOptions {
@@ -60,6 +63,7 @@ impl AppOptions {
             native_dialogs: false,
             seed: 1,
             library: None,
+            settings: AppSettings::in_memory(),
         }
     }
 }
@@ -69,6 +73,8 @@ impl AppOptions {
 enum AfterConfirm {
     New,
     Open(PathBuf),
+    /// A shipped example, opened as an untitled copy.
+    OpenExample(PathBuf),
     Quit,
 }
 
@@ -98,6 +104,8 @@ pub struct EditorApp {
     pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
     show_timing: bool,
+    /// Per-node timing read from the engine while it's shown.
+    timing: crate::timing::Timings,
     show_shortcuts: bool,
     show_about: bool,
     title: String,
@@ -127,6 +135,8 @@ pub struct EditorApp {
     /// The selected nodes the palette's pick will be wired from, in
     /// selection order (connect selected to new node).
     palette_feed: Vec<NodeId>,
+    /// Theme and UI scale (View menu), saved as they change.
+    settings: AppSettings,
 }
 
 impl EditorApp {
@@ -220,6 +230,7 @@ impl EditorApp {
             takes: Vec::new(),
             export_job: None,
             show_timing: false,
+            timing: crate::timing::Timings::default(),
             show_shortcuts: false,
             show_about: false,
             title: String::new(),
@@ -237,7 +248,9 @@ impl EditorApp {
             find: FindBar::default(),
             selection_order: SelectionOrder::default(),
             palette_feed: Vec::new(),
+            settings: opts.settings,
         };
+        app.apply_settings(ctx);
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
             app.open(&p, 0.0);
@@ -317,6 +330,33 @@ impl EditorApp {
         self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
 
+    /// The editor's settings (theme and UI scale).
+    pub fn settings(&self) -> &AppSettings {
+        &self.settings
+    }
+
+    /// Show the settings' theme and scale in `ctx`.
+    fn apply_settings(&self, ctx: &egui::Context) {
+        theme::set_choice(ctx, self.settings.prefs.theme);
+        ctx.set_zoom_factor(self.settings.prefs.ui_scale);
+    }
+
+    /// View ▸ Theme: switch now and remember the choice.
+    pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
+        self.settings.set_theme(choice);
+        theme::set_choice(ctx, choice);
+        ctx.request_repaint();
+    }
+
+    /// View ▸ UI Scale: everything (canvas text included) scales by
+    /// `scale` from the next frame, and the choice is remembered.
+    pub fn set_ui_scale(&mut self, ctx: &egui::Context, scale: f32, now: f64) {
+        self.settings.set_ui_scale(scale);
+        let scale = self.settings.prefs.ui_scale;
+        ctx.set_zoom_factor(scale);
+        self.say(format!("Interface at {:.0} %", scale * 100.0), now);
+    }
+
     fn say(&mut self, text: impl Into<String>, now: f64) {
         self.status = Some((text.into(), now, false));
     }
@@ -336,8 +376,11 @@ impl EditorApp {
         let themed = egui::Id::unique("audio-constructor-theme");
         if !ctx.data(|d| d.get_temp::<bool>(themed).unwrap_or(false)) {
             theme::apply(&ctx);
+            self.apply_settings(&ctx);
             ctx.data_mut(|d| d.insert_temp(themed, true));
         }
+        // Draw with the theme egui shows (Follow System can change it).
+        theme::follow(&ctx);
         // The canvas is keyboard-driven: with nothing focused, Tab and the
         // arrow keys belong to it, not to egui's focus navigation.
         if ctx.memory(|m| m.focused().is_none()) {
@@ -346,6 +389,12 @@ impl EditorApp {
         self.track_selection();
         self.handle_keys(&ctx, now);
         self.update_bindings(now);
+        if self.show_timing {
+            let tele = self.engine.handle.telemetry();
+            self.timing.update(&tele, &self.doc, now);
+            // The numbers move with the audio, not with the pointer.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         if self.learn.is_some() {
             // Keep polling for the control that will bind.
             ctx.request_repaint_after(std::time::Duration::from_millis(30));
@@ -374,7 +423,7 @@ impl EditorApp {
                     report: &self.engine.report,
                     missing_assets: &self.missing,
                     calm,
-                    show_timing: self.show_timing,
+                    timing: self.show_timing.then_some(&self.timing),
                     bound: &self.bound,
                     events: Vec::new(),
                 };
@@ -428,10 +477,13 @@ impl EditorApp {
                     has_selection: !self.doc.selection.is_empty(),
                     side_panel: self.side.open,
                     timing: self.show_timing,
+                    minimap: self.canvas.minimap,
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
                     play_keys: self.play_keys.is_on(),
+                    theme: self.settings.prefs.theme,
+                    ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
                     registry: &self.registry,
                 };
@@ -484,6 +536,7 @@ impl EditorApp {
                         engine: &mut self.engine,
                         assets: &self.assets,
                         missing: &self.missing,
+                        timing: self.show_timing.then_some(&self.timing),
                         requests: Vec::new(),
                         now,
                     };
@@ -527,7 +580,6 @@ impl EditorApp {
         let engine = &mut self.engine.handle;
         let report = &self.engine.report;
         let missing = &self.missing;
-        let show_timing = self.show_timing;
         let bound = &self.bound;
         let events = self.doc.at_root(|doc| {
             let mut io = CanvasIo {
@@ -538,7 +590,7 @@ impl EditorApp {
                 report,
                 missing_assets: missing,
                 calm,
-                show_timing,
+                timing: None,
                 bound,
                 events: Vec::new(),
             };
@@ -960,9 +1012,12 @@ impl EditorApp {
                     let action = match key {
                         Key::Delete | Key::Backspace if !modifiers.any() => Some(Action::Delete),
                         // `+` needs Shift on most layouts; `=` is the same key.
-                        Key::Plus | Key::Equals if !modifiers.command && !modifiers.alt => {
-                            Some(Action::ZoomIn)
+                        // With Ctrl (Cmd), they scale the whole interface.
+                        Key::Plus | Key::Equals if modifiers.alt => None,
+                        Key::Plus | Key::Equals if modifiers.command || modifiers.ctrl => {
+                            Some(Action::UiScaleUp)
                         }
+                        Key::Plus | Key::Equals => Some(Action::ZoomIn),
                         _ => actions::for_key(key, modifiers),
                     };
                     let Some(a) = action else { continue };
@@ -1020,8 +1075,8 @@ impl EditorApp {
             }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
+                self.side.show_help(kind.as_deref());
             }
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
@@ -1104,8 +1159,8 @@ impl EditorApp {
     }
 
     fn panel_request(&mut self, ctx: &egui::Context, r: PanelRequest, now: f64) {
-        let _ = ctx;
         match r {
+            PanelRequest::Run(a) => self.run(ctx, a, now),
             PanelRequest::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
@@ -1132,6 +1187,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
+            PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1157,6 +1214,8 @@ impl EditorApp {
             MenuCommand::OpenRecent(p) => self.request_open(p, now),
             MenuCommand::ForgetRecent(p) => self.recent.remove(&p),
             MenuCommand::ClearRecent => self.recent.clear(),
+            MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
+            MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
                 let feed = self.feed_order();
@@ -1607,10 +1666,13 @@ impl EditorApp {
                 }
                 let mut all = Vec::new();
                 for g_id in groups {
-                    if let Some(new) = self
-                        .doc
-                        .edit(&reg, "Ungroup", |g, ctx| edit::group::ungroup(g, ctx, g_id))
-                    {
+                    let ungrouped = self.doc.edit(&reg, "Ungroup", |g, ctx| {
+                        let new = edit::group::ungroup(g, ctx, g_id)?;
+                        // Portals that come out keep names of their own.
+                        edit::portal::after_paste(g, &new);
+                        Some(new)
+                    });
+                    if let Some(new) = ungrouped {
                         all.extend(new);
                     }
                 }
@@ -1638,8 +1700,17 @@ impl EditorApp {
                 }
             }),
             Action::NodeHelp => {
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                // One node: its reference. Otherwise the list of every node.
+                let sel = self.selected_real();
+                let kind = sel
+                    .first()
+                    .filter(|_| sel.len() == 1)
+                    .and_then(|id| self.doc.graph().node(*id))
+                    .map(|n| n.kind.clone());
+                if kind.is_none() {
+                    self.side.help.kind = None;
+                }
+                self.side.show_help(kind.as_deref());
             }
             Action::FitAll => self.canvas.fit_all(&self.doc, &reg),
             Action::FitSelection => self.canvas.fit_selection(&self.doc, &reg),
@@ -1652,9 +1723,24 @@ impl EditorApp {
                 self.canvas.fit(None, 1.0);
                 self.canvas.view = v;
             }
+            Action::UiScaleUp => {
+                let s = settings::scale_up(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleDown => {
+                let s = settings::scale_down(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleReset => self.set_ui_scale(ctx, 1.0, now),
             Action::ToggleSidePanel => self.side.open = !self.side.open,
+            Action::Minimap => self.canvas.minimap = !self.canvas.minimap,
+            Action::Portal => match self.canvas.toggle_portal(&mut self.doc, &reg, now) {
+                Ok(text) => self.say(text, now),
+                Err(text) => self.warn(text, now),
+            },
             Action::ShowTiming => {
                 self.show_timing = !self.show_timing;
+                self.timing.clear();
                 self.engine
                     .handle
                     .status()
@@ -1891,6 +1977,7 @@ impl EditorApp {
                 self.say("New project", now);
             }
             AfterConfirm::Open(path) => self.open(&path, now),
+            AfterConfirm::OpenExample(path) => self.open_example(&path, now),
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -1969,6 +2056,31 @@ impl EditorApp {
             self.say(text, now);
         }
         Ok(())
+    }
+
+    /// Open a shipped example the way the Start project opens: as an
+    /// untitled copy, so saving never overwrites the shipped file. Its
+    /// audio files still load from beside it.
+    pub fn open_example(&mut self, path: &Path, now: f64) {
+        match files::open_project(path, &self.registry) {
+            Ok((mut project, assets)) => {
+                // Its stored view was set on someone else's window.
+                project.view = None;
+                let name = if project.name.trim().is_empty() {
+                    file_name(path)
+                } else {
+                    project.name.clone()
+                };
+                self.replace_document(project, None, files::project_dir(path), assets);
+                self.say(
+                    format!(
+                        "Opened the example “{name}” as a new project: Save As keeps your changes"
+                    ),
+                    now,
+                );
+            }
+            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+        }
     }
 
     /// Show `project` as a new, unsaved document (examples, tests).

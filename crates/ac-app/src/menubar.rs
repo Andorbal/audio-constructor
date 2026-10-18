@@ -10,7 +10,8 @@ use crate::actions::Action;
 use crate::files::Recent;
 use crate::icons;
 use crate::palette::Candidate;
-use crate::theme;
+use crate::settings::UI_SCALES;
+use crate::theme::{self, ThemeChoice};
 
 /// What a menu click asks for.
 pub enum MenuCommand {
@@ -19,6 +20,10 @@ pub enum MenuCommand {
     ForgetRecent(PathBuf),
     ClearRecent,
     Add(Candidate),
+    /// View ▸ Theme.
+    SetTheme(ThemeChoice),
+    /// View ▸ UI Scale (1 is 100 %).
+    SetUiScale(f32),
 }
 
 /// State the menus show (checkmarks, enabled entries, labels).
@@ -28,11 +33,14 @@ pub struct MenuState<'a> {
     pub has_selection: bool,
     pub side_panel: bool,
     pub timing: bool,
+    pub minimap: bool,
     /// The panels are shown instead of the canvas.
     pub panels: bool,
     pub playing: bool,
     pub looping: bool,
     pub play_keys: bool,
+    pub theme: ThemeChoice,
+    pub ui_scale: f32,
     pub recent: &'a Recent,
     pub registry: &'a Registry,
 }
@@ -169,6 +177,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Mute, icons::SPEAKER_SLASH, sel);
             entry(ui, &mut out, Action::Collapse, icons::CARET_DOWN, sel);
             entry(ui, &mut out, Action::HideUnwired, icons::SELECTION, sel);
+            entry(ui, &mut out, Action::Portal, icons::TAG, sel);
             ui.separator();
             entry(
                 ui,
@@ -217,6 +226,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         ui.menu_button("View", |ui| {
             toggle(ui, &mut out, Action::ToggleSidePanel, s.side_panel);
             toggle(ui, &mut out, Action::ShowTiming, s.timing);
+            toggle(ui, &mut out, Action::Minimap, s.minimap);
             ui.separator();
             toggle(ui, &mut out, Action::TogglePanels, s.panels);
             entry(
@@ -231,6 +241,33 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::FitSelection, icons::CROSSHAIR, true);
             entry(ui, &mut out, Action::ZoomIn, icons::PLUS, true);
             entry(ui, &mut out, Action::ZoomOut, icons::MINUS, true);
+            ui.separator();
+            ui.menu_button(format!("{}  Theme", icons::CIRCLE_HALF), |ui| {
+                for t in ThemeChoice::ALL {
+                    let icon = if s.theme == t { icons::CHECK } else { "    " };
+                    if ui.button(format!("{icon}  {}", t.label())).clicked() {
+                        out.push(MenuCommand::SetTheme(t));
+                        ui.close();
+                    }
+                }
+            });
+            ui.menu_button(format!("{}  UI Scale", icons::TEXT_AA), |ui| {
+                for step in UI_SCALES {
+                    let on = (s.ui_scale - step).abs() < 1e-3;
+                    let icon = if on { icons::CHECK } else { "    " };
+                    if ui
+                        .button(format!("{icon}  {:.0} %", step * 100.0))
+                        .clicked()
+                    {
+                        out.push(MenuCommand::SetUiScale(step));
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                entry(ui, &mut out, Action::UiScaleUp, icons::PLUS, true);
+                entry(ui, &mut out, Action::UiScaleDown, icons::MINUS, true);
+                entry(ui, &mut out, Action::UiScaleReset, "    ", true);
+            });
             ui.separator();
             entry(
                 ui,

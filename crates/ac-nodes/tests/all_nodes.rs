@@ -141,18 +141,25 @@ fn every_node_processes_without_allocating() {
     }
 }
 
+/// Every node's help shows a "Try this" tip (UX.md "Onboarding"): a
+/// paragraph of its doc comment that starts with `**Try this:**`, which is
+/// how the editor's help finds it.
 #[test]
 fn every_node_documents_itself_with_a_tip() {
     for entry in ac_nodes::registry().iter() {
-        let doc = entry.meta.doc_text();
         assert!(
             !entry.meta.summary().is_empty(),
             "{} has no summary",
             entry.meta.kind
         );
         assert!(
-            doc.to_lowercase().contains("try this"),
-            "{} docs need a \"Try this\" tip",
+            entry.meta.tip().is_some(),
+            "{} docs need a \"Try this\" tip: a paragraph starting with `**Try this:**`",
+            entry.meta.kind
+        );
+        assert!(
+            !entry.meta.description().trim().is_empty(),
+            "{} docs are only a tip",
             entry.meta.kind
         );
     }

@@ -12,9 +12,12 @@ pub mod controls;
 mod interact;
 pub mod live;
 mod menu;
+pub mod minimap;
 mod paint;
 pub mod piano;
+mod portal;
 pub mod scene;
+mod timing;
 pub mod view;
 pub mod widgets;
 pub mod wires;
@@ -78,7 +81,8 @@ pub struct CanvasIo<'a> {
     pub missing_assets: &'a BTreeSet<String>,
     /// Skip animations while the audio thread is heavily loaded (UX.md).
     pub calm: bool,
-    pub show_timing: bool,
+    /// Per-node timing for the headers, while it's shown (`Ctrl+T`).
+    pub timing: Option<&'a crate::timing::Timings>,
     /// Record nodes can write takes (the project is saved somewhere).
     pub can_record: bool,
     /// Bound inputs, with the values their bindings last set.
@@ -144,6 +148,8 @@ pub enum Hit {
     FrameHeader(usize),
     FrameResize(usize),
     Wire(Wire),
+    /// The minimap in the corner.
+    Minimap,
 }
 
 impl Hit {
@@ -210,6 +216,10 @@ pub enum Gesture {
         start: Vec2,
         origin: Pos2,
     },
+    /// Pressing or dragging in the minimap moves the view.
+    Minimap {
+        map: minimap::MiniMap,
+    },
 }
 
 /// Typing into a field on the canvas.
@@ -232,6 +242,8 @@ pub enum EditTarget {
     },
     Label(NodeId),
     Comment(NodeId),
+    /// The name of the portal a tag belongs to.
+    Portal(NodeId),
     Frame(usize),
     Interface {
         input_side: bool,
@@ -281,6 +293,16 @@ pub struct Canvas {
     pub hint: Option<String>,
     /// Hover-sensitive rectangles (screen) with their tooltip text.
     tips: Vec<(Rect, String)>,
+    /// The timing chips drawn in headers last frame (tests read them).
+    pub header_timing: Vec<(NodeId, String)>,
+    /// Portal tags lit this frame: the partners of a hovered or selected one.
+    portal_lit: BTreeSet<NodeId>,
+    /// Which receiver a double-click on each sender jumped to last.
+    portal_jump: HashMap<NodeId, usize>,
+    /// Show the minimap while the graph doesn't fit the view.
+    pub minimap: bool,
+    /// The minimap this frame, if it shows.
+    minimap_now: Option<minimap::MiniMap>,
     /// The view was set from the document (load, scope change).
     view_scope: Option<Vec<NodeId>>,
     /// The view each group scope was last left at.
@@ -317,6 +339,11 @@ impl Default for Canvas {
             last_scene: None,
             hint: None,
             tips: Vec::new(),
+            header_timing: Vec::new(),
+            portal_lit: BTreeSet::new(),
+            portal_jump: HashMap::new(),
+            minimap: true,
+            minimap_now: None,
             view_scope: None,
             scope_views: HashMap::new(),
             graph_cache: ac_core::Graph::default(),
@@ -416,6 +443,9 @@ impl Canvas {
                     zoom: v.zoom.clamp(theme::ZOOM_MIN, theme::ZOOM_MAX),
                 };
                 self.target = None;
+                // A stored view wins over framing still pending from the
+                // document this one replaced.
+                self.fit_on_show = (0, Rect::NOTHING);
             }
             _ => {
                 if let Some(b) = self.everything(doc, registry) {
@@ -602,6 +632,16 @@ impl Canvas {
         if edit::is_virtual(id) {
             return;
         }
+        if let Class::Portal(info) = &n.class {
+            self.edit = Some(InlineEdit {
+                target: EditTarget::Portal(id),
+                text: info.name.clone(),
+                rect: n.rect.shrink2(vec2(4.0, 1.0)),
+                multiline: false,
+                started: false,
+            });
+            return;
+        }
         if n.class == Class::Comment {
             self.edit = Some(InlineEdit {
                 target: EditTarget::Comment(id),
@@ -696,10 +736,12 @@ impl Canvas {
         }
 
         let mut scene = self.build(io.doc, io.registry);
+        self.minimap_now = self.minimap_layout(&scene, io.doc);
         let changed = self.handle_pointer(ui, &response, io, &scene, now);
         if changed {
             scene = self.build(io.doc, io.registry);
         }
+        self.minimap_now = self.minimap_layout(&scene, io.doc);
         self.ghosts
             .retain(|g| now - g.died < f64::from(theme::ANIM_SECONDS));
         self.born
@@ -707,6 +749,7 @@ impl Canvas {
 
         let painter = ui.painter_at(rect);
         self.tips.clear();
+        self.header_timing.clear();
         self.paint(ui, &painter, io, &scene, now, dt);
         self.show_inline_edit(ui, io, now);
         self.show_menus(ui, io, &scene, now);
@@ -782,6 +825,9 @@ impl Canvas {
 
     /// Hit test a screen point against the scene (topmost first).
     pub fn hit(&self, scene: &Scene, doc: &Document, p: Pos2) -> Hit {
+        if self.minimap_now.is_some_and(|m| m.rect.contains(p)) {
+            return Hit::Minimap;
+        }
         let t = self.transform();
         let z = self.view.zoom;
         for n in scene.nodes.iter().rev() {
@@ -792,6 +838,28 @@ impl Canvas {
             }
             // Sockets win over the card they sit on.
             let r = theme::SOCKET_HIT.max(theme::SOCKET_RADIUS * z + 3.0);
+            if let Class::Portal(info) = &n.class {
+                // Only the dot is a socket: the far side is the hidden link
+                // (except on a receiver whose sender is gone).
+                let open = n
+                    .inputs
+                    .iter()
+                    .chain(n.outputs.iter())
+                    .filter(|s| portal_side_open(info, s.input));
+                for s in open {
+                    if (t.to_screen(s.pos) - p).length() <= r {
+                        return Hit::Socket {
+                            node: n.id,
+                            name: s.name.clone(),
+                            input: s.input,
+                        };
+                    }
+                }
+                if card.expand(2.0).contains(p) {
+                    return Hit::Node { node: n.id };
+                }
+                continue;
+            }
             let mut best: Option<(f32, &scene::SocketView)> = None;
             for s in n.inputs.iter().chain(n.outputs.iter()) {
                 let d = (t.to_screen(s.pos) - p).length();
@@ -972,9 +1040,22 @@ pub fn frame_rect(f: &ac_core::Frame) -> Rect {
     )
 }
 
+/// Is this side of a portal tag a socket you can wire? The dot always is
+/// (a sender's input, a receiver's output); the other side is the portal's
+/// hidden link, open only on a receiver whose sender is gone.
+pub fn portal_side_open(info: &edit::portal::Info, input: bool) -> bool {
+    let dot = input == info.send;
+    dot || (!info.send && info.alone())
+}
+
 /// Can a socket accept the wire being dragged?
 pub fn accepts(pending: &PendingWire, n: &NodeView, s: &scene::SocketView) -> bool {
     if matches!(n.class, Class::Missing(_)) {
+        return false;
+    }
+    if let Class::Portal(info) = &n.class
+        && !portal_side_open(info, s.input)
+    {
         return false;
     }
     if s.input {

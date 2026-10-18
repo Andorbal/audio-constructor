@@ -8,7 +8,7 @@ use ac_core::{
     VOICES_KIND,
 };
 use ac_io::{Library, LibraryBlock};
-use egui::{Align2, Color32, Key, Pos2, RichText, Sense, vec2};
+use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
 
 use crate::canvas::PendingWire;
 use crate::document::Document;
@@ -391,11 +391,7 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
     if selected {
         p.rect_filled(rect, theme::radius(5.0), theme::accent_dim());
     } else if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2E, 0x32, 0x3A),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     let color = c
         .category

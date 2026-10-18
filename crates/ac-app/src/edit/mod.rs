@@ -13,6 +13,7 @@ pub mod connect;
 pub mod group;
 pub mod layout;
 pub mod pins;
+pub mod portal;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -762,6 +763,7 @@ pub fn duplicate(
     let sub = Subgraph::copy(graph, ctx.defs, &ids);
     let old: Vec<NodeId> = sub.nodes.iter().map(|n| n.id).collect();
     let new = sub.paste(graph, ctx.defs, ctx.ids, offset);
+    portal::after_paste(graph, &new);
     if keep_incoming {
         let map: BTreeMap<NodeId, NodeId> = old.iter().copied().zip(new.iter().copied()).collect();
         let incoming: Vec<Wire> = graph
@@ -892,7 +894,9 @@ pub fn paste(
     } else {
         [at[0] - minx, at[1] - miny]
     };
-    Ok(sub.paste(graph, ctx.defs, ctx.ids, offset))
+    let new = sub.paste(graph, ctx.defs, ctx.ids, offset);
+    portal::after_paste(graph, &new);
+    Ok(new)
 }
 
 /// Copy the selection as clipboard text.

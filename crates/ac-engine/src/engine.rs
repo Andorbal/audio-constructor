@@ -832,6 +832,9 @@ impl Processor {
             }
             done += n;
         }
+        if node_clock.is_some() {
+            self.graph.telemetry.publish_node_times();
+        }
         self.publish_status(io, frames, t_start);
     }
 
@@ -842,6 +845,7 @@ impl Processor {
             .store(self.transport.recording, Ordering::Relaxed);
         s.position.store(self.transport.position, Ordering::Relaxed);
         s.blocks.fetch_add(1, Ordering::Relaxed);
+        s.block_frames.store(frames as u32, Ordering::Relaxed);
         let decay = self.graph.level_decay;
         for c in 0..2usize.min(io.out_channels) {
             let st = c * io.frames;
