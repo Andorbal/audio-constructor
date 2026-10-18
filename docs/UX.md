@@ -48,6 +48,14 @@ patterns; the look is our own.
   when an event passes.
 - Canvas: dotted grid, zoom from 10 % to 300 % with smooth steps, minimap in a
   corner when the graph exceeds the viewport.
+- Minimap: while any of the graph is out of view, a small map sits in the
+  canvas's bottom-right corner, above the zoom readout: cards as dots in
+  their category colors (reroutes and portals in their wire's color),
+  frames, the selection outlined, and the visible part of the canvas as an
+  accent rectangle. Pressing in it moves the view there and dragging
+  follows the pointer; it shows the graph of the group you're in. It hides
+  itself once everything fits, and `Shift+M` (View ▸ Minimap) turns it off
+  and on.
 
 ### Socket colors and shapes
 
@@ -109,6 +117,7 @@ slate.
 | Connect selected to new node | select several nodes, add a `Mix`: the inputs are wired in selection order |
 | Lazy connect | `F` with two selected nodes wires the first compatible sockets |
 | Reroute | `Shift+right-drag` across a wire |
+| Portal | right-click a wire or a reroute ▸ **Make Portal**; `Shift+P` makes portals of the selected reroutes, or of the wires between the selected nodes, and turns selected portal tags back into wires |
 | Delete | `X`/`Delete`; `Ctrl+X` deletes and reconnects through (keeps the chain) |
 | Duplicate | `Shift+D` (with internal wires), `Ctrl+Shift+D` (also keeps incoming wires) |
 | Copy/paste | `Ctrl+C`/`Ctrl+V` as JSON text; works across projects and into chat |
@@ -116,6 +125,7 @@ slate.
 | Collapse | `H`; `Ctrl+H` collapses all unwired sockets |
 | Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; `Tab` enters/leaves a group; `Ctrl+Alt+G` ungroups |
 | Frame | `Ctrl+J` puts a labeled frame around the selection; frames move their contents |
+| Minimap | `Shift+M` shows or hides it; click or drag in it to move the view |
 | Align / distribute | `Alt+A` menu; **auto-layout selection** `Ctrl+L` (layered, left-to-right) |
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
 | Find | `Ctrl+F` finds nodes by name/type and jumps to them |
@@ -126,7 +136,38 @@ slate.
 Wire routing: béziers by default, with a "straight with bends" option. Wires
 behind nodes are dimmed. Long wires can be turned into named **portals**
 (a pair of Reroutes that are drawn as labels instead of a line) to tame
-spaghetti.
+spaghetti:
+
+- **Making one.** Right-click a wire ▸ **Make Portal**: a *sender* tag
+  appears by the source and a *receiver* tag by the destination, and the
+  line between them goes. A plain reroute's menu does the same, the reroute
+  becoming the sender with a receiver by each node it fed. `Shift+P` works
+  on the selection: selected reroutes become portals, or else the wires
+  between the selected nodes do. Each is one undo step. The portal is named
+  after its source (`Oscillator out`), and names stay unique in a graph.
+- **One sender, many receivers.** A source has at most one sender: making a
+  portal of another wire from the same output adds a receiver to it, and so
+  does pasting a copy of a receiver (or `Shift+D` on one) where its sender
+  is.
+- **Tags.** A tag is a small flag pointing the way the signal goes, in the
+  wire's color, with the portal's name and one socket: a sender's input on
+  its left, a receiver's output at its tip, so wires connect to tags like
+  to any socket. A tag with no other end (its sender was deleted, or a
+  sender with no receivers left) is outlined in the warning color.
+  Hovering a tag lights up its other end; selecting one does too.
+  Double-clicking jumps to the other end (a sender with several receivers
+  goes to the next one each time); the tag's menu has the same jump.
+- **Renaming.** `F2`, the tag's menu, or the Node tab's name field renames
+  the whole portal (its sender and every receiver).
+- **Back to a wire.** `Shift+P` on selected tags, or **Back to Wire** in a
+  tag's menu, removes them and wires each destination straight from the
+  source again. A sender takes all its receivers; a receiver goes alone,
+  and its sender with it once none is left.
+- Portals work inside groups, and copy and paste keep them sane: a pasted
+  portal gets a name of its own, and a receiver pasted without its sender
+  joins the sender of its name. In the project a portal is ordinary
+  Reroutes and wires with a name on each tag (DECISIONS D104), so it plays
+  exactly like the wire it replaced.
 
 ## Side panel
 
@@ -276,8 +317,18 @@ all honor them (DECISIONS D92).
 - Socket meters: audio sockets show a small level bar; float sockets show a
   tick on their range.
 - Hover a wire to see its live value or a mini-scope.
-- Optional per-node timing in headers (`Ctrl+T`), heat-colored, so a slow
-  patch shows where its time goes.
+- Optional per-node timing in headers (`Ctrl+T`, View ▸ Node Timing),
+  heat-colored, so a slow patch shows where its time goes: each header shows
+  the node's processing time per block (`37 µs`), steadied over about half
+  a second, on a chip colored from cool through the warning color to the
+  error color by its share of the block's real-time budget (log scale: a
+  node at 0.2 % or less is cool, a quarter of the budget or more is as hot
+  as it gets). Hover the chip for the share. A group's header shows the sum
+  of everything inside it, and a Voices node the sum of every voice; inside
+  a Voices body each node shows the sum of its copies. The Node tab shows
+  the selected node's time and share with a small bar, or a **Measure**
+  button while timing is off. It is off by default: off, the engine reads
+  no clock and the editor reads nothing (D105).
 - Disabled, baking, and error states are visible from across the canvas.
 
 ## Onboarding and examples

@@ -755,10 +755,12 @@ fn run_step(
         } else {
             work.node.process(&ctx, &mut io);
         }
+        // Summed over the node's steps and sub-blocks, published when the
+        // host block ends (`TelemetryStore::publish_node_times`).
         if let (Some(t0), Some(c), Some(slot)) = (t0, shared.clock, step.tele_time)
-            && let Some(a) = telemetry.node_time.get(slot as usize)
+            && let Some(a) = telemetry.node_time_acc.get(slot as usize)
         {
-            a.store(
+            a.fetch_add(
                 c().saturating_sub(t0).min(u64::from(u32::MAX)) as u32,
                 Ordering::Relaxed,
             );

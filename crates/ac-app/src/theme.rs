@@ -708,6 +708,19 @@ pub fn fade(c: Color32, alpha: f32) -> Color32 {
     c.gamma_multiply(alpha.clamp(0.0, 1.0))
 }
 
+/// Per-node timing (`Ctrl+T`): cool for cheap nodes, through the warning
+/// color, to the error color for a large share of the block's budget. `k`
+/// runs from 0 to 1 (see `timing::heat`).
+pub fn heat(k: f32) -> Color32 {
+    let k = k.clamp(0.0, 1.0);
+    let cool = mix(text_faint(), type_color(SignalType::Float), 0.45);
+    if k < 0.5 {
+        mix(cool, warning(), k * 2.0)
+    } else {
+        mix(warning(), error(), k * 2.0 - 1.0)
+    }
+}
+
 /// Meter color for a level in dBFS.
 pub fn meter_color(db: f32) -> Color32 {
     if db > -3.0 {

@@ -10,8 +10,19 @@ use ac_core::{
 use egui::{Color32, Pos2, Rect, pos2, vec2};
 
 use crate::document::Document;
-use crate::edit::{self, GROUP_IN, GROUP_OUT, HIDE_UNWIRED, NEW_SOCKET, NodeClass, Sockets};
+use crate::edit::{
+    self, GROUP_IN, GROUP_OUT, HIDE_UNWIRED, NEW_SOCKET, NodeClass, Sockets, portal,
+};
 use crate::theme;
+
+/// Height of a portal tag (canvas units).
+pub const PORTAL_HEIGHT: f32 = 20.0;
+
+/// Width of a portal tag that fits its name (canvas units), estimated from
+/// the label font's average advance so the scene needs no font access.
+pub fn portal_width(name: &str) -> f32 {
+    (name.chars().count() as f32 * 6.6 + 34.0).clamp(56.0, 200.0)
+}
 
 /// Nodes whose body is a widget (NODES.md Controls and Display).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,6 +112,8 @@ pub enum Class {
     Group(ac_core::GroupId),
     Missing(String),
     Reroute,
+    /// A reroute drawn as a named portal tag (`edit::portal`).
+    Portal(portal::Info),
     Comment,
     /// The group interface inside a definition (`input_side`: Group Input).
     Interface {
@@ -245,6 +258,7 @@ fn build_with(
         .map(|w| (w.from.node, w.from.socket.as_str()))
         .collect();
 
+    let portals = portal::index(&graph);
     let mut nodes = Vec::new();
     if let Some(iface) = &iface {
         let pos = interface_positions(doc.graph(), iface_pos);
@@ -287,7 +301,10 @@ fn build_with(
             NodeClass::Known => Class::Normal,
             NodeClass::Group(d) => Class::Group(d),
             NodeClass::Missing(m) => Class::Missing(m),
-            NodeClass::Reroute => Class::Reroute,
+            NodeClass::Reroute => match portals.get(&n.id) {
+                Some(info) => Class::Portal(info.clone()),
+                None => Class::Reroute,
+            },
         };
         let entry = registry.get(&n.kind);
         let category = entry.map(|e| e.meta.category);
@@ -302,6 +319,7 @@ fn build_with(
                 n.ui.label.clone().unwrap_or_else(|| n.kind.clone()),
                 theme::missing_header(),
             ),
+            Class::Portal(info) => (info.name.clone(), theme::missing_header()),
             _ => (
                 n.ui.label
                     .clone()
@@ -316,6 +334,8 @@ fn build_with(
         };
         let width = if class == Class::Comment {
             n.ui.size.map_or(240.0, |s| s[0])
+        } else if let Class::Portal(info) = &class {
+            portal_width(&info.name)
         } else {
             let natural = if body == Some(Body::Keyboard) {
                 keyboard_width(registry, n)
@@ -359,6 +379,10 @@ fn build_with(
 
     let mut wires = Vec::new();
     for w in &graph.wires {
+        // A portal's link is drawn as its two tags, not as a line.
+        if portal::is_link_in(&portals, w) {
+            continue;
+        }
         let (Some(a), Some(b)) = (index.get(&w.from.node), index.get(&w.to.node)) else {
             continue;
         };
@@ -481,6 +505,23 @@ fn layout(
         view.header = view.rect;
         for s in view.inputs.iter_mut().chain(view.outputs.iter_mut()) {
             s.pos = l.pos;
+        }
+        return view;
+    }
+
+    if let Class::Portal(info) = &view.class {
+        // The node's position is its socket dot: a sender's input on its
+        // left, a receiver's output at its tip on the right.
+        let (w, h) = (l.width, PORTAL_HEIGHT);
+        let left = if info.send { l.pos.x } else { l.pos.x - w };
+        view.rect = Rect::from_min_size(pos2(left, l.pos.y - h / 2.0), vec2(w, h));
+        view.header = view.rect;
+        let (inp, out) = (pos2(left, l.pos.y), pos2(left + w, l.pos.y));
+        for s in &mut view.inputs {
+            s.pos = inp;
+        }
+        for s in &mut view.outputs {
+            s.pos = out;
         }
         return view;
     }

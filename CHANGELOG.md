@@ -35,11 +35,42 @@ fixes and smaller changes.
   project (after asking about unsaved changes). With nothing selected,
   the Help tab lists every node and finds them by name or synonym, like
   the palette. The Node tab shows the tip too.
+- **Portals**: turn a long wire into a pair of named tags, a sender by its
+  source and a receiver by its destination, with no line across the canvas.
+  Right-click a wire or a reroute and choose Make Portal, or select a
+  reroute (or the two nodes a wire joins) and press `Shift+P`. A source has
+  one sender and as many receivers as you like: make portals of its other
+  wires, or copy and paste a receiver. Hover a tag to light up its other
+  end, double-click it to jump there, and press `F2` to rename the whole
+  portal; `Shift+P` on a tag turns it back into a plain wire. Portals work
+  inside groups, pasted portals keep names of their own, and a portal plays
+  exactly like the wire it replaced (older versions open it as two reroutes
+  and a wire).
+- **Minimap**: while your patch doesn't fit the window, a small map of it
+  sits in the canvas's corner, with the nodes in their category colors, the
+  frames, and the part you're looking at outlined. Click or drag in it to
+  go there. It hides itself once everything fits; `Shift+M` or
+  View ▸ Minimap turns it off and on.
 
 ### Changed
 
 - Secondary text in the dark theme is a shade lighter, so it stays
   readable on buttons.
+- **Node timing** (`Ctrl+T`) shows each node's processing time per block
+  in microseconds, held steady over about half a second and colored from
+  cool to hot by its share of the block's time budget, so the expensive
+  parts of a patch stand out. Hover a time to see its share. Groups and
+  Voices show the total of what's inside them (every voice), and inside a
+  Voices body each node shows all its copies. The Node tab shows the
+  selected node's time and share, with a Measure button while timing is
+  off. Timing is still off until you ask for it and costs nothing then.
+  Nodes that run in several steps, such as Feedback, and blocks split by
+  bindings now count all their time.
+
+### Fixed
+
+- A project opened right after the editor starts keeps its saved view
+  instead of being reframed.
 
 ## [0.5.0] - 2026-10-18
 

@@ -252,7 +252,17 @@ impl Canvas {
                     ui.label(RichText::new("Drag to its empty socket to add one;\nright-click a socket to rename or remove it.").small());
                     return false;
                 }
+                if let Class::Portal(info) = &n.class {
+                    return self.portal_items(ui, io, *node, info, now);
+                }
                 ui.label(RichText::new(&n.title).color(theme::text_muted()).small());
+                if n.class == Class::Reroute
+                    && item(ui, icons::TAG, "Make Portal", Some(Action::Portal))
+                {
+                    let r = self.portal_from_reroute(io, *node, now);
+                    io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
+                    return true;
+                }
                 if let Class::Group(_) = n.class
                     && item(
                         ui,
@@ -371,6 +381,11 @@ impl Canvas {
                     self.mark_born(&new, now);
                     return true;
                 }
+                if item(ui, icons::TAG, "Make Portal", Some(Action::Portal)) {
+                    let r = self.portal_from_wire(io, w, now);
+                    io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
+                    return true;
+                }
                 false
             }
             Target::Canvas(at) => {
@@ -408,6 +423,58 @@ impl Canvas {
                 false
             }
         }
+    }
+
+    /// The menu of a portal tag: jump to the other end, rename, back to a
+    /// wire, and the usual duplicate and delete.
+    fn portal_items(
+        &mut self,
+        ui: &mut egui::Ui,
+        io: &mut CanvasIo,
+        node: NodeId,
+        info: &edit::portal::Info,
+        now: f64,
+    ) -> bool {
+        let _ = now;
+        let role = if info.send { "sender" } else { "receiver" };
+        ui.label(
+            RichText::new(format!("Portal “{}” · {role}", info.name))
+                .color(theme::text_muted())
+                .small(),
+        );
+        let jump = match (info.send, info.partners.len()) {
+            (_, 0) => None,
+            (true, 1) => Some("Jump to Receiver".to_string()),
+            (true, n) => Some(format!("Jump to Next Receiver (of {n})")),
+            (false, _) => Some("Jump to Sender".to_string()),
+        };
+        if let Some(label) = jump
+            && item(ui, icons::ARROW_SQUARE_OUT, &label, None)
+        {
+            self.jump_to_partner(io.doc, io.registry, node);
+            return true;
+        }
+        for (icon, a, label) in [
+            (icons::PENCIL, Action::Rename, "Rename Portal"),
+            (icons::LINK, Action::Portal, "Back to Wire"),
+            (icons::COPY, Action::Duplicate, "Duplicate"),
+        ] {
+            if item(ui, icon, label, Some(a)) {
+                io.events.push(CanvasEvent::Run(a));
+                return true;
+            }
+        }
+        ui.separator();
+        if item(
+            ui,
+            icons::TRASH,
+            Action::Delete.label(),
+            Some(Action::Delete),
+        ) {
+            io.events.push(CanvasEvent::Run(Action::Delete));
+            return true;
+        }
+        false
     }
 
     /// The text field for typing a value, a label, or a note.
@@ -456,6 +523,12 @@ impl Canvas {
                     }
                 });
             }
+            EditTarget::Portal(node) => {
+                let (node, text) = (*node, e.text.clone());
+                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                    edit::portal::rename(g, node, &text);
+                });
+            }
             EditTarget::Comment(node) => {
                 let text = e.text.clone();
                 let node = *node;
@@ -493,7 +566,7 @@ impl Canvas {
             return;
         }
         let Some(p) = self.pointer else { return };
-        if !self.screen.contains(p) {
+        if !self.screen.contains(p) || self.minimap_now.is_some_and(|m| m.rect.contains(p)) {
             return;
         }
         let ctx = ui.ctx();

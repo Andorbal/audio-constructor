@@ -102,6 +102,8 @@ pub struct EditorApp {
     pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
     show_timing: bool,
+    /// Per-node timing read from the engine while it's shown.
+    timing: crate::timing::Timings,
     show_shortcuts: bool,
     show_about: bool,
     title: String,
@@ -219,6 +221,7 @@ impl EditorApp {
             takes: Vec::new(),
             export_job: None,
             show_timing: false,
+            timing: crate::timing::Timings::default(),
             show_shortcuts: false,
             show_about: false,
             title: String::new(),
@@ -373,6 +376,12 @@ impl EditorApp {
         }
         self.handle_keys(&ctx, now);
         self.update_bindings(now);
+        if self.show_timing {
+            let tele = self.engine.handle.telemetry();
+            self.timing.update(&tele, &self.doc, now);
+            // The numbers move with the audio, not with the pointer.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         if self.learn.is_some() {
             // Keep polling for the control that will bind.
             ctx.request_repaint_after(std::time::Duration::from_millis(30));
@@ -401,7 +410,7 @@ impl EditorApp {
                     report: &self.engine.report,
                     missing_assets: &self.missing,
                     calm,
-                    show_timing: self.show_timing,
+                    timing: self.show_timing.then_some(&self.timing),
                     bound: &self.bound,
                     events: Vec::new(),
                 };
@@ -443,6 +452,7 @@ impl EditorApp {
                     has_selection: !self.doc.selection.is_empty(),
                     side_panel: self.side.open,
                     timing: self.show_timing,
+                    minimap: self.canvas.minimap,
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
@@ -501,6 +511,7 @@ impl EditorApp {
                         engine: &mut self.engine,
                         assets: &self.assets,
                         missing: &self.missing,
+                        timing: self.show_timing.then_some(&self.timing),
                         requests: Vec::new(),
                         now,
                     };
@@ -544,7 +555,6 @@ impl EditorApp {
         let engine = &mut self.engine.handle;
         let report = &self.engine.report;
         let missing = &self.missing;
-        let show_timing = self.show_timing;
         let bound = &self.bound;
         let events = self.doc.at_root(|doc| {
             let mut io = CanvasIo {
@@ -555,7 +565,7 @@ impl EditorApp {
                 report,
                 missing_assets: missing,
                 calm,
-                show_timing,
+                timing: None,
                 bound,
                 events: Vec::new(),
             };
@@ -1112,8 +1122,8 @@ impl EditorApp {
     }
 
     fn panel_request(&mut self, ctx: &egui::Context, r: PanelRequest, now: f64) {
-        let _ = ctx;
         match r {
+            PanelRequest::Run(a) => self.run(ctx, a, now),
             PanelRequest::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
@@ -1438,10 +1448,13 @@ impl EditorApp {
                 }
                 let mut all = Vec::new();
                 for g_id in groups {
-                    if let Some(new) = self
-                        .doc
-                        .edit(&reg, "Ungroup", |g, ctx| edit::group::ungroup(g, ctx, g_id))
-                    {
+                    let ungrouped = self.doc.edit(&reg, "Ungroup", |g, ctx| {
+                        let new = edit::group::ungroup(g, ctx, g_id)?;
+                        // Portals that come out keep names of their own.
+                        edit::portal::after_paste(g, &new);
+                        Some(new)
+                    });
+                    if let Some(new) = ungrouped {
                         all.extend(new);
                     }
                 }
@@ -1502,8 +1515,14 @@ impl EditorApp {
             }
             Action::UiScaleReset => self.set_ui_scale(ctx, 1.0, now),
             Action::ToggleSidePanel => self.side.open = !self.side.open,
+            Action::Minimap => self.canvas.minimap = !self.canvas.minimap,
+            Action::Portal => match self.canvas.toggle_portal(&mut self.doc, &reg, now) {
+                Ok(text) => self.say(text, now),
+                Err(text) => self.warn(text, now),
+            },
             Action::ShowTiming => {
                 self.show_timing = !self.show_timing;
+                self.timing.clear();
                 self.engine
                     .handle
                     .status()

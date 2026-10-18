@@ -21,6 +21,7 @@ pub mod perform;
 pub mod play_keys;
 pub mod settings;
 pub mod theme;
+pub mod timing;
 pub mod transport;
 pub mod undo;
 

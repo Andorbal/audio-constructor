@@ -697,7 +697,20 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     }
 
     ui.add_space(4.0);
-    let current = node.ui.label.clone().unwrap_or_default();
+    // A portal tag's label is the portal's name, shared by all its tags.
+    let portal = edit::portal::tag(&node);
+    if let Some(t) = &portal {
+        let role = if t.send {
+            "Portal sender: the wire continues at its receivers"
+        } else {
+            "Portal receiver: the wire arrives from its sender"
+        };
+        ui.label(RichText::new(role).small().color(theme::text_muted()));
+    }
+    let current = match &portal {
+        Some(t) => t.name.clone(),
+        None => node.ui.label.clone().unwrap_or_default(),
+    };
     let field_id = egui::Id::unique(("node-label", id));
     let focused = ui.memory(|m| m.has_focus(field_id));
     // Follow the document unless the user is typing here.
@@ -712,16 +725,26 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         let r = ui.add(
             egui::TextEdit::singleline(text)
                 .id(field_id)
-                .hint_text(format!("Label (default: {name})"))
+                .hint_text(if portal.is_some() {
+                    "Portal name".to_string()
+                } else {
+                    format!("Label (default: {name})")
+                })
                 .desired_width(f32::INFINITY),
         );
         if r.lost_focus() && text.trim() != current {
             let label = text.trim().to_string();
-            io.doc.edit(io.registry, "Rename", |g, _| {
-                if let Some(n) = g.node_mut(id) {
-                    n.ui.label = (!label.is_empty()).then_some(label);
-                }
-            });
+            if portal.is_some() {
+                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                    edit::portal::rename(g, id, &label);
+                });
+            } else {
+                io.doc.edit(io.registry, "Rename", |g, _| {
+                    if let Some(n) = g.node_mut(id) {
+                        n.ui.label = (!label.is_empty()).then_some(label);
+                    }
+                });
+            }
         }
     }
 
@@ -742,6 +765,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             io.doc.enter_group(id);
         }
     });
+    timing_line(ui, io, id);
 
     // A node drawn rather than typed shows its editor first.
     node_editor(ui, io, id, &node);
@@ -924,6 +948,69 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 .push(PanelRequest::Help(e.meta.kind.to_string()));
         }
     }
+}
+
+/// The selected node's processing time per block (the same reading as its
+/// header with `Ctrl+T`), or a button that starts measuring.
+fn timing_line(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId) {
+    use crate::actions::Action;
+    use crate::timing;
+    let shortcut = Action::ShowTiming
+        .shortcut()
+        .map(|s| ui.ctx().format_shortcut(&s))
+        .unwrap_or_default();
+    let voices = io
+        .doc
+        .graph()
+        .node(id)
+        .is_some_and(|n| n.kind == ac_core::VOICES_KIND);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(format!("{}  Time", icons::TIMER)).color(theme::text_muted()));
+        let Some(t) = io.timing else {
+            let r = ui.small_button("Measure").on_hover_text(format!(
+                "Measure how long every node takes each block ({shortcut}). \
+                 Measuring costs a little, so it's off until asked for."
+            ));
+            if r.clicked() {
+                io.requests.push(PanelRequest::Run(Action::ShowTiming));
+            }
+            return;
+        };
+        let Some(r) = t.node(id) else {
+            ui.label(
+                RichText::new("— (doesn't run in the engine)")
+                    .small()
+                    .color(theme::text_faint()),
+            );
+            return;
+        };
+        let color = theme::heat(r.heat());
+        let (bar, _) = ui.allocate_exact_size(egui::vec2(56.0, 6.0), egui::Sense::hover());
+        ui.painter()
+            .rect_filled(bar, theme::radius(3.0), theme::meter_bg());
+        let k = r.share.unwrap_or(0.0).clamp(0.0, 1.0);
+        if k > 0.0 {
+            let fill = egui::Rect::from_min_size(
+                bar.min,
+                egui::vec2((bar.width() * k).max(2.0), bar.height()),
+            );
+            ui.painter().rect_filled(fill, theme::radius(3.0), color);
+        }
+        let text = match r.share {
+            Some(s) => format!(
+                "{} · {} of budget",
+                timing::format_ns(r.ns),
+                timing::format_share(s)
+            ),
+            None => timing::format_ns(r.ns),
+        };
+        ui.label(
+            RichText::new(text)
+                .font(theme::mono_font(theme::FONT_VALUE))
+                .color(color),
+        )
+        .on_hover_text(timing::describe(&r, t.budget_ns(), voices));
+    });
 }
 
 /// A group definition and the library: where it came from, saving it as

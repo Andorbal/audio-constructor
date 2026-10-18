@@ -84,6 +84,8 @@ pub enum PanelRequest {
     Help(String),
     /// Open a shipped example (after the unsaved-changes check).
     OpenExample(std::path::PathBuf),
+    /// Run an editor command.
+    Run(crate::actions::Action),
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -145,6 +147,8 @@ pub struct PanelIo<'a> {
     pub engine: &'a mut EngineHost,
     pub assets: &'a AssetStore,
     pub missing: &'a BTreeSet<String>,
+    /// Per-node timing, while it's shown (`Ctrl+T`).
+    pub timing: Option<&'a crate::timing::Timings>,
     pub requests: Vec<PanelRequest>,
     pub now: f64,
 }
