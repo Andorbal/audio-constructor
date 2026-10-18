@@ -1,0 +1,856 @@
+{
+  "schema_version": 1,
+  "name": "Block: Vocoder",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "noise",
+        "params": {
+          "color": "white",
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Carrier: noise"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            250.0
+          ],
+          "label": "Modulator: saw"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "freq": 1.0,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            600.0
+          ],
+          "label": "Formant sweep"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 3000.0,
+          "out_min": 400.0
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            600.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "biquad",
+        "params": {
+          "mode": "bandpass",
+          "q": 3.0
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            250.0
+          ],
+          "label": "Formant"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "group",
+        "config": {
+          "def": "vocoder"
+        },
+        "params": {
+          "level": 18.0
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ],
+          "label": "Vocoder"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            750.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:cutoff"
+      },
+      {
+        "from": "2:out",
+        "to": "5:in"
+      },
+      {
+        "from": "1:out",
+        "to": "6:carrier"
+      },
+      {
+        "from": "5:out",
+        "to": "6:modulator"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "vocoder": {
+      "name": "Vocoder",
+      "description": "A 12-band vocoder: the `carrier` takes on the changing spectrum of the `modulator`, so a synth can be made to speak. Typically the modulator is a voice (from an Audio In) and the carrier a bright synth chord or noise; what comes out has the synth's pitch and the voice's words.\n\n- `carrier` (audio) is the sound you hear, reshaped. It needs energy all across the spectrum: a sawtooth chord, noise, or both mixed.\n- `modulator` (audio) is the sound whose spectral shape is imposed: its level in each band sets the carrier's level in that band.\n- `attack` and `release` (seconds) are how quickly each band follows the modulator getting louder and quieter: short for crisp, intelligible words, longer for a smoother, smeared sound.\n- `level` (dB) is the output gain. At 0 a carrier band passes unchanged while the matching modulator band peaks at full scale, and drops as that band gets quieter, so quiet modulators need more.\n- `out` is the vocoded carrier, mono.\n\nInside: two Band Splits with the same edges cut the modulator and the carrier into 12 matching bands, half an octave apart from 200 Hz to 6.4 kHz, plus everything below and above. On each modulator band an Envelope Follower measures the level in decibels, and that drives the Gain on the matching carrier band directly, since a Gain takes decibels (and is silent at −60 dB, so bands where the modulator is silent stay closed). A Mix adds the 12 bands back together, with `level` as the gain of every input. The crossover bands overlap the way a classic filter-bank vocoder's do, which softens the contrast between neighbouring bands; for sharper bands, set both Band Splits' `mode` to fft, at the cost of the latency it adds. To change the bands, edit the edges of both Band Splits the same way.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "vocoder",
+        "effect",
+        "spectral",
+        "voice",
+        "filter"
+      ],
+      "source": "shipped:vocoder",
+      "inputs": [
+        {
+          "name": "carrier",
+          "type": "audio",
+          "targets": [
+            "2:in"
+          ]
+        },
+        {
+          "name": "modulator",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            0.5
+          ],
+          "targets": [
+            "4:attack",
+            "6:attack",
+            "8:attack",
+            "a:attack",
+            "c:attack",
+            "e:attack",
+            "10:attack",
+            "12:attack",
+            "14:attack",
+            "16:attack",
+            "18:attack",
+            "1a:attack"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.05,
+          "range": [
+            0.0,
+            2.0
+          ],
+          "targets": [
+            "4:release",
+            "6:release",
+            "8:release",
+            "a:release",
+            "c:release",
+            "e:release",
+            "10:release",
+            "12:release",
+            "14:release",
+            "16:release",
+            "18:release",
+            "1a:release"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 6.0,
+          "range": [
+            -24.0,
+            36.0
+          ],
+          "targets": [
+            "3:gain_0",
+            "3:gain_1",
+            "3:gain_2",
+            "3:gain_3",
+            "3:gain_4",
+            "3:gain_5",
+            "3:gain_6",
+            "3:gain_7",
+            "3:gain_8",
+            "3:gain_9",
+            "3:gain_10",
+            "3:gain_11"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "band_split",
+            "config": {
+              "edges": [
+                200.0,
+                283.0,
+                400.0,
+                566.0,
+                800.0,
+                1131.0,
+                1600.0,
+                2263.0,
+                3200.0,
+                4525.0,
+                6400.0
+              ],
+              "mode": "crossover"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Modulator bands"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "band_split",
+            "config": {
+              "edges": [
+                200.0,
+                283.0,
+                400.0,
+                566.0,
+                800.0,
+                1131.0,
+                1600.0,
+                2263.0,
+                3200.0,
+                4525.0,
+                6400.0
+              ],
+              "mode": "crossover"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                400.0
+              ],
+              "label": "Carrier bands"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "mix",
+            "config": {
+              "inputs": 12
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Level 0"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Band 0"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                180.0
+              ],
+              "label": "Level 1"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                180.0
+              ],
+              "label": "Band 1"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                360.0
+              ],
+              "label": "Level 2"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                360.0
+              ],
+              "label": "Band 2"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                540.0
+              ],
+              "label": "Level 3"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                540.0
+              ],
+              "label": "Band 3"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                720.0
+              ],
+              "label": "Level 4"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                720.0
+              ],
+              "label": "Band 4"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                900.0
+              ],
+              "label": "Level 5"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                900.0
+              ],
+              "label": "Band 5"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1080.0
+              ],
+              "label": "Level 6"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1080.0
+              ],
+              "label": "Band 6"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1260.0
+              ],
+              "label": "Level 7"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1260.0
+              ],
+              "label": "Band 7"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1440.0
+              ],
+              "label": "Level 8"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1440.0
+              ],
+              "label": "Band 8"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1620.0
+              ],
+              "label": "Level 9"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1620.0
+              ],
+              "label": "Band 9"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1800.0
+              ],
+              "label": "Level 10"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1800.0
+              ],
+              "label": "Band 10"
+            }
+          },
+          {
+            "id": "1a",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1980.0
+              ],
+              "label": "Level 11"
+            }
+          },
+          {
+            "id": "1b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1980.0
+              ],
+              "label": "Band 11"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:band_0",
+            "to": "4:in"
+          },
+          {
+            "from": "4:level_db",
+            "to": "5:gain"
+          },
+          {
+            "from": "2:band_0",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "3:in_0"
+          },
+          {
+            "from": "1:band_1",
+            "to": "6:in"
+          },
+          {
+            "from": "6:level_db",
+            "to": "7:gain"
+          },
+          {
+            "from": "2:band_1",
+            "to": "7:in"
+          },
+          {
+            "from": "7:out",
+            "to": "3:in_1"
+          },
+          {
+            "from": "1:band_2",
+            "to": "8:in"
+          },
+          {
+            "from": "8:level_db",
+            "to": "9:gain"
+          },
+          {
+            "from": "2:band_2",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "3:in_2"
+          },
+          {
+            "from": "1:band_3",
+            "to": "a:in"
+          },
+          {
+            "from": "a:level_db",
+            "to": "b:gain"
+          },
+          {
+            "from": "2:band_3",
+            "to": "b:in"
+          },
+          {
+            "from": "b:out",
+            "to": "3:in_3"
+          },
+          {
+            "from": "1:band_4",
+            "to": "c:in"
+          },
+          {
+            "from": "c:level_db",
+            "to": "d:gain"
+          },
+          {
+            "from": "2:band_4",
+            "to": "d:in"
+          },
+          {
+            "from": "d:out",
+            "to": "3:in_4"
+          },
+          {
+            "from": "1:band_5",
+            "to": "e:in"
+          },
+          {
+            "from": "e:level_db",
+            "to": "f:gain"
+          },
+          {
+            "from": "2:band_5",
+            "to": "f:in"
+          },
+          {
+            "from": "f:out",
+            "to": "3:in_5"
+          },
+          {
+            "from": "1:band_6",
+            "to": "10:in"
+          },
+          {
+            "from": "10:level_db",
+            "to": "11:gain"
+          },
+          {
+            "from": "2:band_6",
+            "to": "11:in"
+          },
+          {
+            "from": "11:out",
+            "to": "3:in_6"
+          },
+          {
+            "from": "1:band_7",
+            "to": "12:in"
+          },
+          {
+            "from": "12:level_db",
+            "to": "13:gain"
+          },
+          {
+            "from": "2:band_7",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "3:in_7"
+          },
+          {
+            "from": "1:band_8",
+            "to": "14:in"
+          },
+          {
+            "from": "14:level_db",
+            "to": "15:gain"
+          },
+          {
+            "from": "2:band_8",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "3:in_8"
+          },
+          {
+            "from": "1:band_9",
+            "to": "16:in"
+          },
+          {
+            "from": "16:level_db",
+            "to": "17:gain"
+          },
+          {
+            "from": "2:band_9",
+            "to": "17:in"
+          },
+          {
+            "from": "17:out",
+            "to": "3:in_9"
+          },
+          {
+            "from": "1:band_10",
+            "to": "18:in"
+          },
+          {
+            "from": "18:level_db",
+            "to": "19:gain"
+          },
+          {
+            "from": "2:band_10",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "3:in_10"
+          },
+          {
+            "from": "1:band_11",
+            "to": "1a:in"
+          },
+          {
+            "from": "1a:level_db",
+            "to": "1b:gain"
+          },
+          {
+            "from": "2:band_11",
+            "to": "1b:in"
+          },
+          {
+            "from": "1b:out",
+            "to": "3:in_11"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Modulator band levels (dB)",
+            "rect": [
+              226.0,
+              -40.0,
+              244.0,
+              2208.0
+            ]
+          },
+          {
+            "label": "Carrier bands at those levels",
+            "rect": [
+              476.0,
+              -40.0,
+              244.0,
+              2142.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

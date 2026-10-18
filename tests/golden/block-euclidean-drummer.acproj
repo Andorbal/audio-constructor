@@ -1,0 +1,724 @@
+{
+  "schema_version": 1,
+  "name": "Block: Euclidean Drummer",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "group",
+        "config": {
+          "def": "euclidean-drummer"
+        },
+        "params": {
+          "hat_pulses": 5,
+          "hat_steps": 12
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Euclidean Drummer"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            250.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "euclidean-drummer": {
+      "name": "Euclidean Drummer",
+      "description": "Three drums playing Euclidean rhythms from one clock: a kick, a snare, and a hi-hat, each spreading its hits as evenly as possible over its own cycle of steps. Give the drums cycles of different lengths and they drift against each other into long, shifting grooves. It plays while the transport runs, in time with the project's tempo.\n\n- `step` is the length of one step in beats (0.25 is sixteenth notes).\n- For each drum (`kick_`, `snare_`, `hat_`): `steps` is the length of its cycle, `pulses` how many hits are spread over it, and `rotation` how many steps later the pattern starts. 4 pulses in 16 steps is four on the floor, 3 in 8 the tresillo, and 5 or 7 in 16 classic syncopated grooves; try a hat cycle of 12 against a kick cycle of 16.\n- `kick_level`, `snare_level`, and `hat_level` set each drum's loudness in decibels (−60 is silent).\n- `out` is the mix, mono. `kick`, `snare`, and `hat` fire a trigger on every hit, to play other sounds too (Samplers, a synth's envelope).\n\nInside: one Clock drives three Euclidean nodes, and each one's trigger starts a synthesized drum. The kick is a sine Oscillator restarted on every hit, its pitch dropping fast from 200 to 45 Hz (an ADSR through an exponential Map) under a longer ADSR for the volume. The snare is white Noise through a highpass Biquad plus a short 185 Hz triangle for the body, balanced by a small Mix. The hi-hat is the same Noise through a 7 kHz highpass with a short envelope. A Mix sets the levels.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "drums",
+        "rhythm",
+        "euclidean",
+        "generative",
+        "instrument"
+      ],
+      "source": "shipped:euclidean-drummer",
+      "inputs": [
+        {
+          "name": "step",
+          "type": "float",
+          "unit": "beats",
+          "default": 0.25,
+          "range": [
+            0.0625,
+            1.0
+          ],
+          "targets": [
+            "1:interval"
+          ]
+        },
+        {
+          "name": "kick_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "2:steps"
+          ]
+        },
+        {
+          "name": "kick_pulses",
+          "type": "int",
+          "default": 5,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "2:pulses"
+          ]
+        },
+        {
+          "name": "kick_rotation",
+          "type": "int",
+          "default": 0,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "2:rotation"
+          ]
+        },
+        {
+          "name": "snare_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "3:steps"
+          ]
+        },
+        {
+          "name": "snare_pulses",
+          "type": "int",
+          "default": 2,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "3:pulses"
+          ]
+        },
+        {
+          "name": "snare_rotation",
+          "type": "int",
+          "default": 4,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "3:rotation"
+          ]
+        },
+        {
+          "name": "hat_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "4:steps"
+          ]
+        },
+        {
+          "name": "hat_pulses",
+          "type": "int",
+          "default": 7,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "4:pulses"
+          ]
+        },
+        {
+          "name": "hat_rotation",
+          "type": "int",
+          "default": 0,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "4:rotation"
+          ]
+        },
+        {
+          "name": "kick_level",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_0"
+          ]
+        },
+        {
+          "name": "snare_level",
+          "type": "float",
+          "unit": "db",
+          "default": -9.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_1"
+          ]
+        },
+        {
+          "name": "hat_level",
+          "type": "float",
+          "unit": "db",
+          "default": -12.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_2"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "15:out"
+        },
+        {
+          "name": "kick",
+          "type": "trigger",
+          "source": "2:trigger"
+        },
+        {
+          "name": "snare",
+          "type": "trigger",
+          "source": "3:trigger"
+        },
+        {
+          "name": "hat",
+          "type": "trigger",
+          "source": "4:trigger"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "clock",
+            "params": {
+              "duty": 0.5
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Kick rhythm"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ],
+              "label": "Snare rhythm"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                1340.0
+              ],
+              "label": "Hi-hat rhythm"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.06,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Kick pitch drop"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "map",
+            "params": {
+              "curve": "exponential",
+              "in_max": 1.0,
+              "in_min": 0.0,
+              "out_max": 200.0,
+              "out_min": 45.0
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "45 to 200 Hz"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Kick"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.45,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                300.0
+              ],
+              "label": "Kick volume"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ],
+              "label": "Kick VCA"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "noise",
+            "params": {
+              "color": "white",
+              "gain": -6.0,
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "b",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.18,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Snare noise volume"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 1500.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "Snare highpass"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Snare noise VCA"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.07,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                980.0
+              ],
+              "label": "Snare body volume"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "oscillator",
+            "params": {
+              "freq": 185.0,
+              "shape": "triangle",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                980.0
+              ],
+              "label": "Snare body"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                980.0
+              ],
+              "label": "Snare body VCA"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": 0.0,
+              "gain_1": -6.0
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                680.0
+              ],
+              "label": "Snare"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.05,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                1340.0
+              ],
+              "label": "Hi-hat volume"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 7000.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                1340.0
+              ],
+              "label": "Hi-hat highpass"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                1340.0
+              ],
+              "label": "Hi-hat"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "mix",
+            "config": {
+              "inputs": 3
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "2:clock"
+          },
+          {
+            "from": "1:trigger",
+            "to": "3:clock"
+          },
+          {
+            "from": "1:trigger",
+            "to": "4:clock"
+          },
+          {
+            "from": "2:trigger",
+            "to": "5:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "8:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "7:start"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "6:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "7:out",
+            "to": "9:a"
+          },
+          {
+            "from": "8:out",
+            "to": "9:b"
+          },
+          {
+            "from": "3:trigger",
+            "to": "b:on"
+          },
+          {
+            "from": "3:trigger",
+            "to": "e:on"
+          },
+          {
+            "from": "3:trigger",
+            "to": "f:start"
+          },
+          {
+            "from": "a:out",
+            "to": "c:in"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "b:out",
+            "to": "d:b"
+          },
+          {
+            "from": "f:out",
+            "to": "10:a"
+          },
+          {
+            "from": "e:out",
+            "to": "10:b"
+          },
+          {
+            "from": "d:out",
+            "to": "11:in_0"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in_1"
+          },
+          {
+            "from": "4:trigger",
+            "to": "12:on"
+          },
+          {
+            "from": "a:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:a"
+          },
+          {
+            "from": "12:out",
+            "to": "14:b"
+          },
+          {
+            "from": "9:out",
+            "to": "15:in_0"
+          },
+          {
+            "from": "11:out",
+            "to": "15:in_1"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in_2"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Kick",
+            "rect": [
+              226.0,
+              -40.0,
+              1244.0,
+              638.0
+            ]
+          },
+          {
+            "label": "Snare",
+            "rect": [
+              -24.0,
+              640.0,
+              1494.0,
+              660.0
+            ]
+          },
+          {
+            "label": "Hi-hat",
+            "rect": [
+              226.0,
+              1300.0,
+              994.0,
+              338.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
