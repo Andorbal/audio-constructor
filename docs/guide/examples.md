@@ -86,16 +86,19 @@ swap a clip's file in the Node tab.
 
 `examples/build-a-keyboard.acproj`
 
-One polyphonic synth, the Subtractive Synth Voice block in a Voices node,
-with three ways to play it: a demo phrase from a MIDI Pattern, the
-computer keyboard through a Keyboard In node (turn on Play keys with
-`Ctrl+K`), or the on-screen Keyboard. It shows Keyboard In, Voices,
-choosing between MIDI sources, and a panel for playing without the wires
-in view.
+One polyphonic synth, eight voices of the Subtractive Synth Voice block in
+a Voices node, with three ways to play it, picked in its **Play with**
+menu: a demo phrase from a MIDI Pattern (what plays until you pick
+another), the computer keys through a Keyboard In node, or the on-screen
+Keyboard. A Select set to carry MIDI passes on the one you pick, since an
+input takes one wire. Velocity, Octave (for the on-screen keys), and four
+timbre knobs are pinned with a meter to a **Play** panel, for playing
+without the wires in view.
 
-**Try:** pick the computer keys as the source (the canvas notes say
-how), turn on Play keys, and hold several letter keys for chords; then
-press `Ctrl+Tab` for the panel and `F11` to play it full screen.
+**Try:** pick **Computer keys** in Play with, turn on Play keys with
+`Ctrl+K`, and hold several letter keys for chords (`A S D F G H J K L` are
+the white keys up from middle C, `Z` and `X` shift an octave); then press
+`Ctrl+Tab` for the Play panel and `F11` to play it full screen.
 
 ## Sidechain Pump
 
@@ -128,15 +131,21 @@ Sampler so some hits drop out.
 
 `examples/gamepad-jam.acproj`
 
-Drums and chords played from a game controller. A demo plays the same
-parts until you take over, so it makes sound before a controller is
-plugged in. It shows the Gamepad node, bindings from the sticks and
-triggers to knobs in the patch, a transport button on the controller, and
-a panel to play from.
+Drums and chords played from a game controller. A, B, X, and Y play a
+sampled kick, snare, and two hi-hats; D-pad right strums the next chord of
+Am, F, C, and G on Karplus-Strong strings, and D-pad left starts the
+progression over; the left stick sweeps a filter over the strings and the
+right stick its resonance; the right trigger strums harder and the left
+one adds echo. A demo pattern plays the same drums and chord changes
+until you press Select on the controller (or click the **Controller**
+switch), so it makes sound before a controller is plugged in. It shows
+the Gamepad node, a Switch per signal choosing between the demo and the
+controller, bindings from the sticks and triggers to knobs and inputs in
+the patch, Start bound to play and stop, and a **Jam** panel to play from.
 
-**Try:** plug in a controller (the Devices tab lists it), take over from
-the demo, and follow the canvas notes; then bind another stick to a knob
-yourself with right-click ▸ Bind….
+**Try:** plug in a controller (the Devices tab lists it), press Start to
+play and Select to take over from the demo; then bind the right stick's
+x to the Strings' `damping` yourself with right-click ▸ Bind….
 
 ## Reverse Delay
 
