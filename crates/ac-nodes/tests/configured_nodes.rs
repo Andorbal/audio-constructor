@@ -162,6 +162,11 @@ fn control_surface_nodes_process_without_allocating() {
     let cases = [
         ("gamepad", json!({})),
         ("gamepad", json!({ "pad": 2, "releases": true })),
+        ("keyboard_in", json!({})),
+        (
+            "keyboard_in",
+            json!({ "keys": "A, S, Z, X, Space, 1, F12, Quote", "low": 0, "channel": 16 }),
+        ),
     ];
     let reg = ac_nodes::registry();
     for (kind, config) in cases {

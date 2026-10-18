@@ -55,7 +55,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Record` | P1 | Writes `in: Audio` to a file while `arm: Bool` is true (or between `start`/`stop` triggers). Outputs `recording: Bool`, `length: Float(Seconds)`, and (Phase 2) `buffer: Buffer`, the last finished take, so a recording can feed a Sampler immediately. |
 | `FileOut` | P2 | Offline-only sink: render `in` to a file path. Lets a project produce several files in one `audioc render`. |
 | `Gamepad` | P2, Live | A game controller (config `pad`, 1–16). Every button as a `Bool` gate (`south`, `east`, …, `dpad_right`) plus a `<button>_press` `Trigger` (`<button>_release` too with the `releases` config); sticks (`left_x` … `right_y`, −1..1) and analog triggers (`left_trigger_axis`, `right_trigger_axis`, 0..1) as `Float`, shaped by `dead_zone` (radial for sticks, rescaled to full travel) and `curve` (an exponent). Sample-accurate; state survives a transport restart. |
-| `KeyboardIn` | P2, Live | Computer keys as `Bool`/`Trigger`, plus a `midi` output mapping a QWERTY row to notes. |
+| `KeyboardIn` | P2, Live | Computer keys (config `keys`, a list of names, default `1, 2, 3, 4`) as `key_<name>: Bool` plus `key_<name>_press: Trigger`; and `midi`, playing the middle letter row like a piano (`A S D F G H J K L ; '` white keys from config `low`, default 60; `W E T Y U O P` black keys; `Z`/`X` octave down/up, ±3) on config `channel` at the `velocity` input. Note-offs follow the note each key started; a reset releases notes and strikes held keys again. |
 | `OscIn` / `OscOut` | P2, Live | Open Sound Control messages ↔ `Float`/`Trigger`, for phone and tablet control surfaces. |
 
 ## Generators

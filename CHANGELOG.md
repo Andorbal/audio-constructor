@@ -20,6 +20,12 @@ fixes and smaller changes.
   and analog triggers are numbers with an adjustable dead zone and
   response curve. Each change lands on the exact sample it arrived on,
   and a button held through a transport restart stays held.
+- **Keyboard In** node: the computer keyboard in the patch. Keys you list
+  become gates and press triggers, and the middle row of letters plays
+  notes like a piano (`A` to `'` for the white keys, the row above for
+  the black ones, `Z` and `X` to change octave), so you can play a synth
+  without a MIDI keyboard. A key always releases the note it started,
+  even after an octave change.
 
 ## [0.4.0] - 2026-10-18
 

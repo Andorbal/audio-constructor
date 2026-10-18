@@ -180,6 +180,69 @@ pull in an effect.
 | `dpad_right` | Bool | D-pad right, high while held. |
 | `dpad_right_press` | Trigger | Fires when the button goes down. |
 
+<a id="keyboard-in"></a>
+## Keyboard In
+
+Kind: `keyboard_in` · live source · Also found by: computer keyboard, keys, typing, qwerty, hotkey, notes, midi, play, input
+
+Brings the computer keyboard into the patch: chosen keys as gates
+and press triggers, and a row of letter keys played like a piano.
+
+The `keys` config lists the keys to bring in by name, separated by
+commas (default `1, 2, 3, 4`). Each gets a `key_<name>` output that
+is high while it's held and a `key_<name>_press` trigger, so `Space`
+becomes `key_space` and `key_space_press`. Keys go by their names:
+letters, digits, `Space`, `Enter`, `Tab`, `Backspace`, `Escape`,
+`Up`, `Down`, `Left`, `Right`, `Insert`, `Delete`, `Home`, `End`,
+`PageUp`, `PageDown`, `F1`–`F12`, and `Minus`, `Equals`,
+`LeftBracket`, `RightBracket`, `Backslash`, `Semicolon`, `Quote`,
+`Backtick`, `Comma`, `Period`, `Slash`. Unknown names are skipped,
+and a node takes up to 32 keys.
+
+The `midi` output plays the middle row of letters like a piano:
+`A S D F G H J K L ; '` are white keys from C up, and
+`W E T Y U O P` the black keys between them. `Z` and `X` shift the
+row down and up an octave, up to three each way. `A` plays MIDI note
+`low` (config, 0–127, default 60, middle C), on channel `channel`
+(1–16, default 1), with the `velocity` of the moment it's pressed. A
+key keeps the note it started, so shifting octaves while holding a
+key still releases the right note. Two keys that land on one note
+sound it once, until both are up, and notes outside MIDI's range
+don't sound. A key listed in `keys` that is also on the piano row
+(or is `Z` or `X`) does both jobs.
+
+Every press and release lands on the sample it arrived on, and a
+key that repeats while held doesn't strike again. Restarting the
+transport releases every note; keys still held sound again from
+there, and the octave shift stays where it was.
+
+Keyboard In is a live source: nodes that need their whole input
+before they can play are disabled downstream of it.
+
+**Try this:** wire `midi` into a `Voices` synth and play it from
+the laptop keyboard, or wire `key_1_press` into a `Sampler`'s
+`start` to fire a sample with the 1 key.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `velocity` | Float | 0.8 | 0 … 1 | How hard the piano row plays, 0–1. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | Notes from the piano row. |
+| `key_1` | Bool | High while the key is held. |
+| `key_1_press` | Trigger | Fires when the key goes down. |
+| `key_2` | Bool | High while the key is held. |
+| `key_2_press` | Trigger | Fires when the key goes down. |
+| `key_3` | Bool | High while the key is held. |
+| `key_3_press` | Trigger | Fires when the key goes down. |
+| `key_4` | Bool | High while the key is held. |
+| `key_4_press` | Trigger | Fires when the key goes down. |
+
 <a id="midi-in"></a>
 ## MIDI In
 
