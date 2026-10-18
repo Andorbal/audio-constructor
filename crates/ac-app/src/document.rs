@@ -398,6 +398,63 @@ impl Document {
         true
     }
 
+    /// Set several unwired inputs of one node that move together (an XY
+    /// Pad's `x` and `y`). A gesture's changes coalesce into one undo step
+    /// for the lot, however they interleave. Returns whether any changed.
+    pub fn set_params(&mut self, id: NodeId, values: &[(&str, Value)], now: f64) -> bool {
+        let Some(node) = self.graph().node(id) else {
+            return false;
+        };
+        if values
+            .iter()
+            .all(|(s, v)| node.params.get(*s).is_some_and(|old| old == v))
+        {
+            return false;
+        }
+        let names: Vec<&str> = values.iter().map(|(s, _)| *s).collect();
+        let key = format!("param:{:?}:{id}:{}", self.current_def(), names.join("+"));
+        self.checkpoint_coalesced("Change value", &key, now);
+        if let Some(n) = self.graph_mut_raw().node_mut(id) {
+            for (s, v) in values {
+                n.params.insert(s.to_string(), v.clone());
+            }
+        }
+        self.changed(false);
+        true
+    }
+
+    /// Change one key of a node's config from an editor that reports
+    /// changes every frame while dragged: one undo step per key and gesture.
+    /// Returns whether it changed.
+    pub fn set_config(
+        &mut self,
+        id: NodeId,
+        key: &str,
+        value: serde_json::Value,
+        now: f64,
+    ) -> bool {
+        let same = self
+            .graph()
+            .node(id)
+            .and_then(|n| n.config.get(key))
+            .is_some_and(|v| *v == value);
+        if same {
+            return false;
+        }
+        let k = format!("config:{:?}:{id}:{key}", self.current_def());
+        self.checkpoint_coalesced("Edit settings", &k, now);
+        if let Some(n) = self.graph_mut_raw().node_mut(id) {
+            if !n.config.is_object() {
+                n.config = ac_core::empty_config();
+            }
+            if let Some(o) = n.config.as_object_mut() {
+                o.insert(key.to_string(), value);
+            }
+        }
+        self.changed(true);
+        true
+    }
+
     // ------------------------------------------------------------ history
 
     pub fn can_undo(&self) -> bool {
@@ -478,6 +535,32 @@ mod tests {
     }
 
     #[test]
+    fn editor_drags_coalesce_into_one_step() {
+        let (mut d, r) = doc();
+        let id = d.edit(&r, "Add", |g, ctx| {
+            edit::add_node(g, ctx, "gain", ac_core::empty_config(), [0.0, 0.0])
+        });
+        let cells = |d: &Document| {
+            d.project
+                .graph
+                .node(id)
+                .unwrap()
+                .config
+                .get("cells")
+                .cloned()
+        };
+        assert!(d.set_config(id, "cells", serde_json::json!(["x"]), 1.0));
+        assert!(d.set_config(id, "cells", serde_json::json!(["xx"]), 1.1));
+        assert!(!d.set_config(id, "cells", serde_json::json!(["xx"]), 1.2));
+        d.end_coalescing();
+        assert!(d.set_config(id, "cells", serde_json::json!(["xxx"]), 1.3));
+        assert!(d.undo());
+        assert_eq!(cells(&d), Some(serde_json::json!(["xx"])));
+        assert!(d.undo());
+        assert_eq!(cells(&d), None, "the whole drag was one step");
+    }
+
+    #[test]
     fn parameter_changes_coalesce_into_one_step() {
         let (mut d, r) = doc();
         let id = d.edit(&r, "Add", |g, ctx| {
@@ -508,6 +591,25 @@ mod tests {
                 .contains_key("gain")
         );
         assert_eq!(d.undo_label(), Some("Add"));
+    }
+
+    #[test]
+    fn inputs_set_together_are_one_step() {
+        let (mut d, r) = doc();
+        let id = d.edit(&r, "Add", |g, ctx| {
+            edit::add_node(g, ctx, "xy_pad", ac_core::empty_config(), [0.0, 0.0])
+        });
+        let xy = |x: f64, y: f64| [("x", Value::Float(x)), ("y", Value::Float(y))];
+        assert!(d.set_params(id, &xy(0.1, 0.2), 1.0));
+        assert!(d.set_params(id, &xy(0.3, 0.2), 1.1));
+        assert!(d.set_params(id, &xy(0.3, 0.9), 1.2));
+        assert!(!d.set_params(id, &xy(0.3, 0.9), 1.3), "nothing changed");
+        let params = |d: &Document| d.project.graph.node(id).unwrap().params.clone();
+        assert_eq!(params(&d).get("y"), Some(&Value::Float(0.9)));
+        assert!(d.undo());
+        assert!(params(&d).is_empty(), "the whole drag was one step");
+        assert_eq!(d.undo_label(), Some("Add"));
+        assert!(!d.set_params(NodeId(999), &xy(0.0, 0.0), 2.0));
     }
 
     #[test]

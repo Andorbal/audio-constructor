@@ -3,7 +3,7 @@
 //! rings and the processor's callback path), so tests and headless CI can
 //! exercise the live code path.
 
-use ac_core::MidiEvent;
+use ac_core::{MidiEvent, MidiMsg};
 
 use crate::engine::{Engine, EngineHandle, HostIo, Processor};
 
@@ -14,7 +14,14 @@ pub struct NullHost {
     out_channels: usize,
     input: Vec<f32>,
     output: Vec<f32>,
+    midi_out: Vec<MidiEvent>,
+    /// Frames run so far, to stamp sent MIDI.
+    frame: u64,
+    sent: Vec<(u64, MidiMsg)>,
 }
+
+/// MIDI out messages a callback can carry.
+const MIDI_OUT_CAPACITY: usize = 1024;
 
 impl NullHost {
     pub fn new(engine: Engine, in_channels: usize, out_channels: usize) -> NullHost {
@@ -26,6 +33,9 @@ impl NullHost {
             out_channels: out_channels.max(1),
             input: Vec::new(),
             output: Vec::new(),
+            midi_out: Vec::with_capacity(MIDI_OUT_CAPACITY),
+            frame: 0,
+            sent: Vec::new(),
         }
     }
 
@@ -63,10 +73,24 @@ impl NullHost {
             output: &mut self.output,
             out_channels: self.out_channels,
             midi,
+            midi_out: Some(&mut self.midi_out),
         };
         self.processor.process(&mut io);
         self.handle.collect_garbage();
+        let frame = self.frame;
+        self.sent.extend(
+            self.midi_out
+                .drain(..)
+                .map(|e| (frame + u64::from(e.offset), e.msg)),
+        );
+        self.frame += frames as u64;
         &self.output
+    }
+
+    /// MIDI the patch sent to the devices so far, at absolute frames, and
+    /// forget it.
+    pub fn take_sent_midi(&mut self) -> Vec<(u64, MidiMsg)> {
+        std::mem::take(&mut self.sent)
     }
 
     /// Run `total` frames in callbacks of `block` and collect each channel.

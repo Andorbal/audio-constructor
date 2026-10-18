@@ -145,8 +145,8 @@ impl fmt::Debug for BakeJob {
     }
 }
 
-/// Resources for a bake: the same assets, but no recording (a bake must not
-/// write takes).
+/// Resources for a bake: the same assets, but no recording and no `FileOut`
+/// files (a bake must not write takes or files).
 struct BakeResources(Arc<dyn Resources>);
 
 impl Resources for BakeResources {
@@ -221,6 +221,7 @@ impl BakeJob {
                 offset: 0,
                 frames: n,
                 midi: &midi,
+                midi_out: None,
             };
             let transport = BlockTransport {
                 playing: true,

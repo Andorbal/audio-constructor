@@ -19,8 +19,14 @@ pub enum Body {
     Button,
     Toggle,
     Slider,
+    Knob,
+    XyPad,
+    Keyboard,
+    Number,
+    Dropdown,
     Meter,
     Scope,
+    Analyzer,
     Readout,
     Clip,
     Record,
@@ -33,8 +39,14 @@ impl Body {
             "button" => Body::Button,
             "toggle" => Body::Toggle,
             "slider" => Body::Slider,
+            "knob" => Body::Knob,
+            "xy_pad" => Body::XyPad,
+            "keyboard" => Body::Keyboard,
+            "number" => Body::Number,
+            "dropdown" => Body::Dropdown,
             "meter" => Body::Meter,
             "scope" => Body::Scope,
+            "analyzer" => Body::Analyzer,
             "readout" => Body::Readout,
             "clip" => Body::Clip,
             "record" => Body::Record,
@@ -48,8 +60,14 @@ impl Body {
             Body::Button => 40.0,
             Body::Toggle => 30.0,
             Body::Slider => 30.0,
+            Body::Knob => 62.0,
+            Body::XyPad => 120.0,
+            Body::Keyboard => 56.0,
+            Body::Number => 34.0,
+            Body::Dropdown => 26.0,
             Body::Meter => 40.0,
             Body::Scope => 92.0,
+            Body::Analyzer => 84.0,
             Body::Readout => 34.0,
             Body::Clip => 24.0,
             Body::Record => 26.0,
@@ -57,14 +75,21 @@ impl Body {
         }
     }
 
-    /// The input the body controls; its row shows no inline widget.
-    pub fn controls(self) -> Option<&'static str> {
+    /// The inputs the body controls; their rows show no inline widget.
+    /// (The Keyboard's keys are hidden inputs with no rows; an XY Pad's `x`
+    /// and `y` keep their fields for typing exact values.)
+    pub fn controls(self) -> &'static [&'static str] {
         match self {
-            Body::Button => Some("pressed"),
-            Body::Toggle => Some("value"),
-            Body::Slider => Some("value"),
-            _ => None,
+            Body::Button => &["pressed"],
+            Body::Toggle | Body::Slider | Body::Knob | Body::Number | Body::Dropdown => &["value"],
+            Body::XyPad => &["touched"],
+            _ => &[],
         }
+    }
+
+    /// Whether the body drives `input`.
+    pub fn drives(self, input: &str) -> bool {
+        self.controls().contains(&input)
     }
 }
 
@@ -276,7 +301,12 @@ pub fn build(doc: &Document, registry: &Registry, iface_pos: Option<[Pos2; 2]>) 
         let width = if class == Class::Comment {
             n.ui.size.map_or(240.0, |s| s[0])
         } else {
-            n.ui.size.map_or(theme::NODE_WIDTH, |s| s[0]).max(80.0)
+            let natural = if body == Some(Body::Keyboard) {
+                keyboard_width(registry, n)
+            } else {
+                theme::NODE_WIDTH
+            };
+            n.ui.size.map_or(natural, |s| s[0]).max(80.0)
         };
         nodes.push(layout(
             LayoutIn {
@@ -359,6 +389,14 @@ struct LayoutIn {
     body: Option<Body>,
     /// Comment text (sizes notes that haven't been resized by hand).
     text: String,
+}
+
+/// A Keyboard card is wide enough for its keys to stay playable: two
+/// octaves fit the usual card, longer keyboards widen it.
+fn keyboard_width(registry: &Registry, n: &ac_core::NodeInstance) -> f32 {
+    let (low, keys) = super::piano::layout(registry, n);
+    let keys_w = super::piano::width_in_white_keys(low, keys) * super::piano::WHITE_KEY_WIDTH;
+    (keys_w + 2.0 * theme::BODY_PAD).max(theme::NODE_WIDTH)
 }
 
 /// Height that fits a note's text at `width` (canvas units), estimated
@@ -537,5 +575,41 @@ mod tests {
         assert!(matches!(missing.class, Class::Missing(_)));
         assert!(missing.socket("flux", false).is_some());
         assert_eq!(scene.wires.len(), 1);
+    }
+
+    #[test]
+    fn control_bodies_and_keyboard_width() {
+        let registry = ac_nodes::registry();
+        let mut p = Project::default();
+        p.graph
+            .nodes
+            .push(NodeInstance::new(NodeId(1), "keyboard").at(0.0, 0.0));
+        let mut long = NodeInstance::new(NodeId(2), "keyboard").at(0.0, 300.0);
+        long.config = serde_json::json!({"low": 21, "keys": 88});
+        p.graph.nodes.push(long);
+        for (i, kind) in ["knob", "xy_pad", "number", "dropdown"].iter().enumerate() {
+            p.graph
+                .nodes
+                .push(NodeInstance::new(NodeId(3 + i as u64), *kind).at(400.0, 300.0 * i as f32));
+        }
+        let doc = Document::new(p, None, PathBuf::from("."), 1);
+        let scene = build(&doc, &registry, None);
+        // Two octaves fit the usual card; the keys have no rows.
+        let short = scene.node(NodeId(1)).unwrap();
+        assert_eq!(short.body.map(|b| b.0), Some(Body::Keyboard));
+        assert_eq!(short.rect.width(), theme::NODE_WIDTH);
+        assert!(short.inputs.iter().all(|s| !s.name.starts_with("key_")));
+        assert!(short.socket("velocity", true).is_some());
+        // 88 keys widen the card instead of thinning the keys.
+        let long = scene.node(NodeId(2)).unwrap();
+        assert!(long.rect.width() > 600.0, "{}", long.rect.width());
+        let body = |id| scene.node(NodeId(id)).and_then(|n| n.body).map(|b| b.0);
+        assert_eq!(body(3), Some(Body::Knob));
+        assert_eq!(body(4), Some(Body::XyPad));
+        assert_eq!(body(5), Some(Body::Number));
+        assert_eq!(body(6), Some(Body::Dropdown));
+        assert!(Body::Knob.drives("value") && Body::Dropdown.drives("value"));
+        assert!(Body::XyPad.drives("touched") && !Body::XyPad.drives("x"));
+        assert!(Body::Keyboard.controls().is_empty());
     }
 }

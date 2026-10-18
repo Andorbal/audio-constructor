@@ -69,6 +69,8 @@ pub enum PanelRequest {
 pub struct DevicesState {
     pub hosts: Option<Vec<ac_io::HostInfo>>,
     pub draft: Option<ac_io::AudioConfig>,
+    /// MIDI output port names, read when first shown.
+    pub midi_outputs: Option<Vec<String>>,
 }
 
 /// The side panel's own state.

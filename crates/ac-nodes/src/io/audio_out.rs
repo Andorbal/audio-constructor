@@ -174,6 +174,7 @@ mod tests {
                 offset: 0,
                 frames,
                 midi: &[],
+                midi_out: None,
             },
             telemetry: TelemetryAccess {
                 values: &telemetry,

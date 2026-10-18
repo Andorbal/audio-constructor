@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "name": "Spectral gate, dry and wet",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "oscillator",
+        "params": {
+          "freq": 5000.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "gain",
+        "params": {
+          "gain": -50.0
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": 0.0
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "fft",
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "spectral_gate",
+        "params": {
+          "floor": -120.0,
+          "smoothing": 0.02,
+          "threshold": -40.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "ifft",
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": -6.0
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "analyzer",
+        "params": {
+          "decay": 0.3
+        },
+        "ui": {
+          "pos": [
+            1260.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1440.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "4:in_0"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in_1"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:spectrum",
+        "to": "6:spectrum"
+      },
+      {
+        "from": "6:spectrum",
+        "to": "7:spectrum"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "8:in_1"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:out",
+        "to": "10:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

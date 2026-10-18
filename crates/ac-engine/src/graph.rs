@@ -258,7 +258,7 @@ struct Chunk<'a, 'b> {
 impl Job for Chunk<'_, '_> {
     fn run(&mut self) {
         for (step, work) in self.steps.iter().zip(self.work.iter_mut()) {
-            run_step(self.shared, step, work, &mut []);
+            run_step(self.shared, step, work, &mut [], None);
         }
     }
 }
@@ -448,13 +448,13 @@ impl CompiledGraph {
                     }
                     _ => {
                         for (step, w) in par_steps.iter().zip(par_work.iter_mut()) {
-                            run_step(&shared, step, w, &mut []);
+                            run_step(&shared, step, w, &mut [], None);
                         }
                     }
                 }
                 let serial_steps = &shared.steps[mid..end];
                 for (step, w) in serial_steps.iter().zip(serial_work.iter_mut()) {
-                    run_step(&shared, step, w, host.output);
+                    run_step(&shared, step, w, host.output, host.midi_out.as_deref_mut());
                 }
             }
             for (k, step) in self.steps[start..end].iter().enumerate() {
@@ -631,9 +631,15 @@ fn move_back(
     }
 }
 
-/// Run one step whose outputs are in `work`. `host_output` is the device
-/// output for serial steps and empty for the rest.
-fn run_step(shared: &Shared<'_>, step: &Step, work: &mut StepWork, host_output: &mut [f32]) {
+/// Run one step whose outputs are in `work`. `host_output` and `midi_out`
+/// are the device outputs for serial steps, and empty for the rest.
+fn run_step(
+    shared: &Shared<'_>,
+    step: &Step,
+    work: &mut StepWork,
+    host_output: &mut [f32],
+    midi_out: Option<&mut Vec<MidiEvent>>,
+) {
     let frames = shared.frames;
     let phase = match step.kind {
         StepKind::FillFromScalar { scalar } => {
@@ -714,6 +720,7 @@ fn run_step(shared: &Shared<'_>, step: &Step, work: &mut StepWork, host_output: 
                 offset: shared.host_offset,
                 frames,
                 midi: shared.host_midi,
+                midi_out,
             },
             telemetry: tele,
         };

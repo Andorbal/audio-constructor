@@ -2,6 +2,53 @@
 
 [← All nodes](README.md)
 
+<a id="analyzer"></a>
+## Analyzer
+
+Kind: `analyzer` · Also found by: spectrum, analyser, fft, frequency, eq, rta
+
+A spectrum analyzer: shows how loud each part of the frequency range
+is, and passes the signal through unchanged so it can sit inline.
+
+The display has 64 bands spaced evenly in pitch from 20 Hz up to half
+the sample rate (about a sixth of an octave each at 48 kHz). Each
+band shows its level in dB, where 0 dB is a full-scale sine inside
+the band, down to a floor of −120 dB. Bands too narrow to hold a
+frequency bin read the spectrum interpolated at their center, so the
+curve has no gaps at the low end. Stereo signals show the average
+power of the first two channels; all channels pass through.
+
+Levels jump up at once and fall back by 20 dB every `decay` seconds,
+so short peaks stay visible long enough to read; 0 follows the
+signal frame by frame.
+
+Config:
+- `size`: FFT size, a power of two from 64 to 16384 (default 4096).
+  Bigger sizes resolve low frequencies better and respond slower.
+  Frames overlap by four with a Hann window.
+
+For the editor: telemetry value `k` (0..64) is band `k`'s level in
+dB, lowest band first, refreshed every block; `band_edges` gives the
+65 band edges in Hz for a sample rate. NaN or infinite samples count
+as silence in the display; `out` is still an exact copy of `in`.
+
+**Try this:** put an Analyzer after a `Biquad` and sweep the
+`cutoff` to watch the slope move, or before `AudioOut` to see where
+the energy in a mix sits.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to analyze. |
+| `decay` | Float (s) | 0.5 | 0 … 5 | Time for a band to fall by 20 dB. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The same signal, unchanged. |
+
 <a id="meter"></a>
 ## Meter
 

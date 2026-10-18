@@ -7,6 +7,7 @@ use egui::RichText;
 use super::{PanelIo, PanelRequest, markdown, section};
 use crate::canvas::widgets;
 use crate::edit::{self, GROUP_IN, GROUP_OUT, NodeClass};
+use crate::editors;
 use crate::icons;
 use crate::params;
 use crate::theme;
@@ -34,8 +35,34 @@ enum Kind {
     Text {
         multiline: bool,
     },
+    /// An array of strings, edited one per line.
+    Lines,
+    /// An array of numbers, edited as a comma-separated list.
+    Numbers,
+    /// A number picked from a list (stored as a number, shown as text).
+    NumberChoice {
+        choices: &'static [&'static str],
+        default: &'static str,
+    },
+    /// A whole number that may be negative (an index, where −1 means none).
+    Index {
+        min: i64,
+        max: i64,
+        default: i64,
+    },
+    /// A number that may be absent (no limit); a checkbox adds or removes it.
+    Optional {
+        default: f64,
+    },
     File,
 }
+
+/// FFT sizes the spectral nodes offer (others are rounded to a power of two).
+const FFT_SIZES: &[&str] = &["256", "512", "1024", "2048", "4096", "8192", "16384"];
+const WINDOWS: &[&str] = &["hann", "hamming", "blackman", "rectangular"];
+
+/// Signal types `Select` and `Switch` route.
+const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi"];
 
 const UNITS: &[&str] = &[
     "generic",
@@ -64,7 +91,7 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
-        "slider" => vec![
+        "slider" | "knob" => vec![
             f("min", "Minimum", Kind::Number { default: 0.0 }),
             f("max", "Maximum", Kind::Number { default: 1.0 }),
             f(
@@ -85,6 +112,371 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             ),
         ],
         "comment" => vec![f("text", "Text", Kind::Text { multiline: true })],
+        "xy_pad" => vec![
+            f("x_min", "X minimum", Kind::Number { default: 0.0 }),
+            f("x_max", "X maximum", Kind::Number { default: 1.0 }),
+            f("y_min", "Y minimum", Kind::Number { default: 0.0 }),
+            f("y_max", "Y maximum", Kind::Number { default: 1.0 }),
+        ],
+        "keyboard" => vec![
+            f(
+                "low",
+                "Lowest note",
+                Kind::Count {
+                    min: 0,
+                    max: 127,
+                    default: 48,
+                },
+            ),
+            f(
+                "keys",
+                "Keys",
+                Kind::Count {
+                    min: 1,
+                    max: 88,
+                    default: 25,
+                },
+            ),
+            f(
+                "channel",
+                "MIDI channel",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+        ],
+        "number" => vec![
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: &["float", "int"],
+                    default: "float",
+                },
+            ),
+            f("min", "Minimum", Kind::Optional { default: 0.0 }),
+            f("max", "Maximum", Kind::Optional { default: 1.0 }),
+        ],
+        "dropdown" => vec![f("choices", "Choices (one per line)", Kind::Lines)],
+        "select" => vec![
+            f(
+                "inputs",
+                "Inputs",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 4,
+                },
+            ),
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: ROUTE_TYPES,
+                    default: "float",
+                },
+            ),
+        ],
+        "switch" => vec![f(
+            "type",
+            "Type",
+            Kind::Choice {
+                choices: ROUTE_TYPES,
+                default: "float",
+            },
+        )],
+        "lfo" => vec![f(
+            "unit",
+            "Rate in",
+            Kind::Choice {
+                choices: &["hz", "beats"],
+                default: "hz",
+            },
+        )],
+        "envelope" => vec![
+            f(
+                "sustain",
+                "Sustain point (−1 none)",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: ac_nodes::modulation::envelope::DEFAULT_SUSTAIN,
+                },
+            ),
+            f(
+                "loop_start",
+                "Loop from point",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: -1,
+                },
+            ),
+            f(
+                "loop_end",
+                "Loop to point",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: -1,
+                },
+            ),
+        ],
+        "step_sequencer" => vec![f(
+            "steps",
+            "Steps",
+            Kind::Count {
+                min: 1,
+                max: 64,
+                default: 8,
+            },
+        )],
+        "noise" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
+        "graph" => vec![f(
+            "unit",
+            "Duration in",
+            Kind::Choice {
+                choices: &["seconds", "beats"],
+                default: "seconds",
+            },
+        )],
+        "sampler" => vec![
+            f("file", "File (when `buffer` is unwired)", Kind::File),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 2,
+                },
+            ),
+            f(
+                "root",
+                "Root note (plays at its own pitch)",
+                Kind::Number { default: 60.0 },
+            ),
+        ],
+        "wavetable" => vec![
+            f(
+                "table",
+                "Table",
+                Kind::Choice {
+                    choices: &["basic", "buffer"],
+                    default: "basic",
+                },
+            ),
+            f(
+                "frame_size",
+                "Frame size (buffer)",
+                Kind::Count {
+                    min: 32,
+                    max: 8192,
+                    default: 2048,
+                },
+            ),
+            f(
+                "max_frames",
+                "Most frames (buffer)",
+                Kind::Count {
+                    min: 1,
+                    max: 256,
+                    default: 64,
+                },
+            ),
+        ],
+        "lookahead" => vec![f("time", "Look ahead (s)", Kind::Number { default: 0.005 })],
+        "normalize" => vec![f(
+            "mode",
+            "Measure",
+            Kind::Choice {
+                choices: &["peak", "lufs"],
+                default: "peak",
+            },
+        )],
+        "comb" | "allpass" => vec![f(
+            "max_delay",
+            "Longest delay (s)",
+            Kind::Number { default: 0.1 },
+        )],
+        "freeze" => vec![f("max_time", "Memory (s)", Kind::Number { default: 4.0 })],
+        "pitch_shift" => vec![f(
+            "max_grain",
+            "Longest grain (s, sets latency)",
+            Kind::Number { default: 0.1 },
+        )],
+        "mid_side" => vec![f(
+            "mode",
+            "Mode",
+            Kind::Choice {
+                choices: &["encode", "decode"],
+                default: "encode",
+            },
+        )],
+        "fft" => vec![
+            f(
+                "size",
+                "Size",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+            f(
+                "overlap",
+                "Overlap",
+                Kind::NumberChoice {
+                    choices: &["1", "2", "4", "8"],
+                    default: "4",
+                },
+            ),
+            f(
+                "window",
+                "Window",
+                Kind::Choice {
+                    choices: WINDOWS,
+                    default: "hann",
+                },
+            ),
+        ],
+        "ifft" => vec![f(
+            "window",
+            "Window (match the FFT)",
+            Kind::Choice {
+                choices: WINDOWS,
+                default: "hann",
+            },
+        )],
+        "band_split" => vec![
+            f(
+                "mode",
+                "Split with",
+                Kind::Choice {
+                    choices: &["crossover", "fft"],
+                    default: "crossover",
+                },
+            ),
+            f(
+                "size",
+                "FFT size (fft mode)",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+        ],
+        "pitch_detect" => vec![
+            f(
+                "window",
+                "Window (samples)",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+            f(
+                "hop",
+                "Hop (samples)",
+                Kind::Count {
+                    min: 16,
+                    max: 16_384,
+                    default: 256,
+                },
+            ),
+        ],
+        "analyzer" => vec![f(
+            "size",
+            "FFT size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "4096",
+            },
+        )],
+        "frequency_trigger" => vec![f(
+            "mode",
+            "Listen for",
+            Kind::Choice {
+                choices: &["band", "pitch"],
+                default: "band",
+            },
+        )],
+        "midi_cc" => vec![f(
+            "initial",
+            "Start at (0–1 of the range)",
+            Kind::Number { default: 0.0 },
+        )],
+        "scale_quantize" => vec![f(
+            "type",
+            "Quantize",
+            Kind::Choice {
+                choices: &["float", "midi"],
+                default: "float",
+            },
+        )],
+        "chord" => vec![f(
+            "intervals",
+            "Custom intervals (semitones)",
+            Kind::Numbers,
+        )],
+        "pattern" => vec![
+            f(
+                "steps",
+                "Steps",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 16,
+                },
+            ),
+            f(
+                "rows",
+                "Rows",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 4,
+                },
+            ),
+        ],
+        "midi_pattern" => vec![
+            f("length", "Length (beats)", Kind::Number { default: 4.0 }),
+            f(
+                "channel",
+                "MIDI channel",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+        ],
+        "random_walk" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
+        "trigger_delay" | "trigger_to_gate" => vec![f(
+            "unit",
+            "Time in",
+            Kind::Choice {
+                choices: &["seconds", "beats"],
+                default: "seconds",
+            },
+        )],
         "audio_out" => vec![
             f(
                 "channel",
@@ -134,6 +526,22 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: 2,
             },
         )],
+        "file_out" => vec![
+            f(
+                "path",
+                "File (offline renders)",
+                Kind::Text { multiline: false },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
         "split_channels" | "merge_channels" => vec![f(
             "channels",
             "Channels",
@@ -322,6 +730,9 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             io.doc.enter_group(id);
         }
     });
+
+    // A node drawn rather than typed shows its editor first.
+    node_editor(ui, io, id, &node);
 
     // Parameters.
     let sockets = edit::sockets_of(
@@ -599,6 +1010,87 @@ fn param_widget(
     }
 }
 
+/// The node's own editor (curve, grid, piano roll, bands, steps), and a
+/// larger copy in a window.
+fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
+    let Some(editor) = editors::editor_for(&node.kind, &node.config) else {
+        return;
+    };
+    section(ui, "Editor");
+    if node.kind == "shaper" {
+        ui.label(
+            RichText::new("The curve shapes the signal when `shape` is custom.")
+                .small()
+                .color(theme::TEXT_MUTED),
+        );
+    }
+    let width = ui.available_width().max(120.0);
+    let edit = editors::show(
+        ui,
+        editor,
+        &node.config,
+        ("panel", id),
+        width,
+        editor.height(width),
+    );
+    apply_editor(io, id, editor, edit);
+    let open_id = egui::Id::unique(("node-editor-window", id));
+    let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
+    ui.horizontal(|ui| {
+        if ui
+            .button(format!("{}  Larger editor", icons::ARROW_SQUARE_OUT))
+            .clicked()
+        {
+            open = !open;
+        }
+        ui.add(
+            egui::Label::new(
+                RichText::new(editor.hint())
+                    .small()
+                    .color(theme::TEXT_FAINT),
+            )
+            .wrap(),
+        );
+    });
+    if open {
+        let title = node
+            .ui
+            .label
+            .clone()
+            .or_else(|| io.registry.get(&node.kind).map(|e| e.meta.name.to_string()))
+            .unwrap_or_else(|| node.kind.clone());
+        let mut edit = None;
+        egui::Window::new(title)
+            .id(egui::Id::unique(("node-editor-window-frame", id)))
+            .open(&mut open)
+            .default_size(egui::vec2(720.0, 420.0))
+            .resizable(true)
+            .collapsible(false)
+            .show(ui.ctx(), |ui| {
+                let size = ui.available_size();
+                let w = size.x.max(200.0);
+                let h = (size.y - 30.0).max(editor.height(w).min(200.0));
+                edit = editors::show(ui, editor, &node.config, ("window", id), w, h);
+            });
+        apply_editor(io, id, editor, edit);
+    }
+    ui.data_mut(|d| d.insert_temp(open_id, open));
+}
+
+fn apply_editor(
+    io: &mut PanelIo,
+    id: NodeId,
+    editor: editors::Editor,
+    edit: Option<editors::Edit>,
+) {
+    if let Some(e) = edit {
+        io.doc.set_config(id, editor.key(), e.value, io.now);
+        if e.done {
+            io.doc.end_coalescing();
+        }
+    }
+}
+
 fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
     let key = key.to_string();
     io.doc.edit(io.registry, "Change setting", |g, _| {
@@ -613,6 +1105,14 @@ fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value)
     });
 }
 
+fn remove_config(io: &mut PanelIo, id: NodeId, key: &str) {
+    io.doc.edit(io.registry, "Change setting", |g, _| {
+        if let Some(o) = g.node_mut(id).and_then(|n| n.config.as_object_mut()) {
+            o.remove(key);
+        }
+    });
+}
+
 fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
     let known = schema(&node.kind);
     let extra: Vec<(String, serde_json::Value)> = node
@@ -623,8 +1123,14 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                 .filter(|(k, _)| !known.iter().any(|f| f.key == k.as_str()))
                 .filter(|(k, _)| {
                     !(node.kind == "clip" && (k.as_str() == "channels" || k.as_str() == "hash"))
+                        && !(node.kind == "sampler" && k.as_str() == "hash")
                 })
                 .filter(|(k, _)| node.kind != "group" || k.as_str() != "def")
+                // The node editor shows its own key.
+                .filter(|(k, _)| {
+                    editors::editor_for(&node.kind, &node.config)
+                        .is_none_or(|e| e.key() != k.as_str())
+                })
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
         })
@@ -683,6 +1189,126 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         if r.lost_focus() && t != node.config.get_str_or(f.key, "") {
                             set_config(io, id, f.key, t.into());
                         }
+                    }
+                    Kind::Index { min, max, default } => {
+                        let mut v = node
+                            .config
+                            .get(f.key)
+                            .and_then(serde_json::Value::as_i64)
+                            .unwrap_or(*default);
+                        if ui
+                            .add(egui::DragValue::new(&mut v).range(*min..=*max).speed(0.05))
+                            .changed()
+                        {
+                            set_config(io, id, f.key, v.into());
+                        }
+                    }
+                    Kind::NumberChoice { choices, default } => {
+                        let cur = node
+                            .config
+                            .get(f.key)
+                            .and_then(serde_json::Value::as_f64)
+                            .map_or_else(|| (*default).to_string(), |v| format!("{v}"));
+                        egui::ComboBox::from_id_salt(("cfg", id, f.key))
+                            .selected_text(&cur)
+                            .show_ui(ui, |ui| {
+                                for c in *choices {
+                                    if ui.selectable_label(cur == *c, *c).clicked()
+                                        && let Ok(v) = c.parse::<u64>()
+                                    {
+                                        set_config(io, id, f.key, v.into());
+                                    }
+                                }
+                            });
+                    }
+                    Kind::Numbers => {
+                        let stored: Vec<f64> = node
+                            .config
+                            .get(f.key)
+                            .and_then(|v| v.as_array())
+                            .map(|a| a.iter().filter_map(serde_json::Value::as_f64).collect())
+                            .unwrap_or_default();
+                        let fmt = |v: &f64| {
+                            if v.fract() == 0.0 {
+                                format!("{v:.0}")
+                            } else {
+                                format!("{v}")
+                            }
+                        };
+                        let mut t = stored.iter().map(fmt).collect::<Vec<_>>().join(", ");
+                        let r = ui.add(egui::TextEdit::singleline(&mut t).hint_text("0, 4, 7"));
+                        if r.lost_focus() {
+                            let parsed: Vec<f64> = t
+                                .split([',', ' '])
+                                .filter_map(|x| x.trim().parse::<f64>().ok())
+                                .filter(|v| v.is_finite())
+                                .collect();
+                            if parsed != stored {
+                                let ints = parsed.iter().all(|v| v.fract() == 0.0);
+                                let value: serde_json::Value = if ints {
+                                    parsed.iter().map(|v| *v as i64).collect::<Vec<_>>().into()
+                                } else {
+                                    parsed.into()
+                                };
+                                set_config(io, id, f.key, value);
+                            }
+                        }
+                    }
+                    Kind::Lines => {
+                        let stored: Vec<String> = node
+                            .config
+                            .get(f.key)
+                            .and_then(|v| v.as_array())
+                            .map(|a| {
+                                a.iter()
+                                    .map(|v| match v {
+                                        serde_json::Value::String(s) => s.clone(),
+                                        other => other.to_string(),
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let mut t = stored.join("\n");
+                        let r = ui.add(
+                            egui::TextEdit::multiline(&mut t)
+                                .desired_rows(3)
+                                .desired_width(f32::INFINITY),
+                        );
+                        if r.lost_focus() {
+                            let lines: Vec<String> = t
+                                .lines()
+                                .map(str::trim)
+                                .filter(|l| !l.is_empty())
+                                .map(str::to_string)
+                                .collect();
+                            if lines != stored {
+                                set_config(io, id, f.key, lines.into());
+                            }
+                        }
+                    }
+                    Kind::Optional { default } => {
+                        let current = node.config.get(f.key).and_then(|v| v.as_f64());
+                        ui.horizontal(|ui| {
+                            let mut on = current.is_some();
+                            if ui.checkbox(&mut on, "").changed() {
+                                if on {
+                                    set_config(io, id, f.key, (*default).into());
+                                } else {
+                                    remove_config(io, id, f.key);
+                                }
+                            }
+                            match current {
+                                Some(mut v) => {
+                                    let speed = 0.01 * (v.abs() + 1.0);
+                                    if ui.add(egui::DragValue::new(&mut v).speed(speed)).changed() {
+                                        set_config(io, id, f.key, v.into());
+                                    }
+                                }
+                                None => {
+                                    ui.label(RichText::new("none").color(theme::TEXT_FAINT));
+                                }
+                            }
+                        });
                     }
                     Kind::File => {
                         let file = node.config.get_str_or(f.key, "").to_string();

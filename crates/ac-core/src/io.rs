@@ -853,7 +853,8 @@ impl Outputs<'_> {
     }
 }
 
-/// The host's device buffers, for `AudioIn`, `AudioOut`, and `MidiIn` nodes.
+/// The host's device buffers, for `AudioIn`, `AudioOut`, `MidiIn`, and
+/// `MidiOut` nodes.
 /// Channel-major: channel `c` of the host block lives at
 /// `[c * stride .. (c + 1) * stride]`; this view covers `offset..offset + frames`.
 #[derive(Debug)]
@@ -867,6 +868,10 @@ pub struct HostAccess<'a> {
     pub frames: usize,
     /// MIDI received for this block, offsets relative to this block.
     pub midi: &'a [MidiEvent],
+    /// MIDI to send to the devices, offsets relative to the host block (so
+    /// `offset` + the offset in this view). Only `host_output` nodes get it;
+    /// write with [`HostAccess::send_midi`].
+    pub midi_out: Option<&'a mut Vec<MidiEvent>>,
 }
 
 impl<'a> HostAccess<'a> {
@@ -881,6 +886,7 @@ impl<'a> HostAccess<'a> {
             offset: 0,
             frames,
             midi: &[],
+            midi_out: None,
         }
     }
 
@@ -906,6 +912,25 @@ impl<'a> HostAccess<'a> {
 
     pub fn midi(&self) -> &'a [MidiEvent] {
         self.midi
+    }
+
+    /// Send a message to the MIDI devices at `ev.offset` in this block.
+    /// Keeps offsets ascending; drops the message if the host has no MIDI
+    /// output or its buffer is full.
+    pub fn send_midi(&mut self, ev: MidiEvent) {
+        let offset = self.offset as u32 + ev.offset.min(self.frames.saturating_sub(1) as u32);
+        if let Some(buf) = self.midi_out.as_deref_mut() {
+            if buf.len() == buf.capacity() {
+                return;
+            }
+            let pos = buf.partition_point(|e| e.offset <= offset);
+            buf.insert(pos, MidiEvent::new(offset, ev.msg));
+        }
+    }
+
+    /// Whether [`HostAccess::send_midi`] goes anywhere.
+    pub fn has_midi_out(&self) -> bool {
+        self.midi_out.is_some()
     }
 }
 

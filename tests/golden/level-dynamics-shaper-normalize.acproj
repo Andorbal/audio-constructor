@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "name": "Dynamics, shaping, crossfade, normalize",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "graph",
+        "config": {
+          "points": [
+            [
+              0,
+              0
+            ],
+            [
+              0.05,
+              1
+            ],
+            [
+              1,
+              0.1
+            ]
+          ]
+        },
+        "params": {
+          "duration": 0.25,
+          "loop": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "lookahead",
+        "config": {
+          "time": 0.002
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            100.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "envelope_follower",
+        "params": {
+          "attack": 0.001,
+          "release": 0.05
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "gain_computer",
+        "params": {
+          "knee": 6.0,
+          "ratio": 8.0,
+          "threshold": -18.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "shaper",
+        "params": {
+          "bias": 0.1,
+          "drive": 6.0,
+          "shape": "fold"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "crossfade",
+        "params": {
+          "curve": "equal_power",
+          "mix": 0.3
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "normalize",
+        "params": {
+          "target": -3.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1400.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "3:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:b"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:early",
+        "to": "5:in"
+      },
+      {
+        "from": "5:level_db",
+        "to": "6:level"
+      },
+      {
+        "from": "6:gain_reduction",
+        "to": "7:gain"
+      },
+      {
+        "from": "4:out",
+        "to": "7:in"
+      },
+      {
+        "from": "1:out",
+        "to": "8:in"
+      },
+      {
+        "from": "7:out",
+        "to": "9:a"
+      },
+      {
+        "from": "8:out",
+        "to": "9:b"
+      },
+      {
+        "from": "9:out",
+        "to": "10:in"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

@@ -1,12 +1,12 @@
 //! `audioc render`.
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Instant;
 
-use ac_engine::{RenderOptions, Severity, render};
-use ac_io::{BitDepth, read_wav, write_wav};
+use ac_engine::{RenderOptions, RenderedFile, Severity, render};
+use ac_io::{BitDepth, read_wav, write_midi_file, write_wav};
 use anyhow::{Result, anyhow};
 use clap::Args;
 
@@ -40,9 +40,45 @@ pub struct RenderArgs {
     /// Feed this WAV file to AudioIn nodes as if from a device.
     #[arg(long)]
     input: Option<PathBuf>,
+    /// Write what MIDI Out nodes send to this standard MIDI file.
+    #[arg(long)]
+    midi_out: Option<PathBuf>,
     /// Print nothing but errors.
     #[arg(short, long)]
     quiet: bool,
+}
+
+/// Where a File Out node's file goes: its config path, relative to `base`
+/// (the main output's folder), with `.wav` added if it has no extension.
+/// Paths that could reach outside `base` are refused, so a shared project
+/// can't write anywhere else on the machine.
+pub fn file_out_path(base: &Path, path: &str) -> Result<PathBuf, String> {
+    let rel = Path::new(path.trim());
+    if rel.as_os_str().is_empty() {
+        return Err("no path".into());
+    }
+    for c in rel.components() {
+        match c {
+            Component::Normal(_) | Component::CurDir => {}
+            Component::ParentDir => return Err(format!("\"{path}\" leaves the output folder")),
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(format!("\"{path}\" must be relative to the output folder"));
+            }
+        }
+    }
+    let mut full = base.join(rel);
+    if full.extension().is_none() {
+        full.set_extension("wav");
+    }
+    Ok(full)
+}
+
+fn write_file_out(path: &Path, file: &RenderedFile, depth: BitDepth) -> Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| anyhow!("couldn't create {}: {e}", dir.display()))?;
+    }
+    write_wav(path, &file.channels, file.sample_rate, depth).map_err(|e| anyhow!(e))
 }
 
 pub fn run(args: RenderArgs) -> Result<ExitCode> {
@@ -77,6 +113,38 @@ pub fn run(args: RenderArgs) -> Result<ExitCode> {
         }
     }
     write_wav(&args.output, &out.channels, out.sample_rate, depth).map_err(|e| anyhow!(e))?;
+    let base = args
+        .output
+        .parent()
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
+    let mut written = Vec::new();
+    for file in &out.files {
+        match file_out_path(&base, &file.path) {
+            Ok(path) if path == args.output || written.iter().any(|(p, _)| p == &path) => {
+                eprintln!(
+                    "warning: File Out \"{}\" writes {} again; skipped",
+                    file.name,
+                    path.display()
+                );
+            }
+            Ok(path) => {
+                write_file_out(&path, file, depth)?;
+                written.push((path, file));
+            }
+            Err(why) => eprintln!("warning: File Out \"{}\": {why}; skipped", file.name),
+        }
+    }
+    if let Some(path) = &args.midi_out {
+        let start = (opts.from.max(0.0) * f64::from(out.sample_rate)).round() as u64;
+        write_midi_file(
+            path,
+            &out.midi,
+            start,
+            f64::from(out.sample_rate),
+            &project.settings.tempo,
+        )
+        .map_err(|e| anyhow!("couldn't write {}: {e}", path.display()))?;
+    }
     if !args.quiet {
         let secs = out.frames() as f64 / f64::from(out.sample_rate);
         println!(
@@ -97,10 +165,53 @@ pub fn run(args: RenderArgs) -> Result<ExitCode> {
                 ac_core::testing::rms(ch)
             );
         }
+        for (path, file) in &written {
+            let peak = file
+                .channels
+                .iter()
+                .map(|c| ac_core::testing::peak(c))
+                .fold(0.0, f32::max);
+            println!(
+                "  File Out \"{}\": {} ch, peak {:.4} → {}",
+                file.name,
+                file.channels.len(),
+                peak,
+                path.display()
+            );
+        }
+        if let Some(path) = &args.midi_out {
+            println!("  {} MIDI messages → {}", out.midi.len(), path.display());
+        }
     }
     Ok(if out.report.has_errors() {
         ExitCode::from(2)
     } else {
         ExitCode::SUCCESS
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_out_paths_stay_in_the_output_folder() {
+        let base = Path::new("out");
+        assert_eq!(
+            file_out_path(base, "drums").unwrap(),
+            Path::new("out/drums.wav")
+        );
+        assert_eq!(
+            file_out_path(base, "stems/bass.wav").unwrap(),
+            Path::new("out/stems/bass.wav")
+        );
+        assert_eq!(
+            file_out_path(base, "./x.aiff").unwrap(),
+            Path::new("out/./x.aiff")
+        );
+        assert!(file_out_path(base, "").is_err());
+        assert!(file_out_path(base, "../up.wav").is_err());
+        assert!(file_out_path(base, "a/../../up.wav").is_err());
+        assert!(file_out_path(base, "/etc/x.wav").is_err());
+    }
 }

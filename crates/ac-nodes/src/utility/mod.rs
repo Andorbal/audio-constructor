@@ -8,6 +8,7 @@ pub mod group;
 pub mod info;
 pub mod latency;
 pub mod merge_channels;
+pub mod mid_side;
 pub mod reroute;
 pub mod split_channels;
 
@@ -18,6 +19,7 @@ pub fn register(r: &mut Registry) {
     r.register::<group::Group>();
     r.register::<split_channels::SplitChannels>();
     r.register::<merge_channels::MergeChannels>();
+    r.register::<mid_side::MidSide>();
     r.register::<comment::Comment>();
     r.register::<latency::Latency>();
     r.register::<info::Info>();

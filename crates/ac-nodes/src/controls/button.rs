@@ -32,7 +32,7 @@ const RELEASE: usize = 2;
 
 /// Calls `f(offset, pressed)` wherever `pressed` changes, starting from its
 /// state before the block. Returns the state at the end of the block.
-fn for_each_edge(
+pub(crate) fn for_each_edge(
     pressed: BoolIn,
     before: bool,
     frames: usize,

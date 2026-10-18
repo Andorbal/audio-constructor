@@ -7,6 +7,7 @@ pub mod canvas;
 pub mod dialogs;
 pub mod document;
 pub mod edit;
+pub mod editors;
 pub mod export;
 pub mod files;
 pub mod icons;

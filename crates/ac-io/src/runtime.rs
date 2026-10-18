@@ -26,6 +26,7 @@ use crate::clock;
 use crate::convert::deinterleave_parts;
 use crate::latency::{Latency, LatencyError, Probe};
 use crate::midi::{MAX_EVENTS_PER_CALLBACK, MidiReceiver};
+use crate::midi_out::MidiOutQueue;
 
 /// Frames processed per pass. Device callbacks larger than this are split;
 /// scratch buffers are sized for it once, up front.
@@ -179,6 +180,15 @@ impl fmt::Display for AudioError {
 
 impl std::error::Error for AudioError {}
 
+/// The MIDI a stream connects to its engine.
+#[derive(Debug, Default)]
+pub struct MidiPorts {
+    /// Messages from the devices, for `MidiIn` nodes.
+    pub input: Option<MidiReceiver>,
+    /// Where `MidiOut` nodes' messages go.
+    pub output: Option<MidiOutQueue>,
+}
+
 /// A configured audio backend, ready to run an engine built at
 /// [`StreamInfo::sample_rate`].
 pub trait AudioHost {
@@ -191,6 +201,21 @@ pub trait AudioHost {
         self: Box<Self>,
         processor: Processor,
         midi: Option<MidiReceiver>,
+    ) -> Result<Box<dyn AudioStream>, StartError> {
+        self.start_with(
+            processor,
+            MidiPorts {
+                input: midi,
+                output: None,
+            },
+        )
+    }
+
+    /// [`AudioHost::start`] with MIDI output as well.
+    fn start_with(
+        self: Box<Self>,
+        processor: Processor,
+        midi: MidiPorts,
     ) -> Result<Box<dyn AudioStream>, StartError>;
 }
 
@@ -256,12 +281,24 @@ pub trait AudioStream: Send {
 pub struct Stopped {
     pub processor: Processor,
     pub midi: Option<MidiReceiver>,
+    pub midi_out: Option<MidiOutQueue>,
+}
+
+impl Stopped {
+    /// The MIDI to start the next stream with.
+    pub fn midi_ports(&mut self) -> MidiPorts {
+        MidiPorts {
+            input: self.midi.take(),
+            output: self.midi_out.take(),
+        }
+    }
 }
 
 impl fmt::Debug for Stopped {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Stopped")
             .field("midi", &self.midi.is_some())
+            .field("midi_out", &self.midi_out.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -459,6 +496,8 @@ pub(crate) struct CallbackCore {
     midi: Option<MidiReceiver>,
     midi_all: Vec<MidiEvent>,
     midi_chunk: Vec<MidiEvent>,
+    midi_out: Option<MidiOutQueue>,
+    midi_out_chunk: Vec<MidiEvent>,
     probe: ProbeAudio,
     /// Ask for real-time priority on the first callback (see `priority.rs`).
     promote: bool,
@@ -471,7 +510,7 @@ pub(crate) struct CoreParts {
     pub in_channels: usize,
     pub out_channels: usize,
     pub input_ring: Option<InputRing>,
-    pub midi: Option<MidiReceiver>,
+    pub midi: MidiPorts,
     pub promote: bool,
 }
 
@@ -497,6 +536,10 @@ impl CallbackCore {
         } = parts;
         clock::init();
         processor.set_clock(Some(clock::now_ns));
+        let MidiPorts {
+            input: midi,
+            output: midi_out,
+        } = midi;
         let (probe_ctl, probe) = probe_pair(sample_rate, in_channels);
         let (return_tx, returned) = mpsc::channel();
         let core = CallbackCore {
@@ -513,6 +556,8 @@ impl CallbackCore {
             midi,
             midi_all: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
             midi_chunk: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
+            midi_out,
+            midi_out_chunk: Vec::with_capacity(MAX_EVENTS_PER_CALLBACK),
             probe,
             promote,
         };
@@ -582,6 +627,7 @@ impl CallbackCore {
                 if !probing {
                     match self.processor.as_mut() {
                         Some(p) => {
+                            self.midi_out_chunk.clear();
                             let mut io = HostIo {
                                 frames: n,
                                 input: &self.input[..ic * n],
@@ -589,8 +635,16 @@ impl CallbackCore {
                                 output,
                                 out_channels: oc,
                                 midi: &self.midi_chunk,
+                                midi_out: self
+                                    .midi_out
+                                    .is_some()
+                                    .then_some(&mut self.midi_out_chunk),
                             };
                             p.process(&mut io);
+                            if let Some(q) = self.midi_out.as_mut() {
+                                let t_chunk = t + (done as f64 * 1e9 / self.sample_rate) as u64;
+                                q.push_block(t_chunk, n, self.sample_rate, &self.midi_out_chunk);
+                            }
                         }
                         None => output.fill(0.0),
                     }
@@ -610,6 +664,7 @@ impl Drop for CallbackCore {
             let _ = tx.send(Stopped {
                 processor,
                 midi: self.midi.take(),
+                midi_out: self.midi_out.take(),
             });
         }
     }
@@ -737,7 +792,10 @@ mod tests {
             in_channels: 2,
             out_channels: 2,
             input_ring: Some(InputRing::new(rx, 2, buffer)),
-            midi,
+            midi: MidiPorts {
+                input: midi,
+                output: None,
+            },
             promote: false,
         });
         (core, ctl, tx, counters)
@@ -891,6 +949,59 @@ mod tests {
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
         assert!(back.midi.is_some());
+    }
+
+    #[test]
+    fn midi_out_nodes_reach_the_output_ports_on_time() {
+        // MIDI In → MIDI Out, with a virtual port on each end.
+        let mut p = Project::default();
+        p.graph.nodes.push(NodeInstance::new(NodeId(1), "midi_in"));
+        p.graph.nodes.push(NodeInstance::new(NodeId(2), "midi_out"));
+        p.graph.wires.push(wire(1, "midi", 2, "midi"));
+        let (_h, processor) = engine(p, Arc::new(ac_core::NoResources), 480);
+        let (mut inputs, rx) = MidiInputs::new();
+        let mut kbd = inputs.sender("test").unwrap();
+        let (mut outputs, queue) = crate::midi_out::MidiOutputs::new();
+        let got = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let log = got.clone();
+        outputs.add_virtual("synth", move |b| {
+            log.lock().unwrap().push((clock::now_ns(), b.to_vec()));
+        });
+        let (mut core, ctl) = CallbackCore::new(CoreParts {
+            processor,
+            counters: Arc::new(StreamCounters::default()),
+            sample_rate: RATE,
+            in_channels: 0,
+            out_channels: 2,
+            input_ring: None,
+            midi: MidiPorts {
+                input: Some(rx),
+                output: Some(queue),
+            },
+            promote: false,
+        });
+        let note = MidiMsg::NoteOn {
+            channel: 2,
+            note: 64,
+            velocity: 90,
+        };
+        // Received halfway through the previous 10 ms block.
+        let t = clock::now_ns() + 20_000_000;
+        kbd.send_at(t - 5_000_000, note);
+        core.run_at(t, 480, |_, _, _| {});
+        let t0 = Instant::now();
+        while got.lock().unwrap().is_empty() && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let got = got.lock().unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].1, [0x92, 64, 90]);
+        // Out one block after the callback, halfway into it: input and
+        // output each add a block.
+        assert!(got[0].0 >= t + 15_000_000, "{} vs {}", got[0].0, t);
+        drop(core);
+        let back = ctl.returned.try_recv().unwrap();
+        assert!(back.midi_out.is_some());
     }
 
     #[test]

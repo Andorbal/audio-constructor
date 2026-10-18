@@ -14,7 +14,7 @@ use ac_core::{Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 use ac_io::{
     AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, Latency, LatencyError, MidiInputs,
-    MidiReceiver, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
+    MidiOutputs, MidiPorts, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
 };
 
 /// Rate and buffer of the null stream when there's no device.
@@ -50,6 +50,9 @@ pub struct EngineHost {
     /// backend failed).
     idle: Option<Processor>,
     pub midi: Option<MidiInputs>,
+    /// Where MIDI Out nodes send; nothing until chosen in the Devices tab.
+    pub midi_out: Option<MidiOutputs>,
+    pub midi_out_choice: MidiSelect,
     last_rescan: Instant,
     pub report: CompileReport,
     /// What the engine runs at (from the stream, or the null defaults).
@@ -128,6 +131,8 @@ impl EngineHost {
             stream: None,
             idle: None,
             midi: None,
+            midi_out: None,
+            midi_out_choice: MidiSelect::None,
             last_rescan: Instant::now(),
             report,
             info,
@@ -138,19 +143,43 @@ impl EngineHost {
             mode_off: host.is_none(),
             baker: Baker::new(),
         };
-        let midi_rx = if matches!(mode, AudioMode::Device(_)) {
-            let (mut inputs, rx) = MidiInputs::new();
-            inputs.connect(MidiSelect::All);
-            me.midi = Some(inputs);
-            Some(rx)
+        let ports = if matches!(mode, AudioMode::Device(_)) {
+            MidiPorts {
+                input: Some(me.new_midi_inputs()),
+                output: Some(me.new_midi_outputs()),
+            }
         } else {
-            None
+            MidiPorts::default()
         };
         match host {
-            Some(h) => me.run(h, processor, midi_rx, project),
+            Some(h) => me.run(h, processor, ports, project),
             None => me.idle = Some(processor),
         }
         me
+    }
+
+    fn new_midi_inputs(&mut self) -> ac_io::MidiReceiver {
+        let (mut inputs, rx) = MidiInputs::new();
+        inputs.connect(MidiSelect::All);
+        self.midi = Some(inputs);
+        rx
+    }
+
+    fn new_midi_outputs(&mut self) -> ac_io::MidiOutQueue {
+        let (mut outputs, queue) = MidiOutputs::new();
+        if self.midi_out_choice != MidiSelect::None {
+            outputs.connect(self.midi_out_choice.clone());
+        }
+        self.midi_out = Some(outputs);
+        queue
+    }
+
+    /// Send MIDI Out nodes' messages to these ports from now on.
+    pub fn set_midi_out(&mut self, choice: MidiSelect) {
+        self.midi_out_choice = choice.clone();
+        if let Some(m) = self.midi_out.as_mut() {
+            m.connect(choice);
+        }
     }
 
     /// Start `processor` on `host`; if it won't start, try the null stream
@@ -159,12 +188,12 @@ impl EngineHost {
         &mut self,
         host: Box<dyn AudioHost>,
         mut processor: Processor,
-        midi: Option<MidiReceiver>,
+        midi: MidiPorts,
         project: &Project,
     ) {
         processor.set_workers(worker_pool(self.config.threads));
         let is_null = host.info().host == "null";
-        match host.start(processor, midi) {
+        match host.start_with(processor, midi) {
             Ok(s) => {
                 self.info = s.info().clone();
                 self.stream = Some(s);
@@ -179,7 +208,11 @@ impl EngineHost {
                     return;
                 }
                 let null = Box::new(null_host(project, self.info.sample_rate));
-                match null.start(back.processor, back.midi) {
+                let ports = MidiPorts {
+                    input: back.midi,
+                    output: back.midi_out,
+                };
+                match null.start_with(back.processor, ports) {
                     Ok(s) => {
                         self.info = s.info().clone();
                         self.stream = Some(s);
@@ -214,16 +247,19 @@ impl EngineHost {
         self.device_error = None;
         self.latency = LatencyState::Idle;
         let stopped = self.stream.take().and_then(|s| s.stop());
-        let (processor, midi) = match stopped {
-            Some(s) => (Some(s.processor), s.midi),
-            None => (self.idle.take(), None),
+        let (processor, mut midi) = match stopped {
+            Some(mut s) => {
+                let ports = s.midi_ports();
+                (Some(s.processor), ports)
+            }
+            None => (self.idle.take(), MidiPorts::default()),
         };
-        let midi = midi.or_else(|| {
-            let (mut inputs, rx) = MidiInputs::new();
-            inputs.connect(MidiSelect::All);
-            self.midi = Some(inputs);
-            Some(rx)
-        });
+        if midi.input.is_none() {
+            midi.input = Some(self.new_midi_inputs());
+        }
+        if midi.output.is_none() {
+            midi.output = Some(self.new_midi_outputs());
+        }
         let same_rate = host.info().sample_rate == self.info.sample_rate;
         let processor = match processor {
             Some(p) if same_rate => p,
@@ -276,10 +312,9 @@ impl EngineHost {
         }
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();
-            if self.last_rescan.elapsed() > MIDI_RESCAN {
-                m.rescan();
-                self.last_rescan = Instant::now();
-            }
+        }
+        if self.last_rescan.elapsed() > MIDI_RESCAN {
+            self.rescan_midi();
         }
         if self.latency == LatencyState::Running
             && let Some(s) = self.stream.as_mut()
@@ -292,8 +327,13 @@ impl EngineHost {
     pub fn rescan_midi(&mut self) {
         if let Some(m) = self.midi.as_mut() {
             m.rescan();
-            self.last_rescan = Instant::now();
         }
+        if self.midi_out_choice != MidiSelect::None
+            && let Some(m) = self.midi_out.as_mut()
+        {
+            m.rescan();
+        }
+        self.last_rescan = Instant::now();
     }
 
     pub fn measure_latency(&mut self) {
@@ -356,6 +396,7 @@ impl EngineHost {
             output: &mut out,
             out_channels: ch,
             midi: &[],
+            midi_out: None,
         };
         p.process(&mut io);
         self.handle.collect_garbage();

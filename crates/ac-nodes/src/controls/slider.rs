@@ -1,7 +1,6 @@
-use ac_core::{
-    Config, ConfigExt, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec, Unit,
-    node,
-};
+use ac_core::{Config, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, node};
+
+use super::{Ranged, clamp_through};
 
 node! {
     kind: "slider",
@@ -30,65 +29,25 @@ node! {
 const VALUE: usize = 0;
 const OUT: usize = 0;
 
-/// The slider's setup, repaired: finite, `min <= max`, within `f32`.
-struct Setup {
-    min: f64,
-    max: f64,
-    unit: Unit,
-    log: bool,
-}
-
-fn setup(config: &Config) -> Setup {
-    let limit = f64::from(f32::MAX);
-    let a = config.get_f64_or("min", 0.0).clamp(-limit, limit);
-    let b = config.get_f64_or("max", 1.0).clamp(-limit, limit);
-    let (min, max) = if a <= b { (a, b) } else { (b, a) };
-    let unit_name = config.get_str_or("unit", "generic");
-    let unit = serde_json::from_value(serde_json::Value::from(unit_name)).unwrap_or_default();
-    let log = config.get_str_or("scale", "linear") == "log" && min > 0.0;
-    Setup {
-        min,
-        max,
-        unit,
-        log,
-    }
-}
-
 impl Node for Slider {
     fn meta() -> NodeMeta {
         Self::base_meta()
     }
 
     fn describe(config: &Config) -> Signature {
-        let s = setup(config);
-        let mut value = SocketSpec::float("value", s.unit, s.min)
-            .range(s.min, s.max)
-            .doc("The slider's position.");
-        if s.log {
-            value = value.log();
-        }
-        Signature::new().input(value).output(
-            SocketSpec::float("out", s.unit, s.min)
-                .poly()
-                .doc("`value`, kept within the range."),
-        )
+        Ranged::from_config(config).signature("The slider's position.")
     }
 
     fn new(config: &Config, _: &PrepareCtx) -> Self {
-        let s = setup(config);
+        let r = Ranged::from_config(config);
         Slider {
-            min: s.min as f32,
-            max: s.max as f32,
+            min: r.min as f32,
+            max: r.max as f32,
         }
     }
 
     fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
-        let value = io.inputs.float(VALUE);
-        let (min, max) = (self.min, self.max);
-        // `max`/`min` return the other operand for NaN, so NaN reads as `min`.
-        io.outputs
-            .float(OUT)
-            .fill_with(|i| value.at(i).max(min).min(max));
+        clamp_through(io, VALUE, OUT, self.min, self.max);
     }
 
     fn reset(&mut self) {}
@@ -98,7 +57,7 @@ impl Node for Slider {
 mod tests {
     use super::*;
     use ac_core::testing::Harness;
-    use ac_core::{OutRate, Scale, Value};
+    use ac_core::{OutRate, Scale, Unit, Value};
     use serde_json::json;
 
     #[test]

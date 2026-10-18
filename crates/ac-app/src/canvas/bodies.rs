@@ -1,12 +1,28 @@
 //! Widget bodies of the control and display nodes: buttons, switches,
-//! sliders, meters, scopes, readouts, clip and record status, and comment
-//! sticky notes.
+//! sliders, knobs, XY pads, keyboards, number fields, dropdowns, meters,
+//! scopes, readouts, clip and record status, and comment sticky notes.
+
+use std::f32::consts::PI;
 
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
 
 use crate::canvas::live::MeterChannel;
+use crate::canvas::piano;
 use crate::icons;
 use crate::theme;
+
+/// A knob turns through three quarters of a circle, from 7:30 round to
+/// 4:30, like most hardware.
+const KNOB_SWEEP: f32 = 1.5 * PI;
+
+/// Raised surfaces (button tops, knob caps) and their hovered shade.
+const RAISED: Color32 = Color32::from_rgb(0x32, 0x36, 0x3F);
+const RAISED_HOVER: Color32 = Color32::from_rgb(0x3A, 0x3F, 0x49);
+const SHADOW: Color32 = Color32::from_rgb(0x15, 0x16, 0x1A);
+
+fn controls_color() -> Color32 {
+    theme::category_color(ac_core::Category::Controls)
+}
 
 fn db(x: f32) -> f32 {
     20.0 * x.max(1e-6).log10()
@@ -153,6 +169,332 @@ pub fn slider(
     }
 }
 
+/// The angle of a knob at position `t` (0..1 of its range), in radians
+/// clockwise from straight up: −135° at the bottom of the range, 0 in the
+/// middle, +135° at the top.
+pub fn knob_angle(t: f32) -> f32 {
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (t - 0.5) * KNOB_SWEEP
+}
+
+/// The point at `angle` (clockwise from up) on a circle.
+fn on_circle(center: Pos2, r: f32, angle: f32) -> Pos2 {
+    pos2(center.x + r * angle.sin(), center.y - r * angle.cos())
+}
+
+/// An arc from angle `a` to `b` as a polyline, fine enough to look round.
+fn arc(center: Pos2, r: f32, a: f32, b: f32) -> Vec<Pos2> {
+    let n = (((b - a).abs() / (PI / 24.0)).ceil() as usize).max(1);
+    (0..=n)
+        .map(|i| on_circle(center, r, a + (b - a) * i as f32 / n as f32))
+        .collect()
+}
+
+/// A knob: a track arc round a cap, the value arc filled from `origin` (the
+/// range's bottom, or its zero for a range that spans it) to `t`, a pointer
+/// line on the cap, and the value as text underneath.
+#[allow(clippy::too_many_arguments)]
+pub fn knob(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    t: f32,
+    origin: f32,
+    text: &str,
+    hovered: bool,
+    active: bool,
+    alpha: f32,
+) {
+    let text_h = if zoom >= 0.4 { 16.0 * zoom } else { 0.0 };
+    let d = (rect.height() - text_h).min(rect.width()).max(4.0);
+    let center = pos2(rect.center().x, rect.min.y + d / 2.0);
+    let r = d / 2.0 - 2.5 * zoom;
+    let w = (4.0 * zoom).max(1.0);
+    painter.add(Shape::line(
+        arc(center, r, knob_angle(0.0), knob_angle(1.0)),
+        Stroke::new(w, theme::fade(theme::WIDGET_BG, alpha)),
+    ));
+    let (a, b) = (knob_angle(origin), knob_angle(t));
+    if (b - a).abs() > 1e-3 {
+        painter.add(Shape::line(
+            arc(center, r, a, b),
+            Stroke::new(w, theme::fade(controls_color(), alpha)),
+        ));
+    }
+    let cap = (r - 6.0 * zoom).max(2.0);
+    painter.circle_filled(
+        center + vec2(0.0, 1.5 * zoom),
+        cap,
+        theme::fade(SHADOW, alpha),
+    );
+    let fill = if hovered || active {
+        RAISED_HOVER
+    } else {
+        RAISED
+    };
+    painter.circle_filled(center, cap, theme::fade(fill, alpha));
+    if active {
+        painter.circle_stroke(
+            center,
+            cap,
+            Stroke::new(1.0, theme::fade(theme::ACCENT, alpha)),
+        );
+    }
+    painter.line_segment(
+        [
+            on_circle(center, cap * 0.25, b),
+            on_circle(center, cap * 0.85, b),
+        ],
+        Stroke::new(
+            (2.0 * zoom).max(1.0),
+            theme::fade(theme::TEXT_STRONG, alpha),
+        ),
+    );
+    if text_h > 0.0 {
+        painter.text(
+            pos2(rect.center().x, rect.max.y - text_h / 2.0),
+            Align2::CENTER_CENTER,
+            text,
+            theme::canvas_font(theme::FONT_VALUE, zoom, true),
+            theme::fade(theme::TEXT_STRONG, alpha),
+        );
+    }
+}
+
+/// An XY pad: a well with a faint grid, crosshair lines through the point
+/// at `pos` (0..1 each way, y up), and the point itself, lit while touched.
+pub fn xy_pad(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    pos: (f32, f32),
+    touched: bool,
+    hovered: bool,
+    alpha: f32,
+) {
+    let r = theme::radius(4.0 * zoom);
+    painter.rect_filled(rect, r, theme::fade(theme::SCOPE_BG, alpha));
+    let grid = Stroke::new(1.0, theme::fade(theme::SCOPE_GRID, alpha));
+    for i in 1..4 {
+        let f = i as f32 / 4.0;
+        let x = rect.min.x + rect.width() * f;
+        let y = rect.min.y + rect.height() * f;
+        painter.line_segment([pos2(x, rect.min.y), pos2(x, rect.max.y)], grid);
+        painter.line_segment([pos2(rect.min.x, y), pos2(rect.max.x, y)], grid);
+    }
+    painter.rect_stroke(
+        rect,
+        r,
+        Stroke::new(
+            1.0,
+            theme::fade(
+                if hovered || touched {
+                    theme::NODE_HOVER
+                } else {
+                    theme::NODE_OUTLINE
+                },
+                alpha,
+            ),
+        ),
+        StrokeKind::Inside,
+    );
+    let clamp = |v: f32| {
+        if v.is_finite() {
+            v.clamp(0.0, 1.0)
+        } else {
+            0.5
+        }
+    };
+    let p = pos2(
+        rect.min.x + rect.width() * clamp(pos.0),
+        rect.max.y - rect.height() * clamp(pos.1),
+    );
+    let color = controls_color();
+    let cross = Stroke::new(1.0, theme::fade(color, 0.45 * alpha));
+    painter.line_segment([pos2(p.x, rect.min.y), pos2(p.x, rect.max.y)], cross);
+    painter.line_segment([pos2(rect.min.x, p.y), pos2(rect.max.x, p.y)], cross);
+    let dot = if touched { 7.0 } else { 5.5 } * zoom;
+    if touched {
+        painter.circle_filled(p, dot * 2.0, theme::fade(color, 0.2 * alpha));
+    }
+    painter.circle_filled(p, dot + 1.0, theme::fade(SHADOW, alpha));
+    painter.circle_filled(
+        p,
+        dot,
+        theme::fade(if touched { color } else { theme::TEXT_STRONG }, alpha),
+    );
+}
+
+/// A piano keyboard: white keys, then black keys on top, held keys lit in
+/// the Controls color and the hovered key shaded. C keys carry their
+/// octave name when there's room, `shift` semitones (the node's octave
+/// setting) away from the key's own note.
+#[allow(clippy::too_many_arguments)]
+pub fn keyboard(
+    painter: &Painter,
+    zoom: f32,
+    keys: &[piano::Key],
+    held: &[usize],
+    hovered: Option<usize>,
+    shift: i32,
+    alpha: f32,
+) {
+    let lit = controls_color();
+    let r = theme::radius(2.0 * zoom);
+    let edge = Stroke::new(1.0, theme::fade(SHADOW, alpha));
+    for k in keys {
+        let down = held.contains(&k.index);
+        let fill = match (k.black, down, hovered == Some(k.index)) {
+            (false, true, _) => lit,
+            (false, false, true) => Color32::from_rgb(0xC9, 0xCD, 0xD4),
+            (false, false, false) => Color32::from_rgb(0xE6, 0xE8, 0xEC),
+            (true, true, _) => theme::mix(lit, SHADOW, 0.25),
+            (true, false, true) => Color32::from_rgb(0x44, 0x48, 0x52),
+            (true, false, false) => Color32::from_rgb(0x1E, 0x20, 0x25),
+        };
+        let rect = if k.black {
+            k.rect
+        } else {
+            k.rect.shrink2(vec2(0.5, 0.0))
+        };
+        painter.rect_filled(
+            rect,
+            egui::CornerRadius {
+                nw: 0,
+                ne: 0,
+                sw: r.sw,
+                se: r.se,
+            },
+            theme::fade(fill, alpha),
+        );
+        if !k.black {
+            painter.rect_stroke(rect, 0.0, edge, StrokeKind::Outside);
+        }
+        if !k.black
+            && zoom >= 0.6
+            && k.rect.width() >= 10.0
+            && let Some(name) = piano::c_label(i32::from(k.note) + shift)
+        {
+            painter.text(
+                pos2(k.rect.center().x, k.rect.max.y - 7.0 * zoom),
+                Align2::CENTER_CENTER,
+                name,
+                theme::canvas_font(8.5, zoom, false),
+                theme::fade(
+                    if down {
+                        theme::TEXT_STRONG
+                    } else {
+                        Color32::from_rgb(0x6A, 0x70, 0x7A)
+                    },
+                    alpha,
+                ),
+            );
+        }
+    }
+}
+
+/// A number field: the value in large monospace in a well that reads as
+/// editable (lighter when hovered, outlined while dragged).
+pub fn number(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    text: &str,
+    hovered: bool,
+    active: bool,
+    alpha: f32,
+) {
+    let r = theme::radius(4.0 * zoom);
+    let bg = if hovered || active {
+        theme::WIDGET_BG_HOVER
+    } else {
+        theme::WELL_BG
+    };
+    painter.rect_filled(rect, r, theme::fade(bg, alpha));
+    if active {
+        painter.rect_stroke(
+            rect,
+            r,
+            Stroke::new(1.0, theme::fade(theme::ACCENT, alpha)),
+            StrokeKind::Inside,
+        );
+    }
+    if zoom >= 0.3 && !text.is_empty() {
+        painter.text(
+            rect.center(),
+            Align2::CENTER_CENTER,
+            text,
+            theme::canvas_font(17.0, zoom, true),
+            theme::fade(theme::TEXT_STRONG, alpha),
+        );
+    }
+}
+
+/// A dropdown: the chosen label and a caret, outlined while its menu is
+/// open.
+pub fn dropdown(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    label: &str,
+    hovered: bool,
+    open: bool,
+    alpha: f32,
+) {
+    let r = theme::radius(theme::WIDGET_RADIUS * zoom);
+    let bg = if hovered || open {
+        theme::WIDGET_BG_HOVER
+    } else {
+        theme::WIDGET_BG
+    };
+    painter.rect_filled(rect, r, theme::fade(bg, alpha));
+    painter.rect_stroke(
+        rect,
+        r,
+        Stroke::new(
+            1.0,
+            theme::fade(
+                if open {
+                    theme::ACCENT
+                } else {
+                    theme::NODE_OUTLINE
+                },
+                alpha,
+            ),
+        ),
+        StrokeKind::Inside,
+    );
+    if zoom < 0.4 {
+        return;
+    }
+    let pad = 8.0 * zoom;
+    painter.text(
+        pos2(rect.max.x - pad, rect.center().y),
+        Align2::RIGHT_CENTER,
+        icons::CARET_DOWN,
+        theme::canvas_font(theme::FONT_SMALL, zoom, false),
+        theme::fade(theme::TEXT_MUTED, alpha),
+    );
+    let mut job = egui::text::LayoutJob::single_section(
+        label.to_string(),
+        egui::TextFormat::simple(
+            theme::canvas_font(theme::FONT_NODE_TITLE, zoom, false),
+            theme::fade(theme::TEXT_STRONG, alpha),
+        ),
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width((rect.width() - 3.0 * pad).max(8.0));
+    let galley = painter.layout_job(job);
+    painter.galley(
+        pos2(rect.min.x + pad, rect.center().y - galley.size().y / 2.0),
+        galley,
+        theme::TEXT_STRONG,
+    );
+}
+
 /// Two horizontal bars (peak with RMS inside, and a peak-hold tick) over a
 /// dB scale, with the held peak as a number.
 pub fn meter(painter: &Painter, rect: Rect, zoom: f32, ch: [MeterChannel; 2], alpha: f32) {
@@ -238,6 +580,80 @@ pub fn meter_bar(painter: &Painter, bar: Rect, zoom: f32, c: MeterChannel, alpha
 }
 
 /// The scope: the ring, aligned on the last trigger when there is one.
+/// Lowest level an analyzer bar shows, in dB.
+pub const ANALYZER_FLOOR_DB: f32 = -96.0;
+
+/// Bar height for a band level: 0 at the floor, 1 at 0 dB.
+pub fn analyzer_height(db: f32) -> f32 {
+    if db.is_nan() {
+        return 0.0;
+    }
+    ((db - ANALYZER_FLOOR_DB) / -ANALYZER_FLOOR_DB).clamp(0.0, 1.0)
+}
+
+/// The Analyzer's bands (dB, lowest first) as bars over a log frequency
+/// axis from 20 Hz to Nyquist, with lines every 24 dB and at 100 Hz, 1 kHz,
+/// and 10 kHz. Returns whether anything is above the floor (so the canvas
+/// keeps repainting).
+pub fn analyzer(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    bands: &[f32],
+    sample_rate: f64,
+    alpha: f32,
+) -> bool {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::SCOPE_BG, alpha),
+    );
+    let grid = theme::fade(theme::SCOPE_GRID, alpha);
+    for db in [-24.0, -48.0, -72.0] {
+        let y = rect.max.y - analyzer_height(db) * rect.height();
+        painter.line_segment(
+            [pos2(rect.min.x, y), pos2(rect.max.x, y)],
+            Stroke::new(1.0, grid),
+        );
+    }
+    let nyquist = (sample_rate / 2.0).max(40.0);
+    let span = (nyquist / 20.0).ln();
+    for hz in [100.0, 1_000.0, 10_000.0] {
+        if hz < nyquist {
+            let x = rect.min.x + ((hz / 20.0f64).ln() / span) as f32 * rect.width();
+            painter.line_segment(
+                [pos2(x, rect.min.y), pos2(x, rect.max.y)],
+                Stroke::new(1.0, theme::fade(grid, 0.7)),
+            );
+        }
+    }
+    let n = bands.len().max(1);
+    let w = rect.width() / n as f32;
+    let mut any = false;
+    for (k, &db) in bands.iter().enumerate() {
+        let h = analyzer_height(db);
+        if h <= 0.0 {
+            continue;
+        }
+        any = true;
+        let x0 = rect.min.x + k as f32 * w;
+        let bar = Rect::from_min_max(
+            pos2(x0 + (w * 0.15).min(1.0), rect.max.y - h * rect.height()),
+            pos2(x0 + w - (w * 0.15).min(1.0), rect.max.y),
+        );
+        // Meter colors near full scale.
+        let c = if db > -6.0 {
+            theme::METER_HIGH
+        } else if db > -18.0 {
+            theme::METER_MID
+        } else {
+            theme::METER_LOW
+        };
+        painter.rect_filled(bar, 0.0, theme::fade(c, alpha));
+    }
+    any
+}
+
 pub fn scope(
     painter: &Painter,
     rect: Rect,
@@ -559,5 +975,55 @@ pub fn grip(painter: &Painter, corner: Pos2, zoom: f32, color: Color32) {
             ],
             Stroke::new(1.0, color),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn knob_angles_sweep_three_quarters_of_a_turn() {
+        assert!((knob_angle(0.0) + 0.75 * PI).abs() < 1e-6);
+        assert_eq!(knob_angle(0.5), 0.0);
+        assert!((knob_angle(1.0) - 0.75 * PI).abs() < 1e-6);
+        assert_eq!(knob_angle(-2.0), knob_angle(0.0));
+        assert_eq!(knob_angle(7.0), knob_angle(1.0));
+        assert_eq!(knob_angle(f32::NAN), knob_angle(0.0));
+        // Screen y points down: the bottom of the range sits low on the
+        // left, the middle straight up, the top low on the right.
+        let lo = on_circle(Pos2::ZERO, 1.0, knob_angle(0.0));
+        let mid = on_circle(Pos2::ZERO, 1.0, knob_angle(0.5));
+        let hi = on_circle(Pos2::ZERO, 1.0, knob_angle(1.0));
+        assert!(lo.x < 0.0 && lo.y > 0.0, "{lo:?}");
+        assert!(mid.x.abs() < 1e-6 && (mid.y + 1.0).abs() < 1e-6, "{mid:?}");
+        assert!(hi.x > 0.0 && hi.y > 0.0, "{hi:?}");
+    }
+
+    #[test]
+    fn arcs_stay_on_the_circle() {
+        let c = pos2(5.0, 5.0);
+        let pts = arc(c, 10.0, knob_angle(0.0), knob_angle(1.0));
+        assert!(pts.len() > 20);
+        assert!(pts.iter().all(|p| ((*p - c).length() - 10.0).abs() < 1e-3));
+        assert_eq!(pts[0], on_circle(c, 10.0, knob_angle(0.0)));
+        // A zero-length arc is still a valid line.
+        assert_eq!(arc(c, 10.0, 1.0, 1.0).len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod analyzer_tests {
+    use super::*;
+
+    #[test]
+    fn bar_heights_span_the_floor_to_full_scale() {
+        assert_eq!(analyzer_height(0.0), 1.0);
+        assert_eq!(analyzer_height(6.0), 1.0);
+        assert_eq!(analyzer_height(ANALYZER_FLOOR_DB), 0.0);
+        assert_eq!(analyzer_height(-120.0), 0.0);
+        assert_eq!(analyzer_height(f32::NAN), 0.0);
+        assert_eq!(analyzer_height(f32::NEG_INFINITY), 0.0);
+        assert!((analyzer_height(-48.0) - 0.5).abs() < 1e-6);
     }
 }

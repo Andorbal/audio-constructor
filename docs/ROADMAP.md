@@ -195,9 +195,75 @@ devices at 128 frames (xruns with `--threads` vs without), and real-time
 priority for workers on macOS and Windows (only Linux asks for it).
 
 ### M2.2 Nodes
-- [ ] Every node in NODES.md marked **P2**, in category order: Generators, Level/Dynamics, Filters, Time, Spectral, Math, Modulation, Triggers, Sequencing, Controls, Display, I/O, Utility.
-- [ ] Node editors for `Graph` (curve editor), `Pattern` (grid), `MidiPattern` (piano roll), `BandSplit` (band editor), `StepSequencer`.
-- [ ] Golden projects for each category; benches for the expensive ones (FFT, PitchShift, Diffuser).
+- [x] Every node in NODES.md marked **P2**, in category order: Generators, Level/Dynamics, Filters, Time, Spectral, Math, Modulation, Triggers, Sequencing, Controls, Display, I/O, Utility.
+- [x] Node editors for `Graph` (curve editor), `Pattern` (grid), `MidiPattern` (piano roll), `BandSplit` (band editor), `StepSequencer`.
+- [x] Golden projects for each category; benches for the expensive ones (FFT, PitchShift, Diffuser).
+
+*Verified:* 73 new nodes. `Gamepad`, `KeyboardIn`, and `OscIn`/`OscOut` are
+marked P2 but belong to M2.4 (control surfaces), which lists them. A test in
+`crates/ac-nodes/tests/all_nodes.rs` reads NODES.md and fails if any other P2
+node is missing from the registry. Every node passed these checks:
+- `cargo test -p ac-nodes`: unit tests next to each node, covering known
+  values, edge cases, NaN and extreme inputs, reset, and identical output at
+  blocks 1, 64, and 512.
+- The allocation-guard sweep at blocks 1, 64, and 1024, with defaults and
+  with non-default configs (`configured_nodes.rs`, `buffer_nodes.rs`,
+  `sequencing_nodes.rs`, `math_modulation_configs.rs`). The sequencing
+  sweep also floods MIDI past the per-block capacity and checks that no
+  note is left hanging.
+
+The DSP in `ac-dsp` (FFT/STFT, crossovers, YIN, onset detection, phase
+vocoder, SVF/ladder/one-pole/allpass, cepstrum, dynamics, oversampling,
+waveshaping, band-limited wavetables, BS.1770 loudness, colored noise)
+has its own tests (`cargo test -p ac-dsp`).
+
+`cargo test -p ac-engine --test phase2`:
+- Spectrum wires carry latency; this was a fix to M2.1's compensation.
+- A dry path cancels against FFT → IFFT to below 1e-4.
+
+`cargo test -p ac-cli --test render_outputs`:
+- File Out writes the same samples as the main mix and refuses paths that
+  leave the output folder.
+- MIDI Out passes MIDI through with its timing.
+- `render --midi-out` writes a standard MIDI file.
+
+`cargo test -p ac-io`:
+- MIDI Out reaches a port one block late, in order, through the live
+  runtime.
+- A full queue drops messages and counts them.
+
+Editor tests:
+- `cargo test -p ac-app --test node_editors` drives each node editor with
+  the pointer: painting Pattern cells; drawing, moving, and deleting notes;
+  moving and adding curve points; splitting and merging bands; drawing
+  step values.
+- `--test editor` turns the Knob, plays the Keyboard, touches the XY Pad,
+  types into the Number field, and picks a Dropdown choice. Control
+  gestures don't dirty the document.
+- Library tests cover each editor's model and the coalesced undo of a drag.
+
+Goldens: 21 new golden projects, at least one per category, pass the
+hash, block-independence, and live-vs-offline checks. The Analyzer is in
+`spectral-gate`. The golden test now also checks File Out files and MIDI
+Out messages.
+
+`audioc bench` (release, 128-frame blocks, this VM) renders the new stress
+projects at these speeds:
+
+| Project | Real time |
+| --- | --- |
+| `fft-chains-16` | 27× |
+| `pitch-shift-16` | 9.4× |
+| `diffuser-16` | 6.0× |
+
+Each node costs per 128-frame block: IFFT ≈ 3 µs, FFT ≈ 1.6 µs,
+PitchShift ≈ 22 µs, Diffuser ≈ 32 µs.
+
+Screenshots under Xvfb (software rendering) showed every node editor and
+control widget. Needs a human: listening tests (Ladder self-oscillation and
+drive, Freeze seams, PitchShift warble and formants on a voice, Diffuser
+tone, Sampler loop crossfades), the feel of the Knob, XY Pad, and
+Keyboard, and MIDI Out timing against a hardware synth.
 
 ### M2.3 Blocks and sharing
 - [ ] Block library directory, `.acblock` save/load, metadata, versioning, "update instances from library".

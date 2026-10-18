@@ -11,6 +11,76 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.3.0] - 2026-10-18
+
+Milestone M2.2 of the roadmap: the Phase 2 node library, about eighty new
+nodes across every category, with editors for the ones you draw rather than
+type.
+
+### Added
+
+- **Generators:** **Noise** (white, pink, brown; seeded), **Graph** (a
+  hand-drawn curve over seconds or beats), **Sampler** (plays a buffer or an
+  audio file at any pitch, with start, end, and crossfaded loop points),
+  **Wavetable** (morphs through a table built in or taken from a buffer,
+  band-limited), and **Impulse** (a one-sample click).
+- **Level and dynamics:** **Crossfade**, **Envelope Follower**, **Gain
+  Computer**, and **Lookahead** (whose undelayed `early` output feeds a
+  detector so a limiter sees peaks before they arrive), **Shaper**
+  (oversampled waveshaping with built-in or hand-drawn curves), and
+  **Normalize** (to a target peak or loudness in LUFS, over the whole
+  signal).
+- **Filters:** **SVF** (lowpass, bandpass, highpass, and notch at once),
+  **Ladder** (four-pole with drive; self-oscillates in tune), **Comb**,
+  **Allpass**, and **DC Block**.
+- **Time:** **Freeze** (holds a seamless loop of the input), **Pitch Shift**
+  (with formant correction, so a voice still sounds like itself), and
+  **Diffuser** (eight modulated allpasses, stereo).
+- **Spectral:** **FFT** and **IFFT** (which line up exactly with a dry path:
+  their latency is compensated through the spectrum), **Band Split**
+  (crossover or FFT bands that sum back flat), **Spectral Gate**, **Spectral
+  Shift**, and **Pitch Detect**.
+- **Math:** **Clamp**, **Logic**, **Convert** (decibels, notes, ratios,
+  beats, samples), **Smooth**, **Integrate**, **Differentiate**, **Random**,
+  **Sample & Hold**, **Quantize**, **Counter**, **Accumulate**, and
+  **Select** and **Switch**, which route any signal type and crossfade audio.
+- **Modulation:** **LFO** (in hertz or locked to the beat), **Envelope**
+  (breakpoints with sustain and loop points), **Step Sequencer**, and
+  **Random Walk**.
+- **Triggers and gates:** **Threshold Trigger**, **Frequency Trigger**,
+  **Onset** (finds attacks in audio), **Clock Divide**, **Clock Multiply**,
+  **Trigger Delay**, **Gate To Trigger**, **Trigger To Gate**,
+  **Euclidean**, **Probability**, **Burst**, **Latch**, and **Timer**.
+- **Sequencing and notes:** **MIDI CC**, **MIDI Filter**, **MIDI Transpose**
+  (optionally snapped to a scale), **Pattern** (a grid of step buttons),
+  **MIDI Pattern** (a piano-roll clip), **Note To MIDI**, **Arpeggiator**,
+  **Chord**, and **Scale Quantize**. None of them leaves a note hanging.
+- **Controls:** **Knob**, **XY Pad**, **Keyboard** (a playable piano on the
+  canvas), **Number**, and **Dropdown**, each with its own widget on the
+  canvas. Playing the Keyboard or touching the XY Pad isn't an edit: it adds
+  no undo steps and isn't saved.
+- **Display:** **Analyzer**, a 64-band spectrum on the canvas.
+- **Utility:** **Mid/Side** encode and decode.
+- **MIDI Out** sends MIDI to hardware and other programs, keeping each
+  message's timing within the block. It can re-channel everything, ends the
+  notes it started when the transport stops, and has a `panic` trigger. Pick
+  the port in the Devices tab or with `audioc run --midi-out <name>`;
+  `audioc devices` now lists MIDI outputs too.
+- **File Out** renders its input to a file of its own during `audioc render`,
+  so one render can produce stems, dry and wet versions, or a click track
+  next to the mix. Paths are relative to the main output's folder.
+- `audioc render --midi-out song.mid` writes what MIDI Out nodes sent to a
+  standard MIDI file, on the project's beats and with its tempo changes.
+- **Node editors** in the Node tab, with a larger editor in its own window:
+  draw breakpoint curves for Graph, Envelope, and Shaper; paint steps on
+  Pattern's grid; draw, move, and stretch notes in MidiPattern's piano roll;
+  drag BandSplit's crossover frequencies; and draw StepSequencer's values.
+  A whole drag is one undo step.
+- The Node tab edits the new nodes' settings (lists of choices, optional
+  limits, chord intervals, FFT sizes).
+- `audioc bench` has stress projects for the expensive new nodes:
+  `fft-chains-16`, `pitch-shift-16`, and `diffuser-16`.
+
 ## [0.2.0] - 2026-10-18
 
 Milestone M2.1 of the roadmap, engine depth: polyphony, nodes that need
@@ -100,5 +170,6 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Andorbal/audio-constructor/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Andorbal/audio-constructor/releases/tag/v0.1.0

@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "name": "Freeze, Pitch Shift, Diffuser",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 0.25,
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 880.0,
+          "out_min": 220.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "shape": "triangle"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "clock",
+        "params": {
+          "duty": 0.5,
+          "interval": 1.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "freeze",
+        "params": {
+          "position": 0.05,
+          "size": 0.1
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "pitch_shift",
+        "config": {
+          "max_grain": 0.05
+        },
+        "params": {
+          "formant": 0.0,
+          "grain": 0.04,
+          "mix": 0.5,
+          "semitones": 7.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "diffuser",
+        "params": {
+          "diffusion": 0.7,
+          "mix": 0.6,
+          "mod_depth": 0.3,
+          "mod_rate": 0.5,
+          "size": 0.7
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "gain",
+        "params": {
+          "gain": -3.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:freq"
+      },
+      {
+        "from": "3:out",
+        "to": "5:in"
+      },
+      {
+        "from": "4:gate",
+        "to": "5:hold"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

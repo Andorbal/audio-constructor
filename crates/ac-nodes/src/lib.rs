@@ -19,6 +19,7 @@ pub mod math;
 pub mod modulation;
 mod segments;
 pub mod sequencing;
+pub mod spectral;
 pub mod time;
 pub mod triggers;
 pub mod utility;
@@ -32,6 +33,7 @@ pub fn register_all(r: &mut Registry) {
     level::register(r);
     filters::register(r);
     time::register(r);
+    spectral::register(r);
     math::register(r);
     modulation::register(r);
     triggers::register(r);

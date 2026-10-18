@@ -14,3 +14,5 @@ workspace = true
 
 [dependencies]
 ac-core.workspace = true
+realfft.workspace = true
+serde_json.workspace = true

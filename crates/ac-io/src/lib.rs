@@ -44,6 +44,8 @@ pub mod convert;
 pub mod engine_threads;
 pub mod latency;
 pub mod midi;
+pub mod midi_file;
+pub mod midi_out;
 pub mod null;
 pub mod priority;
 pub mod project_file;
@@ -58,11 +60,13 @@ pub use audio::{
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use latency::{Latency, LatencyError, find_delay};
 pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, block_offset};
+pub use midi_file::{midi_file_bytes, write_midi_file};
+pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
 pub use null::{NullAudio, NullHost, NullStream};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{
-    AudioError, AudioHost, AudioStream, StartError, Stopped, StreamInfo, StreamStats,
+    AudioError, AudioHost, AudioStream, MidiPorts, StartError, Stopped, StreamInfo, StreamStats,
 };
 pub use wav::{BitDepth, read_wav, write_wav};
 
