@@ -294,10 +294,13 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
             }
             ui.label("Schedule");
             ui.label(format!(
-                "{} steps in {} waves · {} audio buffers",
-                stats.steps, stats.waves, stats.sample_buffers
+                "{} steps in {} chains, {} waves · {} audio buffers",
+                stats.steps, stats.chains, stats.waves, stats.sample_buffers
             ))
-            .on_hover_text("Steps in one wave can run on different cores (Devices tab).");
+            .on_hover_text(
+                "A chain's steps run in order on one core; the chains of one wave \
+                 can run on different cores (Devices tab).",
+            );
             ui.end_row();
         });
 

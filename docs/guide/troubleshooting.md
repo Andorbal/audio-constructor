@@ -165,8 +165,10 @@ and wires, and does nothing; a version that knows it plays it again.
   Oscillators for slow modulation.
 - **Engine threads** in the Devices tab (or `audioc run --threads N`)
   spreads independent parts of the patch (voices, parallel chains) over
-  several cores. It keeps those cores busy while playing, so leave it at 1
-  unless a patch needs it.
+  several cores. A run of nodes that only feed each other, and each voice
+  of a Voices node, stays on one core, so one long chain doesn't get
+  faster, but several chains or voices side by side do. It keeps those
+  cores busy while playing, so leave it at 1 unless a patch needs it.
 - `audioc bench --project my-song.acproj` measures how much faster than
   real time a project renders on this computer, and which nodes take the
   time.
