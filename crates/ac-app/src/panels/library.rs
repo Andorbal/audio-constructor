@@ -417,8 +417,10 @@ mod tests {
     /// The shipped blocks, one of the person's, and one imported.
     fn library() -> Library {
         let mut lib = Library::shipped_only();
-        lib.save_user(block("My Bass", &["synth", "Bass"])).unwrap();
-        lib.import(block("Their Echo", &["space", "delay"]), "echo")
+        // Tags no shipped block uses, so the shipped set can grow freely.
+        lib.save_user(block("My Bass", &["t-synth", "T-Bass"]))
+            .unwrap();
+        lib.import(block("Their Echo", &["t-space", "t-delay"]), "echo")
             .unwrap();
         lib
     }
@@ -453,25 +455,25 @@ mod tests {
             tag: Some(tag.to_string()),
         };
         assert_eq!(
-            names(&filter_blocks(&lib, "", &tagged("space"))),
+            names(&filter_blocks(&lib, "", &tagged("t-space"))),
             ["Their Echo"]
         );
         // Tags match whatever their case in the file.
         assert_eq!(
-            names(&filter_blocks(&lib, "", &tagged("bass"))),
+            names(&filter_blocks(&lib, "", &tagged("t-bass"))),
             ["My Bass"]
         );
-        assert!(filter_blocks(&lib, "", &tagged("nothing")).is_empty());
+        assert!(filter_blocks(&lib, "", &tagged("t-nothing")).is_empty());
         // The tag and the search both apply.
-        assert!(filter_blocks(&lib, "bass", &tagged("space")).is_empty());
+        assert!(filter_blocks(&lib, "bass", &tagged("t-space")).is_empty());
         let mine_synth = BlockFilter {
             origin: Some(Origin::User),
-            tag: Some("synth".into()),
+            tag: Some("t-synth".into()),
         };
         assert_eq!(names(&filter_blocks(&lib, "", &mine_synth)), ["My Bass"]);
         let imported_synth = BlockFilter {
             origin: Some(Origin::Imported),
-            tag: Some("synth".into()),
+            tag: Some("t-synth".into()),
         };
         assert!(filter_blocks(&lib, "", &imported_synth).is_empty());
         assert_eq!(
