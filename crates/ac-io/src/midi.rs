@@ -1,9 +1,10 @@
 //! MIDI input (ARCHITECTURE §8 "Events in", §11).
 //!
 //! Each connected port (and each virtual source, such as the computer
-//! keyboard) gets its own lock-free ring. Its callback thread stamps every
-//! message with [`crate::clock::now_ns`] the moment it arrives and pushes it;
-//! a full ring drops the message and counts it, so nothing ever blocks.
+//! keyboard) gets its own lock-free ring ([`crate::rings`]). Its callback
+//! thread stamps every message with [`crate::clock::now_ns`] the moment it
+//! arrives and pushes it; a full ring drops the message and counts it, so
+//! nothing ever blocks.
 //!
 //! The audio side, [`MidiReceiver`], drains every ring at the start of a
 //! device callback and turns arrival times into sample offsets with
@@ -19,29 +20,17 @@
 //! audio thread never frees memory.
 
 use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
 use ac_core::{MidiEvent, MidiMsg};
-use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::clock;
+use crate::rings::{ClaimError, RingDrain, RingSet, SourceTx, ring_set};
 
-/// Ports and virtual sources that can be open at once.
-pub const MAX_SOURCES: usize = 16;
-/// Messages each source can queue between two callbacks.
-const SOURCE_RING: usize = 1024;
-const SWAP_RING: usize = 64;
+pub use crate::rings::MAX_SOURCES;
 /// Events delivered per callback; the rest wait for the next one.
 pub const MAX_EVENTS_PER_CALLBACK: usize = 1024;
 const CLIENT_NAME: &str = "Audio Constructor";
-
-/// A message with its arrival time on [`crate::clock`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StampedMidi {
-    pub time_ns: u64,
-    pub msg: MidiMsg,
-}
 
 /// The sample offset inside a callback of `frames` frames, starting at
 /// `t_callback_ns`, for a message received at `t_recv_ns`.
@@ -141,24 +130,10 @@ pub fn list_inputs() -> Result<Vec<MidiPortInfo>, MidiError> {
         .collect())
 }
 
-/// What a source's callback owns.
-struct SourceTx {
-    tx: Producer<StampedMidi>,
-    dropped: Arc<AtomicU64>,
-}
-
-impl SourceTx {
-    fn push(&mut self, time_ns: u64, msg: MidiMsg) {
-        if self.tx.push(StampedMidi { time_ns, msg }).is_err() {
-            self.dropped.fetch_add(1, Ordering::Relaxed);
-        }
-    }
-}
-
 /// A virtual MIDI source: the computer keyboard, an on-screen keyboard, a
 /// test. Messages go through the same rings and timing as a port.
 pub struct MidiSender {
-    inner: SourceTx,
+    inner: SourceTx<MidiMsg>,
     _alive: Arc<()>,
 }
 
@@ -183,7 +158,7 @@ impl fmt::Debug for MidiSender {
 enum SourceKind {
     Port {
         id: String,
-        _conn: midir::MidiInputConnection<SourceTx>,
+        _conn: midir::MidiInputConnection<SourceTx<MidiMsg>>,
     },
     Virtual(Weak<()>),
 }
@@ -196,9 +171,7 @@ struct Source {
 
 /// The audio-thread end: drains every source into block-offset events.
 pub struct MidiReceiver {
-    slots: Vec<Option<Consumer<StampedMidi>>>,
-    swap_rx: Consumer<(usize, Consumer<StampedMidi>)>,
-    garbage_tx: Producer<Consumer<StampedMidi>>,
+    rings: RingDrain<MidiMsg>,
 }
 
 impl fmt::Debug for MidiReceiver {
@@ -219,63 +192,14 @@ impl MidiReceiver {
         sample_rate: f64,
         out: &mut Vec<MidiEvent>,
     ) {
-        out.clear();
-        self.apply_swaps(t_callback_ns, frames, sample_rate, out);
-        for ring in self.slots.iter_mut().flatten() {
-            drain_ring(ring, t_callback_ns, frames, sample_rate, out);
-        }
-        sort_by_offset(out);
-    }
-
-    /// Install consumers for newly connected sources. The consumer being
-    /// replaced is drained one last time and sent back to be dropped; a swap
-    /// waits while the garbage ring is full rather than freeing here.
-    fn apply_swaps(&mut self, t: u64, frames: usize, rate: f64, out: &mut Vec<MidiEvent>) {
-        while self.garbage_tx.slots() > 0 {
-            let Ok((slot, new)) = self.swap_rx.pop() else {
-                break;
-            };
-            let Some(cell) = self.slots.get_mut(slot) else {
-                // A bad slot index can't come from MidiInputs; return the ring.
-                let _ = self.garbage_tx.push(new);
-                continue;
-            };
-            if let Some(mut old) = cell.replace(new) {
-                drain_ring(&mut old, t, frames, rate, out);
-                let _ = self.garbage_tx.push(old);
-            }
-        }
-    }
-}
-
-fn drain_ring(
-    ring: &mut Consumer<StampedMidi>,
-    t: u64,
-    frames: usize,
-    rate: f64,
-    out: &mut Vec<MidiEvent>,
-) {
-    while out.len() < out.capacity() {
-        let Ok(e) = ring.pop() else {
-            return;
-        };
-        out.push(MidiEvent::new(
-            block_offset(e.time_ns, t, frames, rate),
-            e.msg,
-        ));
-    }
-}
-
-/// Stable insertion sort: each source is already in time order, so this is
-/// close to linear, and unlike `sort_by_key` it never allocates. Stability
-/// keeps a note-off before a note-on at the same offset.
-fn sort_by_offset(v: &mut [MidiEvent]) {
-    for i in 1..v.len() {
-        let mut j = i;
-        while j > 0 && v[j - 1].offset > v[j].offset {
-            v.swap(j - 1, j);
-            j -= 1;
-        }
+        self.rings.drain(
+            t_callback_ns,
+            frames,
+            sample_rate,
+            out,
+            MidiEvent::new,
+            |e| e.offset,
+        );
     }
 }
 
@@ -283,9 +207,7 @@ fn sort_by_offset(v: &mut [MidiEvent]) {
 pub struct MidiInputs {
     select: MidiSelect,
     sources: Vec<Source>,
-    swap_tx: Producer<(usize, Consumer<StampedMidi>)>,
-    garbage_rx: Consumer<Consumer<StampedMidi>>,
-    dropped: Arc<AtomicU64>,
+    rings: RingSet<MidiMsg>,
     last_error: Option<MidiError>,
     /// The last scan could list ports (the MIDI system is there).
     scan_ok: bool,
@@ -303,23 +225,15 @@ impl fmt::Debug for MidiInputs {
 impl MidiInputs {
     /// A MIDI input set with nothing connected, and its audio-thread end.
     pub fn new() -> (MidiInputs, MidiReceiver) {
-        let (swap_tx, swap_rx) = RingBuffer::new(SWAP_RING);
-        let (garbage_tx, garbage_rx) = RingBuffer::new(SWAP_RING);
+        let (rings, drain) = ring_set();
         let inputs = MidiInputs {
             select: MidiSelect::None,
             sources: Vec::new(),
-            swap_tx,
-            garbage_rx,
-            dropped: Arc::new(AtomicU64::new(0)),
+            rings,
             last_error: None,
             scan_ok: false,
         };
-        let receiver = MidiReceiver {
-            slots: (0..MAX_SOURCES).map(|_| None).collect(),
-            swap_rx,
-            garbage_tx,
-        };
-        (inputs, receiver)
+        (inputs, MidiReceiver { rings: drain })
     }
 
     /// Choose which ports to connect and connect them now. Returns the names
@@ -386,7 +300,7 @@ impl MidiInputs {
             .connect(
                 &handle,
                 "audio-constructor-in",
-                |_driver_us, bytes, src: &mut SourceTx| {
+                |_driver_us, bytes, src: &mut SourceTx<MidiMsg>| {
                     // Stamp before anything else; the driver's timestamp is on
                     // a different clock.
                     let t = clock::now_ns();
@@ -428,21 +342,16 @@ impl MidiInputs {
 
     /// A fresh ring for the first free slot; the consumer goes to the audio
     /// side through the swap ring.
-    fn claim_slot(&mut self) -> Result<(usize, SourceTx), MidiError> {
-        let slot = (0..MAX_SOURCES)
-            .find(|i| !self.sources.iter().any(|s| s.slot == *i))
-            .ok_or_else(|| MidiError(format!("at most {MAX_SOURCES} MIDI sources can be open")))?;
-        let (tx, rx) = RingBuffer::new(SOURCE_RING);
-        self.swap_tx
-            .push((slot, rx))
-            .map_err(|_| MidiError("MIDI is busy; try again".to_string()))?;
-        Ok((
-            slot,
-            SourceTx {
-                tx,
-                dropped: self.dropped.clone(),
-            },
-        ))
+    fn claim_slot(&mut self) -> Result<(usize, SourceTx<MidiMsg>), MidiError> {
+        let sources = &self.sources;
+        self.rings
+            .claim(|i| sources.iter().any(|s| s.slot == i))
+            .map_err(|e| match e {
+                ClaimError::Full => {
+                    MidiError(format!("at most {MAX_SOURCES} MIDI sources can be open"))
+                }
+                ClaimError::Busy => MidiError("MIDI is busy; try again".to_string()),
+            })
     }
 
     fn reclaim_virtual(&mut self) {
@@ -454,9 +363,7 @@ impl MidiInputs {
 
     /// Drop rings the audio side has finished with. Call now and then.
     pub fn collect_garbage(&mut self) {
-        while let Ok(r) = self.garbage_rx.pop() {
-            drop(r);
-        }
+        self.rings.collect_garbage();
     }
 
     /// Names of the connected ports and live virtual sources.
@@ -473,7 +380,7 @@ impl MidiInputs {
 
     /// Messages dropped because a source's ring was full.
     pub fn dropped(&self) -> u64 {
-        self.dropped.load(Ordering::Relaxed)
+        self.rings.dropped()
     }
 
     /// Why the last scan or connection failed, if it did.
@@ -491,6 +398,7 @@ impl MidiInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::rings::SOURCE_RING;
 
     const RATE: f64 = 48_000.0;
     const MS: u64 = 1_000_000;

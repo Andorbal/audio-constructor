@@ -129,7 +129,9 @@ A resizable panel (`N` toggles) with tabs:
 - **Project**: sample rate, length, tempo map, seed, bindings, assets,
   missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
-  xrun counter, per-core load, transport buttons.
+  xrun counter, per-core load, OSC (a checkbox and port to listen on, 9000
+  unless changed and off until turned on; the address to send to; what has
+  arrived and what OSC Out nodes sent), and transport buttons.
 - **Problems**: compile errors and disabled nodes, click to jump.
 
 ## Transport bar
@@ -139,6 +141,17 @@ Play/stop/record, position in bars:beats and time, tempo and time signature
 built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
 `R` records, `Shift+Space` plays from the start. At its right end, a
 **Canvas | Panels** switch and the performance-mode button.
+
+The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
+keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)
+instead of running canvas shortcuts. It's off by default because the
+canvas's shortcuts are single keys. While it's on, `Escape` and shortcuts
+with `Ctrl`/`Cmd`/`Alt` still work, text fields still get typing, holding a
+key doesn't repeat it, and every held key is released when Play keys turns
+off, a text field takes focus, or the window loses focus. The status bar
+says it's on. Performance mode turns Play keys on by itself (below); the
+panel view in the editor doesn't, since you still arrange cards and use
+`Space` for the transport there.
 
 ## Panels (the "performance view")
 
@@ -178,15 +191,19 @@ pedalboard without the app providing one.
 - **Performance mode.** `F11`, View ▸ Performance Mode, or the Perform
   button shows the current panel full screen with bigger cells. The menu
   bar, side panel, status bar, and transport bar go; play/stop, the
-  position, the panel tabs, and Exit stay. `Esc` or `F11` leaves, and so
-  does taking the window out of full screen.
+  position, the panel tabs, a Play keys button, and Exit stay. `Esc` or
+  `F11` leaves, and so does taking the window out of full screen.
+  Performance mode turns **Play keys** on, so the computer keys play the
+  patch (`Space` too: use the play button, or `Ctrl+K` or the keyboard
+  button to turn Play keys off); leaving puts Play keys back the way it
+  was. `Esc` and `F11` always leave, even with Play keys on.
 
 ## Bindings
 
 Any unwired `Float`, `Int`, `Bool`, or `Trigger` input can be bound to a
 MIDI controller or note, a computer key, a gamepad button or axis, or an
 OSC address, and transport actions can be bound the same way. Bindings are
-stored in the project, so the editor, `audioc live`, and offline renders
+stored in the project, so the editor, `audioc run`, and offline renders
 all honor them (DECISIONS D92).
 
 - **Learn**: right-click an input → **Bind…**, then move the control. The

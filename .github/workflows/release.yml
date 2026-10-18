@@ -90,7 +90,7 @@ jobs:
           ref: ${{ needs.plan.outputs.sha }}
       - name: Install system libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
       - run: rustup show
       # An explicit target fails the build, rather than mislabeling the
       # archive, if a runner image ever changes architecture. The release

@@ -191,6 +191,60 @@ fn bind_an_input_by_moving_a_midi_controller() {
 }
 
 #[test]
+fn a_gamepad_stick_is_learned_through_the_control_rings() {
+    let mut h = harness(two_nodes());
+    let socket = h
+        .state()
+        .canvas
+        .socket_screen_pos(NodeId(2), "gain", true)
+        .unwrap();
+    right_click(&mut h, socket);
+    h.get_by_label(&menu_item("Bind…")).click();
+    steps(&mut h, 3);
+    // A gamepad as the engine hears one: through the control rings.
+    let mut pad = h
+        .state_mut()
+        .engine
+        .controls
+        .as_mut()
+        .expect("control input runs on the null stream")
+        .sender("test pad")
+        .unwrap();
+    let axis = ac_core::Control::GamepadAxis {
+        pad: 1,
+        axis: ac_core::GamepadAxis::LeftX,
+    };
+    // A resting stick's drift doesn't bind; a real push does.
+    pad.send(axis, 0.0);
+    pad.send(axis, 0.03);
+    assert!(!wait_up_to(&mut h, Duration::from_millis(400), |a| {
+        !a.document().project.bindings.is_empty()
+    }));
+    pad.send(axis, 0.6);
+    assert!(wait_for(&mut h, |a| !a
+        .document()
+        .project
+        .bindings
+        .is_empty()));
+    assert_eq!(
+        h.state().document().project.bindings[0].source,
+        Source::GamepadAxis {
+            pad: Some(1),
+            axis: ac_core::GamepadAxis::LeftX
+        }
+    );
+    // Pushed all the way right, the stick sets the top of the gain's
+    // range (+12 dB).
+    pad.send(axis, 1.0);
+    assert!(wait_for(&mut h, |a| a
+        .engine
+        .handle
+        .binding_values()
+        .get(0)
+        .is_some_and(|v| (v - 12.0).abs() < 1e-4)));
+}
+
+#[test]
 fn escape_cancels_learning_and_keys_can_be_learned() {
     let mut h = harness(two_nodes());
     let socket = h
@@ -270,14 +324,23 @@ fn deleting_a_node_removes_its_bindings_in_the_same_undo_step() {
     assert_eq!(doc.project.bindings.len(), 3, "one undo brings both back");
 }
 
+/// Click the Devices tab's preset button (far down the tab: scrolled to
+/// first).
+fn add_transport_buttons(h: &mut Harness<'static, EditorApp>) {
+    h.get_by_label_contains("Add gamepad transport buttons")
+        .scroll_to_me();
+    steps(h, 3);
+    h.get_by_label_contains("Add gamepad transport buttons")
+        .click();
+    steps(h, 3);
+}
+
 #[test]
 fn the_transport_preset_adds_three_gamepad_buttons() {
     let mut h = harness(two_nodes());
     h.state_mut().side.tab = Tab::Devices;
     steps(&mut h, 3);
-    h.get_by_label_contains("Add gamepad transport buttons")
-        .click();
-    steps(&mut h, 3);
+    add_transport_buttons(&mut h);
     let actions: Vec<TransportAction> = h
         .state()
         .document()
@@ -299,9 +362,7 @@ fn the_transport_preset_adds_three_gamepad_buttons() {
     );
     assert!(h.query_by_label_contains("Gamepad A (south)").is_some());
     // Again: nothing new, and one undo removes all three.
-    h.get_by_label_contains("Add gamepad transport buttons")
-        .click();
-    steps(&mut h, 3);
+    add_transport_buttons(&mut h);
     assert_eq!(h.state().document().project.bindings.len(), 3);
     h.hover_at(Pos2::new(700.0, 600.0));
     steps(&mut h, 2);

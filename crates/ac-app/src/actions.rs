@@ -55,6 +55,8 @@ pub enum Action {
     Record,
     ToggleLoop,
     Rewind,
+    /// Computer keys go to the patch instead of running shortcuts.
+    PlayKeys,
 
     Shortcuts,
     About,
@@ -128,6 +130,7 @@ impl Action {
         Action::Record,
         Action::ToggleLoop,
         Action::Rewind,
+        Action::PlayKeys,
         Action::Shortcuts,
         Action::About,
     ];
@@ -177,6 +180,7 @@ impl Action {
             Action::Record => "Record",
             Action::ToggleLoop => "Loop",
             Action::Rewind => "Go to Start",
+            Action::PlayKeys => "Play Keys",
             Action::Shortcuts => "Keyboard Shortcuts",
             Action::About => "About Audio Constructor",
         }
@@ -228,6 +232,7 @@ impl Action {
             Action::Record => sc(NONE, Key::R),
             Action::ToggleLoop => None,
             Action::Rewind => None,
+            Action::PlayKeys => sc(CMD, Key::K),
             Action::Shortcuts => sc(CMD, Key::Slash),
             Action::About => None,
         }
@@ -255,6 +260,7 @@ impl Action {
                 | Action::Record
                 | Action::ToggleLoop
                 | Action::Rewind
+                | Action::PlayKeys
                 | Action::Shortcuts
                 | Action::About
         )

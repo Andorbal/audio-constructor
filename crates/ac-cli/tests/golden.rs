@@ -11,14 +11,23 @@
 //!
 //! A project may carry test inputs in a top-level `"golden"` object:
 //! `{"seconds": 1.0, "block_independent": true, "input": {"sine": [hz, amp], "channels": 1},
-//!   "midi": [[frame, [status, d1, d2]], ...]}`.
+//!   "midi": [[frame, [status, d1, d2]], ...],
+//!   "controls": [[frame, {"key": "A"}, 1], [frame, {"gamepad": 0, "button": "south"}, 1],
+//!                [frame, {"gamepad": 0, "axis": "left_x"}, -0.5],
+//!                [frame, {"osc": "/fader/1", "arg": 0}, 0.25], ...]}`.
+//! Controls name keys as `Key::name` spells them, gamepad buttons and axes
+//! by their socket names (`gamepad` defaults to 0), and OSC by address
+//! (`arg` defaults to 0). OSC Out messages are compared like MIDI Out.
 //!
 //! Regenerate expectations with `GOLDEN_UPDATE=1 cargo test -p ac-cli --test golden`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ac_core::{AudioData, MidiMsg, Project, util::Fnv64};
+use ac_core::{
+    AudioData, Control, GamepadAxis, GamepadButton, Key, MidiMsg, Project, osc_address_hash,
+    util::Fnv64,
+};
 use ac_engine::{Engine, EngineOptions, NullHost, RenderOptions, render};
 use ac_io::{AssetStore, FileResources};
 use serde_json::{Value, json};
@@ -42,6 +51,64 @@ struct Inputs {
     block_independent: bool,
     input: Option<AudioData>,
     midi: Vec<(u64, MidiMsg)>,
+    controls: Vec<(u64, Control, f32)>,
+}
+
+/// A test control: `{"key": "A"}`, `{"gamepad": 0, "button": "south"}`,
+/// `{"gamepad": 0, "axis": "left_x"}`, or `{"osc": "/fader/1", "arg": 0}`.
+fn control(v: &Value) -> Option<Control> {
+    if let Some(k) = v.get("key") {
+        return Key::from_name(k.as_str()?).map(Control::Key);
+    }
+    if let Some(a) = v.get("osc") {
+        let arg = v.get("arg").and_then(Value::as_u64).unwrap_or(0);
+        return Some(Control::Osc {
+            address: osc_address_hash(a.as_str()?),
+            arg: u8::try_from(arg).ok()?,
+        });
+    }
+    let pad = u8::try_from(v.get("gamepad").and_then(Value::as_u64).unwrap_or(0)).ok()?;
+    if let Some(b) = v.get("button").and_then(Value::as_str) {
+        let button = GamepadButton::ALL.into_iter().find(|x| x.name() == b)?;
+        return Some(Control::GamepadButton { pad, button });
+    }
+    let a = v.get("axis").and_then(Value::as_str)?;
+    let axis = GamepadAxis::ALL.into_iter().find(|x| x.name() == a)?;
+    Some(Control::GamepadAxis { pad, axis })
+}
+
+/// The control events in `[done, done + n)`, as one callback's events.
+fn block_controls(
+    events: &[(u64, Control, f32)],
+    done: usize,
+    n: usize,
+) -> Vec<ac_core::ControlEvent> {
+    let mut v: Vec<ac_core::ControlEvent> = events
+        .iter()
+        .filter(|(at, _, _)| (*at as usize) >= done && (*at as usize) < done + n)
+        .map(|&(at, c, x)| ac_core::ControlEvent::new((at as usize - done) as u32, c, x))
+        .collect();
+    // Stable, like the render: events on one frame keep their order.
+    v.sort_by_key(|e| e.offset);
+    v
+}
+
+/// `[[frame, control, value], ...]`; malformed entries fail the test.
+fn controls(g: &Value) -> Vec<(u64, Control, f32)> {
+    let Some(list) = g.get("controls").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    list.iter()
+        .map(|e| {
+            let parsed = (|| {
+                let at = e.get(0)?.as_u64()?;
+                let c = control(e.get(1)?)?;
+                let value = e.get(2)?.as_f64()? as f32;
+                Some((at, c, value))
+            })();
+            parsed.unwrap_or_else(|| panic!("bad golden control {e}"))
+        })
+        .collect()
 }
 
 fn inputs(project: &Project) -> Inputs {
@@ -95,6 +162,7 @@ fn inputs(project: &Project) -> Inputs {
             .unwrap_or(false),
         input,
         midi,
+        controls: controls(&g),
     }
 }
 
@@ -144,6 +212,21 @@ fn render_summary(out: &ac_engine::Rendered) -> Value {
             "hash": format!("fnv1a64:{:016x}", h.finish()),
         });
     }
+    if !out.osc.is_empty() {
+        let mut h = Fnv64::new();
+        for (at, m) in &out.osc {
+            h.write(&at.to_le_bytes());
+            h.write(m.target.to_string().as_bytes());
+            h.write(m.address().as_bytes());
+            for a in m.args() {
+                h.write(&a.to_bits().to_le_bytes());
+            }
+        }
+        v["osc"] = json!({
+            "messages": out.osc.len(),
+            "hash": format!("fnv1a64:{:016x}", h.finish()),
+        });
+    }
     v
 }
 
@@ -170,6 +253,7 @@ fn render_with(
         to: i.seconds,
         input: i.input,
         midi: i.midi,
+        controls: i.controls,
         ..RenderOptions::default()
     };
     let out = render(&project, registry, resources.clone(), &opts);
@@ -211,13 +295,22 @@ fn golden_renders_match() {
             failures.push(format!("{}: length or rate differs", path.display()));
             continue;
         }
-        // MIDI is exact everywhere; files are compared like the main mix.
+        // MIDI and OSC are exact everywhere; files are compared like the
+        // main mix.
         if got["midi"] != want["midi"] {
             failures.push(format!(
                 "{}: MIDI Out sent {} != expected {}",
                 path.display(),
                 got["midi"],
                 want["midi"]
+            ));
+        }
+        if got["osc"] != want["osc"] {
+            failures.push(format!(
+                "{}: OSC Out sent {} != expected {}",
+                path.display(),
+                got["osc"],
+                want["osc"]
             ));
         }
         let file_names = |v: &Value| -> Vec<String> {
@@ -324,7 +417,10 @@ fn golden_renders_are_deterministic_live_and_offline() {
                     .filter(|(at, _)| (*at as usize) >= done && (*at as usize) < done + n)
                     .map(|(at, m)| ac_core::MidiEvent::new((*at as usize - done) as u32, *m))
                     .collect();
-                let out = host.tick_with(n, &input, &midi).to_vec();
+                let controls = block_controls(&i.controls, done, n);
+                let out = host
+                    .tick_with_controls(n, &input, &midi, &controls)
+                    .to_vec();
                 for (c, ch) in live.iter_mut().enumerate() {
                     ch.extend_from_slice(&out[c * n..(c + 1) * n]);
                 }
@@ -339,6 +435,12 @@ fn golden_renders_are_deterministic_live_and_offline() {
                 off.midi,
                 host.take_sent_midi(),
                 "{}: offline and live MIDI Out differ at block {block}",
+                path.display()
+            );
+            assert_eq!(
+                off.osc,
+                host.take_sent_osc(),
+                "{}: offline and live OSC Out differ at block {block}",
                 path.display()
             );
             by_block.push(off.channels);
@@ -360,7 +462,7 @@ fn audioc_render_matches_the_library() {
         .into_iter()
         .find(|p| {
             let i = inputs(&ac_io::load_project(p).expect("loads"));
-            i.midi.is_empty() && i.input.is_none()
+            i.midi.is_empty() && i.input.is_none() && i.controls.is_empty()
         })
         .expect("a golden project without test inputs");
     let out_wav = std::env::temp_dir().join(format!("ac-golden-cli-{}.wav", std::process::id()));
@@ -421,4 +523,133 @@ fn every_shipped_block_has_a_golden_project_with_its_current_copy() {
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// The `controls` test input names every kind of control, and a project
+/// carrying them renders the same offline and through the null host
+/// (golden projects for the control-surface nodes build on this).
+#[test]
+fn golden_control_inputs_parse_and_play_live_and_offline() {
+    let path = projects()
+        .into_iter()
+        .find(|p| {
+            let i = inputs(&ac_io::load_project(p).expect("loads"));
+            i.midi.is_empty() && i.input.is_none()
+        })
+        .expect("a golden project without test inputs");
+    let mut project = ac_io::load_project(&path).expect("loads");
+    let g = project
+        .extra
+        .entry("golden".to_string())
+        .or_insert_with(|| json!({}));
+    g["controls"] = json!([
+        [480, {"key": "space"}, 1],
+        [0, {"key": "A"}, 1],
+        [96, {"gamepad": 1, "button": "south"}, 1],
+        [96, {"axis": "right_trigger_axis"}, 0.5],
+        [2000, {"osc": "/fader/1"}, 0.25],
+        [2000, {"osc": "/xy", "arg": 1}, -1]
+    ]);
+    let i = inputs(&project);
+    assert_eq!(
+        i.controls,
+        vec![
+            (480, Control::Key(Key::from_name("Space").unwrap()), 1.0),
+            (0, Control::Key(Key::from_name("A").unwrap()), 1.0),
+            (
+                96,
+                Control::GamepadButton {
+                    pad: 1,
+                    button: GamepadButton::South
+                },
+                1.0
+            ),
+            (
+                96,
+                Control::GamepadAxis {
+                    pad: 0,
+                    axis: GamepadAxis::RightTrigger
+                },
+                0.5
+            ),
+            (
+                2000,
+                Control::Osc {
+                    address: osc_address_hash("/fader/1"),
+                    arg: 0
+                },
+                0.25
+            ),
+            (
+                2000,
+                Control::Osc {
+                    address: osc_address_hash("/xy"),
+                    arg: 1
+                },
+                -1.0
+            ),
+        ]
+    );
+    // Split into callbacks of 64: rebased, and events on one frame in order.
+    let second = block_controls(&i.controls, 64, 64);
+    assert_eq!(second.len(), 2);
+    assert_eq!((second[0].offset, second[1].offset), (32, 32));
+    assert!(matches!(second[0].control, Control::GamepadButton { .. }));
+    // Offline and live agree with the events fed in (nothing in this
+    // project reads them; the plumbing must not disturb it either).
+    let registry = Arc::new(ac_nodes::registry());
+    let resources = Arc::new(FileResources {
+        assets: AssetStore::load_for(&project, path.parent().expect("dir"), &registry),
+        recorder: None,
+    });
+    let block = 64;
+    let off = render(
+        &project,
+        registry.clone(),
+        resources.clone(),
+        &RenderOptions {
+            block_size: Some(block),
+            to: Some(0.1),
+            controls: i.controls.clone(),
+            ..RenderOptions::default()
+        },
+    );
+    let (engine, _) = Engine::new(
+        project.clone(),
+        registry,
+        resources,
+        EngineOptions {
+            sample_rate: f64::from(project.settings.sample_rate),
+            max_block: block,
+            socket_telemetry: false,
+            offline: false,
+        },
+    );
+    let mut host = NullHost::new(engine, 0, off.channels.len());
+    host.handle().bake_all();
+    host.handle().play();
+    let mut live = vec![Vec::new(); off.channels.len()];
+    let mut done = 0;
+    while done < off.frames() {
+        let n = block.min(off.frames() - done);
+        let controls = block_controls(&i.controls, done, n);
+        let out = host.tick_with_controls(n, &[], &[], &controls).to_vec();
+        for (c, ch) in live.iter_mut().enumerate() {
+            ch.extend_from_slice(&out[c * n..(c + 1) * n]);
+        }
+        done += n;
+    }
+    assert!(off.channels == live);
+    assert!(off.osc.is_empty() && host.take_sent_osc().is_empty());
+}
+
+#[test]
+#[should_panic(expected = "bad golden control")]
+fn malformed_golden_controls_fail_loudly() {
+    let mut project = Project::default();
+    project.extra.insert(
+        "golden".into(),
+        json!({"controls": [[0, {"key": "NoSuchKey"}, 1]]}),
+    );
+    let _ = inputs(&project);
 }

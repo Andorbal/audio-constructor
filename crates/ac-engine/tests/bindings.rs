@@ -180,20 +180,20 @@ fn a_key_toggles_a_bound_bool_and_a_button_fires_a_trigger() {
     h.tick(64);
     assert_eq!(tele.socket_value(&path(1), "out"), Some(0.0));
     // Press: on. Holding (a repeat) and releasing change nothing.
-    h.tick_events(64, &[], &[], &[key(true)]);
+    h.tick_with_controls(64, &[], &[], &[key(true)]);
     assert_eq!(tele.socket_value(&path(1), "out"), Some(1.0));
-    h.tick_events(64, &[], &[], &[key(true)]);
-    h.tick_events(64, &[], &[], &[key(false)]);
+    h.tick_with_controls(64, &[], &[], &[key(true)]);
+    h.tick_with_controls(64, &[], &[], &[key(false)]);
     assert_eq!(tele.socket_value(&path(1), "out"), Some(1.0));
     // The next press turns it off.
-    h.tick_events(64, &[], &[], &[key(true), key(false)]);
+    h.tick_with_controls(64, &[], &[], &[key(true), key(false)]);
     assert_eq!(tele.socket_value(&path(1), "out"), Some(0.0));
     assert_eq!(h.handle().binding_values().get(0), Some(0.0));
 
     // Each press of the button counts once; releases don't.
     for _ in 0..3 {
-        h.tick_events(64, &[], &[], &[button(true)]);
-        h.tick_events(64, &[], &[], &[button(false)]);
+        h.tick_with_controls(64, &[], &[], &[button(true)]);
+        h.tick_with_controls(64, &[], &[], &[button(false)]);
     }
     h.tick(64);
     assert_eq!(tele.socket_value(&path(2), "count"), Some(3.0));
@@ -229,8 +229,8 @@ fn transport_bindings_start_stop_and_record() {
     let (mut h, report) = host(p, 128);
     assert!(report.diagnostics.is_empty(), "{report}");
     let press = |h: &mut NullHost, c: Control, at: u32| {
-        h.tick_events(128, &[], &[], &[ControlEvent::new(at, c, 1.0)]);
-        h.tick_events(128, &[], &[], &[ControlEvent::new(0, c, 0.0)]);
+        h.tick_with_controls(128, &[], &[], &[ControlEvent::new(at, c, 1.0)]);
+        h.tick_with_controls(128, &[], &[], &[ControlEvent::new(0, c, 0.0)]);
     };
     h.tick(128);
     assert!(!h.handle().is_playing());
@@ -476,8 +476,8 @@ fn offline_renders_take_control_events() {
             block_size: Some(256),
             to: Some(0.1),
             controls: vec![
-                (1_000, ControlEvent::new(0, Control::Key(space), 0.0)),
-                (3_000, ControlEvent::new(0, Control::Key(space), 1.0)),
+                (1_000, Control::Key(space), 0.0),
+                (3_000, Control::Key(space), 1.0),
             ],
             ..RenderOptions::default()
         },
@@ -496,7 +496,7 @@ fn the_input_monitor_hands_raw_events_to_the_editor() {
     assert!(h.handle().take_input_events().is_empty());
     h.handle().set_input_monitor(true);
     let key = Key::from_char('q').unwrap();
-    h.tick_events(
+    h.tick_with_controls(
         64,
         &[],
         &[MidiEvent::new(3, cc(1, 2))],

@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "name": "Bindings: gamepad, key, and OSC",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "triangle",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gain",
+        "params": {
+          "gain": -60.0
+        },
+        "ui": {
+          "pos": [
+            260.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "source": {
+        "type": "gamepad_axis",
+        "axis": "left_x"
+      },
+      "target": {
+        "type": "input",
+        "node": "1",
+        "socket": "freq"
+      },
+      "min": 110.0,
+      "max": 880.0
+    },
+    {
+      "source": {
+        "type": "osc",
+        "address": "/fader/1"
+      },
+      "target": {
+        "type": "input",
+        "node": "2",
+        "socket": "gain"
+      },
+      "min": -40.0,
+      "max": 0.0,
+      "invert": true
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "S"
+      },
+      "target": {
+        "type": "input",
+        "node": "1",
+        "socket": "sync"
+      }
+    }
+  ],
+  "golden": {
+    "block_independent": true,
+    "controls": [
+      [
+        0,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -1.0
+      ],
+      [
+        0,
+        {
+          "osc": "/fader/1"
+        },
+        0.2
+      ],
+      [
+        4800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.5
+      ],
+      [
+        9600,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.0
+      ],
+      [
+        12000,
+        {
+          "key": "S"
+        },
+        1
+      ],
+      [
+        12100,
+        {
+          "key": "S"
+        },
+        0
+      ],
+      [
+        14400,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.5
+      ],
+      [
+        19200,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        1.0
+      ],
+      [
+        24000,
+        {
+          "osc": "/fader/1"
+        },
+        0.6
+      ],
+      [
+        28800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.25
+      ],
+      [
+        30000,
+        {
+          "key": "S"
+        },
+        1
+      ],
+      [
+        30050,
+        {
+          "key": "S"
+        },
+        0
+      ],
+      [
+        36000,
+        {
+          "osc": "/fader/1"
+        },
+        0.0
+      ],
+      [
+        38401,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.25
+      ]
+    ]
+  }
+}

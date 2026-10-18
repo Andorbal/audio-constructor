@@ -395,6 +395,7 @@ impl PerformView {
         ui: &mut egui::Ui,
         doc: &Document,
         engine: &EngineHost,
+        play_keys: bool,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
         let playing = engine.handle.is_playing();
@@ -415,10 +416,12 @@ impl PerformView {
                     .selected(playing)
                     .min_size(vec2(52.0, 36.0)),
                 )
-                .on_hover_text(if playing {
-                    "Stop (Space)"
-                } else {
-                    "Play (Space)"
+                // With Play keys on, Space goes to the patch.
+                .on_hover_text(match (playing, play_keys) {
+                    (true, false) => "Stop (Space)",
+                    (false, false) => "Play (Space)",
+                    (true, true) => "Stop",
+                    (false, true) => "Play",
                 });
             if play.clicked() {
                 actions.push(Action::PlayStop);
@@ -458,6 +461,26 @@ impl PerformView {
                     .on_hover_text("Leave performance mode (Esc or F11)");
                 if exit.clicked() {
                     actions.push(Action::PerformanceMode);
+                }
+                let keys = ui
+                    .add(
+                        egui::Button::new(RichText::new(icons::KEYBOARD).size(20.0).color(
+                            if play_keys {
+                                theme::ACCENT
+                            } else {
+                                theme::TEXT
+                            },
+                        ))
+                        .selected(play_keys)
+                        .min_size(vec2(40.0, 32.0)),
+                    )
+                    .on_hover_text(if play_keys {
+                        "Play keys is on: computer keys go to the patch"
+                    } else {
+                        "Play keys: send computer keys to the patch"
+                    });
+                if keys.clicked() {
+                    actions.push(Action::PlayKeys);
                 }
             });
         });

@@ -22,8 +22,9 @@ fixes and smaller changes.
   moves is bound, as one undo step (Esc cancels). Controllers and sticks
   sweep the input's range (on a log scale for frequencies, like its
   slider), notes and keys press it, and triggers fire once per press.
-- Bound inputs show a small link on the canvas, and their widgets follow
-  the control while the patch plays without marking the project changed.
+- Bound inputs show a small link on the canvas, and their widgets, on the
+  canvas and on performance panels, follow the control while the patch
+  plays without marking the project changed.
   The Project tab lists every binding (range, invert, momentary or toggle,
   jump to the node, remove); the Node tab lists the selected node's.
   Deleting a node removes its bindings in the same undo step, and grouping
@@ -32,7 +33,7 @@ fixes and smaller changes.
   buttons in one click (A play/stop, B stop, X record) and learns a
   control for any transport action. They're stored in the project like
   other bindings.
-- Bindings are part of the project, so `audioc live` and offline renders
+- Bindings are part of the project, so `audioc run` and offline renders
   honor them too; `audioc inspect` lists them, and `audioc validate`
   warns about bindings whose input is missing or wired.
 - **Performance panels.** Pin controls and displays (sliders, knobs,
@@ -52,6 +53,30 @@ fixes and smaller changes.
   with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
   built with both, with the JACK build playing a project through a JACK
   server.
+- **Gamepads**: plug in a game controller and the editor and `audioc run`
+  hear its buttons, sticks, and triggers. Controllers can come and go while
+  you play; each keeps its number while it's connected, and unplugging one
+  lets go of anything it was holding. The Devices tab and `audioc devices`
+  list them; `audioc run --no-gamepad` ignores them.
+- **OSC**: receive Open Sound Control from phone and tablet control apps or
+  other programs. Turn on listening in the Devices tab (port 9000 unless
+  you change it), which shows the address to send to and counts what
+  arrives, or run `audioc run --osc-in 9000`. Every argument of a message
+  is its own control, and a message without arguments works as a trigger.
+  Patches can send OSC too, each message to the address in its settings.
+- **Play keys**: the keyboard button in the transport bar (also
+  Transport ▸ Play Keys, `Ctrl+K`) sends your computer keys to the patch
+  instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
+  or Alt still work, text fields still get your typing, holding a key
+  doesn't repeat it, and keys never stick when you turn it off or switch
+  windows. Performance mode turns it on for you and puts it back when you
+  leave.
+
+### Changed
+
+- Building from source on Linux needs the udev development files
+  (`libudev-dev` on Debian and Ubuntu) as well as ALSA's; they let the
+  editor find gamepads.
 
 ### Changed
 
