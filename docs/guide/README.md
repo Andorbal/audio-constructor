@@ -51,6 +51,8 @@ written with `Ctrl` use `Cmd` instead.
 
 ## Help inside the app
 
+![The Help tab showing Gain: its description, a highlighted Try this tip, its sockets, and the blocks that use it](../images/guide-help-tab.png)
+
 - **`F1`** on a selected node opens its page in the side panel's **Help**
   tab: what it does, a highlighted "Try this" tip, every socket with its
   type and range, and the blocks and example projects that use it (click

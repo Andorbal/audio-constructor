@@ -25,6 +25,8 @@ You'll build oscillator → filter → amplifier, with an envelope shaping
 each note, played from an on-screen keyboard. The **Subtractive Synth**
 example is the finished version of this patch.
 
+![The Subtractive Synth example playing, with the Oscillator selected and its inputs, outputs, and help in the Node tab](../images/guide-synth.png)
+
 ### 1. A tone
 
 1. **File ▸ New** (`Ctrl+N`). The new project has an Oscillator wired into

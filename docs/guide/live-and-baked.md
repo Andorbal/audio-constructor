@@ -69,6 +69,8 @@ play the take back through a Clip.
 > Audio In is disabled. Switch on **Use Audio In** and play to hear the
 > difference.
 
+![The Reverse Delay example playing: the Reverse fed by a Clip shows the baked check mark, and the one fed by Audio In the disabled mark](../images/guide-reverse-delay.png)
+
 ### Offline, everything works
 
 An offline render (`audioc render`, or File ▸ Export WAV) knows the whole
