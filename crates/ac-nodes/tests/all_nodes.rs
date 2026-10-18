@@ -189,7 +189,7 @@ fn socket_names_are_unique_snake_case() {
 
 /// Phase 2 nodes in docs/NODES.md that come with a later milestone
 /// (ROADMAP M2.4, control surfaces).
-const P2_LATER: &[&str] = &["osc_in", "osc_out"];
+const P2_LATER: &[&str] = &["osc_out"];
 
 /// A NODES.md name as a registry kind: `EnvelopeFollower` → `envelope_follower`,
 /// `XYPad` → `xy_pad`, `MidiCC` → `midi_cc`, `IFFT` → `ifft`.

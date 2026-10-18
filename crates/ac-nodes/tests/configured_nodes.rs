@@ -167,6 +167,9 @@ fn control_surface_nodes_process_without_allocating() {
             "keyboard_in",
             json!({ "keys": "A, S, Z, X, Space, 1, F12, Quote", "low": 0, "channel": 16 }),
         ),
+        ("osc_in", json!({})),
+        ("osc_in", json!({ "address": "/x", "args": 4 })),
+        ("osc_in", json!({ "address": "bad" })),
     ];
     let reg = ac_nodes::registry();
     for (kind, config) in cases {

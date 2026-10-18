@@ -9,6 +9,7 @@ pub mod gamepad;
 pub mod keyboard_in;
 pub mod midi_in;
 pub mod midi_out;
+pub mod osc_in;
 pub mod record;
 
 /// Register every node in this category.
@@ -21,6 +22,7 @@ pub fn register(r: &mut Registry) {
     r.register::<file_out::FileOut>();
     r.register::<gamepad::Gamepad>();
     r.register::<keyboard_in::KeyboardIn>();
+    r.register::<osc_in::OscIn>();
 }
 
 /// The block's control events in order, each with the frame it lands on.

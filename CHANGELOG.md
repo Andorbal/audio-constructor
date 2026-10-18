@@ -26,6 +26,9 @@ fixes and smaller changes.
   the black ones, `Z` and `X` to change octave), so you can play a synth
   without a MIDI keyboard. A key always releases the note it started,
   even after an octave change.
+- **OSC In** node: Open Sound Control messages to one address (a fader or
+  button on a phone or tablet control surface, say) come in as up to four
+  numbers that hold their last value, plus a trigger for each message.
 
 ## [0.4.0] - 2026-10-18
 

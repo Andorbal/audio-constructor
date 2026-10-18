@@ -305,6 +305,46 @@ audio back in through an `Audio In` to process it.
 | `channel` | Int | 0 | 0 … 16 | Send everything on this channel, 1–16; 0 keeps each message's channel. |
 | `panic` | Trigger | — |  | Ends every note, on every channel. |
 
+<a id="osc-in"></a>
+## OSC In
+
+Kind: `osc_in` · live source · Also found by: open sound control, network, phone, tablet, touch, remote, control surface, wireless, input
+
+Receives Open Sound Control messages, such as the faders and buttons
+of a phone or tablet control surface, as numbers and a trigger.
+
+The `address` config is the address to listen to, exactly as the
+sender writes it (default `/fader/1`; patterns with wildcards aren't
+matched). `args` (1–4, default 1) is how many of each message's
+arguments to bring out: the first comes out of `value`, the others
+out of `value_2` to `value_4`. Each holds the last number received
+(true and false arrive as 1 and 0, and anything that isn't a finite
+number is skipped), starting at 0. `received` fires on the sample
+each message arrives on. A message without arguments sets `value`
+to 1, so a plain button works as a trigger; a button that sends 1
+and 0 works as a gate on `value`.
+
+An address that isn't valid (it must start with `/`, contain no
+spaces or any of `* ? [ ] { } # ,`, and be at most 64 characters)
+receives nothing, and the node stays at 0. The host decides which
+network port to listen on. Restarting the transport keeps the last
+values, the way the control surface still shows them.
+
+OSC In is a live source: nodes that need their whole input before
+they can play are disabled downstream of it.
+
+**Try this:** set `address` to a fader on your phone and wire
+`value` through a `Map` into a filter's `cutoff`, or wire a button's
+`received` into a `Clip`'s `start` to fire a sample from across the
+room.
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `value` | Float | The message's first argument, held until the next. |
+| `received` | Trigger | Fires on each message. |
+
 <a id="record"></a>
 ## Record
 

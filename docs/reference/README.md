@@ -12,6 +12,7 @@ node. Edit the node's source, not these files.
 | [Keyboard In](io.md#keyboard-in) | Input / Output | Brings the computer keyboard into the patch: chosen keys as gates and press triggers, and a row of letter keys played like a piano. |
 | [MIDI In](io.md#midi-in) | Input / Output | Brings MIDI from the connected devices into the patch. |
 | [MIDI Out](io.md#midi-out) | Input / Output | Sends MIDI to the connected devices. |
+| [OSC In](io.md#osc-in) | Input / Output | Receives Open Sound Control messages, such as the faders and buttons of a phone or tablet control surface, as numbers and a trigger. |
 | [Record](io.md#record) | Input / Output | Writes audio to a file, one take at a time. |
 | [Clip](generators.md#clip) | Generators | Plays an audio file, with looping, reverse, and variable speed. |
 | [Graph](generators.md#graph) | Generators | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
