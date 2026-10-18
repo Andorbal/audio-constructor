@@ -3,7 +3,7 @@
 //! rings and the processor's callback path), so tests and headless CI can
 //! exercise the live code path.
 
-use ac_core::{MidiEvent, MidiMsg};
+use ac_core::{ControlEvent, MidiEvent, MidiMsg};
 
 use crate::engine::{Engine, EngineHandle, HostIo, Processor};
 
@@ -60,6 +60,18 @@ impl NullHost {
 
     /// Run one callback with given channel-major input and MIDI.
     pub fn tick_with(&mut self, frames: usize, input: &[f32], midi: &[MidiEvent]) -> &[f32] {
+        self.tick_events(frames, input, midi, &[])
+    }
+
+    /// Run one callback with given channel-major input, MIDI, and control
+    /// events (keys, gamepads, OSC).
+    pub fn tick_events(
+        &mut self,
+        frames: usize,
+        input: &[f32],
+        midi: &[MidiEvent],
+        controls: &[ControlEvent],
+    ) -> &[f32] {
         self.output.clear();
         self.output.resize(self.out_channels * frames, 0.0);
         let mut io = HostIo {
@@ -74,7 +86,7 @@ impl NullHost {
             out_channels: self.out_channels,
             midi,
             midi_out: Some(&mut self.midi_out),
-            controls: &[],
+            controls,
             osc_out: None,
         };
         self.processor.process(&mut io);

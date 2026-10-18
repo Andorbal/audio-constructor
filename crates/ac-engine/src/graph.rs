@@ -221,6 +221,8 @@ pub struct CompiledGraph {
     pub(crate) level_decay: f32,
     /// Output latency in samples.
     pub(crate) latency: u32,
+    /// The project's bindings, resolved to this graph's param slots.
+    pub(crate) bindings: crate::bindings::BindingTable,
 }
 
 /// What every step of a block shares (read-only, so it can be shared
@@ -337,12 +339,15 @@ impl CompiledGraph {
                 p.fired = false;
                 if p.remaining > 0 {
                     let n = (frames as u32).min(p.remaining);
-                    p.value += p.step * n as f32;
                     p.remaining -= n;
                     if p.remaining == 0 {
                         p.value = p.target;
                         p.step = 0.0;
                     } else {
+                        // Counted back from the target, not accumulated,
+                        // so any split of the ramp into blocks lands on
+                        // the same values (FloatIn::Ramp).
+                        p.value = p.target - p.step * p.remaining as f32;
                         done = false;
                     }
                 }

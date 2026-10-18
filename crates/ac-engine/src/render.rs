@@ -4,8 +4,8 @@
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    AudioData, AudioIn, ConfigExt, FileRequest, MidiEvent, MidiMsg, NodePath, Project,
-    RecordRequest, RecordSink, Registry, Resources, Value,
+    AudioData, AudioIn, ConfigExt, ControlEvent, FileRequest, MidiEvent, MidiMsg, NodePath,
+    Project, RecordRequest, RecordSink, Registry, Resources, Value,
 };
 
 use crate::bake::BakeInput;
@@ -25,8 +25,13 @@ pub struct RenderOptions {
     pub to: Option<f64>,
     /// Audio fed to `AudioIn` nodes as if from a device (must match the rate).
     pub input: Option<AudioData>,
-    /// MIDI fed to `MidiIn` nodes, at absolute sample positions from `from`.
+    /// MIDI fed to `MidiIn` nodes (and bindings), at absolute sample
+    /// positions from `from`.
     pub midi: Vec<(u64, MidiMsg)>,
+    /// Control-surface events (keys, gamepads, OSC) fed to the patch and
+    /// its bindings, at absolute sample positions from `from`. Their
+    /// `offset` fields are ignored.
+    pub controls: Vec<(u64, ControlEvent)>,
     /// `--set node.socket=value` overrides, applied before compiling.
     pub set: Vec<(NodePath, String, Value)>,
     /// Number of device output channels (default: what the AudioOut nodes use, at least 2).
@@ -306,6 +311,9 @@ pub fn render(
     let mut sent = Vec::new();
     let mut midi_events = opts.midi.clone();
     midi_events.sort_by_key(|e| e.0);
+    let mut control_events = opts.controls.clone();
+    control_events.sort_by_key(|e| e.0);
+    let mut controls: Vec<ControlEvent> = Vec::new();
     let mut done = 0usize;
     while done < total {
         let n = block.min(total - done);
@@ -323,6 +331,16 @@ pub fn render(
                 midi.push(MidiEvent::new((at - done) as u32, msg));
             }
         }
+        controls.clear();
+        for &(at, e) in &control_events {
+            let at = at as usize;
+            if at >= done && at < done + n {
+                controls.push(ControlEvent {
+                    offset: (at - done) as u32,
+                    ..e
+                });
+            }
+        }
         let mut io = HostIo {
             frames: n,
             input: &inp[..in_channels * n],
@@ -331,7 +349,7 @@ pub fn render(
             out_channels,
             midi: &midi,
             midi_out: Some(&mut midi_out),
-            controls: &[],
+            controls: &controls,
             osc_out: None,
         };
         engine.process(&mut io);

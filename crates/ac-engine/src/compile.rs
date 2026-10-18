@@ -29,6 +29,7 @@ use ac_core::{
 use serde_json::json;
 
 use crate::bake::{BakeSpec, BakeStore, WholeState};
+use crate::bindings::{BindingTable, BindingValues, compile_bindings};
 use crate::flatten::{Flat, FlatNode, flatten};
 use crate::graph::{
     Bypass, CompiledGraph, NodeBox, Pool, Range, SocketTele, Step, StepKind, StepWork, Vacant, Wave,
@@ -118,6 +119,8 @@ pub struct Compiled {
     pub graph: Box<CompiledGraph>,
     pub layout: Arc<TelemetryLayout>,
     pub telemetry: Arc<TelemetryStore>,
+    /// Where the graph publishes what its bindings set.
+    pub bindings: Arc<BindingValues>,
     pub params: ParamMap,
     pub carry: CarryLayout,
     pub report: CompileReport,
@@ -842,6 +845,12 @@ pub(crate) fn compile_with(
             b.param_map.insert((path.clone(), socket.clone()), list);
         }
     }
+    // Bindings resolve through the same map (a bake runs without them).
+    let bindings = match capture {
+        None => compile_bindings(project, registry, &b.param_map, &mut report),
+        Some(_) => BindingTable::default(),
+    };
+    let binding_values = bindings.values.clone();
 
     // --- 9. waves and physical buffers ---
     let waves_of = levels(&b, &extra_deps);
@@ -1063,11 +1072,13 @@ pub(crate) fn compile_with(
         work,
         level_decay,
         latency: total_latency,
+        bindings,
     });
     Compiled {
         graph,
         layout: Arc::new(layout),
         telemetry,
+        bindings: binding_values,
         params: b.param_map,
         carry: nb.layout,
         report,
