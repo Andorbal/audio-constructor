@@ -34,6 +34,8 @@ hound = "3.5"
 clap = { version = "4.6", features = ["derive"] }
 anyhow = "1.0"
 cpal = "0.18"
+flate2 = "1"
+crc32fast = "1"
 midir = "0.11"
 realfft = "3.5"
 ctrlc = "3.5"

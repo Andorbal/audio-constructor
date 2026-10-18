@@ -179,14 +179,22 @@ pub fn fmt(files: &[PathBuf], check: bool) -> Result<ExitCode> {
     let mut bad = 0;
     for f in files {
         let text = std::fs::read_to_string(f).map_err(|e| anyhow!("{}: {e}", f.display()))?;
-        let p = Project::from_json(&text).map_err(|e| anyhow!("{}: {e}", f.display()))?;
-        let canonical = p.to_json();
+        let is_block = f.extension().is_some_and(|x| x == ac_core::BLOCK_EXTENSION);
+        let canonical = if is_block {
+            ac_core::Block::from_json(&text)
+                .map_err(|e| anyhow!("{}: {e}", f.display()))?
+                .to_json()
+        } else {
+            Project::from_json(&text)
+                .map_err(|e| anyhow!("{}: {e}", f.display()))?
+                .to_json()
+        };
         if canonical != text {
             if check {
                 println!("{} is not canonical", f.display());
                 bad += 1;
             } else {
-                ac_io::save_project(f, &p).map_err(|e| anyhow!(e))?;
+                std::fs::write(f, &canonical).map_err(|e| anyhow!("{}: {e}", f.display()))?;
                 println!("formatted {}", f.display());
             }
         }

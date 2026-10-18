@@ -1,6 +1,7 @@
 //! `audioc`: the Audio Constructor command line.
 
 mod bench;
+mod blocks;
 mod devices;
 mod docs;
 mod inspect;
@@ -60,7 +61,11 @@ enum Command {
     },
     /// Render stress projects and report the real-time ratio per node and overall.
     Bench(bench::BenchArgs),
-    /// Rewrite project files in canonical form.
+    /// List the block library.
+    Blocks(blocks::BlocksArgs),
+    /// Update projects' copies of library blocks to the library's versions.
+    BlockUpdate(blocks::UpdateArgs),
+    /// Rewrite project and block files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
         /// Report files that aren't canonical instead of rewriting them.
@@ -91,6 +96,8 @@ fn main() -> ExitCode {
         Command::Nodes { json, docs } => docs::nodes(json, docs.as_deref()),
         Command::Fmt { files, check } => inspect::fmt(&files, check),
         Command::Bench(args) => bench::run(args),
+        Command::Blocks(args) => blocks::list(args),
+        Command::BlockUpdate(args) => blocks::update(args),
     };
     match result {
         Ok(code) => code,

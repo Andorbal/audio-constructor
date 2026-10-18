@@ -8,6 +8,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod block;
 pub mod clipboard;
 pub mod events;
 pub mod graph;
@@ -26,6 +27,7 @@ pub mod util;
 pub mod value;
 pub mod whole;
 
+pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
 pub use clipboard::Subgraph;
 pub use events::{MIDI_CAPACITY, MidiEvent, MidiMsg, note_to_hz};
 pub use graph::{

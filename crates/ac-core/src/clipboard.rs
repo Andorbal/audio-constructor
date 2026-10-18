@@ -88,39 +88,7 @@ impl Subgraph {
         offset: [f32; 2],
     ) -> Vec<NodeId> {
         // Merge definitions first so pasted nodes can be pointed at the final ids.
-        let mut def_map: HashMap<GroupId, GroupId> = HashMap::new();
-        for (id, def) in &self.group_defs {
-            match defs.get(id) {
-                None => {
-                    def_map.insert(id.clone(), id.clone());
-                }
-                Some(existing) if existing == def => {
-                    def_map.insert(id.clone(), id.clone());
-                }
-                Some(_) => {
-                    let mut n = 2;
-                    let new_id = loop {
-                        let candidate = GroupId(format!("{}-{n}", id.0));
-                        if !defs.contains_key(&candidate)
-                            && !self.group_defs.contains_key(&candidate)
-                        {
-                            break candidate;
-                        }
-                        n += 1;
-                    };
-                    def_map.insert(id.clone(), new_id);
-                }
-            }
-        }
-        for (id, def) in &self.group_defs {
-            let target = def_map.get(id).cloned().unwrap_or_else(|| id.clone());
-            if defs.contains_key(&target) {
-                continue;
-            }
-            let mut def = def.clone();
-            retarget_groups(&mut def.graph, &def_map);
-            defs.insert(target, def);
-        }
+        let def_map = merge_defs(&self.group_defs, defs);
 
         let mut id_map: HashMap<NodeId, NodeId> = HashMap::new();
         let mut new_ids = Vec::with_capacity(self.nodes.len());
@@ -147,7 +115,50 @@ impl Subgraph {
     }
 }
 
-fn retarget_groups(graph: &mut Graph, map: &HashMap<GroupId, GroupId>) {
+/// Merge `incoming` definitions into `defs`: identical ones are reused,
+/// conflicting ones get a new id (`<id>-2`, …), and references between the
+/// incoming definitions follow the renames. Returns where each incoming id
+/// ended up.
+pub fn merge_defs(
+    incoming: &BTreeMap<GroupId, GroupDef>,
+    defs: &mut BTreeMap<GroupId, GroupDef>,
+) -> HashMap<GroupId, GroupId> {
+    let mut def_map: HashMap<GroupId, GroupId> = HashMap::new();
+    for (id, def) in incoming {
+        match defs.get(id) {
+            None => {
+                def_map.insert(id.clone(), id.clone());
+            }
+            Some(existing) if existing == def => {
+                def_map.insert(id.clone(), id.clone());
+            }
+            Some(_) => {
+                let mut n = 2;
+                let new_id = loop {
+                    let candidate = GroupId(format!("{}-{n}", id.0));
+                    if !defs.contains_key(&candidate) && !incoming.contains_key(&candidate) {
+                        break candidate;
+                    }
+                    n += 1;
+                };
+                def_map.insert(id.clone(), new_id);
+            }
+        }
+    }
+    for (id, def) in incoming {
+        let target = def_map.get(id).cloned().unwrap_or_else(|| id.clone());
+        if defs.contains_key(&target) {
+            continue;
+        }
+        let mut def = def.clone();
+        retarget_groups(&mut def.graph, &def_map);
+        defs.insert(target, def);
+    }
+    def_map
+}
+
+/// Point group and voices nodes in `graph` at renamed definitions.
+pub fn retarget_groups(graph: &mut Graph, map: &HashMap<GroupId, GroupId>) {
     for n in &mut graph.nodes {
         // Groups and Voices nodes both reference definitions.
         if let Some(def) = n.group_def()

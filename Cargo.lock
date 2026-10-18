@@ -90,6 +90,8 @@ dependencies = [
  "ac-nodes",
  "assert_no_alloc",
  "cpal",
+ "crc32fast",
+ "flate2",
  "hound",
  "midir",
  "realfft",

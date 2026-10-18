@@ -35,6 +35,8 @@ midir.workspace = true
 rtrb.workspace = true
 assert_no_alloc.workspace = true
 realfft.workspace = true
+flate2.workspace = true
+crc32fast.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # SCHED_FIFO for the ALSA callback thread.

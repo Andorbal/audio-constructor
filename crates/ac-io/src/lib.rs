@@ -43,6 +43,7 @@ pub mod clock;
 pub mod convert;
 pub mod engine_threads;
 pub mod latency;
+pub mod library;
 pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
@@ -52,6 +53,7 @@ pub mod project_file;
 pub mod record;
 pub mod runtime;
 pub mod wav;
+pub mod zip;
 
 pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
@@ -59,6 +61,7 @@ pub use audio::{
 };
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use latency::{Latency, LatencyError, find_delay};
+pub use library::{Library, LibraryBlock, Update, shipped_blocks};
 pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, block_offset};
 pub use midi_file::{midi_file_bytes, write_midi_file};
 pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
