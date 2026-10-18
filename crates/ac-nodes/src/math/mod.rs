@@ -5,10 +5,12 @@
 
 use ac_core::Registry;
 
+pub mod accumulate;
 pub mod clamp;
 pub mod compare;
 pub mod constant;
 pub mod convert;
+pub mod counter;
 pub mod differentiate;
 pub mod integrate;
 pub mod logic;
@@ -18,8 +20,11 @@ pub mod map;
 pub mod math;
 pub mod quantize;
 pub mod random;
+mod route;
 pub mod sample_hold;
+pub mod select;
 pub mod smooth;
+pub mod switch;
 pub mod unary;
 
 /// Register every node in this category.
@@ -38,6 +43,10 @@ pub fn register(r: &mut Registry) {
     r.register::<random::Random>();
     r.register::<sample_hold::SampleHold>();
     r.register::<quantize::Quantize>();
+    r.register::<counter::Counter>();
+    r.register::<accumulate::Accumulate>();
+    r.register::<select::Select>();
+    r.register::<switch::Switch>();
 }
 
 /// `x` if it is finite, else 0. Math nodes promise finite outputs, so NaN and
