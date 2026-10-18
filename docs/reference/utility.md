@@ -87,6 +87,76 @@ it, and duplicate the group (`Shift+D`) a few times with different
 `freq` values wired in. Tweak the filter inside one copy and hear
 every copy follow.
 
+<a id="info"></a>
+## Info
+
+Kind: `info` · live source · Also found by: sample rate, block size, cpu, load, xruns, dropouts, latency, stats
+
+The engine's vital signs as signals: `sample_rate` (Hz), `block_size`
+(the largest block, in frames), `cpu_load` (how much of each block's
+time the patch used last block, 0 to 1 and beyond), `xruns` (dropouts
+so far, from overruns and the audio device), and `latency` (the
+patch's output latency in samples).
+
+`cpu_load` and `xruns` depend on the machine, not the patch, so Info
+counts as a live source: a whole-input node fed by them is disabled.
+In offline renders they read 0.
+
+**Try this:** wire `cpu_load` into a `Readout` and a `Meter` to watch
+how hard a patch works while you build it, or feed `sample_rate`
+through a `Math` node to make a filter cutoff that is always a
+fixed fraction of Nyquist.
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `sample_rate` | Float (Hz) | The engine's sample rate. |
+| `block_size` | Int | The largest block, in frames. |
+| `cpu_load` | Float (×) | Last block's processing time over its budget. |
+| `xruns` | Int | Dropouts so far. |
+| `latency` | Int | Output latency in samples. |
+
+<a id="latency"></a>
+## Latency
+
+Kind: `latency` · Also found by: pdc, delay compensation, samples, align, debug
+
+Delays audio by a fixed number of samples and tells the engine so,
+which makes it a handy way to see latency compensation at work.
+
+Some nodes (FFT, Lookahead, PitchShift) delay what passes through
+them and report it. Wherever paths with different delays meet, the
+engine delays the faster inputs so everything lines up: a dry signal
+mixed with an FFT-processed copy stays in time. Latency does the same
+as those nodes, by exactly `samples` (config, up to 10 seconds' worth
+at 96 kHz), with `channels` channels (config, 1 to 32, default 2).
+
+`path_latency` reports how far behind the sources this point runs, in
+samples: the slowest path into the node plus its own delay. That is
+the figure the engine lines other paths up to where they meet. With
+`samples` at 0, Latency is a pure probe: drop it anywhere to read the
+latency at that point. The project's total output latency shows in
+`audioc validate` and in the editor.
+
+**Try this:** split an Oscillator into two paths, one through a
+Latency of 480 samples, and mix them: they stay in phase instead of
+comb-filtering, because the engine delays the direct path too.
+`audioc validate` lists the delay it added to the Mix input.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to delay. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The input, `samples` later. |
+| `path_latency` | Int | How far behind the sources this point runs, in samples. |
+
 <a id="merge-channels"></a>
 ## Merge Channels
 

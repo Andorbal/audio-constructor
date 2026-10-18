@@ -2,7 +2,7 @@
 //! inline widgets, badges and bodies, and gesture overlays.
 
 use ac_core::{ConfigExt, SignalType};
-use ac_engine::Severity;
+use ac_engine::{Severity, WholeState};
 use egui::{
     Align2, Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2,
 };
@@ -1007,6 +1007,38 @@ impl Canvas {
                 });
             }
         }
+        if n.kind == ac_core::VOICES_KIND
+            && let Some(node) = io.doc.graph().node(n.id)
+        {
+            let voices = node.config.get_u64_or("voices", 8).clamp(1, 64);
+            out.push(Badge {
+                icon: icons::STACK,
+                color: theme::TEXT_MUTED,
+                tip: format!(
+                    "Polyphonic: the inside runs once per voice ({voices} voices), and notes \
+                     from `midi` are shared out among them."
+                ),
+            });
+        }
+        if let Some((_, state)) = io.report.stats.whole_input.iter().find(|(p, _)| *p == path) {
+            out.push(whole_input_badge(state, io.engine.is_baking(&path)));
+        }
+        if let Some((_, samples)) = io
+            .report
+            .stats
+            .node_latency
+            .iter()
+            .find(|(p, _)| *p == path)
+        {
+            let ms = f64::from(*samples) * 1000.0 / io.engine.options().sample_rate.max(1.0);
+            out.push(Badge {
+                icon: icons::TIMER,
+                color: theme::TEXT_MUTED,
+                tip: format!(
+                    "Adds {samples} samples ({ms:.1} ms) of latency; parallel paths are delayed to match."
+                ),
+            });
+        }
         if n.muted {
             out.push(Badge {
                 icon: icons::SPEAKER_SLASH,
@@ -1022,6 +1054,39 @@ struct Badge {
     icon: &'static str,
     color: Color32,
     tip: String,
+}
+
+/// The badge for a whole-input node: disabled, baking, or baked (UX.md).
+fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
+    match state {
+        WholeState::Disabled { sources } => Badge {
+            icon: icons::X_CIRCLE,
+            color: theme::TEXT_MUTED,
+            tip: format!(
+                "Disabled: needs a known input, and {} is live. It plays silence while \
+                 live; offline renders still work.",
+                sources.join(", ")
+            ),
+        },
+        WholeState::Pending | WholeState::Stale => Badge {
+            icon: icons::CLOCK_COUNTER_CLOCKWISE,
+            color: theme::WARNING,
+            tip: match (state, running) {
+                (WholeState::Stale, _) => {
+                    "Baking: something upstream changed; the previous bake plays until \
+                     the new one is ready."
+                        .into()
+                }
+                (_, true) => "Baking: rendering its input in the background.".into(),
+                _ => "Waiting to bake.".into(),
+            },
+        },
+        WholeState::Baked => Badge {
+            icon: icons::CHECK_CIRCLE,
+            color: theme::OK,
+            tip: "Baked: plays a render of its whole input, in time with the transport.".into(),
+        },
+    }
 }
 
 /// `cutoff_hz` → `cutoff hz`: socket names read better without underscores.

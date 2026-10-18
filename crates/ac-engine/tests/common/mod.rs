@@ -165,7 +165,7 @@ node! {
 }
 impl Node for TOut {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().host_output()
     }
     fn describe(_: &Config) -> Signature {
         Signature::new().input(SocketSpec::audio("in").channels(Channels::Fixed(2)))

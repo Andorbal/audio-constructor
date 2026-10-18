@@ -19,31 +19,38 @@ pub mod param;
 pub mod project;
 pub mod registry;
 pub mod signal;
+pub mod spectrum;
 pub mod testing;
 pub mod time;
 pub mod util;
 pub mod value;
+pub mod whole;
 
 pub use clipboard::Subgraph;
 pub use events::{MidiEvent, MidiMsg, note_to_hz};
-pub use graph::{Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, Wire};
+pub use graph::{
+    Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, VOICE_KIND,
+    VOICES_KIND, Wire,
+};
 pub use group::{GroupDef, GroupInput, GroupOutput};
 pub use id::{GroupId, IdGen, NodeId, NodePath};
 pub use io::{
-    AudioIn, AudioOut, AutoFlags, BoolIn, FloatIn, FloatOut, FloatSrc, HostAccess, InputSlot,
-    Inputs, IntSrc, Io, MidiOut, OutputSlot, Outputs, ParamSlot, TelemetryAccess, TriggerOut,
-    TriggerSrc,
+    AudioIn, AudioOut, AutoFlags, BoolIn, BufferRef, FloatIn, FloatOut, FloatSrc, HostAccess,
+    InputSlot, Inputs, IntSrc, Io, MidiOut, OutputSlot, Outputs, ParamSlot, TelemetryAccess,
+    TriggerOut, TriggerSrc,
 };
 pub use node::{
-    AudioData, Category, Causality, Determinism, NoResources, Node, NodeMeta, Phase, PrepareCtx,
-    ProcessCtx, RecordRequest, RecordSink, Resources,
+    AudioData, Category, Causality, Determinism, EngineInfo, NoResources, Node, NodeMeta, Phase,
+    PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
-pub use registry::{NodeEntry, Registry, group_signature};
+pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};
 pub use signal::{
     AutoTrigger, Channels, Conversion, OutRate, Rate, Scale, SignalType, Signature, SocketSpec,
-    Unit, conversion,
+    SpectrumShape, Unit, conversion,
 };
+pub use spectrum::SpectrumBuf;
 pub use time::{TempoMap, TransportView};
 pub use value::{Config, ConfigExt, Value, empty_config};
+pub use whole::{WholeCtx, WholeInputs, WholeOutputs, WholeValue};

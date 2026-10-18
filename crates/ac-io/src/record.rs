@@ -13,6 +13,12 @@
 //! `<project>/assets/<name>-NNN.wav` (the first unused number) and is
 //! reported through [`DiskRecorder::finished_takes`] once its file is
 //! complete, so the editor can offer to turn it into a clip.
+//!
+//! The disk thread also keeps each take in memory (up to
+//! [`MEMORY_SECONDS`]) and hands it back to its `Record` node through a
+//! third ring, so the node can output it as a `Buffer`. The disk thread
+//! keeps a handle to every such buffer until it holds the only one, so a
+//! buffer is never freed on the audio thread.
 
 use std::collections::VecDeque;
 use std::fs::{File, OpenOptions};
@@ -24,7 +30,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use ac_core::{AudioIn, RecordRequest, RecordSink};
+use ac_core::{AudioData, AudioIn, RecordRequest, RecordSink};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::assets::RecorderFactory;
@@ -37,6 +43,11 @@ const CMD_RING: usize = 64;
 const POLL: Duration = Duration::from_millis(10);
 /// Files are numbered `-001` up to this.
 const MAX_TAKE_NUMBER: u32 = 99_999;
+/// Longest take kept in memory for the Record node's `buffer` output; longer
+/// takes are on disk in full, but the buffer holds only the beginning.
+pub const MEMORY_SECONDS: usize = 600;
+/// Finished-take buffers waiting for their node.
+const BUFFER_RING: usize = 4;
 
 /// A finished (or failed) take.
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +91,7 @@ struct Registration {
     sample_rate: u32,
     cmd_rx: Consumer<Cmd>,
     data_rx: Consumer<f32>,
+    buffer_tx: Producer<Arc<AudioData>>,
 }
 
 struct Shared {
@@ -169,6 +181,7 @@ impl RecorderFactory for DiskRecorder {
         let rate = req.sample_rate.clamp(1_000, 768_000) as usize;
         let (data_tx, data_rx) = RingBuffer::new(rate * channels * RING_SECONDS);
         let (cmd_tx, cmd_rx) = RingBuffer::new(CMD_RING);
+        let (buffer_tx, buffer_rx) = RingBuffer::new(BUFFER_RING);
         let reg = Registration {
             name: req.name.to_string(),
             node_key: req.node_key.to_string(),
@@ -176,6 +189,7 @@ impl RecorderFactory for DiskRecorder {
             sample_rate: req.sample_rate,
             cmd_rx,
             data_rx,
+            buffer_tx,
         };
         let sent = self
             .reg_tx
@@ -188,6 +202,7 @@ impl RecorderFactory for DiskRecorder {
                 channels,
                 cmd_tx,
                 data_tx,
+                buffer_rx,
                 pushed: 0,
                 state: SinkState::Idle,
                 pending_stop: None,
@@ -210,6 +225,7 @@ struct DiskSink {
     channels: usize,
     cmd_tx: Producer<Cmd>,
     data_tx: Producer<f32>,
+    buffer_rx: Consumer<Arc<AudioData>>,
     /// Samples pushed into the data ring so far.
     pushed: u64,
     state: SinkState,
@@ -281,6 +297,16 @@ impl RecordSink for DiskSink {
     fn dropped(&self) -> u64 {
         self.dropped
     }
+
+    fn take_buffer(&mut self) -> Option<Arc<AudioData>> {
+        // Only the newest finished take matters; older ones drop here, but
+        // the disk thread still holds them, so nothing is freed.
+        let mut latest = None;
+        while let Ok(b) = self.buffer_rx.pop() {
+            latest = Some(b);
+        }
+        latest
+    }
 }
 
 /// An open WAV file.
@@ -288,6 +314,8 @@ struct OpenTake {
     writer: Option<hound::WavWriter<BufWriter<File>>>,
     take: Take,
     samples: u64,
+    /// The take in memory, one Vec per channel (up to `MEMORY_SECONDS`).
+    memory: Vec<Vec<f32>>,
 }
 
 /// The disk thread's view of one sink.
@@ -301,7 +329,7 @@ struct Track {
 
 impl Track {
     /// Move everything available to disk. Returns whether there was work.
-    fn service(&mut self, shared: &Shared) -> bool {
+    fn service(&mut self, shared: &Shared, keep: &mut Vec<Arc<AudioData>>) -> bool {
         // Snapshot the samples first, then the commands: a command pushed
         // before a sample is then always seen with it (see the module docs).
         let mut avail = self.reg.data_rx.slots() as u64;
@@ -317,10 +345,10 @@ impl Track {
                 self.cmds.pop_front();
                 match c {
                     Cmd::Start(_) => {
-                        self.finish(shared);
+                        self.finish(shared, keep);
                         self.open = Some(open_take(shared, &self.reg));
                     }
-                    Cmd::Stop(_) => self.finish(shared),
+                    Cmd::Stop(_) => self.finish(shared, keep),
                 }
             }
             if avail == 0 {
@@ -347,6 +375,22 @@ impl Track {
         };
         if let Some(open) = self.open.as_mut() {
             let (a, b) = chunk.as_slices();
+            let ch = self.reg.channels.max(1);
+            let cap = MEMORY_SECONDS * self.reg.sample_rate as usize;
+            if open.memory.len() != ch {
+                open.memory = vec![Vec::new(); ch];
+            }
+            let have = open.memory.first().map_or(0, Vec::len);
+            let mut k = (open.samples as usize) % ch;
+            for &s in a.iter().chain(b) {
+                if have < cap
+                    && let Some(c) = open.memory.get_mut(k)
+                    && c.len() < cap
+                {
+                    c.push(s);
+                }
+                k = (k + 1) % ch;
+            }
             if let Some(w) = open.writer.as_mut() {
                 let mut result = Ok(());
                 for &s in a.iter().chain(b) {
@@ -375,11 +419,25 @@ impl Track {
         chunk.commit_all();
     }
 
-    /// Finalize the open take, if any, and report it.
-    fn finish(&mut self, shared: &Shared) {
+    /// Finalize the open take, if any, report it, and hand its audio to the
+    /// node (keeping a handle in `keep`).
+    fn finish(&mut self, shared: &Shared, keep: &mut Vec<Arc<AudioData>>) {
         let Some(mut open) = self.open.take() else {
             return;
         };
+        let frames = open.memory.iter().map(Vec::len).min().unwrap_or(0);
+        if frames > 0 && open.take.error.is_none() {
+            let mut memory = std::mem::take(&mut open.memory);
+            for c in &mut memory {
+                c.truncate(frames);
+            }
+            let data = Arc::new(AudioData {
+                sample_rate: self.reg.sample_rate,
+                channels: memory,
+            });
+            keep.push(data.clone());
+            let _ = self.reg.buffer_tx.push(data);
+        }
         if let Some(w) = open.writer.take()
             && let Err(e) = w.finalize()
         {
@@ -396,7 +454,10 @@ impl Track {
 
 fn disk_thread(shared: &Shared, reg_rx: &mpsc::Receiver<Registration>) {
     let mut tracks: Vec<Track> = Vec::new();
+    // Buffers handed to Record nodes; freed here once no one else holds them.
+    let mut keep: Vec<Arc<AudioData>> = Vec::new();
     loop {
+        keep.retain(|b| Arc::strong_count(b) > 1);
         let stopping = shared.stop.load(Ordering::Acquire);
         while let Ok(reg) = reg_rx.try_recv() {
             tracks.push(Track {
@@ -412,10 +473,10 @@ fn disk_thread(shared: &Shared, reg_rx: &mpsc::Receiver<Registration>) {
         // later pass found nothing more, its take (if any) is complete.
         tracks.retain_mut(|t| {
             let abandoned = t.reg.cmd_rx.is_abandoned() && t.reg.data_rx.is_abandoned();
-            let busy = t.service(shared);
+            let busy = t.service(shared, &mut keep);
             any_busy |= busy;
             if t.abandoned_seen && !busy {
-                t.finish(shared);
+                t.finish(shared, &mut keep);
                 return false;
             }
             t.abandoned_seen = abandoned;
@@ -423,9 +484,11 @@ fn disk_thread(shared: &Shared, reg_rx: &mpsc::Receiver<Registration>) {
         });
         if stopping {
             for t in &mut tracks {
-                t.service(shared);
-                t.finish(shared);
+                t.service(shared, &mut keep);
+                t.finish(shared, &mut keep);
             }
+            // Whoever still holds a buffer frees it; the engine is gone or
+            // going by now.
             return;
         }
         if !any_busy {
@@ -508,6 +571,7 @@ fn open_take(shared: &Shared, reg: &Registration) -> OpenTake {
             writer: Some(w),
             take,
             samples: 0,
+            memory: Vec::new(),
         },
         Err(e) => {
             take.error = Some(format!("couldn't create take: {e}"));
@@ -515,6 +579,7 @@ fn open_take(shared: &Shared, reg: &Registration) -> OpenTake {
                 writer: None,
                 take,
                 samples: 0,
+                memory: Vec::new(),
             }
         }
     }
@@ -603,6 +668,45 @@ mod tests {
         let b = read_wav(&takes[1].path).unwrap();
         assert_eq!(b.channels[0][0], 50_000.0 * 1e-4);
         assert_eq!(sink.dropped(), 0);
+        drop(sink);
+        rec.shutdown();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn finished_takes_come_back_as_buffers_kept_alive_off_the_audio_thread() {
+        let dir = temp_dir("buffers");
+        let rec = DiskRecorder::new(&dir).unwrap();
+        let mut sink = rec.open(&request("Loop", 2)).unwrap();
+        assert!(sink.take_buffer().is_none());
+        sink.start();
+        write_ramp(sink.as_mut(), 0, 4_800, 256);
+        sink.stop();
+        let mut buffer = None;
+        for _ in 0..500 {
+            buffer = sink.take_buffer();
+            if buffer.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let buffer = buffer.expect("the take's buffer");
+        assert_eq!(buffer.sample_rate, 48_000);
+        assert_eq!(buffer.frames(), 4_800);
+        assert_eq!(buffer.channels[1][100], -(100.0 * 1e-4));
+        // The disk thread holds a handle too, so dropping ours here (as the
+        // audio thread would) never frees the samples.
+        assert!(Arc::strong_count(&buffer) >= 2);
+        let weak = Arc::downgrade(&buffer);
+        drop(buffer);
+        // Once only the disk thread holds it, it lets go.
+        for _ in 0..200 {
+            if weak.upgrade().is_none() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(weak.upgrade().is_none());
         drop(sink);
         rec.shutdown();
         std::fs::remove_dir_all(&dir).ok();

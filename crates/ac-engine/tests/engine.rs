@@ -26,6 +26,7 @@ fn engine(project: Project, block: usize) -> (Engine, CompileReport) {
             sample_rate: 48_000.0,
             max_block: block,
             socket_telemetry: true,
+            offline: false,
         },
     )
 }

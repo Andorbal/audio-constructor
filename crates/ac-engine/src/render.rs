@@ -7,6 +7,7 @@ use ac_core::{
     AudioData, ConfigExt, MidiEvent, MidiMsg, NodePath, Project, Registry, Resources, Value,
 };
 
+use crate::bake::BakeInput;
 use crate::engine::{Engine, EngineOptions, HostIo};
 use crate::report::CompileReport;
 
@@ -125,8 +126,38 @@ pub fn render(
             sample_rate: f64::from(sample_rate),
             max_block: block,
             socket_telemetry: false,
+            offline: true,
         },
     );
+    // Whole-input nodes: bake them first, over the whole render, from the
+    // same input (ARCHITECTURE §10, multi-pass rendering).
+    if !engine.handle.bakes().is_empty() {
+        engine.handle.set_bake_frames(Some(end));
+        if opts.input.is_some() || !opts.midi.is_empty() {
+            // Bakes render from zero; the input starts at `from`.
+            let audio = opts.input.as_ref().map(|a| {
+                let lead = start as usize;
+                Arc::new(AudioData {
+                    sample_rate: a.sample_rate,
+                    channels: a
+                        .channels
+                        .iter()
+                        .map(|c| {
+                            let mut v = vec![0.0; lead];
+                            v.extend_from_slice(c);
+                            v
+                        })
+                        .collect(),
+                })
+            });
+            engine.handle.set_bake_input(BakeInput {
+                audio,
+                midi: Arc::new(opts.midi.iter().map(|&(at, m)| (at + start, m)).collect()),
+            });
+        }
+        engine.handle.bake_all();
+        report = engine.handle.report().clone();
+    }
     report.diagnostics.splice(0..0, pre.diagnostics);
     if let Some(input) = &opts.input
         && input.sample_rate != sample_rate

@@ -6,6 +6,8 @@ use std::fmt;
 
 use ac_core::NodePath;
 
+use crate::bake::WholeState;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Severity {
     Info,
@@ -55,8 +57,16 @@ pub struct CompileStats {
     pub params: usize,
     /// Nodes fed by the outside world (AudioIn, MidiIn).
     pub live_sources: Vec<NodePath>,
-    /// Total latency reported by nodes (Phase 2 compensates it).
+    /// Output latency in samples: the most any path to a device output adds.
     pub latency: u32,
+    /// Waves in the schedule (steps in a wave can run on different cores).
+    pub waves: usize,
+    /// Nodes that add latency, and how much (samples).
+    pub node_latency: Vec<(NodePath, u32)>,
+    /// Inputs delayed to line up with slower ones: node, input, samples.
+    pub compensation: Vec<(NodePath, String, u32)>,
+    /// Whole-input nodes and whether each is baked, baking, or disabled.
+    pub whole_input: Vec<(NodePath, WholeState)>,
 }
 
 /// Everything the compiler has to say about a project.

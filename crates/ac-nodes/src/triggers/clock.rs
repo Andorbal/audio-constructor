@@ -417,6 +417,7 @@ mod tests {
             sample_rate: 48_000.0,
             transport,
             phase: Phase::Main,
+            engine: Default::default(),
         };
         let mut io = Io {
             inputs: Inputs {
@@ -429,6 +430,8 @@ mod tests {
                 chan_table: &[],
                 triggers: &[],
                 midi: &[],
+                spectra: &[],
+                buffers: &[],
                 auto: AutoFlags::default(),
             },
             outputs: Outputs {
@@ -439,6 +442,8 @@ mod tests {
                 ints: &mut ints,
                 triggers: &mut triggers,
                 midi: &mut [],
+                spectra: &mut [],
+                buffers: &mut [],
             },
             host: HostAccess::none(frames),
             telemetry: TelemetryAccess::none(),

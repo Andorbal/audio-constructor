@@ -7,6 +7,7 @@ use crate::io::{AudioIn, Io};
 use crate::signal::Signature;
 use crate::time::TransportView;
 use crate::value::Config;
+use crate::whole::{WholeCtx, WholeInputs, WholeOutputs};
 
 /// Library category; maps to the header color in the editor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -120,6 +121,18 @@ pub struct NodeMeta {
     pub telemetry: usize,
     /// Length of the node's scope ring (0 for none).
     pub scope: usize,
+    /// Needs its whole input before producing output (ARCHITECTURE §9): the
+    /// engine bakes it with [`Node::render_whole`] instead of calling
+    /// `process`, and disables it when a live source feeds it.
+    pub whole_input: bool,
+    /// Writes to the device outputs. The multi-core scheduler runs these
+    /// one at a time, in schedule order, so outputs sum the same way on any
+    /// number of cores. A node must set this to write `io.host.output`;
+    /// every other node sees an empty device output.
+    pub host_output: bool,
+    /// Wants to know the path latency at its output
+    /// ([`Node::path_latency`]).
+    pub latency_probe: bool,
 }
 
 impl NodeMeta {
@@ -135,6 +148,9 @@ impl NodeMeta {
             asset_keys: &[],
             telemetry: 0,
             scope: 0,
+            whole_input: false,
+            host_output: false,
+            latency_probe: false,
         }
     }
 
@@ -170,6 +186,21 @@ impl NodeMeta {
 
     pub fn scope(mut self, len: usize) -> Self {
         self.scope = len;
+        self
+    }
+
+    pub fn whole_input(mut self) -> Self {
+        self.whole_input = true;
+        self
+    }
+
+    pub fn host_output(mut self) -> Self {
+        self.host_output = true;
+        self
+    }
+
+    pub fn latency_probe(mut self) -> Self {
+        self.latency_probe = true;
         self
     }
 
@@ -233,6 +264,15 @@ pub trait RecordSink: Send {
     fn dropped(&self) -> u64 {
         0
     }
+
+    /// A finished take's audio, once, for sinks that keep takes in memory
+    /// (`Record` outputs it as a `Buffer`). The sink must keep a handle of
+    /// its own to every buffer it returns, off the audio thread, until no one
+    /// else holds it, so the audio thread never drops the last one
+    /// (DECISIONS D53).
+    fn take_buffer(&mut self) -> Option<Arc<AudioData>> {
+        None
+    }
 }
 
 /// Host-provided services available while preparing nodes. The engine never
@@ -292,6 +332,18 @@ pub enum Phase {
     FeedbackWrite,
 }
 
+/// Engine figures a node can read while processing (the `Info` node).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct EngineInfo {
+    /// Last block's processing time as a fraction of its real-time budget
+    /// (0 offline, where nothing is timed).
+    pub load: f32,
+    /// Blocks that overran their budget, plus device under/overruns.
+    pub xruns: u64,
+    /// Total output latency of the running graph, in samples.
+    pub latency: u32,
+}
+
 /// Per-block context.
 #[derive(Clone, Copy, Debug)]
 pub struct ProcessCtx<'a> {
@@ -300,6 +352,7 @@ pub struct ProcessCtx<'a> {
     pub sample_rate: f64,
     pub transport: TransportView<'a>,
     pub phase: Phase,
+    pub engine: EngineInfo,
 }
 
 /// A node: one primitive processing step. Every built-in node implements
@@ -334,8 +387,28 @@ pub trait Node: Send + 'static {
     }
 
     /// Streaming (can run live) or WholeInput (needs the entire input first).
+    /// The compiler goes by [`NodeMeta::whole_input`]; this mirrors it.
     fn causality(&self) -> Causality {
         Causality::Streaming
+    }
+
+    /// For whole-input nodes ([`NodeMeta::whole_input`]): compute every
+    /// output from every input at once. Runs off the audio thread, so it may
+    /// allocate; it must still not panic. The engine streams the result.
+    fn render_whole(_config: &Config, ctx: &WholeCtx, inputs: &WholeInputs) -> WholeOutputs
+    where
+        Self: Sized,
+    {
+        let _ = (ctx, inputs);
+        WholeOutputs::default()
+    }
+
+    /// For latency probes ([`NodeMeta::latency_probe`]): how far behind the
+    /// sources this node's output runs, in samples (the slowest path into
+    /// it plus its own latency), which is what latency compensation lines
+    /// other paths up to. Called on the control thread after `new`.
+    fn path_latency(&mut self, samples: u32) {
+        let _ = samples;
     }
 
     /// For source nodes: can the output be computed ahead of time?

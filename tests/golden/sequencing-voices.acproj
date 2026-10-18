@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "name": "Voices: a four-voice chord",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "voices",
+        "config": {
+          "def": "pluck",
+          "voices": 4,
+          "steal": "oldest"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "gain",
+        "params": {
+          "gain": -12.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "pluck": {
+      "name": "Pluck voice",
+      "version": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "4:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw"
+            },
+            "ui": {
+              "pos": [
+                200.0,
+                -60.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.005,
+              "decay": 0.2,
+              "release": 0.1,
+              "sustain": 0.3
+            },
+            "ui": {
+              "pos": [
+                200.0,
+                140.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                400.0,
+                40.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:freq",
+            "to": "2:freq"
+          },
+          {
+            "from": "1:gate",
+            "to": "3:gate"
+          },
+          {
+            "from": "2:out",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true,
+    "midi": [
+      [
+        0,
+        [
+          144,
+          60,
+          100
+        ]
+      ],
+      [
+        2400,
+        [
+          144,
+          64,
+          100
+        ]
+      ],
+      [
+        4800,
+        [
+          144,
+          67,
+          100
+        ]
+      ],
+      [
+        7200,
+        [
+          144,
+          71,
+          100
+        ]
+      ],
+      [
+        9600,
+        [
+          144,
+          74,
+          100
+        ]
+      ],
+      [
+        36000,
+        [
+          128,
+          64,
+          0
+        ]
+      ],
+      [
+        48000,
+        [
+          128,
+          60,
+          0
+        ]
+      ]
+    ]
+  }
+}

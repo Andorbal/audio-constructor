@@ -17,6 +17,7 @@ node. Edit the node's source, not these files.
 | [Pan](level.md#pan) | Level & Dynamics | Places a mono signal in the stereo field, or shifts the balance of a stereo one. The output is always stereo. |
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
+| [Reverse](time.md#reverse) | Time | Plays its input backwards. |
 | [Compare](math.md#compare) | Math & Logic | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
 | [Constant](math.md#constant) | Math & Logic | A fixed `Float`, `Int`, or `Bool` value, set with its inline widget. |
 | [Map](math.md#map) | Math & Logic | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
@@ -25,6 +26,8 @@ node. Edit the node's source, not these files.
 | [ADSR](modulation.md#adsr) | Modulation | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
 | [Clock](triggers.md#clock) | Triggers & Gates | Fires a trigger every `interval`, locked to the transport. |
 | [MIDI Note](sequencing.md#midi-note) | Sequencing & Notes | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |
+| [Voice](sequencing.md#voice) | Sequencing & Notes | One voice's note, inside the body of a `Voices` node. |
+| [Voices](sequencing.md#voices) | Sequencing & Notes | Makes any patch polyphonic: its body (a group) runs once per voice, each voice plays one note at a time, and the voices' outputs are added together. |
 | [Button](controls.md#button) | Controls | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |
 | [Slider](controls.md#slider) | Controls | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | Controls | An on/off switch. |
@@ -34,6 +37,8 @@ node. Edit the node's source, not these files.
 | [Comment](utility.md#comment) | Utility | A sticky note on the canvas, for explaining a patch to others or to yourself later. |
 | [Feedback](utility.md#feedback) | Utility | Sends a signal back to an earlier point in the patch. It is the only way to make a loop: a wire path that leads back to where it started. |
 | [Group](utility.md#group) | Utility | A piece of patch packed into one node, with its own sockets. Double-click it (or select it and press `Tab`) to go inside and edit it; `Tab` again comes back out. |
+| [Info](utility.md#info) | Utility | The engine's vital signs as signals: `sample_rate` (Hz), `block_size` (the largest block, in frames), `cpu_load` (how much of each block's time the patch used last block, 0 to 1 and beyond), `xruns` (dropouts so far, from overruns and the audio device), and `latency` (the patch's output latency in samples). |
+| [Latency](utility.md#latency) | Utility | Delays audio by a fixed number of samples and tells the engine so, which makes it a handy way to see latency compensation at work. |
 | [Merge Channels](utility.md#merge-channels) | Utility | Combines mono signals into one multichannel signal. |
 | [Reroute](utility.md#reroute) | Utility | A dot on a wire, for tidy wiring. Whatever goes in comes straight out, of any type. |
 | [Split Channels](utility.md#split-channels) | Utility | Splits a multichannel signal into one mono output per channel. |

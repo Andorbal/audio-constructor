@@ -416,3 +416,74 @@ fn linked_follows_wires_both_ways() {
     let all = linked(&ch.project.graph, &[ch.g2].into());
     assert_eq!(all.len(), 4);
 }
+
+#[test]
+fn a_new_voices_node_has_a_playable_body_and_groups_toggle_polyphony() {
+    let mut p = Project::default();
+    let v = root(&mut p, |g, ctx| {
+        let v = super::group::add_voices(g, ctx, [0.0, 0.0]);
+        let s = ctx.sockets(g, v);
+        assert_eq!(s.inputs[0].name, "midi");
+        assert_eq!(s.outputs[0].name, "out");
+        assert!(matches!(
+            classify(g.node(v).unwrap(), ctx.registry, ctx.defs),
+            NodeClass::Group(_)
+        ));
+        v
+    });
+    assert_eq!(p.group_defs.len(), 1);
+    // The body compiles and makes sound from MIDI.
+    p.graph
+        .nodes
+        .push(ac_core::NodeInstance::new(NodeId(500), "midi_in"));
+    p.graph
+        .nodes
+        .push(ac_core::NodeInstance::new(NodeId(501), "audio_out"));
+    p.graph.connect(ep(NodeId(500), "midi"), ep(v, "midi"));
+    p.graph.connect(ep(v, "out"), ep(NodeId(501), "in"));
+    let r = ac_engine::render(
+        &p,
+        std::sync::Arc::new(reg()),
+        std::sync::Arc::new(ac_core::NoResources),
+        &ac_engine::RenderOptions {
+            to: Some(0.2),
+            midi: vec![(
+                0,
+                ac_core::MidiMsg::NoteOn {
+                    channel: 0,
+                    note: 60,
+                    velocity: 100,
+                },
+            )],
+            ..Default::default()
+        },
+    );
+    assert!(!r.report.has_errors(), "{}", r.report);
+    assert!(r.channels[0].iter().any(|s| s.abs() > 0.05));
+    // Back to a plain group: `midi` goes away with its wire.
+    root(&mut p, |g, ctx| {
+        super::group::set_polyphonic(g, v, false);
+        assert_eq!(g.node(v).unwrap().kind, GROUP_KIND);
+        assert!(ctx.sockets(g, v).input("midi").is_none());
+        assert!(g.wire_into(&ep(v, "midi")).is_none());
+        super::group::set_polyphonic(g, v, true);
+        assert_eq!(g.node(v).unwrap().kind, ac_core::VOICES_KIND);
+    });
+}
+
+#[test]
+fn hidden_sockets_are_not_shown() {
+    let mut p = Project::default();
+    root(&mut p, |g, ctx| {
+        let v = add_node(
+            g,
+            ctx,
+            ac_core::VOICE_KIND,
+            ac_core::empty_config(),
+            [0.0, 0.0],
+        );
+        let s = ctx.sockets(g, v);
+        assert!(s.input("voice_midi").is_none());
+        assert!(s.input("bend_range").is_some());
+    });
+}

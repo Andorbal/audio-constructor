@@ -69,6 +69,7 @@ fn record_thirty_seconds_play_back_from_a_clip_after_save_and_reopen() {
             sample_rate: f64::from(RATE),
             max_block: 256,
             socket_telemetry: true,
+            offline: false,
         },
     );
     assert!(!report.has_errors(), "{report}");

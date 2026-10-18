@@ -179,6 +179,7 @@ mod tests {
                 sample_rate: f64::from(rate),
                 max_block: 256,
                 socket_telemetry: false,
+                offline: false,
             },
         );
         engine
@@ -248,6 +249,7 @@ mod tests {
                 sample_rate: 48_000.0,
                 max_block: 128,
                 socket_telemetry: true,
+                offline: false,
             },
         );
         assert!(!report.has_errors(), "{report}");

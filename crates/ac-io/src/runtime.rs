@@ -645,7 +645,7 @@ mod tests {
 
     impl Node for MidiMarks {
         fn meta() -> NodeMeta {
-            Self::base_meta()
+            Self::base_meta().host_output()
         }
         fn describe(_: &Config) -> Signature {
             // Nodes without sockets are skipped by the compiler (comments).
@@ -710,6 +710,7 @@ mod tests {
                 sample_rate: f64::from(RATE),
                 max_block: block,
                 socket_telemetry: false,
+                offline: false,
             },
         );
         assert!(!report.has_errors(), "{report}");

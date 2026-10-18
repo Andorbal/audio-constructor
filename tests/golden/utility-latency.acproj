@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "name": "Latency compensation",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 0.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 441.0,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "latency",
+        "config": {
+          "samples": 300,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            -60.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": -6.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in_0"
+      },
+      {
+        "from": "1:out",
+        "to": "3:in_1"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

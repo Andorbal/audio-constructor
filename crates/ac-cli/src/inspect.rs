@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use ac_core::{Graph, GroupDef, Project};
-use ac_engine::{CompileOptions, Severity, compile};
+use ac_engine::{BakeStore, CompileOptions, Severity, WholeState, compile};
 use anyhow::{Result, anyhow};
 
 use crate::util::load;
@@ -20,10 +20,10 @@ pub fn validate(path: &Path, sample_rate: Option<u32>) -> Result<ExitCode> {
         &CompileOptions {
             sample_rate: f64::from(sample_rate.unwrap_or(project.settings.sample_rate)),
             max_block: project.settings.block_size as usize,
-            socket_telemetry: false,
-            generation: 0,
+            ..CompileOptions::default()
         },
         None,
+        &BakeStore::default(),
     );
     let r = &compiled.report;
     for d in &r.diagnostics {
@@ -42,8 +42,38 @@ pub fn validate(path: &Path, sample_rate: Option<u32>) -> Result<ExitCode> {
         let list: Vec<String> = s.live_sources.iter().map(ToString::to_string).collect();
         println!("live sources: {}", list.join(", "));
     }
-    println!("disabled nodes: none (no whole-input nodes in Phase 1)");
-    println!("latency: {} samples", s.latency);
+    // Live, a whole-input node fed by a live source is disabled; others bake.
+    let disabled: Vec<String> = s
+        .whole_input
+        .iter()
+        .filter_map(|(p, st)| match st {
+            WholeState::Disabled { sources } => {
+                Some(format!("{p} (fed by {})", sources.join(", ")))
+            }
+            _ => None,
+        })
+        .collect();
+    if disabled.is_empty() {
+        println!("disabled nodes: none");
+    } else {
+        println!("disabled nodes (live): {}", disabled.join(", "));
+    }
+    let baked = s.whole_input.len() - disabled.len();
+    if baked > 0 {
+        println!("whole-input nodes baked when played: {baked}");
+    }
+    let rate = sample_rate.unwrap_or(project.settings.sample_rate).max(1);
+    println!(
+        "latency: {} samples ({:.2} ms)",
+        s.latency,
+        f64::from(s.latency) * 1000.0 / f64::from(rate)
+    );
+    for (p, samples) in &s.node_latency {
+        println!("  {p} adds {samples}");
+    }
+    for (p, input, samples) in &s.compensation {
+        println!("  compensation: {p}:{input} delayed {samples}");
+    }
     let errors = r
         .diagnostics
         .iter()

@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use ac_engine::{Engine, EngineHandle, EngineOptions, Severity, required_output_channels};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, CpalAudio, DiskRecorder, FileResources, InputChoice,
-    MidiInputs, MidiSelect, NullAudio, StreamInfo, Take,
+    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, DiskRecorder, FileResources,
+    InputChoice, MidiInputs, MidiSelect, NullAudio, StreamInfo, Take, worker_pool,
 };
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
@@ -55,6 +55,7 @@ impl DeviceArgs {
             },
             sample_rate: self.sample_rate,
             buffer_size: self.buffer_size,
+            threads: 1,
         }
     }
 
@@ -89,6 +90,10 @@ pub struct RunArgs {
     /// Run without audio devices (silent input, output discarded), in real time.
     #[arg(long)]
     null: bool,
+    /// Threads to run the engine on (the audio thread plus real-time
+    /// workers); independent parts of the patch run side by side.
+    #[arg(long, default_value_t = 1)]
+    threads: usize,
 }
 
 /// Run until `stop` is set or the duration elapses.
@@ -135,6 +140,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
             sample_rate: f64::from(info.sample_rate),
             max_block: info.max_block(),
             socket_telemetry: false,
+            offline: false,
         },
     );
     for d in &report.diagnostics {
@@ -142,7 +148,12 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
             eprintln!("{d}");
         }
     }
-    let (mut handle, processor) = engine.split();
+    let (mut handle, mut processor) = engine.split();
+    let workers = worker_pool(args.threads);
+    if let Some(w) = &workers {
+        println!("engine threads: {}", w.workers() + 1);
+    }
+    processor.set_workers(workers);
 
     let select = MidiSelect::parse(&args.midi);
     let select_any = select != MidiSelect::None;
@@ -208,10 +219,26 @@ fn control_loop(
     let mut next_status = t0 + STATUS_EVERY;
     let mut next_rescan = t0 + MIDI_RESCAN_EVERY;
     let mut warned_rt = false;
+    let mut baker = Baker::new();
+    let mut reported: Vec<(ac_core::NodePath, ac_engine::WholeState)> = Vec::new();
     loop {
         std::thread::sleep(TICK);
         handle.collect_garbage();
         midi.collect_garbage();
+        baker.poll(handle);
+        let states: Vec<_> = handle
+            .bakes()
+            .iter()
+            .map(|b| (b.path.clone(), b.state.clone()))
+            .collect();
+        if states != reported {
+            for (path, state) in &states {
+                if !reported.contains(&(path.clone(), state.clone())) {
+                    println!("{path}: {}", state.label());
+                }
+            }
+            reported = states;
+        }
         for t in recorder.finished_takes() {
             print_take(&t);
         }
@@ -298,6 +325,7 @@ pub fn latency(args: LatencyArgs) -> Result<ExitCode> {
             sample_rate: f64::from(info.sample_rate),
             max_block: info.max_block(),
             socket_telemetry: false,
+            offline: false,
         },
     );
     let (mut handle, processor) = engine.split();
@@ -380,8 +408,15 @@ fn status_line(handle: &EngineHandle, elapsed: Duration, midi_dropped: u64) -> S
         (false, true) => "armed",
         (false, false) => "stopped",
     };
+    let cores = s.core_loads();
+    let per_core = if cores.len() > 1 {
+        let list: Vec<String> = cores.iter().map(|c| format!("{:.0}", c * 100.0)).collect();
+        format!("  cores {}%", list.join("/"))
+    } else {
+        String::new()
+    };
     format!(
-        "{:>6.1}s  {:<9}  pos {}  load {:>5.1}%  xruns {} (device {})  dropped {}  peak {}/{} dB",
+        "{:>6.1}s  {:<9}  pos {}  load {:>5.1}%{per_core}  xruns {} (device {})  dropped {}  peak {}/{} dB",
         elapsed.as_secs_f64(),
         state,
         format_position(s.position.load(Ordering::Relaxed), rate),

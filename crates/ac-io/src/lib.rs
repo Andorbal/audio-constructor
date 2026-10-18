@@ -16,7 +16,7 @@
 //!     project,
 //!     registry,
 //!     Arc::new(ac_core::NoResources),
-//!     EngineOptions { sample_rate: f64::from(info.sample_rate), max_block: info.max_block(), socket_telemetry: true },
+//!     EngineOptions { sample_rate: f64::from(info.sample_rate), max_block: info.max_block(), socket_telemetry: true, offline: false },
 //! );
 //! let (mut handle, processor) = engine.split();
 //! let (mut midi, receiver) = MidiInputs::new();
@@ -41,6 +41,7 @@ pub mod assets;
 pub mod audio;
 pub mod clock;
 pub mod convert;
+pub mod engine_threads;
 pub mod latency;
 pub mod midi;
 pub mod null;
@@ -54,6 +55,7 @@ pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
     AudioConfig, CpalAudio, DeviceInfo, HostInfo, InputChoice, RunningAudio, enumerate,
 };
+pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use latency::{Latency, LatencyError, find_delay};
 pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, block_offset};
 pub use null::{NullAudio, NullHost, NullStream};

@@ -409,3 +409,60 @@ pub fn ungroup(graph: &mut Graph, ctx: &mut Ctx, instance: NodeId) -> Option<Vec
     }
     Some(new_ids)
 }
+
+/// Add a `Voices` node with a starter body: a Voice node playing a saw
+/// Oscillator through an ADSR-driven gain, so it sounds as soon as MIDI
+/// reaches it. Returns the new node.
+pub fn add_voices(graph: &mut Graph, ctx: &mut Ctx, pos: [f32; 2]) -> NodeId {
+    let (def_id, _) = fresh_def_id(ctx.defs);
+    let mut def = GroupDef::new("Voice");
+    def.description = "One voice of a polyphonic synth: edit it to change every voice.".into();
+    let n = |id: u64, kind: &str, x: f32, y: f32| NodeInstance::new(NodeId(id), kind).at(x, y);
+    def.graph.nodes.extend([
+        n(1, ac_core::VOICE_KIND, 0.0, 0.0),
+        n(2, "oscillator", 240.0, -60.0).with_param("shape", "saw"),
+        n(3, "adsr", 240.0, 140.0).with_param("release", 0.3),
+        n(4, "math", 480.0, 40.0).with_param("op", "multiply"),
+    ]);
+    for (f, o, t, i) in [
+        (1, "freq", 2, "freq"),
+        (1, "gate", 3, "gate"),
+        (2, "out", 4, "a"),
+        (3, "out", 4, "b"),
+    ] {
+        def.graph
+            .connect(Endpoint::new(NodeId(f), o), Endpoint::new(NodeId(t), i));
+    }
+    def.outputs.push(GroupOutput {
+        name: "out".into(),
+        ty: ac_core::SignalType::Audio,
+        source: Endpoint::new(NodeId(4), "out"),
+    });
+    ctx.defs.insert(def_id.clone(), def);
+    let id = ctx.fresh_id(graph);
+    graph.nodes.push(
+        NodeInstance::new(id, ac_core::VOICES_KIND)
+            .with_config(serde_json::json!({ "def": def_id.0, "voices": 8 }))
+            .at(pos[0], pos[1]),
+    );
+    id
+}
+
+/// Switch a group instance between playing once (`group`) and once per
+/// voice (`voices`), keeping its definition and wires.
+pub fn set_polyphonic(graph: &mut Graph, id: NodeId, on: bool) {
+    let Some(node) = graph.node_mut(id) else {
+        return;
+    };
+    let Some(def) = node.group_def() else {
+        return;
+    };
+    if on {
+        node.kind = ac_core::VOICES_KIND.to_string();
+        node.config = serde_json::json!({ "def": def.0, "voices": 8 });
+    } else {
+        node.kind = GROUP_KIND.to_string();
+        node.config = serde_json::json!({ "def": def.0 });
+        graph.disconnect_input(&Endpoint::new(id, "midi"));
+    }
+}

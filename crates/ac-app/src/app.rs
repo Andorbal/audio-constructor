@@ -754,7 +754,11 @@ impl EditorApp {
         let id = self
             .doc
             .edit(&self.registry, &format!("Add {}", c.name), |g, ctx| {
-                let id = edit::add_node(g, ctx, &kind, config, [pos.x, pos.y]);
+                let id = if kind == ac_core::VOICES_KIND && config.get("def").is_none() {
+                    edit::group::add_voices(g, ctx, [pos.x, pos.y])
+                } else {
+                    edit::add_node(g, ctx, &kind, config, [pos.x, pos.y])
+                };
                 if let (Some(p), Some(s)) = (&pending, &socket) {
                     let r = match (&p.from, &p.to) {
                         (Some(from), _) => {

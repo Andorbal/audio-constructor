@@ -49,7 +49,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `AudioOut` | P1 | A device output. In: `in: Audio`. Multiple instances allowed (main, cue). |
 | `MidiIn` | P1, Live | A MIDI device (or all). Out: `midi: Midi`. |
 | `MidiOut` | P2 | Send `Midi` to a device. |
-| `Record` | P1 | Writes `in: Audio` to a file while `arm: Bool` is true (or between `start`/`stop` triggers). Outputs `recording: Bool`, `length: Float(Seconds)`. Phase 2 adds `buffer: Buffer` output so a recording can feed a Sampler immediately. |
+| `Record` | P1 | Writes `in: Audio` to a file while `arm: Bool` is true (or between `start`/`stop` triggers). Outputs `recording: Bool`, `length: Float(Seconds)`, and (Phase 2) `buffer: Buffer`, the last finished take, so a recording can feed a Sampler immediately. |
 | `FileOut` | P2 | Offline-only sink: render `in` to a file path. Lets a project produce several files in one `audioc render`. |
 | `Gamepad` | P2, Live | Buttons as `Bool` + `Trigger` (press/release), sticks and triggers as `Float` with dead zone and curve. Config: controller index. |
 | `KeyboardIn` | P2, Live | Computer keys as `Bool`/`Trigger`, plus a `midi` output mapping a QWERTY row to notes. |
@@ -189,7 +189,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes, octaves. |
 | `Chord` | P2 | One note → several (intervals config). |
 | `ScaleQuantize` | P2 | Snap `Float`/`Int` notes or `Midi` to a scale; `root`, `scale` with custom masks. |
-| `Voices` | P2 | **Polyphony.** A group instance run once per voice (config: voice count, steal policy). `midi` in; inside the body a `Voice` node exposes `freq`, `gate`, `velocity`, `index`, `trigger`; `Audio` outputs from all voices are summed. The synth-building primitive. |
+| `Voices` | P2 | **Polyphony.** A group instance run once per voice (config: voice count 1–64, steal policy oldest/newest/lowest/highest/none). `midi` in; inside the body a `Voice` node exposes `freq`, `gate`, `velocity`, `index`, `trigger`; `Audio` and `Float` outputs from all voices are summed. The synth-building primitive. |
+| `Voice` | P2 | Inside a `Voices` body: this voice's `freq`, `gate`, `velocity`, `note`, `trigger`, `index`, and its own `midi` stream. Does nothing elsewhere. |
 
 ## Controls (UI nodes)
 
@@ -227,7 +228,7 @@ Panels (UX.md) to make a performance surface.
 | `SplitChannels` | P1 | `Audio(N)` → N `Audio(1)` outputs. |
 | `MergeChannels` | P1 | N `Audio(1)` → `Audio(N)`. |
 | `MidSide` | P2 | Encode/decode. |
-| `Latency` | P2 | Delay by N samples and report it; also reads the compensation applied at this point (for debugging PDC). |
+| `Latency` | P2 | Delay by N samples (config) and report it; also outputs the path latency at this point (for debugging PDC). |
 | `Info` | P2 | `sample_rate`, `block_size`, `cpu_load`, `xruns` as signals. |
 | `Comment` | P1 | Sticky-note text. (Frames around nodes are a canvas feature, not a node.) |
 

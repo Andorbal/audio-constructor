@@ -13,6 +13,10 @@ use crate::value::{Config, Value, config_is_empty, empty_config};
 pub const GROUP_KIND: &str = "group";
 /// Registry key of the reroute dot, which the compiler removes.
 pub const REROUTE_KIND: &str = "reroute";
+/// Registry key of the polyphony node: a group definition run once per voice.
+pub const VOICES_KIND: &str = "voices";
+/// Registry key of the node inside a `Voices` body that reports its voice.
+pub const VOICE_KIND: &str = "voice";
 
 /// A graph: node instances and the wires between them.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -134,9 +138,10 @@ impl NodeInstance {
         self
     }
 
-    /// For a group instance, the definition it references.
+    /// For a group instance (or a `Voices` node, whose body is a group
+    /// definition), the definition it references.
     pub fn group_def(&self) -> Option<GroupId> {
-        if self.kind == GROUP_KIND {
+        if self.kind == GROUP_KIND || self.kind == VOICES_KIND {
             self.config
                 .get("def")
                 .and_then(|v| v.as_str())

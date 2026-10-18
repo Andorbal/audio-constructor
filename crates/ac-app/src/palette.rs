@@ -118,14 +118,17 @@ pub fn candidates(
 /// from an input, the first output that feeds it.
 pub fn pick_socket(sig: &ac_core::Signature, p: &PendingWire) -> Option<String> {
     let ty = p.ty;
+    let visible = |list: &[ac_core::SocketSpec]| -> Vec<ac_core::SocketSpec> {
+        list.iter().filter(|s| !s.hidden).cloned().collect()
+    };
     if p.from.is_some() {
-        let ins = &sig.inputs;
+        let ins = visible(&sig.inputs);
         ins.iter()
             .find(|s| s.ty == ty && ty != SignalType::Any)
             .or_else(|| ins.iter().find(|s| edit::compatible(ty, s.ty)))
             .map(|s| s.name.to_string())
     } else {
-        let outs = &sig.outputs;
+        let outs = visible(&sig.outputs);
         outs.iter()
             .find(|s| s.ty == ty && ty != SignalType::Any)
             .or_else(|| outs.iter().find(|s| edit::compatible(s.ty, ty)))

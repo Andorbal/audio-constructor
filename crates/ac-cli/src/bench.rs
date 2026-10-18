@@ -6,6 +6,8 @@
 //! any project file instead. `--json` prints machine-readable results;
 //! `--compare <file>` fails when a project got slower than the given results
 //! by more than `--threshold` (CI compares a merge request against `main`).
+//! `--threads N` also runs each project on N threads (the audio thread plus
+//! real-time workers) and reports the speedup over one.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -14,8 +16,11 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-use ac_core::{Endpoint, NoResources, NodeId, NodeInstance, NodePath, Project, Resources, Wire};
-use ac_engine::{Engine, EngineOptions, HostIo};
+use ac_core::{
+    Endpoint, GroupDef, GroupId, GroupOutput, MidiEvent, MidiMsg, NoResources, NodeId,
+    NodeInstance, NodePath, Project, Resources, SignalType, Wire,
+};
+use ac_engine::{Engine, EngineOptions, HostIo, RtPool};
 use anyhow::{Result, anyhow};
 use clap::Args;
 use serde_json::{Value, json};
@@ -46,7 +51,13 @@ pub struct BenchArgs {
     /// Append the results as one JSON line to this history file.
     #[arg(long, value_name = "FILE")]
     history: Option<PathBuf>,
+    /// Also run on this many threads and report the speedup.
+    #[arg(long, default_value = "1")]
+    threads: usize,
 }
+
+/// A project to bench: name, project, resources, and MIDI held from the start.
+type Bench = (String, Project, Arc<dyn Resources>, Vec<MidiMsg>);
 
 fn now_ns() -> u64 {
     static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
@@ -62,36 +73,50 @@ struct Outcome {
     blocks: u64,
     /// Total nanoseconds per node kind.
     per_kind: BTreeMap<String, (u64, usize)>,
+    /// Real-time ratio on `--threads` threads, when more than one.
+    threaded: Option<(usize, f64)>,
 }
 
 pub fn run(args: BenchArgs) -> Result<ExitCode> {
     let registry = Arc::new(ac_nodes::registry());
-    let mut projects: Vec<(String, Project, Arc<dyn Resources>)> = Vec::new();
+    let mut projects: Vec<Bench> = Vec::new();
     match &args.project {
         Some(p) => {
             let (project, res) = crate::util::load(p, &registry)?;
             let name = p
                 .file_stem()
                 .map_or("project".into(), |s| s.to_string_lossy().to_string());
-            projects.push((name, project, res));
+            projects.push((name, project, res, Vec::new()));
         }
         None => {
-            for (name, project) in stress_projects() {
-                projects.push((name, project, Arc::new(NoResources)));
+            for (name, project, midi) in stress_projects() {
+                projects.push((name, project, Arc::new(NoResources), midi));
             }
         }
     }
     let mut results = Vec::new();
-    for (name, project, resources) in projects {
-        results.push(bench_one(
-            &name,
-            project,
-            registry.clone(),
-            resources,
-            args.seconds,
-            args.block_size,
-            args.repeat.max(1),
-        ));
+    for (name, project, resources, midi) in projects {
+        let run = |threads: usize| {
+            bench_one(
+                &name,
+                project.clone(),
+                registry.clone(),
+                resources.clone(),
+                &midi,
+                &Settings {
+                    seconds: args.seconds,
+                    block: args.block_size,
+                    repeat: args.repeat.max(1),
+                    threads,
+                },
+            )
+        };
+        let mut outcome = run(1);
+        if args.threads > 1 {
+            let t = run(args.threads);
+            outcome.threaded = Some((args.threads, t.realtime));
+        }
+        results.push(outcome);
     }
     let json = results_json(&results, args.block_size);
     if args.json {
@@ -108,15 +133,23 @@ pub fn run(args: BenchArgs) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// How to bench one project.
+struct Settings {
+    seconds: f64,
+    block: usize,
+    repeat: usize,
+    threads: usize,
+}
+
 fn bench_one(
     name: &str,
     project: Project,
     registry: Arc<ac_core::Registry>,
     resources: Arc<dyn Resources>,
-    seconds: f64,
-    block: usize,
-    repeat: usize,
+    midi: &[MidiMsg],
+    settings: &Settings,
 ) -> Outcome {
+    let (seconds, block, repeat) = (settings.seconds, settings.block, settings.repeat);
     let rate = f64::from(project.settings.sample_rate);
     let kinds: BTreeMap<NodePath, String> = project
         .graph
@@ -132,17 +165,27 @@ fn bench_one(
             sample_rate: rate,
             max_block: block,
             socket_telemetry: false,
+            offline: false,
         },
     );
     let telemetry = engine.handle.telemetry();
     let timing_paths: Vec<NodePath> = kinds.keys().cloned().collect();
     engine.processor.set_clock(Some(now_ns));
+    if settings.threads > 1 {
+        engine.processor.set_workers(Some(Arc::new(RtPool::new(
+            settings.threads - 1,
+            None,
+            Some(now_ns),
+        ))));
+    }
     engine
         .handle
         .status()
         .timing_enabled
         .store(true, Ordering::Relaxed);
     engine.handle.play();
+    // Notes held from the first frame (for Voices projects).
+    let events: Vec<MidiEvent> = midi.iter().map(|m| MidiEvent::new(0, *m)).collect();
     let total = (seconds * rate) as usize;
     let mut out = vec![0.0f32; 2 * block];
     let mut per_kind: BTreeMap<String, (u64, usize)> = BTreeMap::new();
@@ -159,7 +202,7 @@ fn bench_one(
             in_channels: 0,
             output: &mut out[..2 * n],
             out_channels: 2,
-            midi: &[],
+            midi: if done == 0 { &events } else { &[] },
         };
         engine.process(&mut io);
         n_blocks += 1;
@@ -190,7 +233,7 @@ fn bench_one(
                 in_channels: 0,
                 output: &mut out[..2 * n],
                 out_channels: 2,
-                midi: &[],
+                midi: if done == 0 { &events } else { &[] },
             };
             engine.process(&mut io);
             done += n;
@@ -204,13 +247,21 @@ fn bench_one(
         nodes: kinds.len(),
         blocks: n_blocks,
         per_kind,
+        threaded: None,
     }
 }
 
 fn print_table(results: &[Outcome]) {
     for r in results {
+        let threaded = match r.threaded {
+            Some((t, rt)) => format!(
+                "  {t} threads: {rt:>8.1}× ({:.2}× faster)",
+                rt / r.realtime.max(1e-9)
+            ),
+            None => String::new(),
+        };
         println!(
-            "{:<28} {:>6} nodes  {:>9.1}× real time",
+            "{:<28} {:>6} nodes  {:>9.1}× real time{threaded}",
             r.name, r.nodes, r.realtime
         );
         let total: u64 = r.per_kind.values().map(|v| v.0).sum::<u64>().max(1);
@@ -231,10 +282,18 @@ fn print_table(results: &[Outcome]) {
 fn results_json(results: &[Outcome], block: usize) -> Value {
     json!({
         "block_size": block,
-        "projects": results.iter().map(|r| (r.name.clone(), json!({
-            "realtime": r.realtime,
-            "nodes": r.nodes,
-        }))).collect::<serde_json::Map<String, Value>>(),
+        "projects": results.iter().map(|r| {
+            let mut v = json!({
+                "realtime": r.realtime,
+                "nodes": r.nodes,
+            });
+            if let Some((t, rt)) = r.threaded {
+                v["threads"] = json!(t);
+                v["realtime_threaded"] = json!(rt);
+                v["speedup"] = json!(rt / r.realtime.max(1e-9));
+            }
+            (r.name.clone(), v)
+        }).collect::<serde_json::Map<String, Value>>(),
     })
 }
 
@@ -301,13 +360,122 @@ fn wire(project: &mut Project, from: u64, out: &str, to: u64, inp: &str) {
     ));
 }
 
-/// The built-in stress projects (Phase 1 nodes only).
-pub fn stress_projects() -> Vec<(String, Project)> {
+/// The built-in stress projects, with MIDI notes held from the start.
+pub fn stress_projects() -> Vec<(String, Project, Vec<MidiMsg>)> {
+    let chord: Vec<MidiMsg> = (0..16u8)
+        .map(|k| MidiMsg::NoteOn {
+            channel: 0,
+            note: 36 + k * 3,
+            velocity: 100,
+        })
+        .collect();
     vec![
-        ("oscillators-1000".into(), oscillators(1000)),
-        ("effect-chain-200".into(), effect_chain(200)),
-        ("mono-synths-16".into(), synths(16)),
+        ("oscillators-1000".into(), oscillators(1000), Vec::new()),
+        ("effect-chain-200".into(), effect_chain(200), Vec::new()),
+        ("mono-synths-16".into(), synths(16), Vec::new()),
+        (
+            "parallel-chains-8".into(),
+            parallel_chains(8, 12),
+            Vec::new(),
+        ),
+        ("poly-synth-16".into(), poly_synth(16), chord),
     ]
+}
+
+/// `chains` independent effect chains of `stages` stages each, mixed: the
+/// shape the multi-core scheduler spreads across cores.
+fn parallel_chains(chains: u64, stages: u64) -> Project {
+    let mut p = Project {
+        name: format!("{chains} parallel chains of {stages} stages"),
+        ..Project::default()
+    };
+    let mix = 1u64;
+    p.graph
+        .nodes
+        .push(node(mix, "mix").with_config(json!({ "inputs": chains })));
+    let mut id = 2u64;
+    for c in 0..chains {
+        p.graph.nodes.push(
+            node(id, "oscillator")
+                .with_param("freq", 80.0 + c as f64 * 37.0)
+                .with_param("shape", "saw")
+                .with_param("start", "load"),
+        );
+        let mut prev = id;
+        id += 1;
+        for i in 0..stages {
+            p.graph.nodes.push(
+                node(id, "biquad")
+                    .with_param("cutoff", 500.0 + (i % 10) as f64 * 400.0)
+                    .with_param("q", 0.8),
+            );
+            wire(&mut p, prev, "out", id, "in");
+            p.graph.nodes.push(
+                node(id + 1, "delay")
+                    .with_param("time", 0.005 + (i % 5) as f64 * 0.002)
+                    .with_param("feedback", 0.1),
+            );
+            wire(&mut p, id, "out", id + 1, "in");
+            prev = id + 1;
+            id += 2;
+        }
+        wire(&mut p, prev, "out", mix, &format!("in_{c}"));
+    }
+    p.graph.nodes.push(node(id, "audio_out"));
+    wire(&mut p, mix, "out", id, "in");
+    p
+}
+
+/// A `Voices` synth: Voice → saw Oscillator → Biquad (ADSR sweep) → ADSR
+/// gain, `voices` voices, played by a held chord.
+fn poly_synth(voices: u64) -> Project {
+    let mut p = Project {
+        name: format!("{voices}-voice polyphonic synth"),
+        ..Project::default()
+    };
+    let mut def = GroupDef::new("Synth voice");
+    def.graph.nodes.extend([
+        node(1, "voice"),
+        node(2, "oscillator").with_param("shape", "saw"),
+        node(3, "biquad").with_param("q", 2.0),
+        node(4, "adsr").with_param("sustain", 0.7),
+        node(5, "map")
+            .with_param("out_min", 300.0)
+            .with_param("out_max", 4000.0),
+        node(6, "math").with_param("op", "multiply"),
+    ]);
+    for (f, o, t, i) in [
+        (1, "freq", 2, "freq"),
+        (1, "gate", 4, "gate"),
+        (2, "out", 3, "in"),
+        (4, "out", 5, "in"),
+        (5, "out", 3, "cutoff"),
+        (3, "out", 6, "a"),
+        (4, "out", 6, "b"),
+    ] {
+        def.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(f), o),
+            Endpoint::new(NodeId(t), i),
+        ));
+    }
+    def.outputs.push(GroupOutput {
+        name: "out".into(),
+        ty: SignalType::Audio,
+        source: Endpoint::new(NodeId(6), "out"),
+    });
+    p.group_defs.insert(GroupId::from("voice"), def);
+    p.graph.nodes.push(node(1, "midi_in"));
+    p.graph
+        .nodes
+        .push(node(2, "voices").with_config(json!({ "def": "voice", "voices": voices })));
+    p.graph
+        .nodes
+        .push(node(3, "gain").with_param("gain", -24.0));
+    p.graph.nodes.push(node(4, "audio_out"));
+    wire(&mut p, 1, "midi", 2, "midi");
+    wire(&mut p, 2, "out", 3, "in");
+    wire(&mut p, 3, "out", 4, "in");
+    p
 }
 
 /// 1000 band-limited saw oscillators summed through a tree of 8-input mixers.

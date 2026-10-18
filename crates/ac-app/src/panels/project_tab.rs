@@ -196,6 +196,51 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         }
     });
 
+    section(ui, "Engine");
+    let stats = io.engine.report.stats.clone();
+    let rate = io.engine.info.sample_rate.max(1);
+    egui::Grid::new("project-engine")
+        .num_columns(2)
+        .spacing(egui::vec2(10.0, 6.0))
+        .show(ui, |ui| {
+            ui.label("Output latency");
+            ui.label(format!(
+                "{} samples ({:.1} ms)",
+                stats.latency,
+                f64::from(stats.latency) * 1000.0 / f64::from(rate)
+            ))
+            .on_hover_text(
+                "Delay that latency-reporting nodes add on the way to the outputs. Parallel \
+                 paths are delayed to match where they meet.",
+            );
+            ui.end_row();
+            if !stats.whole_input.is_empty() {
+                let baked = stats
+                    .whole_input
+                    .iter()
+                    .filter(|(_, s)| *s == ac_engine::WholeState::Baked)
+                    .count();
+                let disabled = stats
+                    .whole_input
+                    .iter()
+                    .filter(|(_, s)| matches!(s, ac_engine::WholeState::Disabled { .. }))
+                    .count();
+                ui.label("Whole-input nodes");
+                ui.label(format!(
+                    "{baked} baked · {} baking · {disabled} disabled",
+                    stats.whole_input.len() - baked - disabled
+                ));
+                ui.end_row();
+            }
+            ui.label("Schedule");
+            ui.label(format!(
+                "{} steps in {} waves · {} audio buffers",
+                stats.steps, stats.waves, stats.sample_buffers
+            ))
+            .on_hover_text("Steps in one wave can run on different cores (Devices tab).");
+            ui.end_row();
+        });
+
     section(ui, "Audio files");
     let refs = referenced_assets(&io.doc.project, io.registry);
     if refs.is_empty() {

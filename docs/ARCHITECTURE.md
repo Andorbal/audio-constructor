@@ -159,6 +159,11 @@ pub trait Node: Send {
     fn causality(&self) -> Causality { Causality::Streaming }
     /// For source nodes: can the output be computed ahead of time?
     fn determinism(&self) -> Determinism { Determinism::Deterministic }
+    /// Whole-input nodes: every output from every input at once, off the
+    /// audio thread; the engine bakes and streams the result (§9).
+    fn render_whole(config: &Config, ctx: &WholeCtx, inputs: &WholeInputs) -> WholeOutputs { .. }
+    /// Latency probes: the path latency at this node's output (§7).
+    fn path_latency(&mut self, samples: u32) {}
     /// Reset internal state (on transport stop/restart).
     fn reset(&mut self);
 }
@@ -180,8 +185,8 @@ Keep the type set small. Each type has a fixed socket/wire color (see UX.md).
 | `Bool` | gate: `true`/`false` | constant, per-block, or per-sample |
 | `Trigger` | list of events in this block, each with a sample offset | event |
 | `Midi` | list of MIDI events (note on/off, CC, pitch bend, aftertouch, channel) with sample offsets | event |
-| `Spectrum` | frames of complex bins from an FFT node (Phase 2) | frame |
-| `Buffer` | shared, immutable handle to an audio buffer (clip, recording) (Phase 2) | constant |
+| `Spectrum` | the FFT frames that completed during the block, each stamped with its sample offset; complex bins `re, im` | frame |
+| `Buffer` | shared, immutable handle to an audio buffer (clip, recording) | constant |
 
 ### Rates
 
@@ -220,6 +225,17 @@ A node's declared output rate is part of its `Signature`.
 
 Everything else (`Trigger ↔ Bool`, `Midi → Float`, `Audio → Spectrum`) is an
 explicit node, because the semantics involve choices the user should see.
+
+### Spectrum and Buffer
+
+A `Spectrum` output declares its frame layout (FFT size and hop) in its
+socket spec, or follows its first wired `Spectrum` input, as audio channels
+follow. The compiler sizes each spectrum's storage for the most frames a
+block can hold, so producers push frames without allocating (DECISIONS
+D53). A `Buffer` output holds an `Arc` handle that persists from block to
+block; the node that creates a buffer (a host's recorder, an asset loader)
+keeps its own handle off the audio thread, so the audio thread only ever
+clones and drops handles, never frees audio.
 
 ### Multi-channel audio
 
@@ -266,7 +282,10 @@ Steps:
 
 1. **Flatten groups.** Instances are expanded in place; node ids inside an
    instance are namespaced by the instance path so state is addressable.
-   `Voices` nodes (Phase 2) expand their body once per voice.
+   `Voices` nodes expand into a voice allocator, one copy of their body per
+   voice (paths `voices/<voice>/…`), and a summing node per Audio or Float
+   output; `Voice` nodes inside each copy get that voice's MIDI stream
+   (DECISIONS D59).
 2. **Validate types and channels.** Insert implicit conversions. Report errors
    per wire/socket, never panic.
 3. **Break feedback.** Cycles are legal only through a `Feedback` node, which
@@ -274,21 +293,24 @@ Steps:
    the topological sort. Single-sample feedback is a Phase 3 investigation
    (compile the strongly connected component to a per-sample sub-schedule).
 4. **Infer rates** (Section 5) and **channel counts**.
-5. **Causality analysis** (Section 9) marks `WholeInput` nodes as enabled,
-   disabled, or baked.
-6. **Latency compensation** (Phase 2): sum `latency()` along every path and
-   insert delays on the shorter inputs of any node that merges paths, so
-   an FFT-processed branch lines up with a dry branch.
-7. **Topological sort** into an ordered list of steps, then **partition** the
-   list into chains that only depend on earlier chains. Phase 1 runs chains
-   sequentially on the audio thread; Phase 2 runs independent chains on a
-   real-time worker pool with the audio thread participating.
-8. **Allocate buffers** once: a pool of audio/float buffers sized to the
-   maximum block size, with lifetimes computed from the schedule so buffers
-   are reused.
-9. **Prepare nodes**: call `new()` for new nodes, **carry over state** for
+5. **Causality analysis** (Section 9) marks whole-input nodes disabled or
+   baked.
+6. **Prepare nodes**: call `new()` for new nodes, **carry over state** for
    nodes whose id and config are unchanged, so recompiling while playing
-   doesn't reset a ringing delay line.
+   doesn't reset a ringing delay line. Nodes are created before steps are
+   built because their latency is needed next.
+7. **Latency compensation**: sum `latency()` along every path and insert
+   delays on the shorter inputs of any node that merges paths, so an
+   FFT-processed branch lines up with a dry branch. Audio, sample-rate
+   floats, triggers, and MIDI are delayed; block-rate values aren't
+   (DECISIONS D56). The delays are internal nodes, so they carry over too.
+8. **Topological sort** into an ordered list of steps, then group the steps
+   into **waves**: a step's wave is one more than the latest wave it reads
+   from, so the steps of a wave never depend on each other and can run on
+   different cores (DECISIONS D57).
+9. **Allocate buffers** once: a pool of audio/float buffers sized to the
+   maximum block size, with lifetimes counted in waves so buffers are reused
+   without two steps of one wave sharing a buffer.
 
 Compilation happens off the audio thread (UI thread or a background thread).
 Swapping in the result is one atomic pointer exchange at a block boundary.
@@ -326,10 +348,15 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
 - **Telemetry out**: meters, scope rings, per-socket levels, per-node
   timings, and the xrun counter are relaxed atomics the UI reads at frame
   rate (DECISIONS D22). Nothing waits on the UI.
-- **Multi-core** (Phase 2): the schedule's independent chains are pushed to a
-  fixed pool of real-time-priority workers; the callback thread works too and
-  joins at a barrier before writing the output. If a block overruns, the xrun
-  counter increments and the UI shows it; the engine never silently glitches.
+- **Multi-core**: each wave's steps are split into jobs that a fixed pool of
+  real-time workers and the callback thread claim from one lock-free counter;
+  the callback thread waits only for jobs another thread has claimed, so a
+  sleeping worker costs parallelism, never an xrun. Steps that write the
+  device outputs run last in their wave, one by one, so output sums the same
+  way on any number of cores: results are bit-identical with or without the
+  pool. Per-thread busy time is published as per-core load. The pool is
+  opt-in (DECISIONS D57, D58). If a block overruns, the xrun counter
+  increments and the UI shows it; the engine never silently glitches.
 - **Recording** writes to a lock-free ring drained by a disk thread; the
   disk thread, not the callback, owns the file.
 
@@ -380,11 +407,22 @@ when they can't work, with a UI indication, rather than forcing a mode."
   Deterministic. Otherwise it is **disabled**: it passes silence/zero, and the
   UI badges it ("needs a known input; disabled while live").
 - Enabled `WholeInput` nodes are **baked**: a background thread renders their
-  upstream subgraph over the project length (or the loop region) and stores
-  the result; the node then streams the bake. Bakes are invalidated by any
-  upstream edit and recomputed, debounced. The UI shows "baking…" / "baked".
+  upstream subgraph over the project length and stores the result; the node
+  then streams the bake at the transport position. A node author writes only
+  `render_whole` (whole inputs in, whole outputs out); the engine captures
+  the inputs and streams the result (DECISIONS D54). Bakes are keyed by a
+  hash of everything upstream, invalidated by any upstream edit (parameter
+  changes debounced), and recomputed while the previous bake keeps playing.
+  Bakes render from zero, without looping, at the project's render block
+  size, so a bake is identical live and offline (DECISIONS D55). The UI
+  shows "baking" / "baked" badges.
+- The engine exposes bakes as self-contained jobs (`EngineHandle::
+  take_bake_jobs`, `BakeJob::run`, `EngineHandle::finish_bake`): the engine
+  crate spawns no threads (it builds for wasm), and hosts run jobs on a
+  background thread.
 - In an **offline render** (CLI or export) every `WholeInput` node is enabled,
-  because the renderer runs the graph in passes: upstream subgraphs first.
+  because the renderer runs the graph in passes: upstream subgraphs first,
+  fed the same input audio and MIDI as the render.
 
 This keeps a single project format and a single engine, with no mode switch.
 
@@ -466,13 +504,13 @@ All hosts call the same `Engine`.
   undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
 - **CLI** (`ac-cli`, binary `audioc`):
   - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]...`
-  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null]` runs live, headless, until Ctrl+C or `--duration`, printing position, load, xruns, and dropped messages every second. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
+  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
   - `audioc latency [device options] [--count N]` measures the round trip through a loopback cable.
   - `audioc validate <project>` prints the compile report (errors, disabled nodes, latency).
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
   - `audioc devices` lists audio and MIDI devices.
-  - `audioc bench [--project <p>]` renders stress projects and reports the real-time ratio per node and overall.
+  - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
   - `audioc pack` / `audioc unpack`.
 - **Plugin** (Phase 3, `ac-plugin`): nih-plug exposes the engine as a CLAP and
   VST3 effect and instrument. The plugin's audio input and output map to
@@ -502,9 +540,10 @@ through the `Engine` API.
 - **Real-time hygiene**: `assert_no_alloc` in debug builds around `process`;
   a test runs every node through a block with the allocator guard active.
 - **Benchmarks**: criterion benches in `ac-engine` and `ac-nodes` for per-node
-  cost; `audioc bench` renders stress projects (e.g. 1 000 oscillators into a
-  mixer; a 64-band FFT split; a 16-voice synth) and prints the real-time
-  ratio. CI runs `audioc bench` on every merge request and compares against
+  cost; `audioc bench` renders stress projects (1 000 oscillators into a
+  mixer, a long effect chain, parallel chains, a 16-voice `Voices` synth)
+  and prints the real-time ratio and, with `--threads N`, the multi-core
+  speedup. CI runs `audioc bench` on every merge request and compares against
   the baseline from `main` on the same runner tier, failing on a regression
   larger than 20 %. Results are also appended to a history file so trends are
   visible.

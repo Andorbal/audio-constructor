@@ -41,7 +41,7 @@ fn channel_count(config: &Config) -> u32 {
 
 impl Node for AudioOut {
     fn meta() -> NodeMeta {
-        Self::base_meta().telemetry(2)
+        Self::base_meta().telemetry(2).host_output()
     }
 
     fn describe(config: &Config) -> Signature {
@@ -137,6 +137,7 @@ mod tests {
             sample_rate: 48_000.0,
             transport: TransportView::stopped_at_zero(&tempo),
             phase: Phase::Main,
+            engine: Default::default(),
         };
         let mut io = Io {
             inputs: Inputs {
@@ -149,6 +150,8 @@ mod tests {
                 chan_table: &chan_table,
                 triggers: &[],
                 midi: &[],
+                spectra: &[],
+                buffers: &[],
                 auto: AutoFlags::default(),
             },
             outputs: Outputs {
@@ -159,6 +162,8 @@ mod tests {
                 ints: &mut [],
                 triggers: &mut [],
                 midi: &mut [],
+                spectra: &mut [],
+                buffers: &mut [],
             },
             host: HostAccess {
                 input: &[],

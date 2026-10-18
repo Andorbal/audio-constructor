@@ -23,6 +23,10 @@ pub enum SignalType {
     Trigger,
     /// Sample-stamped MIDI messages.
     Midi,
+    /// Frames of complex FFT bins, stamped with the sample they complete at.
+    Spectrum,
+    /// A shared, immutable handle to recorded or loaded audio.
+    Buffer,
     /// Takes the type of whatever is connected (Reroute only).
     Any,
 }
@@ -36,12 +40,21 @@ impl SignalType {
             SignalType::Bool => "Bool",
             SignalType::Trigger => "Trigger",
             SignalType::Midi => "Midi",
+            SignalType::Spectrum => "Spectrum",
+            SignalType::Buffer => "Buffer",
             SignalType::Any => "Any",
         }
     }
 
     pub fn is_event(self) -> bool {
         matches!(self, SignalType::Trigger | SignalType::Midi)
+    }
+
+    /// Spectrum and Buffer values are handles to blocks of data rather than
+    /// one number per frame; they have no inline widget and no implicit
+    /// conversions.
+    pub fn is_data(self) -> bool {
+        matches!(self, SignalType::Spectrum | SignalType::Buffer)
     }
 }
 
@@ -196,6 +209,42 @@ pub struct SocketSpec {
     pub auto: AutoTrigger,
     /// One-line description shown on hover.
     pub doc: &'static str,
+    /// Wired by the compiler, never by people: the editor doesn't show it.
+    pub hidden: bool,
+    /// `Spectrum` outputs: the FFT size and hop (samples between frames)
+    /// the node produces. `None` follows the node's first wired Spectrum
+    /// input, the way `Channels::Follow` does for audio.
+    pub spectrum: Option<SpectrumShape>,
+}
+
+/// The frame layout of a `Spectrum` signal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SpectrumShape {
+    /// FFT size in samples; a frame has `size / 2 + 1` bins.
+    pub size: u32,
+    /// Samples between frames.
+    pub hop: u32,
+}
+
+impl SpectrumShape {
+    /// Shapes outside 16..=65536 samples (or with a hop larger than the
+    /// size) are repaired, not rejected (DECISIONS D29).
+    pub fn new(size: u32, hop: u32) -> Self {
+        let size = size.clamp(16, 65_536);
+        SpectrumShape {
+            size,
+            hop: hop.clamp(1, size),
+        }
+    }
+
+    pub fn bins(self) -> usize {
+        self.size as usize / 2 + 1
+    }
+
+    /// Most frames that can complete within a block of `max_block` frames.
+    pub fn max_frames(self, max_block: usize) -> usize {
+        max_block.div_ceil(self.hop.max(1) as usize) + 1
+    }
 }
 
 impl SocketSpec {
@@ -216,6 +265,8 @@ impl SocketSpec {
             smooth: ty == SignalType::Float,
             auto: AutoTrigger::None,
             doc: "",
+            hidden: false,
+            spectrum: None,
         }
     }
 
@@ -247,6 +298,22 @@ impl SocketSpec {
 
     pub fn any(name: impl Into<Cow<'static, str>>) -> Self {
         Self::base(name, SignalType::Any, Value::Float(0.0))
+    }
+
+    /// A `Spectrum` socket. Outputs follow the first Spectrum input unless
+    /// given a shape with [`SocketSpec::shape`].
+    pub fn spectrum(name: impl Into<Cow<'static, str>>) -> Self {
+        let mut s = Self::base(name, SignalType::Spectrum, Value::Bool(false));
+        s.smooth = false;
+        s
+    }
+
+    /// A `Buffer` socket.
+    pub fn buffer(name: impl Into<Cow<'static, str>>) -> Self {
+        let mut s = Self::base(name, SignalType::Buffer, Value::Bool(false));
+        s.rate = OutRate::Fixed(Rate::Block);
+        s.smooth = false;
+        s
     }
 
     /// An enumerated `Int` input shown as a dropdown; `default` is a choice name.
@@ -311,6 +378,18 @@ impl SocketSpec {
 
     pub fn doc(mut self, doc: &'static str) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Wired only by the compiler; hidden in the editor.
+    pub fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
+    }
+
+    /// The frame layout a `Spectrum` output produces.
+    pub fn shape(mut self, size: u32, hop: u32) -> Self {
+        self.spectrum = Some(SpectrumShape::new(size, hop));
         self
     }
 
@@ -434,6 +513,21 @@ mod tests {
         assert_eq!(conversion(Float, Int), None);
         assert_eq!(conversion(Float, Bool), None);
         assert_eq!(conversion(Audio, Audio), Some(Conversion::None));
+        assert_eq!(conversion(Audio, Spectrum), None);
+        assert_eq!(conversion(Spectrum, Audio), None);
+        assert_eq!(conversion(Buffer, Audio), None);
+        assert_eq!(conversion(Float, Buffer), None);
+        assert_eq!(conversion(Buffer, Buffer), Some(Conversion::None));
+    }
+
+    #[test]
+    fn spectrum_shapes_are_repaired() {
+        let s = SpectrumShape::new(4, 100);
+        assert_eq!((s.size, s.hop), (16, 16));
+        let s = SpectrumShape::new(2048, 512);
+        assert_eq!(s.bins(), 1025);
+        assert_eq!(s.max_frames(1024), 3);
+        assert_eq!(s.max_frames(1), 2);
     }
 
     #[test]
