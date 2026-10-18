@@ -1,6 +1,6 @@
 [package]
 name = "ac-plugin"
-description = "Placeholder for the Phase 3 plugin build (CLAP/VST3)."
+description = "Audio Constructor as a CLAP and VST3 effect and instrument."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,36 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+# The cdylib is the plugin binary hosts load (bundled by `scripts/bundle_plugin.py`);
+# the rlib lets tests and the editor use the plugin's types.
+crate-type = ["cdylib", "rlib"]
+
 [lints]
 workspace = true
 
-[dependencies]
+[features]
+default = []
+# The plugin window. Needs the embeddable editor; off until it lands (see
+# `editor.rs` for the seam).
+editor = ["nice-plug/editor"]
 
+[dependencies]
+ac-core.workspace = true
+ac-nodes.workspace = true
+ac-engine.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hound.workspace = true
+assert_no_alloc.workspace = true
+# CLAP and VST3 wrappers. The `vst3` feature uses the MIT/Apache `vst3`
+# bindings (DECISIONS D116); no default logger, no editor unless asked.
+nice-plug = { version = "0.4.2", default-features = false, features = ["vst3"] }
+
+[dev-dependencies]
+# A real CLAP host for the integration tests: loads the built plugin.
+clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "state"] }
+# The VST3 smoke test opens the same library and asks its factory.
+libloading = "0.8"
+vst3 = "0.3"

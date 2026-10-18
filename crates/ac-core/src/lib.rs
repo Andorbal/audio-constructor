@@ -37,8 +37,8 @@ pub use binding::{
 pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
 pub use clipboard::Subgraph;
 pub use control::{
-    CONTROL_CAPACITY, Control, ControlEvent, GamepadAxis, GamepadButton, Key, OSC_OUT_CAPACITY,
-    OscMessage, osc_address_hash,
+    CONTROL_CAPACITY, Control, ControlEvent, GamepadAxis, GamepadButton, Key, MACRO_COUNT,
+    OSC_OUT_CAPACITY, OscMessage, osc_address_hash,
 };
 pub use events::{MIDI_CAPACITY, MidiEvent, MidiMsg, note_to_hz};
 pub use graph::{
@@ -58,7 +58,9 @@ pub use node::{
 };
 pub use panel::{Panel, PanelItem};
 pub use param::param_value;
-pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
+pub use project::{
+    LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View, referenced_assets,
+};
 pub use registry::{
     NodeEntry, Registry, RenderWholeFn, fuzzy_score, group_signature, voices_signature,
 };

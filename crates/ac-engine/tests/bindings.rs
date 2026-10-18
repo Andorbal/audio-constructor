@@ -489,6 +489,45 @@ fn offline_renders_take_control_events() {
 }
 
 #[test]
+fn a_plugin_macro_moves_a_bound_gain_on_its_sample() {
+    let mut p = gain_patch();
+    p.bindings.clear();
+    p.bindings.push(Binding {
+        min: Some(-60.0),
+        max: Some(0.0),
+        ..Binding::input(Source::Macro { number: 2 }, path(2), "gain")
+    });
+    let render_at = |block: usize| {
+        render(
+            &p,
+            Arc::new(ac_nodes::registry()),
+            Arc::new(NoResources),
+            &RenderOptions {
+                block_size: Some(block),
+                to: Some(0.1),
+                controls: vec![
+                    (1_000, Control::Macro { index: 1 }, 0.0),
+                    // Macro 1 isn't bound: nothing happens.
+                    (2_000, Control::Macro { index: 0 }, 1.0),
+                    (3_000, Control::Macro { index: 1 }, 1.0),
+                ],
+                ..RenderOptions::default()
+            },
+        )
+        .channels[0]
+            .clone()
+    };
+    let ch = render_at(256);
+    assert!(
+        (ch[999] - 1.0).abs() < 1e-6,
+        "stored 0 dB before the macro moves"
+    );
+    assert!(ch[2_900].abs() < 1e-6, "macro at 0: −60 dB");
+    assert!((ch[4_000] - 1.0).abs() < 1e-6, "macro at 1: 0 dB");
+    assert_eq!(ch, render_at(97), "lands on its sample at any block size");
+}
+
+#[test]
 fn the_input_monitor_hands_raw_events_to_the_editor() {
     let (mut h, _) = host(Project::default(), 64);
     // Off: nothing is kept.

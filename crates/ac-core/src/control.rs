@@ -1,5 +1,6 @@
-//! Control-surface events: computer keys, gamepad controls, and Open Sound
-//! Control (ARCHITECTURE §8 "Events in", §11).
+//! Control-surface events: computer keys, gamepad controls, Open Sound
+//! Control, and a plugin host's macro parameters (ARCHITECTURE §8 "Events
+//! in", §11, §13).
 //!
 //! Like MIDI, they arrive on their own threads, wait in per-source rings,
 //! and reach the engine one block late with a sample offset
@@ -24,6 +25,10 @@ pub const OSC_OUT_CAPACITY: usize = 256;
 pub const OSC_ADDRESS_MAX: usize = 64;
 /// The most float arguments an [`OscMessage`] holds.
 pub const OSC_ARGS_MAX: usize = 4;
+/// Macro parameters the plugin build shows its host, `Macro 1` to
+/// `Macro 16` ([`Control::Macro`]). Raising it adds parameters without
+/// breaking saved states or automation (DECISIONS D117).
+pub const MACRO_COUNT: usize = 16;
 
 /// A control event stamped with its sample offset inside the current block.
 ///
@@ -36,6 +41,7 @@ pub const OSC_ARGS_MAX: usize = 4;
 /// - [`Control::Osc`]: the argument as a float (integers converted, true and
 ///   false as 1 and 0). A message without arguments arrives as argument 0
 ///   with value 1, so it works as a trigger.
+/// - [`Control::Macro`]: the host parameter's position, 0–1.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ControlEvent {
     pub offset: u32,
@@ -71,6 +77,11 @@ pub enum Control {
     Osc {
         address: u64,
         arg: u8,
+    },
+    /// A plugin host's macro parameter: `index` 0 is `Macro 1`, up to
+    /// [`MACRO_COUNT`]` - 1`.
+    Macro {
+        index: u8,
     },
 }
 
