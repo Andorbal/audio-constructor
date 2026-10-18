@@ -13,6 +13,38 @@ fixes and smaller changes.
 
 ## [0.6.0] - 2026-10-18
 
+### Added
+
+- **Auto-layout** (`Ctrl+L`): tidy the selection, or the whole graph when
+  nothing is selected, into columns that follow the signal from left to
+  right. Loops through a Feedback node read from start to finish, sources
+  and modulators sit next to what they drive, notes line up above or
+  below the patch, frames move and resize with what's in them, and the
+  patch stays where it was on the canvas. One undo step.
+- **Align and distribute** (`Shift+Alt+A` at the pointer, Edit ▸ Align /
+  Distribute, or a node's right-click menu with several selected): line
+  the selected nodes up by their left, center, right, top, middle, or
+  bottom, or space them out with equal gaps.
+- **Lazy connect** (`F`): with two nodes selected, wire the left one into
+  the right one: its first output into the first free input that takes
+  it, with matching names like `out` → `in` first. Press it again for the
+  next free input. It never makes a loop without a Feedback node, and the
+  status line says what it wired or why it couldn't.
+- **Wire selected nodes into a new one**: select two or more nodes and
+  add a node with `Shift+A` (or from the Add menu): they're wired into it
+  in the order you selected them, and it lands to their right. A Mix grows
+  inputs to fit. If they don't all fit, the node is added unwired and the
+  status line says why.
+- **Find** (`Ctrl+F`): find nodes by name, kind, or id anywhere in the
+  project, inside groups too, with the group each is in. Arrow keys
+  choose, Enter jumps there (into the group, selected and centered), and
+  Esc closes.
+
+### Fixed
+
+- Jumping to a node inside a group from the Problems or Project tab now
+  centers that node, and leaving the group returns to the view you had.
+
 ## [0.5.0] - 2026-10-18
 
 Control surfaces: gamepads, the computer keyboard, and Open Sound Control

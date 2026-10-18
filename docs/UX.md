@@ -96,8 +96,8 @@ slate.
 | Wire | drag from socket to socket; drop on empty canvas opens the palette **filtered to compatible nodes** and auto-wires the result |
 | Insert on wire | drop a node onto a wire to splice it in (if types match) |
 | Disconnect | drag a wire end away and release, or `Ctrl+drag` across wires to cut |
-| Connect selected to new node | select several nodes, add a `Mix`: the inputs are wired in selection order |
-| Lazy connect | `F` with two selected nodes wires the first compatible sockets |
+| Connect selected to new node | select two or more nodes, then add a node (`Shift+A` or the Add menu): they're wired into it in selection order and it goes to their right (see below) |
+| Lazy connect | `F` with two selected nodes wires the left one into the right one (see below); the status line says what was wired, or why not |
 | Reroute | `Shift+right-drag` across a wire |
 | Delete | `X`/`Delete`; `Ctrl+X` deletes and reconnects through (keeps the chain) |
 | Duplicate | `Shift+D` (with internal wires), `Ctrl+Shift+D` (also keeps incoming wires) |
@@ -106,9 +106,9 @@ slate.
 | Collapse | `H`; `Ctrl+H` collapses all unwired sockets |
 | Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; `Tab` enters/leaves a group; `Ctrl+Alt+G` ungroups |
 | Frame | `Ctrl+J` puts a labeled frame around the selection; frames move their contents |
-| Align / distribute | `Alt+A` menu; **auto-layout selection** `Ctrl+L` (layered, left-to-right) |
+| Align / distribute | `Shift+Alt+A` menu at the pointer (also Edit ▸ Align / Distribute, and a node's right-click menu with several selected); **auto-layout** `Ctrl+L` lays out the selection, or the whole graph with nothing selected (layered, left to right) |
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
-| Find | `Ctrl+F` finds nodes by name/type and jumps to them |
+| Find | `Ctrl+F` finds nodes by name, kind, or id, inside groups too, and jumps to them: `↑`/`↓` choose, `Enter` jumps, `Esc` closes |
 | Help | `F1` on a node opens its reference in the side panel |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
@@ -117,6 +117,47 @@ Wire routing: béziers by default, with a "straight with bends" option. Wires
 behind nodes are dimmed. Long wires can be turned into named **portals**
 (a pair of Reroutes that are drawn as labels instead of a line) to tame
 spaghetti.
+
+### Arranging and quick wiring
+
+Each of these is one undo step; moving cards never interrupts the sound.
+
+- **Auto-layout** (`Ctrl+L`) arranges the selection, or the whole graph
+  when nothing is selected, in columns that follow the wires from left to
+  right, keeping its top-left corner where it was. A loop is drawn from
+  its start to its `Feedback` node, with the wire back from there.
+  Sources and modulators sit just before what they drive. Separate
+  pieces of the graph stack in the order they were in, and unwired cards
+  (notes, mostly) line up in a row above or below, on the side they were
+  on. A frame whose nodes are all being laid out moves and resizes with
+  them; a frame only partly selected stays put. Cards keep their sizes:
+  collapsed pills, reroutes, and notes take the room they're drawn with.
+- **Align / distribute** (`Shift+Alt+A`, since `Alt+A` is select none):
+  align left, center, right, top, middle, or bottom, or distribute
+  horizontally or vertically with equal gaps (the two outer cards stay).
+  Only nodes move; frames stay where they are.
+- **Lazy connect** (`F`, two nodes selected) wires the left node's first
+  output into the first free input of the right node that takes it, in
+  socket order (main sockets come first), unless a pair's names match
+  (`out` → `in`, `out_l` → `in_l`, `midi` → `midi`); among one output's
+  choices, an input of the same type beats one that converts. If nothing
+  fits left to right, it tries right to left. It never makes a loop
+  without a `Feedback` node. Press it again for the next free input.
+- **Connect selected to new node**: with two or more nodes selected,
+  the node added from the palette (`Shift+A`, which says so) or the Add
+  menu is wired from them, each one's first output in the order they
+  were selected (nodes selected together, by a box or `A`, count top to
+  bottom), into the new node's inputs of one type: the first type the
+  first selected node fits, so two oscillators go into a `Mix`'s `in_0`
+  and `in_1`, never its gains or a filter's cutoff. A `Mix` (or `Select`)
+  grows inputs to fit. The new node goes to their right. If any selected
+  node doesn't fit, nothing is wired, the node goes where it was added,
+  and the status line says why.
+- **Find** (`Ctrl+F`) searches labels, kind names, and ids (from their
+  start) in every graph of the project, and notes by their text. A node
+  inside a group shows the group it's in, once per instance of it.
+  `Enter` enters the group, selects the node, and centers it; the bar
+  stays open for the next result until `Esc` or a click elsewhere.
 
 ## Side panel
 
