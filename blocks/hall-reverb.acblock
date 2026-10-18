@@ -1,0 +1,523 @@
+{
+  "schema_version": 1,
+  "name": "Hall Reverb",
+  "description": "A large, dark hall: a soft wash of early echoes that blooms into a long, smooth tail whose highs fade first, as in a big room. Mono or stereo in, stereo out.\n\n- `in`: the signal.\n- `predelay` (s): the gap before the reverb, as if the walls were further away; 0.02 to 0.08 s for a hall.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60) in the low and middle frequencies.\n- `damping` (0 to 1): how much faster the highs die away; 0 is a bright, hard room, 0.2 a concert hall (highs last about half as long as lows), 0.5 a dark, heavy space. Above about 0.6 the lows shorten too.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; around 0.25 places a sound in the hall, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the classic parallel-comb, series-allpass reverberator of M. R. Schroeder (\"Natural sounding artificial reverberation\", JAES, 1962), with J. A. Moorer's lowpass filters in the comb loops and his six comb delays from 50 to 78 ms (\"About this reverberation business\", Computer Music Journal, 1979). A Delay sets `predelay`, and a Diffuser smears the input into a decorrelated stereo pair (its left and right chains have different delays), which gives the early echoes and the width. Six feedback Combs in parallel, each fed both channels, make the tail, with `damping` as their loop lowpass. For every comb to fall 60 dB in `decay` seconds, a comb of delay d needs a feedback of 10^(−3·d ÷ `decay`): Math and Convert work out 10^(−3 ÷ `decay`), the gain per second, and a Math power per comb raises it to that comb's delay. A Mix sums the combs with the Diffuser's own output, which fills the first 50 ms before the combs answer, two Allpasses (6 and 1.7 ms) thicken the echoes, and an equal-power Crossfade blends the result with the dry input.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "reverb",
+    "space",
+    "hall",
+    "stereo",
+    "effect"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "1:in",
+        "33:a"
+      ]
+    },
+    {
+      "name": "predelay",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.03,
+      "range": [
+        0.0,
+        0.25
+      ],
+      "targets": [
+        "1:time"
+      ]
+    },
+    {
+      "name": "decay",
+      "type": "float",
+      "unit": "seconds",
+      "default": 3.5,
+      "range": [
+        0.5,
+        20.0
+      ],
+      "targets": [
+        "3:b"
+      ]
+    },
+    {
+      "name": "damping",
+      "type": "float",
+      "default": 0.2,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "20:damping",
+        "21:damping",
+        "22:damping",
+        "23:damping",
+        "24:damping",
+        "25:damping"
+      ]
+    },
+    {
+      "name": "mix",
+      "type": "float",
+      "default": 0.3,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "33:mix"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "33:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "delay",
+        "config": {
+          "max_time": 0.5
+        },
+        "params": {
+          "feedback": 0.0,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Predelay"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "diffuser",
+        "params": {
+          "diffusion": 0.7,
+          "mix": 1.0,
+          "mod_depth": 0.3,
+          "mod_rate": 0.5,
+          "size": 0.8
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            0.0
+          ],
+          "label": "Early diffusion"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "a": -60.0,
+          "op": "divide"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            250.0
+          ],
+          "label": "dB per second"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "convert",
+        "params": {
+          "op": "db_to_gain"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            380.0
+          ],
+          "label": "Gain per second"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "b": 0.05,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            250.0
+          ],
+          "label": "Gain per pass 1"
+        }
+      },
+      {
+        "id": "20",
+        "kind": "comb",
+        "params": {
+          "delay": 0.05,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            0.0
+          ],
+          "label": "Comb 1"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "math",
+        "params": {
+          "b": 0.0561,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            380.0
+          ],
+          "label": "Gain per pass 2"
+        }
+      },
+      {
+        "id": "21",
+        "kind": "comb",
+        "params": {
+          "delay": 0.0561,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            190.0
+          ],
+          "label": "Comb 2"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "math",
+        "params": {
+          "b": 0.0613,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            510.0
+          ],
+          "label": "Gain per pass 3"
+        }
+      },
+      {
+        "id": "22",
+        "kind": "comb",
+        "params": {
+          "delay": 0.0613,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            380.0
+          ],
+          "label": "Comb 3"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "math",
+        "params": {
+          "b": 0.0679,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            640.0
+          ],
+          "label": "Gain per pass 4"
+        }
+      },
+      {
+        "id": "23",
+        "kind": "comb",
+        "params": {
+          "delay": 0.0679,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            570.0
+          ],
+          "label": "Comb 4"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "math",
+        "params": {
+          "b": 0.0721,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            770.0
+          ],
+          "label": "Gain per pass 5"
+        }
+      },
+      {
+        "id": "24",
+        "kind": "comb",
+        "params": {
+          "delay": 0.0721,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            760.0
+          ],
+          "label": "Comb 5"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "math",
+        "params": {
+          "b": 0.0781,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            900.0
+          ],
+          "label": "Gain per pass 6"
+        }
+      },
+      {
+        "id": "25",
+        "kind": "comb",
+        "params": {
+          "delay": 0.0781,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            950.0
+          ],
+          "label": "Comb 6"
+        }
+      },
+      {
+        "id": "30",
+        "kind": "mix",
+        "config": {
+          "inputs": 7
+        },
+        "params": {
+          "gain_0": -22.0,
+          "gain_1": -22.0,
+          "gain_2": -22.0,
+          "gain_3": -22.0,
+          "gain_4": -22.0,
+          "gain_5": -22.0,
+          "gain_6": -12.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            300.0
+          ],
+          "label": "Combs + early"
+        }
+      },
+      {
+        "id": "31",
+        "kind": "allpass",
+        "params": {
+          "delay": 0.006,
+          "gain": 0.7
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            300.0
+          ],
+          "label": "Allpass 6 ms"
+        }
+      },
+      {
+        "id": "32",
+        "kind": "allpass",
+        "params": {
+          "delay": 0.0017,
+          "gain": 0.7
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            300.0
+          ],
+          "label": "Allpass 1.7 ms"
+        }
+      },
+      {
+        "id": "33",
+        "kind": "crossfade",
+        "params": {
+          "curve": "equal_power"
+        },
+        "ui": {
+          "pos": [
+            1440.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "10:a"
+      },
+      {
+        "from": "10:out",
+        "to": "20:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "20:in"
+      },
+      {
+        "from": "20:out",
+        "to": "30:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "11:a"
+      },
+      {
+        "from": "11:out",
+        "to": "21:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "21:in"
+      },
+      {
+        "from": "21:out",
+        "to": "30:in_1"
+      },
+      {
+        "from": "4:out",
+        "to": "12:a"
+      },
+      {
+        "from": "12:out",
+        "to": "22:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "22:in"
+      },
+      {
+        "from": "22:out",
+        "to": "30:in_2"
+      },
+      {
+        "from": "4:out",
+        "to": "13:a"
+      },
+      {
+        "from": "13:out",
+        "to": "23:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "23:in"
+      },
+      {
+        "from": "23:out",
+        "to": "30:in_3"
+      },
+      {
+        "from": "4:out",
+        "to": "14:a"
+      },
+      {
+        "from": "14:out",
+        "to": "24:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "24:in"
+      },
+      {
+        "from": "24:out",
+        "to": "30:in_4"
+      },
+      {
+        "from": "4:out",
+        "to": "15:a"
+      },
+      {
+        "from": "15:out",
+        "to": "25:feedback"
+      },
+      {
+        "from": "2:out",
+        "to": "25:in"
+      },
+      {
+        "from": "25:out",
+        "to": "30:in_5"
+      },
+      {
+        "from": "2:out",
+        "to": "30:in_6"
+      },
+      {
+        "from": "30:out",
+        "to": "31:in"
+      },
+      {
+        "from": "31:out",
+        "to": "32:in"
+      },
+      {
+        "from": "32:out",
+        "to": "33:b"
+      }
+    ]
+  }
+}

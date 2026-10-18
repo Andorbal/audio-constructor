@@ -1,0 +1,876 @@
+{
+  "schema_version": 1,
+  "name": "Block: Plate Reverb",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "impulse",
+        "params": {
+          "gain": 0.8
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "noise",
+        "params": {
+          "color": "white",
+          "gain": -6.0,
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "clock",
+        "params": {
+          "duty": 0.05,
+          "interval": 2.0,
+          "offset": 2.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            420.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.0,
+          "decay": 0.06,
+          "release": 0.02,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            420.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "group",
+        "config": {
+          "def": "plate-reverb"
+        },
+        "params": {
+          "decay": 1.5,
+          "mix": 0.5,
+          "predelay": 0.01
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            0.0
+          ],
+          "label": "Plate Reverb"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "3:gate",
+        "to": "4:gate"
+      },
+      {
+        "from": "2:out",
+        "to": "5:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:b"
+      },
+      {
+        "from": "1:out",
+        "to": "6:in_0"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in_1"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "plate-reverb": {
+      "name": "Plate Reverb",
+      "description": "A dense, bright plate reverb: a burst of echoes that thickens at once into a smooth, shimmering tail. Mono or stereo in (summed to mono, as a plate is), wide stereo out.\n\n- `in`: the signal.\n- `predelay` (s): a gap before the reverb starts, which keeps the dry attack clear; 0.01 to 0.04 s for vocals and snares.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60).\n- `damping` (0 to 1): how much faster the highs die away than the lows; 0 is a bright metal plate, 0.5 a darker, softer one.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; 0.2 to 0.35 sits a sound in a mix, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the figure-eight tank from Jon Dattorro's \"Effect Design, Part 1: Reverberator and Other Filters\" (JAES, 1997), with his delay lengths converted to seconds. The input is summed to mono, delayed by `predelay`, and smeared by four input Allpasses (4.8, 3.6, 12.7, and 9.3 ms). It then enters two tank halves, each an Allpass whose delay wobbles slightly (a slow sine Oscillator through a Map, to keep the tail from ringing), a feedforward Comb used as a delay line with the damping lowpass and the decay gain, a second Allpass, and another Comb as a delay with the decay gain. Each half feeds the other: the left half goes straight into the right, and the right comes back to the left through a Feedback node, the loop's only cycle (its one block of delay barely lengthens a loop of about 0.73 s). The decay gain comes from `decay` through Math and Convert: the loop applies it four times per trip, so each is −60 dB × 0.19 s ÷ `decay`. As in the original, each output reads the opposite half: the left channel mixes the outputs of the right half's four stages, and the right channel the left half's. A Mid/Side encode and decode at width 1.6 then widens the pair until the two sides are uncorrelated, and an equal-power Crossfade blends that with the dry input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "reverb",
+        "space",
+        "plate",
+        "stereo",
+        "effect"
+      ],
+      "source": "shipped:plate-reverb",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "26:a"
+          ]
+        },
+        {
+          "name": "predelay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.02,
+          "range": [
+            0.0,
+            0.25
+          ],
+          "targets": [
+            "2:time"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 2.5,
+          "range": [
+            0.3,
+            20.0
+          ],
+          "targets": [
+            "10:b"
+          ]
+        },
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.25,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "14:damping",
+            "19:damping"
+          ]
+        },
+        {
+          "name": "mix",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "26:mix"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "26:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Mono sum"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.5
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                0.0
+              ],
+              "label": "Predelay"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.004771,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                0.0
+              ],
+              "label": "Input diffuser 1"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.003595,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                130.0
+              ],
+              "label": "Input diffuser 2"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.012735,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                0.0
+              ],
+              "label": "Input diffuser 3"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.009307,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                130.0
+              ],
+              "label": "Input diffuser 4"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "freq": 0.7,
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                300.0
+              ],
+              "label": "Wobble"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.023118,
+              "out_min": 0.022042
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                300.0
+              ],
+              "label": "Left wobble (s)"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.029972,
+              "out_min": 0.031048
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                520.0
+              ],
+              "label": "Right wobble (s)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "a": -11.4,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "dB per pass"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Decay gain"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                300.0
+              ],
+              "label": "Into left half"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                300.0
+              ],
+              "label": "Left diffuser"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.149625,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                300.0
+              ],
+              "label": "Left delay 1 + damping"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.060482,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                300.0
+              ],
+              "label": "Left allpass"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.124996,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                300.0
+              ],
+              "label": "Left delay 2"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                600.0
+              ],
+              "label": "Into right half"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                600.0
+              ],
+              "label": "Right diffuser"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.141696,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                600.0
+              ],
+              "label": "Right delay 1 + damping"
+            }
+          },
+          {
+            "id": "20",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.089244,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                600.0
+              ],
+              "label": "Right allpass"
+            }
+          },
+          {
+            "id": "21",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.10628,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                600.0
+              ],
+              "label": "Right delay 2"
+            }
+          },
+          {
+            "id": "22",
+            "kind": "feedback",
+            "ui": {
+              "pos": [
+                1920.0,
+                820.0
+              ],
+              "label": "Back to the left half"
+            }
+          },
+          {
+            "id": "23",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                300.0
+              ],
+              "label": "Left: right-half taps"
+            }
+          },
+          {
+            "id": "24",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                560.0
+              ],
+              "label": "Right: left-half taps"
+            }
+          },
+          {
+            "id": "25",
+            "kind": "merge_channels",
+            "ui": {
+              "pos": [
+                2400.0,
+                300.0
+              ],
+              "label": "Stereo"
+            }
+          },
+          {
+            "id": "27",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                2400.0,
+                440.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "28",
+            "kind": "mid_side",
+            "config": {
+              "mode": "decode"
+            },
+            "params": {
+              "width": 1.6
+            },
+            "ui": {
+              "pos": [
+                2400.0,
+                560.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "26",
+            "kind": "crossfade",
+            "params": {
+              "curve": "equal_power"
+            },
+            "ui": {
+              "pos": [
+                2640.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:mid",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "7:out",
+            "to": "9:in"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "6:out",
+            "to": "12:in_0"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:in"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "16:in"
+          },
+          {
+            "from": "11:out",
+            "to": "14:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "16:feedback"
+          },
+          {
+            "from": "6:out",
+            "to": "17:in_0"
+          },
+          {
+            "from": "17:out",
+            "to": "18:in"
+          },
+          {
+            "from": "18:out",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "20:in"
+          },
+          {
+            "from": "20:out",
+            "to": "21:in"
+          },
+          {
+            "from": "11:out",
+            "to": "19:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "21:feedback"
+          },
+          {
+            "from": "8:out",
+            "to": "13:delay"
+          },
+          {
+            "from": "9:out",
+            "to": "18:delay"
+          },
+          {
+            "from": "16:out",
+            "to": "17:in_1"
+          },
+          {
+            "from": "21:out",
+            "to": "22:in"
+          },
+          {
+            "from": "22:out",
+            "to": "12:in_1"
+          },
+          {
+            "from": "18:out",
+            "to": "23:in_0"
+          },
+          {
+            "from": "19:out",
+            "to": "23:in_1"
+          },
+          {
+            "from": "20:out",
+            "to": "23:in_2"
+          },
+          {
+            "from": "21:out",
+            "to": "23:in_3"
+          },
+          {
+            "from": "13:out",
+            "to": "24:in_0"
+          },
+          {
+            "from": "14:out",
+            "to": "24:in_1"
+          },
+          {
+            "from": "15:out",
+            "to": "24:in_2"
+          },
+          {
+            "from": "16:out",
+            "to": "24:in_3"
+          },
+          {
+            "from": "23:out",
+            "to": "25:in_0"
+          },
+          {
+            "from": "24:out",
+            "to": "25:in_1"
+          },
+          {
+            "from": "25:out",
+            "to": "27:in"
+          },
+          {
+            "from": "27:mid",
+            "to": "28:mid"
+          },
+          {
+            "from": "27:side",
+            "to": "28:side"
+          },
+          {
+            "from": "28:out",
+            "to": "26:b"
+          }
+        ]
+      }
+    }
+  }
+}
