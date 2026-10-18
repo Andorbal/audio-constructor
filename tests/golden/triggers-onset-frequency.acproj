@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "name": "Onset and frequency triggers",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "duty": 0.25,
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.001,
+          "decay": 0.08,
+          "release": 0.05,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "freq": 160.0,
+          "shape": "square"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "onset",
+        "params": {
+          "min_interval": 0.05,
+          "sensitivity": 0.5
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            -120.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.001,
+          "decay": 0.03,
+          "release": 0.02,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            -120.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "oscillator",
+        "params": {
+          "freq": 1500.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            -240.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            -120.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "frequency_trigger",
+        "params": {
+          "high": 400.0,
+          "hysteresis": 6.0,
+          "low": 100.0,
+          "threshold": -24.0
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.002,
+          "decay": 0.05,
+          "release": 0.05,
+          "sustain": 0.5
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "oscillator",
+        "params": {
+          "freq": 2400.0,
+          "shape": "tri"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            240.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "mix",
+        "config": {
+          "inputs": 3
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": -12.0,
+          "gain_2": -18.0
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "14",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1260.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:trigger",
+        "to": "2:on"
+      },
+      {
+        "from": "2:out",
+        "to": "4:a"
+      },
+      {
+        "from": "3:out",
+        "to": "4:b"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:trigger",
+        "to": "6:on"
+      },
+      {
+        "from": "6:out",
+        "to": "8:a"
+      },
+      {
+        "from": "7:out",
+        "to": "8:b"
+      },
+      {
+        "from": "4:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:gate",
+        "to": "10:gate"
+      },
+      {
+        "from": "10:out",
+        "to": "12:a"
+      },
+      {
+        "from": "11:out",
+        "to": "12:b"
+      },
+      {
+        "from": "4:out",
+        "to": "13:in_0"
+      },
+      {
+        "from": "8:out",
+        "to": "13:in_1"
+      },
+      {
+        "from": "12:out",
+        "to": "13:in_2"
+      },
+      {
+        "from": "13:out",
+        "to": "14:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

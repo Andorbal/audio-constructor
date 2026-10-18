@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "name": "Spectral shift",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "fft",
+        "config": {
+          "size": 1024,
+          "overlap": 4,
+          "window": "hann"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "spectral_shift",
+        "params": {
+          "scale": 1.5,
+          "shift": 30.0
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "ifft",
+        "config": {
+          "window": "hann"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:spectrum",
+        "to": "3:spectrum"
+      },
+      {
+        "from": "3:spectrum",
+        "to": "4:spectrum"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

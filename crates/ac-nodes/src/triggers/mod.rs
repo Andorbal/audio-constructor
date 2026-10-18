@@ -8,8 +8,10 @@ pub mod clock;
 pub mod clock_divide;
 pub mod clock_multiply;
 pub mod euclidean;
+pub mod frequency_trigger;
 pub mod gate_to_trigger;
 pub mod latch;
+pub mod onset;
 pub mod probability;
 pub mod threshold_trigger;
 pub mod timer;
@@ -30,6 +32,8 @@ pub fn register(r: &mut Registry) {
     r.register::<burst::Burst>();
     r.register::<latch::Latch>();
     r.register::<timer::Timer>();
+    r.register::<frequency_trigger::FrequencyTrigger>();
+    r.register::<onset::Onset>();
 }
 
 /// Longest time a trigger node counts, in samples: about 265 days at
