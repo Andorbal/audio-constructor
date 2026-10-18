@@ -9,6 +9,7 @@ pub mod midi_note;
 pub mod midi_transpose;
 pub mod note_to_midi;
 mod notes;
+pub mod pattern;
 pub mod scale_quantize;
 pub mod voice;
 pub mod voices;
@@ -24,4 +25,5 @@ pub fn register(r: &mut Registry) {
     r.register::<scale_quantize::ScaleQuantize>();
     r.register::<chord::Chord>();
     r.register::<note_to_midi::NoteToMidi>();
+    r.register::<pattern::Pattern>();
 }
