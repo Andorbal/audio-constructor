@@ -4,8 +4,9 @@
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    AudioData, AudioIn, ConfigExt, FileRequest, MidiEvent, MidiMsg, NodePath, Project,
-    RecordRequest, RecordSink, Registry, Resources, Value,
+    AudioData, AudioIn, ConfigExt, Control, ControlEvent, FileRequest, MidiEvent, MidiMsg,
+    NodePath, OSC_OUT_CAPACITY, OscMessage, Project, RecordRequest, RecordSink, Registry,
+    Resources, Value,
 };
 
 use crate::bake::BakeInput;
@@ -27,6 +28,10 @@ pub struct RenderOptions {
     pub input: Option<AudioData>,
     /// MIDI fed to `MidiIn` nodes, at absolute sample positions from `from`.
     pub midi: Vec<(u64, MidiMsg)>,
+    /// Control-surface events (keys, gamepads, OSC) fed to the engine as if
+    /// from the devices, at absolute sample positions from `from`. Events at
+    /// the same position keep their order.
+    pub controls: Vec<(u64, Control, f32)>,
     /// `--set node.socket=value` overrides, applied before compiling.
     pub set: Vec<(NodePath, String, Value)>,
     /// Number of device output channels (default: what the AudioOut nodes use, at least 2).
@@ -44,6 +49,9 @@ pub struct Rendered {
     pub files: Vec<RenderedFile>,
     /// MIDI that `MidiOut` nodes sent, at frames from the render's start.
     pub midi: Vec<(u64, MidiMsg)>,
+    /// OSC that `OscOut` nodes sent, at frames from the render's start
+    /// (each message's own `offset` is its place in its block).
+    pub osc: Vec<(u64, OscMessage)>,
 }
 
 /// The audio a `FileOut` node received while the render played.
@@ -254,7 +262,7 @@ pub fn render(
     // same input (ARCHITECTURE §10, multi-pass rendering).
     if !engine.handle.bakes().is_empty() {
         engine.handle.set_bake_frames(Some(end));
-        if opts.input.is_some() || !opts.midi.is_empty() {
+        if opts.input.is_some() || !opts.midi.is_empty() || !opts.controls.is_empty() {
             // Bakes render from zero; the input starts at `from`.
             let audio = opts.input.as_ref().map(|a| {
                 let lead = start as usize;
@@ -274,6 +282,7 @@ pub fn render(
             engine.handle.set_bake_input(BakeInput {
                 audio,
                 midi: Arc::new(opts.midi.iter().map(|&(at, m)| (at + start, m)).collect()),
+                controls: Arc::new(sorted_controls(&opts.controls, start)),
             });
         }
         engine.handle.bake_all();
@@ -306,6 +315,11 @@ pub fn render(
     let mut sent = Vec::new();
     let mut midi_events = opts.midi.clone();
     midi_events.sort_by_key(|e| e.0);
+    let control_events = sorted_controls(&opts.controls, 0);
+    let mut next_control = 0usize;
+    let mut controls: Vec<ControlEvent> = Vec::new();
+    let mut osc_out: Vec<OscMessage> = Vec::with_capacity(OSC_OUT_CAPACITY);
+    let mut osc_sent = Vec::new();
     let mut done = 0usize;
     while done < total {
         let n = block.min(total - done);
@@ -323,6 +337,16 @@ pub fn render(
                 midi.push(MidiEvent::new((at - done) as u32, msg));
             }
         }
+        controls.clear();
+        // In time order, so each block takes the next run of events.
+        while let Some(&(at, control, value)) = control_events.get(next_control) {
+            if at >= (done + n) as u64 {
+                break;
+            }
+            let offset = at.saturating_sub(done as u64) as u32;
+            controls.push(ControlEvent::new(offset, control, value));
+            next_control += 1;
+        }
         let mut io = HostIo {
             frames: n,
             input: &inp[..in_channels * n],
@@ -331,8 +355,8 @@ pub fn render(
             out_channels,
             midi: &midi,
             midi_out: Some(&mut midi_out),
-            controls: &[],
-            osc_out: None,
+            controls: &controls,
+            osc_out: Some(&mut osc_out),
         };
         engine.process(&mut io);
         for (c, ch) in channels.iter_mut().enumerate() {
@@ -342,6 +366,11 @@ pub fn render(
             midi_out
                 .drain(..)
                 .map(|e| ((done as u64) + u64::from(e.offset), e.msg)),
+        );
+        osc_sent.extend(
+            osc_out
+                .drain(..)
+                .map(|m| ((done as u64) + u64::from(m.offset), m)),
         );
         done += n;
     }
@@ -358,5 +387,17 @@ pub fn render(
         report,
         files,
         midi: sent,
+        osc: osc_sent,
     }
+}
+
+/// Control events in time order (stable, so events at one frame keep their
+/// order), shifted later by `shift` frames.
+fn sorted_controls(events: &[(u64, Control, f32)], shift: u64) -> Vec<(u64, Control, f32)> {
+    let mut v: Vec<(u64, Control, f32)> = events
+        .iter()
+        .map(|&(at, c, x)| (at.saturating_add(shift), c, x))
+        .collect();
+    v.sort_by_key(|e| e.0);
+    v
 }
