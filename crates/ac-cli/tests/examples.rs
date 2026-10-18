@@ -6,7 +6,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ac_core::{Block, BlockSource, Endpoint, NodeId, NodePath, Origin, Project, Wire};
+use ac_core::{
+    AudioData, Block, BlockSource, Endpoint, NodeId, NodePath, Origin, Project, Value, Wire,
+};
 use ac_engine::{Engine, EngineOptions, HostIo, RenderOptions, WholeState, render};
 use ac_io::{AssetStore, FileResources, Library};
 
@@ -24,6 +26,7 @@ const EXPECTED: &[&str] = &[
     "vocoder",
     "generative-patch",
     "tape-loop",
+    "guitar-to-synth",
 ];
 
 /// Examples that only make sound from a live input.
@@ -71,13 +74,16 @@ fn resources(
     })
 }
 
-fn render_project(project: &Project, path: &Path, seconds: f64) -> ac_engine::Rendered {
+fn render_with(project: &Project, path: &Path, options: &RenderOptions) -> ac_engine::Rendered {
     let registry = Arc::new(ac_nodes::registry());
     let res = resources(project, path, &registry);
-    render(
+    render(project, registry, res, options)
+}
+
+fn render_project(project: &Project, path: &Path, seconds: f64) -> ac_engine::Rendered {
+    render_with(
         project,
-        registry,
-        res,
+        path,
         &RenderOptions {
             to: Some(seconds),
             ..RenderOptions::default()
@@ -356,4 +362,50 @@ fn reverse_delay_bakes_from_a_clip_and_is_disabled_from_audio_in() {
             );
         }
     }
+}
+
+/// Guitar-to-Synth follows the pitch of whatever plays into it: the demo
+/// riff by default, and Audio In once Guitar in is switched on.
+#[test]
+fn guitar_to_synth_follows_the_riff_and_the_guitar() {
+    let path = example("guitar-to-synth");
+    let project = ac_io::load_project(&path).expect("loads");
+    let rate = f64::from(project.settings.sample_rate);
+    let detector = labeled(&project, "Pitch Detect");
+    let pitch = listening_to(&project, Endpoint::new(detector, "freq"));
+    let near = |f: f32, hz: f64| (f64::from(f) / hz - 1.0).abs() < 0.02;
+
+    // The riff: E5 D5 C5 B4 C5 D5 E5 G5, a quarter of a second each.
+    let out = render_project(&pitch, &path, 2.0);
+    let riff = [659.3, 587.3, 523.3, 493.9, 523.3, 587.3, 659.3, 784.0];
+    for (i, hz) in riff.iter().enumerate() {
+        let f = out.channels[0][((i as f64 + 0.75) * 0.25 * rate) as usize];
+        assert!(near(f, *hz), "note {i}: {f} Hz, expected {hz}");
+    }
+
+    // A guitar's G3 into Audio In, with Guitar in on.
+    let switch_on = |p: &Project| {
+        let mut p = p.clone();
+        let toggle = labeled(&p, "Guitar in");
+        let node = p.graph.node_mut(toggle).expect("toggle");
+        node.params.insert("value".into(), Value::Bool(true));
+        p
+    };
+    let tone: Vec<f32> = (0..rate as usize)
+        .map(|i| 0.3 * (std::f64::consts::TAU * 196.0 * i as f64 / rate).sin() as f32)
+        .collect();
+    let options = RenderOptions {
+        to: Some(1.0),
+        input: Some(AudioData {
+            sample_rate: project.settings.sample_rate,
+            channels: vec![tone],
+        }),
+        ..RenderOptions::default()
+    };
+    let out = render_with(&switch_on(&pitch), &path, &options);
+    let f = out.channels[0][(0.75 * rate) as usize];
+    assert!(near(f, 196.0), "{f} Hz from a 196 Hz guitar");
+    let out = render_with(&switch_on(&project), &path, &options);
+    let level = peak(&out.channels);
+    assert!(level > 0.05 && level <= 1.0, "peak {level}");
 }
