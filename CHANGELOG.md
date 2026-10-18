@@ -51,6 +51,8 @@ fixes and smaller changes.
   how many nodes it has, then every node under its category with a
   one-line summary, marking live sources and nodes that need their whole
   input. `audioc nodes --docs` writes it.
+- **File ▸ Examples** lists every shipped example and opens the one you
+  pick as an untitled copy, so saving never overwrites the example.
 
 ### Changed
 

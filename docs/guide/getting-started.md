@@ -232,8 +232,11 @@ work well with backups and version control.
 
 The other example projects are in the `examples/` folder:
 
-- File ▸ Open, and pick one. This opens the file itself, so use **Save
-  As** before changing it if you want to keep the original as it was.
+- **File ▸ Examples**, and pick one. It opens as a new, untitled copy,
+  like the Start project, so saving asks where to put it and the original
+  stays as it was.
+- File ▸ Open, and pick one from `examples/`. This opens the file itself,
+  so use **Save As** before changing it if you want to keep the original.
 - From a terminal: `audio-constructor examples/guitar-pedalboard.acproj`.
 - From a node's Help page (`F1`): under **Used in**, click an example to
   open it as a new, untitled copy, like the Start project.

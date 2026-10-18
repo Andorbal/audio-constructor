@@ -7,7 +7,7 @@ press `Space`, even without a microphone, MIDI keyboard, or gamepad
 plugged in (Guitar Pedalboard needs an input to be heard), and all of them
 render with `audioc render`.
 
-Open one with File ▸ Open, from a terminal
+Open one with **File ▸ Examples** (as an untitled copy), File ▸ Open, from a terminal
 (`audio-constructor examples/vocoder.acproj`), or from **Used in** on a
 node's Help page; see [Opening the examples](getting-started.md#opening-the-examples).
 A good order for a first tour is the order below.

@@ -471,6 +471,7 @@ impl EditorApp {
                     .inner_margin(egui::Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
+                let examples = self.side.help.examples();
                 let state = MenuState {
                     undo: self.doc.undo_label(),
                     redo: self.doc.redo_label(),
@@ -485,6 +486,7 @@ impl EditorApp {
                     theme: self.settings.prefs.theme,
                     ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
+                    examples,
                     registry: &self.registry,
                 };
                 let cmds = menubar::show(ui, &state);
@@ -1214,6 +1216,7 @@ impl EditorApp {
             MenuCommand::OpenRecent(p) => self.request_open(p, now),
             MenuCommand::ForgetRecent(p) => self.recent.remove(&p),
             MenuCommand::ClearRecent => self.recent.clear(),
+            MenuCommand::OpenExample(p) => self.request(AfterConfirm::OpenExample(p), now),
             MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
             MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
