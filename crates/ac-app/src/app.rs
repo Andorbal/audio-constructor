@@ -2353,6 +2353,7 @@ impl EditorApp {
     }
 }
 
+#[cfg(feature = "desktop")]
 impl eframe::App for EditorApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         EditorApp::ui(self, ui);
