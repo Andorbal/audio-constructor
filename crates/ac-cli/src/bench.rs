@@ -394,6 +394,24 @@ pub fn stress_projects() -> Vec<(String, Project, Vec<MidiMsg>)> {
             ),
             Vec::new(),
         ),
+        (
+            "pitch-shift-16".into(),
+            stage_chains(
+                "16 × PitchShift with formant correction",
+                16,
+                &[Stage::new("pitch_shift", "in", "out").param("semitones", 7.0)],
+            ),
+            Vec::new(),
+        ),
+        (
+            "diffuser-16".into(),
+            stage_chains(
+                "16 × Diffuser",
+                16,
+                &[Stage::new("diffuser", "in", "out").param("size", 0.7)],
+            ),
+            Vec::new(),
+        ),
     ]
 }
 

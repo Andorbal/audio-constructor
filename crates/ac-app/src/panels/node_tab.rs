@@ -304,6 +304,25 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "peak",
             },
         )],
+        "comb" | "allpass" => vec![f(
+            "max_delay",
+            "Longest delay (s)",
+            Kind::Number { default: 0.1 },
+        )],
+        "freeze" => vec![f("max_time", "Memory (s)", Kind::Number { default: 4.0 })],
+        "pitch_shift" => vec![f(
+            "max_grain",
+            "Longest grain (s, sets latency)",
+            Kind::Number { default: 0.1 },
+        )],
+        "mid_side" => vec![f(
+            "mode",
+            "Mode",
+            Kind::Choice {
+                choices: &["encode", "decode"],
+                default: "encode",
+            },
+        )],
         "fft" => vec![
             f(
                 "size",
@@ -712,6 +731,9 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         }
     });
 
+    // A node drawn rather than typed shows its editor first.
+    node_editor(ui, io, id, &node);
+
     // Parameters.
     let sockets = edit::sockets_of(
         &io.doc.display_graph(),
@@ -813,7 +835,6 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     }
 
     config_fields(ui, io, id, &node);
-    node_editor(ui, io, id, &node);
 
     if let NodeClass::Group(d) = &class
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()
@@ -1022,10 +1043,13 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
         {
             open = !open;
         }
-        ui.label(
-            RichText::new("Double-click to add, right-click to change or remove.")
-                .small()
-                .color(theme::TEXT_FAINT),
+        ui.add(
+            egui::Label::new(
+                RichText::new(editor.hint())
+                    .small()
+                    .color(theme::TEXT_FAINT),
+            )
+            .wrap(),
         );
     });
     if open {

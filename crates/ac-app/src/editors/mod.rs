@@ -41,6 +41,23 @@ impl Editor {
         }
     }
 
+    /// How to use it, in a line.
+    pub fn hint(self) -> &'static str {
+        match self {
+            Editor::Curve(_) => {
+                "Drag points; double-click to add or remove one; right-click a point to bend the segment after it."
+            }
+            Editor::Pattern => "Click or drag across cells to switch them.",
+            Editor::PianoRoll => {
+                "Click or drag to draw a note, drag one to move it or its end to stretch it, right-click to delete. Shift: off the grid."
+            }
+            Editor::Bands => {
+                "Drag an edge; double-click to split a band; right-click an edge to merge its bands."
+            }
+            Editor::Steps => "Click or drag to draw values. Shift: fine values.",
+        }
+    }
+
     /// A good height at `width`.
     pub fn height(self, width: f32) -> f32 {
         match self {

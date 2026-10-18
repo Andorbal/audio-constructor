@@ -185,6 +185,44 @@ processing its sides separately with `Split Channels`.
 | --- | --- | --- |
 | `out` | Audio | The merged signal. |
 
+<a id="mid-side"></a>
+## Mid/Side
+
+Kind: `mid_side` · Also found by: m/s, ms, stereo width, stereo, wide, sum difference, imager
+
+Converts stereo to mid (what both sides share) and side (how they
+differ), or back, so the center and the edges of a mix can be
+processed separately.
+
+Config `mode`:
+- `"encode"` (default): `in` (stereo; a mono input has no side) to
+  `mid` = (L + R) / 2 and `side` = (L − R) / 2, each mono.
+- `"decode"`: `mid` and `side` (mono each) to `out` (stereo),
+  L = mid + `width` × side and R = mid − `width` × side. `width` (0
+  to 2, clamped) scales the side: 0 collapses to mono, 1 restores the
+  original image, 2 doubles the stereo spread.
+
+Encoding and decoding at `width` 1 gives back exactly what went in
+(bit for bit for 16-bit sources; within the last bit of a 32-bit
+float otherwise). Unknown modes are treated as `"encode"`.
+
+**Try this:** encode a stereo mix, put a `Biquad` highpass at 150 Hz
+on `side` only (bass stays centered and punchy), and decode; or
+decode with `width` from a `Slider` for a stereo width control.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Stereo signal to split. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `mid` | Audio | (L + R) / 2. |
+| `side` | Audio | (L − R) / 2. |
+
 <a id="reroute"></a>
 ## Reroute
 

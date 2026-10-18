@@ -193,8 +193,12 @@ pub(super) fn ui(
     let pointer = resp.interact_pointer_pos().or(resp.hover_pos());
     let hovered = pointer.and_then(|p| nearest(&points, p));
     let drag_id = id.with("drag");
+    // Grab what was under the pointer when it went down, not where it is
+    // once the drag registers (a fast drag has moved on by then).
     if resp.drag_started()
-        && let Some(i) = pointer.and_then(|p| nearest(&points, p))
+        && let Some(i) = ui
+            .input(|i| i.pointer.press_origin())
+            .and_then(|p| nearest(&points, p))
     {
         store(ui, drag_id, Some(Drag { index: i }));
     }

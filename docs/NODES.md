@@ -91,11 +91,11 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `Biquad` | P1 | LP/HP/BP/notch/peak/low-shelf/high-shelf; `cutoff: Float(Hz)`, `q`, `gain`. Coefficients recomputed per block (or per sample when `cutoff` is sample-rate). |
-| `SVF` | P2 | State-variable filter with simultaneous LP/BP/HP outputs and stable audio-rate modulation. The synth filter. |
-| `Ladder` | P2 | 4-pole ladder with drive; the other synth filter. |
-| `Comb` | P2 | Feed-forward/feed-back comb with `delay`, `feedback`, `damping`. Reverb and Karplus-Strong ingredient. |
-| `Allpass` | P2 | Schroeder allpass; `delay`, `gain`. Reverb ingredient. |
-| `DcBlock` | P2 | Removes DC offset. |
+| `SVF` | P2 | State-variable filter with simultaneous lowpass/bandpass/highpass/notch outputs and stable audio-rate modulation of `cutoff` and `resonance`. The synth filter. |
+| `Ladder` | P2 | 4-pole ladder with `drive` and lp24/lp12/bp/hp modes; self-oscillates in tune near full `resonance`. The other synth filter. |
+| `Comb` | P2 | Feed-forward/feed-back comb with `delay`, `feedback`, `damping`, `mix`; `max_delay` config. Reverb and Karplus-Strong ingredient. |
+| `Allpass` | P2 | Schroeder allpass; `delay` (modulatable, allpass-interpolated so it stays lossless), `gain`. Reverb ingredient. |
+| `DcBlock` | P2 | Removes DC offset (a one-pole highpass at `cutoff`, 10 Hz by default). |
 | `Formant` | P3 | Vowel filter bank with morphing. |
 
 ## Time
@@ -104,9 +104,9 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | --- | --- | --- |
 | `Delay` | P1 | `time: Float(Seconds or Beats)` (modulatable, interpolated), `feedback`, `mix`, optional tempo sync. |
 | `Reverse` | P2, WI | Plays its input backwards. The canonical whole-input node. |
-| `Freeze` | P2 | Holds a short loop of the input while `hold: Bool` is true; `size`, `position`. |
-| `PitchShift` | P2 | Real-time pitch shift (granular/PSOLA), `semitones`, `formant`. Reports its latency. |
-| `Diffuser` | P2 | A bank of modulated allpasses; one node because doing it with eight Allpass nodes is tedious and slower. |
+| `Freeze` | P2 | Holds a short loop of the input while `hold: Bool` is true, with crossfaded seams; `size`, `position` (read when `hold` rises), `max_time` config. |
+| `PitchShift` | P2 | Real-time pitch shift (two crossfading read heads), `semitones`, `formant` (cepstral envelope correction), `grain`, `mix`. Reports its latency, set by the `max_grain` config. |
+| `Diffuser` | P2 | Eight modulated allpasses per channel with different prime delays left and right, mono or stereo in, stereo out; `size`, `diffusion`, `mod_depth`, `mod_rate`, `mix`. One node because doing it with eight Allpass nodes is tedious and slower. |
 | `TimeStretch` | P3, WI | Stretch without pitch change (phase-vocoder). |
 | `Convolution` | P3 | Partitioned convolution against a `Buffer` (impulse responses). Reports latency. |
 
@@ -230,7 +230,7 @@ Panels (UX.md) to make a performance surface.
 | `Group` | P1 | An instance of a `GroupDef`. Double-click to enter. |
 | `SplitChannels` | P1 | `Audio(N)` → N `Audio(1)` outputs. |
 | `MergeChannels` | P1 | N `Audio(1)` → `Audio(N)`. |
-| `MidSide` | P2 | Encode/decode. |
+| `MidSide` | P2 | Encode stereo to `mid`/`side`, or decode back with `width` (`mode` config); the round trip is exact. |
 | `Latency` | P2 | Delay by N samples (config) and report it; also outputs the path latency at this point (for debugging PDC). |
 | `Info` | P2 | `sample_rate`, `block_size`, `cpu_load`, `xruns` as signals. |
 | `Comment` | P1 | Sticky-note text. (Frames around nodes are a canvas feature, not a node.) |

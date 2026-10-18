@@ -187,6 +187,74 @@ fn socket_names_are_unique_snake_case() {
     }
 }
 
+/// Phase 2 nodes in docs/NODES.md that come with a later milestone
+/// (ROADMAP M2.4, control surfaces).
+const P2_LATER: &[&str] = &["gamepad", "keyboard_in", "osc_in", "osc_out"];
+
+/// A NODES.md name as a registry kind: `EnvelopeFollower` → `envelope_follower`,
+/// `XYPad` → `xy_pad`, `MidiCC` → `midi_cc`, `IFFT` → `ifft`.
+fn kind_of(name: &str) -> String {
+    let c: Vec<char> = name.chars().collect();
+    let mut out = String::new();
+    for (i, &ch) in c.iter().enumerate() {
+        if ch.is_ascii_uppercase() && i > 0 {
+            let prev = c[i - 1];
+            let next_lower = c.get(i + 1).is_some_and(|n| n.is_ascii_lowercase());
+            if prev.is_ascii_lowercase()
+                || prev.is_ascii_digit()
+                || (prev.is_ascii_uppercase() && next_lower)
+            {
+                out.push('_');
+            }
+        }
+        out.push(ch.to_ascii_lowercase());
+    }
+    out
+}
+
+#[test]
+fn every_phase2_node_in_the_catalog_is_registered() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/NODES.md"))
+        .expect("docs/NODES.md");
+    let reg = ac_nodes::registry();
+    let mut kinds = Vec::new();
+    for line in text.lines().filter(|l| l.starts_with("| `")) {
+        let cols: Vec<&str> = line.split('|').collect();
+        let (Some(names), Some(phase)) = (cols.get(1), cols.get(2)) else {
+            continue;
+        };
+        if !phase.contains("P2") {
+            continue;
+        }
+        // `Integrate` / `Differentiate`, `Button` (see Controls): every
+        // backticked name in the first column.
+        kinds.extend(names.split('`').skip(1).step_by(2).map(kind_of));
+    }
+    assert!(kinds.len() >= 80, "found only {} P2 nodes", kinds.len());
+    let missing: Vec<_> = kinds
+        .iter()
+        .filter(|k| !P2_LATER.contains(&k.as_str()) && !reg.contains(k))
+        .collect();
+    assert!(missing.is_empty(), "missing P2 nodes: {missing:?}");
+    for k in P2_LATER {
+        assert!(
+            kinds.iter().any(|x| x == k),
+            "{k} isn't in NODES.md any more"
+        );
+    }
+}
+
+#[test]
+fn catalog_names_map_to_kinds() {
+    assert_eq!(kind_of("EnvelopeFollower"), "envelope_follower");
+    assert_eq!(kind_of("XYPad"), "xy_pad");
+    assert_eq!(kind_of("MidiCC"), "midi_cc");
+    assert_eq!(kind_of("IFFT"), "ifft");
+    assert_eq!(kind_of("SVF"), "svf");
+    assert_eq!(kind_of("DcBlock"), "dc_block");
+    assert_eq!(kind_of("LFO"), "lfo");
+}
+
 #[test]
 fn every_phase1_node_is_registered() {
     let reg = ac_nodes::registry();

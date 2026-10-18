@@ -339,6 +339,12 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   `offset = clamp((t_recv − (t_callback − block)) × rate, 0, frames − 1)`.
   That costs one buffer of latency and removes the jitter of quantizing to
   callback boundaries.
+- **Events out**: `MidiOut` nodes run on the device-output path and write
+  into a MIDI buffer the host hands the engine with each block
+  (`HostIo::midi_out`). The callback stamps each message with the time it
+  should leave, one block after the callback that produced it (mirroring
+  events in), and pushes it into a lock-free ring; a sender thread writes it
+  to the chosen ports when its time comes (D62).
 - **Device input** comes from a separate input stream through an SPSC ring
   of interleaved samples, drained by the output callback (which owns the
   processor). The same path serves one duplex interface or two devices. The
@@ -444,6 +450,11 @@ This keeps a single project format and a single engine, with no mode switch.
   (`Transport.time`, oscillators, envelopes, clocks, MIDI) are block-size
   independent; golden projects declare which kind they are and the test
   suite checks both.
+- Besides the device outputs, a render collects what `FileOut` nodes
+  receive (into memory reserved from the render length, so nothing is ever
+  dropped) and what `MidiOut` nodes send. `audioc render` writes the files
+  next to the main output, refusing paths that would leave its folder, and
+  `--midi-out` writes the messages as a standard MIDI file (D61).
 
 ## 11. Device layer
 
@@ -503,13 +514,13 @@ All hosts call the same `Engine`.
 - **App** (`ac-app`): eframe shell. Owns the `Engine`, the device layer, the
   undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
 - **CLI** (`ac-cli`, binary `audioc`):
-  - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]...`
-  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
+  - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]... [--input in.wav] [--midi-out notes.mid]` also writes each `FileOut` node's file next to `out.wav`.
+  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--midi-out NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
   - `audioc latency [device options] [--count N]` measures the round trip through a loopback cable.
   - `audioc validate <project>` prints the compile report (errors, disabled nodes, latency).
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
-  - `audioc devices` lists audio and MIDI devices.
+  - `audioc devices` lists audio devices and MIDI inputs and outputs.
   - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
   - `audioc pack` / `audioc unpack`.
 - **Plugin** (Phase 3, `ac-plugin`): nih-plug exposes the engine as a CLAP and
@@ -541,7 +552,9 @@ through the `Engine` API.
   a test runs every node through a block with the allocator guard active.
 - **Benchmarks**: criterion benches in `ac-engine` and `ac-nodes` for per-node
   cost; `audioc bench` renders stress projects (1 000 oscillators into a
-  mixer, a long effect chain, parallel chains, a 16-voice `Voices` synth)
+  mixer, a long effect chain, parallel chains, a 16-voice `Voices` synth,
+  and parallel copies of the expensive nodes: FFT → IFFT, PitchShift,
+  Diffuser)
   and prints the real-time ratio and, with `--threads N`, the multi-core
   speedup. CI runs `audioc bench` on every merge request and compares against
   the baseline from `main` on the same runner tier, failing on a regression

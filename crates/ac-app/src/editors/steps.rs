@@ -102,16 +102,11 @@ pub(super) fn ui(
     let range = load::<(f64, f64)>(ui, range_id).unwrap_or_else(|| fit_range(&values));
     let mut edit = None;
     ui.horizontal(|ui| {
-        ui.label(
-            egui::RichText::new("Range")
-                .small()
-                .color(theme::TEXT_MUTED),
-        );
         let name = RANGES.iter().find(|r| r.1 == range).map_or_else(
             || format!("{} to {}", range.0, range.1),
             |r| r.0.to_string(),
         );
-        egui::ComboBox::from_id_salt(id.with("range-menu"))
+        egui::ComboBox::new(id.with("range-menu"), "range")
             .selected_text(name)
             .show_ui(ui, |ui| {
                 for (label, r) in RANGES {

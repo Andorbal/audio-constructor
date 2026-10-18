@@ -28,8 +28,16 @@ node. Edit the node's source, not these files.
 | [Normalize](level.md#normalize) | Level & Dynamics | Turns a whole signal up or down so its peak, or its loudness, lands on `target`. |
 | [Pan](level.md#pan) | Level & Dynamics | Places a mono signal in the stereo field, or shifts the balance of a stereo one. The output is always stereo. |
 | [Shaper](level.md#shaper) | Level & Dynamics | Waveshaping: bends the signal through a curve for saturation, clipping, folding, or any transfer function you draw. |
+| [Allpass](filters.md#allpass) | Filters | A Schroeder allpass filter: smears a signal into a train of echoes without changing its level at any frequency. |
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
+| [Comb](filters.md#comb) | Filters | A comb filter: a copy of the input delayed by `delay`, fed back (a resonator ringing at 1 / `delay`) or added once (evenly spaced notches). |
+| [DC Block](filters.md#dc-block) | Filters | Removes DC offset: a gentle one-pole highpass that pulls a signal back to center without touching anything you can hear. |
+| [Ladder](filters.md#ladder) | Filters | A four-pole transistor-ladder filter with drive: warm, squelchy, and able to self-oscillate. |
+| [SVF](filters.md#svf) | Filters | A resonant state-variable filter with lowpass, bandpass, highpass, and notch outputs at once: the synth filter. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
+| [Diffuser](time.md#diffuser) | Time | Smears a signal into a dense wash: eight modulated allpass filters in series per channel, the building block of a reverb. |
+| [Freeze](time.md#freeze) | Time | Holds a short loop of the input while `hold` is on: catch a moment and let it ring forever. |
+| [Pitch Shift](time.md#pitch-shift) | Time | Shifts pitch up or down without changing speed, with the formants (the vowel color of a voice) kept in place or moved on their own. |
 | [Reverse](time.md#reverse) | Time | Plays its input backwards. |
 | [Band Split](spectral.md#band-split) | Spectral | Splits a signal into frequency bands, one output per band, that add back up to the original. |
 | [FFT](spectral.md#fft) | Spectral | Turns audio into a stream of spectra: a short-time Fourier transform of `in`, one frame every hop. |
@@ -104,5 +112,6 @@ node. Edit the node's source, not these files.
 | [Info](utility.md#info) | Utility | The engine's vital signs as signals: `sample_rate` (Hz), `block_size` (the largest block, in frames), `cpu_load` (how much of each block's time the patch used last block, 0 to 1 and beyond), `xruns` (dropouts so far, from overruns and the audio device), and `latency` (the patch's output latency in samples). |
 | [Latency](utility.md#latency) | Utility | Delays audio by a fixed number of samples and tells the engine so, which makes it a handy way to see latency compensation at work. |
 | [Merge Channels](utility.md#merge-channels) | Utility | Combines mono signals into one multichannel signal. |
+| [Mid/Side](utility.md#mid-side) | Utility | Converts stereo to mid (what both sides share) and side (how they differ), or back, so the center and the edges of a mix can be processed separately. |
 | [Reroute](utility.md#reroute) | Utility | A dot on a wire, for tidy wiring. Whatever goes in comes straight out, of any type. |
 | [Split Channels](utility.md#split-channels) | Utility | Splits a multichannel signal into one mono output per channel. |

@@ -1,6 +1,6 @@
 # Benchmarks
 
-`audioc bench` renders five stress projects (they are generated in code, see
+`audioc bench` renders eight stress projects (they are generated in code, see
 `crates/ac-cli/src/bench.rs`) and reports how many seconds of audio one CPU
 core renders per second (the real-time ratio), plus the share of time per
 node kind. `--threads N` runs each project again on N threads (the audio
@@ -13,6 +13,9 @@ thread plus real-time workers) and reports the speedup:
 | `mono-synths-16` | 16 clock-driven subtractive voices with per-sample filter sweeps |
 | `parallel-chains-8` | 8 independent chains of 12 × (Biquad → Delay), mixed: what the multi-core scheduler spreads across cores |
 | `poly-synth-16` | a 16-voice `Voices` synth (saw, ADSR-swept filter, ADSR gain) playing a held 16-note chord |
+| `fft-chains-16` | 16 × (FFT 2048 → SpectralGate → IFFT), overlap 4 |
+| `pitch-shift-16` | 16 × PitchShift, +7 semitones with formant correction |
+| `diffuser-16` | 16 × Diffuser (mono in, stereo out) |
 
 - `baseline.json` is the reference from the machine that last updated it
   (128-frame blocks, 10 s per project, best of 3):
