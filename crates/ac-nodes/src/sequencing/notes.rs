@@ -8,10 +8,8 @@
 use ac_core::{Io, MidiEvent, MidiMsg, MidiOut};
 use ac_dsp::scale::{SCALE_NAMES, Scale};
 
-/// Events a MIDI output holds per block (the engine's buffer size, and the
-/// test harness's). Past it the output drops events, so nodes hold back
-/// optional messages to keep room for note-offs.
-pub(crate) const MIDI_LIMIT: usize = 1024;
+/// Events a MIDI output holds per block (see [`ac_core::MIDI_CAPACITY`]).
+pub(crate) const MIDI_LIMIT: usize = ac_core::MIDI_CAPACITY;
 
 /// Velocity for note-offs a node sends on its own (releases, flushes).
 pub(crate) const RELEASE_VELOCITY: u8 = 64;

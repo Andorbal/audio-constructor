@@ -141,7 +141,8 @@ pub(super) fn ui(
                 cells.top() + (r as f32 + 0.5) * ch,
             ),
             Align2::CENTER_CENTER,
-            format!("{}", r + 1),
+            // Rows count from 0, like the node's `trigger_0`, `gate_0` outputs.
+            format!("{r}"),
             small.clone(),
             theme::TEXT_FAINT,
         );

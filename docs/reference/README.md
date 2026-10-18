@@ -55,7 +55,16 @@ node. Edit the node's source, not these files.
 | [Timer](triggers.md#timer) | Triggers & Gates | Counts the time since `start`, and fires `done` once `duration` has passed. |
 | [Trigger Delay](triggers.md#trigger-delay) | Triggers & Gates | Delays each trigger by a time in seconds or beats. |
 | [Trigger to Gate](triggers.md#trigger-to-gate) | Triggers & Gates | Turns each trigger into a gate of a set length. |
+| [Arpeggiator](sequencing.md#arpeggiator) | Sequencing & Notes | Plays the notes you hold one at a time, stepping on each clock tick. |
+| [Chord](sequencing.md#chord) | Sequencing & Notes | Plays a whole chord for every incoming note. |
+| [MIDI CC](sequencing.md#midi-cc) | Sequencing & Notes | Turns one MIDI controller into a `Float` in a range you choose. |
+| [MIDI Filter](sequencing.md#midi-filter) | Sequencing & Notes | Passes only the MIDI you want: one channel, a range of notes, and chosen kinds of message. |
 | [MIDI Note](sequencing.md#midi-note) | Sequencing & Notes | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |
+| [MIDI Pattern](sequencing.md#midi-pattern) | Sequencing & Notes | A piano-roll clip of notes in beats that plays as MIDI, from a one-bar riff to a whole song. |
+| [MIDI Transpose](sequencing.md#midi-transpose) | Sequencing & Notes | Shifts MIDI notes up or down by semitones, optionally snapping them into a scale. |
+| [Note To MIDI](sequencing.md#note-to-midi) | Sequencing & Notes | Builds MIDI notes from signals: a gate or a trigger, a note number, and a velocity. |
+| [Pattern](sequencing.md#pattern) | Sequencing & Notes | A grid of step buttons that plays one step per clock tick, like a drum machine's pattern. |
+| [Scale Quantize](sequencing.md#scale-quantize) | Sequencing & Notes | Snaps notes to a scale: a `Float` note number, or the notes of a MIDI stream. |
 | [Voice](sequencing.md#voice) | Sequencing & Notes | One voice's note, inside the body of a `Voices` node. |
 | [Voices](sequencing.md#voices) | Sequencing & Notes | Makes any patch polyphonic: its body (a group) runs once per voice, each voice plays one note at a time, and the voices' outputs are added together. |
 | [Button](controls.md#button) | Controls | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |

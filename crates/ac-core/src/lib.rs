@@ -27,7 +27,7 @@ pub mod value;
 pub mod whole;
 
 pub use clipboard::Subgraph;
-pub use events::{MidiEvent, MidiMsg, note_to_hz};
+pub use events::{MIDI_CAPACITY, MidiEvent, MidiMsg, note_to_hz};
 pub use graph::{
     Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, VOICE_KIND,
     VOICES_KIND, Wire,

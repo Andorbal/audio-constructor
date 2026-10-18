@@ -37,6 +37,8 @@ enum Kind {
     },
     /// An array of strings, edited one per line.
     Lines,
+    /// An array of numbers, edited as a comma-separated list.
+    Numbers,
     /// A whole number that may be negative (an index, where −1 means none).
     Index {
         min: i64,
@@ -222,6 +224,56 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: 8,
             },
         )],
+        "midi_cc" => vec![f(
+            "initial",
+            "Start at (0–1 of the range)",
+            Kind::Number { default: 0.0 },
+        )],
+        "scale_quantize" => vec![f(
+            "type",
+            "Quantize",
+            Kind::Choice {
+                choices: &["float", "midi"],
+                default: "float",
+            },
+        )],
+        "chord" => vec![f(
+            "intervals",
+            "Custom intervals (semitones)",
+            Kind::Numbers,
+        )],
+        "pattern" => vec![
+            f(
+                "steps",
+                "Steps",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 16,
+                },
+            ),
+            f(
+                "rows",
+                "Rows",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 4,
+                },
+            ),
+        ],
+        "midi_pattern" => vec![
+            f("length", "Length (beats)", Kind::Number { default: 4.0 }),
+            f(
+                "channel",
+                "MIDI channel",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+        ],
         "random_walk" => vec![f(
             "seed",
             "Seed",
@@ -882,6 +934,11 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                     !(node.kind == "clip" && (k.as_str() == "channels" || k.as_str() == "hash"))
                 })
                 .filter(|(k, _)| node.kind != "group" || k.as_str() != "def")
+                // The node editor shows its own key.
+                .filter(|(k, _)| {
+                    editors::editor_for(&node.kind, &node.config)
+                        .is_none_or(|e| e.key() != k.as_str())
+                })
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
         })
@@ -952,6 +1009,39 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             .changed()
                         {
                             set_config(io, id, f.key, v.into());
+                        }
+                    }
+                    Kind::Numbers => {
+                        let stored: Vec<f64> = node
+                            .config
+                            .get(f.key)
+                            .and_then(|v| v.as_array())
+                            .map(|a| a.iter().filter_map(serde_json::Value::as_f64).collect())
+                            .unwrap_or_default();
+                        let fmt = |v: &f64| {
+                            if v.fract() == 0.0 {
+                                format!("{v:.0}")
+                            } else {
+                                format!("{v}")
+                            }
+                        };
+                        let mut t = stored.iter().map(fmt).collect::<Vec<_>>().join(", ");
+                        let r = ui.add(egui::TextEdit::singleline(&mut t).hint_text("0, 4, 7"));
+                        if r.lost_focus() {
+                            let parsed: Vec<f64> = t
+                                .split([',', ' '])
+                                .filter_map(|x| x.trim().parse::<f64>().ok())
+                                .filter(|v| v.is_finite())
+                                .collect();
+                            if parsed != stored {
+                                let ints = parsed.iter().all(|v| v.fract() == 0.0);
+                                let value: serde_json::Value = if ints {
+                                    parsed.iter().map(|v| *v as i64).collect::<Vec<_>>().into()
+                                } else {
+                                    parsed.into()
+                                };
+                                set_config(io, id, f.key, value);
+                            }
                         }
                     }
                     Kind::Lines => {

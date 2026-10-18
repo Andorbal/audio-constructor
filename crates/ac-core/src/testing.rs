@@ -669,7 +669,7 @@ impl Harness {
                     OutputSlot::Trigger((o_trig.len() - 1) as u32)
                 }
                 SignalType::Midi => {
-                    o_midi.push(Vec::with_capacity(1024));
+                    o_midi.push(Vec::with_capacity(crate::MIDI_CAPACITY));
                     OutputSlot::Midi((o_midi.len() - 1) as u32)
                 }
                 SignalType::Spectrum => match spec.spectrum.or(follow_shape) {
@@ -702,7 +702,7 @@ impl Harness {
         }
         let mut host_output = vec![0.0; self.host_out_channels * frames];
         // As in the engine, only device writers can send MIDI.
-        let mut host_midi_out: Vec<MidiEvent> = Vec::with_capacity(1024);
+        let mut host_midi_out: Vec<MidiEvent> = Vec::with_capacity(crate::MIDI_CAPACITY);
         let host_midi: Vec<MidiEvent> = self
             .host_midi
             .iter()

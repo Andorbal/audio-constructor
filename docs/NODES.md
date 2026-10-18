@@ -183,14 +183,14 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `MidiNote` | P1 | Monophonic `Midi` → `freq: Float(Hz)`, `gate: Bool`, `velocity: Float`, `note: Int`, `trigger`; last/low/high note priority, `glide`. |
-| `MidiCC` | P2 | One controller number → `Float` (0..1 or custom range), `channel` filter. |
-| `MidiFilter` | P2 | Channel, note range, event type. |
-| `MidiTranspose` | P2 | Semitones; `scale` snap option. |
-| `Pattern` | P2 | A grid of N step buttons (config: steps, rows). Advances on `clock`; per row outputs `trigger` and `gate`; also `step: Int`, `reset`, `reverse`, generator contract. The user's "pattern of 4, 8, 16 buttons". |
-| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats; generator contract; `midi` output. From a riff to a whole song. |
+| `MidiCC` | P2 | One controller number → `Float` (0..1 or custom range, with `smooth`), `channel` filter, `changed: Trigger`. Controller 128 reads pitch bend, 129 channel pressure. |
+| `MidiFilter` | P2 | Channel, note range, event types. A note-off whose note-on passed always passes. |
+| `MidiTranspose` | P2 | Semitones; `snap` to a `scale` over `root` (or a custom `mask`). Note-offs follow the note each note-on became. |
+| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k` and `gate_k`; also `step: Int`, `reset`, `reverse`, generator contract. The user's "pattern of 4, 8, 16 buttons". |
+| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`; `midi` and `position` outputs. From a riff to a whole song. |
 | `NoteToMidi` | P2 | `trigger`/`gate` + `note: Int` + `velocity` → `Midi` events. How a hand-built keyboard of `Button`s becomes a MIDI source. |
-| `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes, octaves. |
-| `Chord` | P2 | One note → several (intervals config). |
+| `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes up/down/up-down/random/as played, octaves, `gate` length, `latch`. |
+| `Chord` | P2 | One note → several: named chords or custom `intervals`, `inversion`, `spread`. |
 | `ScaleQuantize` | P2 | Snap `Float`/`Int` notes or `Midi` to a scale; `root`, `scale` with custom masks. |
 | `Voices` | P2 | **Polyphony.** A group instance run once per voice (config: voice count 1–64, steal policy oldest/newest/lowest/highest/none). `midi` in; inside the body a `Voice` node exposes `freq`, `gate`, `velocity`, `index`, `trigger`; `Audio` and `Float` outputs from all voices are summed. The synth-building primitive. |
 | `Voice` | P2 | Inside a `Voices` body: this voice's `freq`, `gate`, `velocity`, `note`, `trigger`, `index`, and its own `midi` stream. Does nothing elsewhere. |

@@ -2,6 +2,211 @@
 
 [← All nodes](README.md)
 
+<a id="arpeggiator"></a>
+## Arpeggiator
+
+Kind: `arpeggiator` · Also found by: arp, arpeggio, broken chord, sequence, latch, pattern, notes
+
+Plays the notes you hold one at a time, stepping on each clock tick.
+
+Hold a chord on `midi` and each `clock` trigger plays the next of
+its notes, by `mode`: `up` (low to high), `down`, `up_down` (up and
+back without repeating the ends), `random`, or `order` (the order
+the keys went down). `octaves` (1–4) repeats the notes that many
+octaves up before starting over. A chord pressed after every key
+was let go starts from the beginning. Up to 16 held keys count;
+beyond that the oldest is forgotten. Notes that `octaves` pushes
+past 127 are rests. Each note keeps the velocity and channel of its
+key.
+
+Each note lasts `gate` (0–1) of the time between the last two
+clocks, measured as they arrive (until two have arrived, a beat at
+the current tempo stands in), and at least one sample. A clock that
+comes while a note still sounds ends it first, on the same sample.
+At 1 the notes run into each other (legato): each ends at the next
+clock, or after two intervals if the clock stops. Letting go of
+every key ends the sounding note at once, unless `latch` is on: then
+the notes keep playing after you let go, until you press a new chord
+(which replaces them) or turn `latch` off.
+
+Nothing plays without a `clock`: wire a `Clock`. Messages other
+than notes (controllers, pitch bend, pressure, program changes) pass
+straight through. On the same sample, incoming notes apply first,
+then a note due to end, then the clock. All-notes-off clears the
+held keys and ends the sounding note, and a transport reset ends it
+at the start of the next block.
+
+**Try this:** `MIDI In` → Arpeggiator → a synth, with a `Clock`
+(`interval` 0.25) into `clock`, `mode` up_down, `octaves` 2, and
+`gate` 0.5. Hold a chord, turn on `latch`, and change chords on the
+beat while you shape the sound.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | The notes to play. |
+| `clock` | Trigger | — |  | Plays the next note. |
+| `mode` | Int | `up` | `up`, `down`, `up_down`, `random`, `order` | The order notes play in. |
+| `octaves` | Int | 1 | 1 … 4 | Octaves the notes repeat over. |
+| `gate` | Float | 0.5 | 0 … 1 | Note length as a fraction of the time between clocks. |
+| `latch` | Bool | false |  | Keep playing after the keys are let go, until a new chord. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | One note at a time, and everything else. |
+
+<a id="chord"></a>
+## Chord
+
+Kind: `chord` · Also found by: harmony, triad, seventh, interval, harmonizer, voicing, power chord, inversion, notes
+
+Plays a whole chord for every incoming note.
+
+`chord` picks the shape built on each note: major, minor, sus2,
+sus4, dim, aug, maj7, min7, dom7, power (root and fifth), octave
+(root and the octave above), or custom, which uses the `intervals`
+config: up to 8 semitone offsets from the played note, −48 to 48,
+such as `[0, 3, 7, 10]` (an empty list plays just the note).
+`inversion` (0–3) raises the lowest note by an octave that many
+times, so 1 is the first inversion. `spread` (0–3 octaves) opens the
+voicing by raising every second note, counted from the bottom, by
+that many octaves.
+
+Every chord note gets the played note's velocity and channel. Each
+note-off releases exactly the notes its note-on started, even if the
+settings changed in between. Notes that would fall outside 0–127 are
+left out. When two held chords share a note, it sounds once and ends
+with the last chord that holds it. Polyphonic pressure goes to every
+note of its chord; other messages pass through. All-notes-off and
+all-sound-off release the chords on their channel, and a transport
+reset releases every sounding note at the start of the next block.
+
+**Try this:** `MIDI In` → Chord (min7) → a `Voices` synth, and every
+key plays a minor seventh; set `chord` to power with `spread` 1 for
+wide fifths under a bass line.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to build chords on. |
+| `chord` | Int | `major` | `major`, `minor`, `sus2`, `sus4`, `dim`, `aug`, `maj7`, `min7`, `dom7`, `power`, `octave`, `custom` | The chord shape. |
+| `inversion` | Int | 0 | 0 … 3 | Raise the lowest note an octave this many times. |
+| `spread` | Int | 0 | 0 … 3 | Octaves to raise every second note by. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The chords and everything else. |
+
+<a id="midi-cc"></a>
+## MIDI CC
+
+Kind: `midi_cc` · Also found by: controller, cc, control change, knob, fader, mod wheel, pitch bend, aftertouch, pressure, expression
+
+Turns one MIDI controller into a `Float` in a range you choose.
+
+`controller` picks the controller number, 0–127 (1 is the mod wheel,
+7 volume, 11 expression, 64 sustain, 74 brightness). Two numbers past
+the controllers follow other continuous messages: 128 is pitch bend
+(centered halfway between `min` and `max`) and 129 is channel
+pressure (aftertouch). `channel` 0 listens to every MIDI channel,
+1–16 to one.
+
+`out` maps the controller's value from 0–127 onto `min`–`max` (set
+`min` above `max` to turn it upside down) and holds it until the
+next message. A new value takes effect on the exact sample its
+message arrives. With `smooth` above 0 the output glides there in a
+straight line instead, arriving `smooth` seconds later, which hides
+the steps of a 7-bit controller; each new message starts a new
+glide from wherever the output is. `changed` fires on each message
+that changes the value.
+
+Before its first message a controller sits at the `initial` config,
+a fraction from 0 (`min`, the default) to 1 (`max`); pitch bend
+always starts centered. The node remembers the last value of every
+controller, so switching `controller` moves to that controller's
+value (or `initial` if it hasn't moved yet), gliding if `smooth` is
+set. Controller values are 7-bit and pitch bend 14-bit; 14-bit
+controller pairs aren't combined.
+
+**Try this:** `MIDI In` → MIDI CC with `controller` 1, `min` 200 and
+`max` 8000, into a `Biquad`'s `cutoff`: the mod wheel sweeps the
+filter. Add `smooth` 0.02 to take the zipper out of slow sweeps, or
+wire `changed` into a `Clip`'s `start` to fire a sample from a pad.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Messages to read the controller from. |
+| `controller` | Int | 1 | 0 … 129 | Controller number 0–127; 128 pitch bend, 129 channel pressure. |
+| `channel` | Int | 0 | 0 … 16 | MIDI channel, 1–16; 0 listens to all. |
+| `min` | Float | 0 | 0 … 1 | Output at controller value 0. |
+| `max` | Float | 1 | 0 … 1 | Output at controller value 127. |
+| `smooth` | Float (s) | 0 | 0 … 1 | Glide time to each new value. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The controller's value mapped onto min–max. |
+| `changed` | Trigger | Fires when the value changes. |
+
+<a id="midi-filter"></a>
+## MIDI Filter
+
+Kind: `midi_filter` · Also found by: split, keyboard split, zone, range, channel, block, thru, layer
+
+Passes only the MIDI you want: one channel, a range of notes, and chosen kinds of message.
+
+`channel` 0 passes every channel, 1–16 just one. Notes pass when
+their number is from `low` to `high` (inclusive; the two swap if
+`low` is above `high`), so two MIDI Filters with ranges 0–59 and
+60–127 split a keyboard between two sounds. The toggles pass or
+block whole kinds of message: `notes` (note-ons and note-offs),
+`controllers` (control changes), `pitch_bend`, `pressure` (channel
+and polyphonic aftertouch), and `program` (program changes).
+Polyphonic pressure belongs to a note, so it also has to be in the
+range. The toggles are read on the sample each message arrives.
+
+A note-off always passes when its note-on did, so changing the
+range, the channel, or a toggle while keys are held never leaves a
+note hanging. All-notes-off and all-sound-off (controllers 123 and
+120) release the notes that passed on their channel even when they
+are filtered out themselves: those notes get note-offs instead. A
+transport reset releases the notes that passed at the start of the
+next block.
+
+**Try this:** wire `MIDI In` into two MIDI Filters, one with `high`
+59 feeding a bass synth and one with `low` 60 feeding a lead, for a
+split keyboard; or turn `notes` off to pass only the knobs on to a
+`MIDI CC`.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Messages to filter. |
+| `channel` | Int | 0 | 0 … 16 | MIDI channel to pass, 1–16; 0 passes all. |
+| `low` | Int | 0 | 0 … 127 | Lowest note that passes. |
+| `high` | Int | 127 | 0 … 127 | Highest note that passes. |
+| `notes` | Bool | true |  | Pass note-ons and note-offs. |
+| `controllers` | Bool | true |  | Pass control changes. |
+| `pitch_bend` | Bool | true |  | Pass pitch bend. |
+| `pressure` | Bool | true |  | Pass channel and key pressure. |
+| `program` | Bool | true |  | Pass program changes. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The messages that passed. |
+
 <a id="midi-note"></a>
 ## MIDI Note
 
@@ -51,6 +256,282 @@ set `priority` to low and add a little `glide` for a sliding bass.
 | `velocity` | Float | Velocity of the sounding note, 0–1. |
 | `note` | Int | The sounding note number. |
 | `trigger` | Trigger | Fires on each new note. |
+
+<a id="midi-pattern"></a>
+## MIDI Pattern
+
+Kind: `midi_pattern` · Also found by: piano roll, clip, sequence, riff, melody, notes, song, loop, sequencer, midi clip
+
+A piano-roll clip of notes in beats that plays as MIDI, from a one-bar riff to a whole song.
+
+The clip is `length` beats long (config, 0.25–1024, default 4; a
+beat is a quarter note). Its notes are the `notes` config, edited in
+the piano roll: each is `[start, length, note, velocity]`, with
+`start` and `length` in beats from the top of the clip, `note`
+0–127, and `velocity` 1–127 (100 if left out), such as
+`[[0, 1, 60, 100], [1, 0.5, 64, 90]]`. Notes are cut off at the end
+of the clip (and at its start); notes that start past the end, have
+no length, or hold something other than numbers are skipped. Up to
+4096 notes, played on MIDI channel `channel` (config, 1–16,
+default 1).
+
+Timing follows the song's tempo map from wherever the clip started:
+a note `n` beats into the clip plays `n / rate` song beats after the
+start, on the exact sample the tempo map gives for that beat, so
+tempo changes are followed and nothing drifts, however long it
+loops. The clip keeps its own count of samples since it started, so
+it also plays when started while the transport is stopped. `rate`
+scales the speed (2 is double time; 0 pauses, holding any sounding
+notes).
+
+Generator contract: `start` (on transport play by default) plays
+from the top: note-offs for anything sounding, then the notes at
+beat 0 on the same sample. `stop` ends sounding notes and fires
+`end`; `reset` jumps back to the top without stopping. At the end of
+the clip it wraps around while `loop` is on (the default), ending
+every sounding note before the first notes of the next pass; with
+`loop` off it ends them, stops, and fires `end`. A note overlapping
+an earlier one of the same pitch ends it where it starts. Events on
+the same sample apply in the order stop, start, reset. `position`
+is how many beats into the clip it is (held while stopped). A
+transport reset releases sounding notes at the start of the next
+block.
+
+**Try this:** wire MIDI Pattern into a `MIDI Note` driving an
+`Oscillator`, with the gate into an `ADSR` on a `Gain`, for a
+looping riff; feed a `Voices` synth instead for chords, and chain
+clips by turning `loop` off and wiring one's `end` into the next
+one's `start`.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+| `loop` | Bool | true |  | Wrap around at the end. |
+| `rate` | Float (×) | 1 | 0 … 4 | Playback speed: 2 is double time, 0 pauses. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The clip's notes. |
+| `position` | Float (beats) | Beats into the clip. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="midi-transpose"></a>
+## MIDI Transpose
+
+Kind: `midi_transpose` · Also found by: transpose, shift, octave, key, pitch, scale, snap, harmonize
+
+Shifts MIDI notes up or down by semitones, optionally snapping them into a scale.
+
+Every note moves by `semitones` (−48 to 48; 12 is an octave up).
+With `snap` on, the shifted note then moves to the nearest note of
+`scale` over `root` (exactly halfway rounds down), which pushes a
+part into a key. `custom` uses `mask`, the scale as 12 bits: bit 0 is
+the root, bit 1 a semitone above, and so on (2741 is the major
+scale). Notes that would land outside 0–127 are dropped, and so are
+their note-offs.
+
+Each held note remembers the note it started, so its note-off ends
+that note even if `semitones`, `snap`, or the scale change while it's
+held. When two held keys land on the same note (common with `snap`),
+it sounds once and ends when the last of them is released.
+Polyphonic pressure follows its note; controllers, pitch bend,
+channel pressure, and program changes pass through unchanged.
+All-notes-off and all-sound-off release the notes on their channel,
+and a transport reset releases every sounding note at the start of
+the next block.
+
+**Try this:** put MIDI Transpose with `semitones` 12 between `MIDI In`
+and a second synth to double a part an octave up; or turn on `snap`
+with `scale` minor_pentatonic and `root` A, and every key you play
+lands in A minor pentatonic.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to shift. |
+| `semitones` | Int | 0 | -48 … 48 | How far to shift; 12 is an octave. |
+| `snap` | Bool | false |  | Snap shifted notes into the scale. |
+| `scale` | Int | `major` | `chromatic`, `major`, `minor`, `harmonic_minor`, `melodic_minor`, `dorian`, `phrygian`, `lydian`, `mixolydian`, `locrian`, `major_pentatonic`, `minor_pentatonic`, `blues`, `whole_tone`, `custom` | Scale to snap to. |
+| `root` | Int | `C` | `C`, `C#`, `D`, `D#`, `E`, `F`, `F#`, `G`, `G#`, `A`, `A#`, `B` | The scale's root note. |
+| `mask` | Int | 2741 | 0 … 4095 | Custom scale: bit 0 the root, bit 1 a semitone up, and so on. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The shifted notes and everything else. |
+
+<a id="note-to-midi"></a>
+## Note To MIDI
+
+Kind: `note_to_midi` · Also found by: gate to midi, trigger to midi, keyboard, button, note, cv to midi, notes
+
+Builds MIDI notes from signals: a gate or a trigger, a note number, and a velocity.
+
+With `gate` wired, a note starts when the gate rises and ends when
+it falls. Otherwise each `trigger` starts a note that ends `length`
+seconds later (at least one sample); the unwired gate's own toggle
+still plays a note while it's on. `note` (a MIDI note number, read
+when the note starts, rounded and kept within 0–127; `Int` sources
+wire straight in), `velocity` (0–1, at least the softest MIDI
+velocity), and `channel` (1–16) are taken when each note starts, and
+the note-off always matches the note that started.
+
+One note sounds at a time: a new note ends the previous one first,
+on the same sample (note-off before note-on). On the same sample a
+falling gate or an ending note comes first, then a rising gate, then
+a trigger. A transport reset ends the sounding note at the start of
+the next block, and a gate still high afterwards starts a new note.
+
+**Try this:** wire several `Button`s through `Select` into `note`
+and their gates through `Logic` (or) into `gate` to build a
+keyboard, then feed `midi` into a `Voices` synth; or drive `trigger`
+from a `Clock` and `note` from a `Random` for a generative line.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `gate` | Bool | false |  | A note plays while this is high. |
+| `trigger` | Trigger | — |  | Plays a note `length` long (when `gate` isn't wired). |
+| `note` | Float | 60 | 0 … 127 | MIDI note number, read when a note starts. |
+| `velocity` | Float | 0.8 | 0 … 1 | Velocity, 0–1, read when a note starts. |
+| `channel` | Int | 1 | 1 … 16 | MIDI channel, 1–16. |
+| `length` | Float (s) | 0.1 | 0.01 … 2 | How long a triggered note lasts. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The notes. |
+
+<a id="pattern"></a>
+## Pattern
+
+Kind: `pattern` · Also found by: step sequencer, drum machine, grid, beat, rhythm, steps, sequencer, drums, trigger, gate
+
+A grid of step buttons that plays one step per clock tick, like a drum machine's pattern.
+
+The grid has `steps` columns (config, 1–64, default 16) and `rows`
+rows (config, 1–16, default 4); click cells in the node to switch
+them on. The `cells` config holds the grid as one string per row,
+`x` for an on step and `.` for an off one, such as
+`["x...x...x...x...", "....x.......x..."]`. Missing rows and steps
+are off, and any other character counts as off.
+
+Each `clock` trigger moves to the next step. Where that step is on
+in row *n*, `trigger_n` fires on the clock's sample and `gate_n`
+goes high until the next clock (rows count from 0, the top row). On
+steps next to each other keep the gate high from one to the next,
+so use the trigger to restart an envelope on every step. `step` is
+the last step played, counting from 0. Nothing moves without a
+clock: wire a `Clock` into `clock` (`interval` 0.25 for sixteenth
+notes).
+
+Generator contract: `start` (on transport play by default) goes
+back to the beginning and plays, so the next clock, or one on the
+same sample, plays the first step (the gates close until then).
+`stop` closes the gates, ignores the clock, and fires `end`; `reset`
+goes back to the beginning without stopping. After the last step the
+pattern wraps around while `loop` is on (the default). With `loop`
+off, the clock after the last step stops it and fires `end` instead,
+so the last step gets its full length and a second Pattern started
+by `end` plays its first step on that same clock. `reverse` flips
+the direction: the pattern steps backwards, and its beginning
+becomes the last step. Events on the same sample apply in the order
+reverse, stop, start, reset, clock.
+
+**Try this:** wire a `Clock` (`interval` 0.25) into `clock`, then
+`trigger_0` into the `on` of an `ADSR` (sustain 0) on a low
+`Oscillator` for a kick, and `trigger_1` into another on a `Noise`
+for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
+`....x.......x...`.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `clock` | Trigger | — |  | Moves to the next step. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+| `loop` | Bool | true |  | Wrap around at the end. |
+| `reverse` | Trigger | — |  | Toggles the direction. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger_0` | Trigger | Fires when a clock lands on an on step in this row. |
+| `gate_0` | Bool | High from an on step until the next clock. |
+| `trigger_1` | Trigger | Fires when a clock lands on an on step in this row. |
+| `gate_1` | Bool | High from an on step until the next clock. |
+| `trigger_2` | Trigger | Fires when a clock lands on an on step in this row. |
+| `gate_2` | Bool | High from an on step until the next clock. |
+| `trigger_3` | Trigger | Fires when a clock lands on an on step in this row. |
+| `gate_3` | Bool | High from an on step until the next clock. |
+| `step` | Int | The last step played, from 0. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="scale-quantize"></a>
+## Scale Quantize
+
+Kind: `scale_quantize` · Also found by: quantize, quantizer, scale, key, snap, tune, pentatonic, generative, pitch, melody
+
+Snaps notes to a scale: a `Float` note number, or the notes of a MIDI stream.
+
+The `type` config picks the form. `float` (the default) quantizes a
+number: `in` is a MIDI note number (60 is middle C; fractions are
+fine, and `Int` sources wire straight in), `out` is the nearest note
+of the scale as a whole number, at the input's rate, and `note` is
+the same as an `Int`, taken at the start of each block. A non-finite
+`in` gives 0, and inputs beyond ±10 000 are clamped first.
+
+`midi` quantizes the notes in `midi` instead. Each held note
+remembers the note it started, so its note-off ends that note even
+if the scale changes while it's held; two keys landing on the same
+note sound it once, until the last is released. Polyphonic pressure
+follows its note and other messages pass through. All-notes-off and
+all-sound-off release the notes on their channel, and a transport
+reset releases every sounding note at the start of the next block.
+
+Either way, `scale` and `root` choose the notes allowed (C major by
+default) and `custom` uses `mask`, the scale as 12 bits: bit 0 is
+the root, bit 1 a semitone above, and so on (2741 is the major
+scale; 0 counts as every note). Exactly halfway between two scale
+notes rounds down.
+
+**Try this:** wire a slow `Oscillator` (`pure`, 0.2 Hz) through a
+`Map` (−1..1 → 48..72) into `in`, and `out` through a `Convert` (MIDI
+note → Hz) into a second Oscillator's `freq`: with `scale`
+minor_pentatonic the sweep turns into a melody that never plays a
+wrong note. Set `type` to midi after `MIDI In` to keep any keyboard
+part in key.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 60 | 0 … 127 | A MIDI note number (fractions allowed). |
+| `scale` | Int | `major` | `chromatic`, `major`, `minor`, `harmonic_minor`, `melodic_minor`, `dorian`, `phrygian`, `lydian`, `mixolydian`, `locrian`, `major_pentatonic`, `minor_pentatonic`, `blues`, `whole_tone`, `custom` | Scale to snap to. |
+| `root` | Int | `C` | `C`, `C#`, `D`, `D#`, `E`, `F`, `F#`, `G`, `G#`, `A`, `A#`, `B` | The scale's root note. |
+| `mask` | Int | 2741 | 0 … 4095 | Custom scale: bit 0 the root, bit 1 a semitone up, and so on. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The nearest scale note. |
+| `note` | Int | The nearest scale note, per block. |
 
 <a id="voice"></a>
 ## Voice
