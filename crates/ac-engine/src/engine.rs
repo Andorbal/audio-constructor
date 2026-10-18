@@ -711,6 +711,13 @@ impl Processor {
         self.graph.generation
     }
 
+    /// Reset every node (as on a restart from zero) at the start of the
+    /// next block, from the audio thread: what a plugin host's reset asks
+    /// for. Real-time safe.
+    pub fn reset(&mut self) {
+        self.transport.reset_flag = true;
+    }
+
     /// Follow an external transport (a plugin host's): start or stop to
     /// match `playing`, and move to `position` (samples at the engine
     /// rate) when it is more than `tolerance` samples from where the
