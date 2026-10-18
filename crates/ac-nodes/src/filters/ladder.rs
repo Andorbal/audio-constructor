@@ -12,7 +12,7 @@ node! {
         "self-oscillating", "drive", "saturation", "synth filter", "warm"
     ],
     /// A four-pole transistor-ladder filter with drive: warm, squelchy, and
-    /// able to self-oscillate. The other synth filter.
+    /// able to self-oscillate.
     ///
     /// - `mode` picks the response, mixed from the ladder's four stages:
     ///   `lp24` (24 dB/oct lowpass, the classic), `lp12` (12 dB/oct

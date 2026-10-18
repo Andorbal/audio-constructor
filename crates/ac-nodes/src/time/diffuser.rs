@@ -36,9 +36,10 @@ node! {
     /// fall between samples (any `size` but 1, and all modulation) are read
     /// through allpass interpolators, so even then nothing is lost.
     ///
-    /// **Try this:** put a Diffuser before a `Delay` with high feedback and
-    /// a little `damping`-style lowpass (a `Biquad`) in its path for a quick
-    /// reverb, or after a snare with `size` 0.3 and `mix` 0.4 to thicken it.
+    /// **Try this:** feed a Diffuser into a feedback `Comb` (`delay` 0.03 s,
+    /// `feedback` 0.8, `damping` 0.4, `mix` 1) and blend that with the dry
+    /// signal for a quick reverb, or put one after a snare with `size` 0.3
+    /// and `mix` 0.4 to thicken it.
     pub struct Diffuser {
         /// Stage `s` of channel `c` is `stages[c * STAGES + s]`.
         stages: Vec<Allpass>,

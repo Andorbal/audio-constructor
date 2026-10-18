@@ -10,9 +10,11 @@ node! {
     name: "Allpass",
     category: Filters,
     keywords: ["schroeder", "diffusion", "reverb", "phase", "smear", "dispersion"],
-    /// A Schroeder allpass filter: passes every frequency at full level
-    /// but smears the signal in time, turning a click into a dense,
-    /// decaying train of echoes. A reverb ingredient.
+    /// A Schroeder allpass filter: smears a signal into a train of echoes
+    /// without changing its level at any frequency.
+    ///
+    /// A click comes out as a dense, decaying train of echoes, which makes
+    /// it a reverb ingredient.
     ///
     /// - `delay` (seconds) is the spacing of the echoes. Reads between
     ///   samples go through an allpass interpolator, which keeps the response

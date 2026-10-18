@@ -13,9 +13,9 @@ node! {
         "comb filter", "karplus strong", "pluck", "string", "resonator", "flanger",
         "reverb", "metallic", "physical model"
     ],
-    /// A comb filter: the input plus a copy delayed by `delay`, either fed
-    /// back into itself (a resonator, ringing at 1 / `delay` and its
-    /// harmonics) or added once (evenly spaced notches).
+    /// A comb filter: a copy of the input delayed by `delay`, fed back (a
+    /// resonator ringing at 1 / `delay`) or added once (evenly spaced
+    /// notches).
     ///
     /// - `mode`: `feedback` (default) recirculates the delayed signal, so an
     ///   impulse comes back every `delay`, scaled by `feedback` each time.
