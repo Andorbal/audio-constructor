@@ -429,9 +429,82 @@ Needs manual verification (in the PR):
 - touch on panels.
 
 ### M2.5 Editor conveniences
-- [ ] Auto-layout, align/distribute, portals, find, lazy connect, connect-selected-to-new-node, per-node timing display, minimap.
+- [x] Auto-layout, align/distribute, portals, find, lazy connect, connect-selected-to-new-node, per-node timing display, minimap.
 - [x] Light theme; UI scale.
 - [x] Node help with "try this" tips and links to blocks.
+
+*Verified:* the editor's colors now come from a palette (DARK and LIGHT),
+switched per UI thread. DECISIONS D101–D110 record the choices. Each part
+is covered as follows.
+
+Canvas editing (unit tests in `crates/ac-app/src/edit/`):
+- Auto-layout (layered, after Sugiyama et al. 1981):
+  - chains run left to right, the selection stays anchored, and results
+    are deterministic;
+  - fan-out and fan-in don't overlap, and socket order is kept;
+  - Feedback and other loops are handled, frames and nested frames move
+    with their contents, and loose cards are placed;
+  - a 300-node tangle lays out without trouble.
+- Align and distribute math.
+- Quick wiring: lazy connect picks sockets by name and type and refuses
+  to close a loop without a Feedback node; connect-to-new plans the
+  wiring, widens a Mix to fit, and keeps selection order.
+- Find matches nodes inside groups and group instances.
+- Portals: a wire becomes a portal and goes back to a wire; one sender
+  can have several receivers; names stay unique; copy, paste, and groups
+  work. A patch renders identically before and after making a portal.
+- Minimap: points map from the graph to the minimap and back, and it
+  shows or hides by the rule in D106.
+
+Node timing:
+- `cargo test -p ac-engine --test engine` checks that timing sums every
+  step of a host block. Nothing is measured while it's off; the
+  allocation guard and wasm32 still pass.
+- Editor unit tests cover smoothing, heat colors, and summing a group or
+  Voices node's insides against a real engine.
+
+Light theme and UI scale:
+- Contrast tests hold text, muted text, accents, and header titles to
+  WCAG AA (4.5:1) on every panel and card surface, in both themes. Faint
+  text and signal colors are held to 3:1.
+- Switching palettes changes the accessors and egui's visuals, and other
+  threads keep their own palette.
+- Settings round-trip and survive a bad file.
+
+Node help:
+- `all_nodes.rs` now requires every node to have a "Try this" paragraph.
+- The "Used in" index follows nested definitions and survives cycles.
+
+Editor (egui_kittest):
+- `--test arrange`:
+  - `Ctrl+L` lays out a scrambled chain left to right as one undo step,
+    and every shipped example and its groups lay out without overlaps;
+  - Align Left works from `Shift+Alt+A`, and `Alt+A` still clears the
+    selection;
+  - `F` wires two nodes;
+  - `Shift+A` "mix" wires two selected oscillators in selection order;
+  - `Ctrl+F` finds a node in a group and jumps in.
+- `--test canvas_aids`:
+  - `Ctrl+T` shows timing in headers with the null host running;
+  - a wire becomes a portal and back, each one undo step, with no line
+    drawn while it's a portal;
+  - portals rename and paste inside groups;
+  - the minimap pans the view, and `Shift+M` toggles it.
+- `--test look_and_help`:
+  - View ▸ Theme ▸ Light applies at once and is remembered;
+  - UI scale steps and is remembered;
+  - `F1` on Gain Computer lists the Compressor blocks under Used in, and
+    adding one works;
+  - an example link asks about unsaved changes;
+  - every side-panel tab fits at the default width.
+
+Needs manual verification (in the PR):
+- how the light theme looks, by eye;
+- UI scale on a HiDPI screen;
+- how auto-layout and align feel on real patches;
+- portals at different zoom levels;
+- timing readability on a heavy patch;
+- the minimap's placement.
 
 ### M2.6 Examples and docs
 - [ ] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).

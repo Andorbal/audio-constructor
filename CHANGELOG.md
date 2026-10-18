@@ -13,6 +13,10 @@ fixes and smaller changes.
 
 ## [0.6.0] - 2026-10-18
 
+Editor conveniences: tidy, align, and wire faster, find anything, keep
+long wires out of the way, see where the time goes, and work in a light
+theme at any size, with help for every node a key away.
+
 ### Added
 
 - **Auto-layout** (`Ctrl+L`): tidy the selection, or the whole graph when
