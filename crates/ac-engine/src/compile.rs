@@ -475,6 +475,12 @@ pub(crate) fn compile_with(
                 continue;
             };
             if comp_type(spec.ty, store[s][o]).is_none() {
+                // Spectra carry their producer's path latency (an FFT's
+                // window) but can't be delayed (D56), so the other inputs
+                // line up with them.
+                if spec.ty == SignalType::Spectrum {
+                    in_lat = in_lat.max(lat_out[s]);
+                }
                 continue;
             }
             let l = lat_out[s];
