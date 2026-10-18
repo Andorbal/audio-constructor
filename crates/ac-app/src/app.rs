@@ -23,6 +23,7 @@ use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
+use crate::play_keys::{KeyInput, PlayKeys};
 use crate::theme;
 use crate::transport::TransportState;
 
@@ -105,6 +106,8 @@ pub struct EditorApp {
     pack_after_save: bool,
     /// Nodes created by the last command (tests read this).
     pub last_added: Vec<NodeId>,
+    /// The computer keys as a control source (see `play_keys.rs`).
+    play_keys: PlayKeys,
 }
 
 impl EditorApp {
@@ -207,6 +210,7 @@ impl EditorApp {
             clipboard: None,
             pack_after_save: false,
             last_added: Vec::new(),
+            play_keys: PlayKeys::default(),
         };
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
@@ -239,6 +243,19 @@ impl EditorApp {
 
     pub fn document(&self) -> &Document {
         &self.doc
+    }
+
+    /// Whether Play keys is on: computer keys go to the patch as control
+    /// events (`Control::Key`) instead of running canvas shortcuts.
+    pub fn play_keys(&self) -> bool {
+        self.play_keys.is_on()
+    }
+
+    /// Turn Play keys on or off (the transport bar's keyboard button and
+    /// Transport ▸ Play Keys do; a performance view can too). Turning it off
+    /// releases every key held in the patch.
+    pub fn set_play_keys(&mut self, on: bool) {
+        self.play_keys.set(on, &mut self.engine);
     }
 
     /// The status bar's message, if one is showing (tests read this).
@@ -289,6 +306,7 @@ impl EditorApp {
                     timing: self.show_timing,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
+                    play_keys: self.play_keys.is_on(),
                     recent: &self.recent,
                     registry: &self.registry,
                 };
@@ -306,7 +324,10 @@ impl EditorApp {
             )
             .exact_size(44.0)
             .show(ui, |ui| {
-                let actions = self.transport.show(ui, &mut self.doc, &self.engine, now);
+                let play_keys = self.play_keys.is_on();
+                let actions = self
+                    .transport
+                    .show(ui, &mut self.doc, &self.engine, play_keys, now);
                 for a in actions {
                     self.run(&ctx, a, now);
                 }
@@ -424,6 +445,20 @@ impl EditorApp {
             } else if let Some((p, _)) = &self.export_job {
                 ui.spinner();
                 ui.label(RichText::new(format!("Exporting {}…", p.display())).small());
+            } else if self.play_keys.is_on() {
+                let stop = Action::PlayKeys
+                    .shortcut()
+                    .map(|s| ui.ctx().format_shortcut(&s))
+                    .unwrap_or_default();
+                ui.label(
+                    RichText::new(format!(
+                        "{}  Play keys: keys go to the patch · Esc and shortcuts with \
+                         modifiers still work · {stop} stops",
+                        icons::KEYBOARD
+                    ))
+                    .small()
+                    .color(theme::ACCENT),
+                );
             } else {
                 let hint = if self.doc.selection.is_empty() {
                     "Shift+A add · drag from a socket to wire · double-click empty canvas to search"
@@ -629,8 +664,37 @@ impl EditorApp {
         let typing =
             ctx.egui_wants_keyboard_input() || self.canvas.is_typing() || self.palette.open;
         let modal = self.confirm.is_some() || self.prompt.is_some();
+        // Play keys: held keys come up when typing starts, a dialog opens,
+        // or the window loses focus, so nothing is left down in the patch.
+        let focused = ctx.input(|i| i.focused);
+        let play = self.play_keys.is_on() && !typing && !modal && focused;
+        if self.play_keys.is_on() && !play {
+            self.play_keys.release_all(&mut self.engine);
+        }
         let events = ctx.input(|i| i.events.clone());
-        for e in events {
+        let mut played = Vec::new();
+        for (n, e) in events.into_iter().enumerate() {
+            if play
+                && let Event::Key {
+                    key,
+                    physical_key,
+                    pressed,
+                    repeat,
+                    modifiers,
+                } = e
+            {
+                let input = KeyInput {
+                    key,
+                    physical: physical_key,
+                    pressed,
+                    repeat,
+                    modifiers,
+                };
+                if self.play_keys.key(input, &mut self.engine) {
+                    played.push((n, key));
+                    continue;
+                }
+            }
             match e {
                 Event::Copy if !typing && !modal => self.run(ctx, Action::Copy, now),
                 Event::Cut if !typing && !modal => self.run(ctx, Action::DeleteReconnect, now),
@@ -695,6 +759,20 @@ impl EditorApp {
                 }
                 _ => {}
             }
+        }
+        if !played.is_empty() {
+            // Nothing else this frame sees the played keys: no canvas
+            // gesture (Space+drag pans), no widget shortcut.
+            ctx.input_mut(|i| {
+                let mut n = 0;
+                i.events.retain(|_| {
+                    n += 1;
+                    !played.iter().any(|(k, _)| *k == n - 1)
+                });
+                for (_, key) in &played {
+                    i.keys_down.remove(key);
+                }
+            });
         }
     }
 
@@ -1120,6 +1198,25 @@ impl EditorApp {
                     .edit_project("Loop", |p| p.settings.loop_region = region);
             }
             Action::Rewind => self.engine.handle.seek(0),
+            Action::PlayKeys => {
+                let on = !self.play_keys.is_on();
+                self.set_play_keys(on);
+                if on {
+                    let stop = Action::PlayKeys
+                        .shortcut()
+                        .map(|s| ctx.format_shortcut(&s))
+                        .unwrap_or_default();
+                    self.say(
+                        format!(
+                            "Play keys on: keys go to the patch ({stop} or the keyboard button \
+                             turns it off)"
+                        ),
+                        now,
+                    );
+                } else {
+                    self.say("Play keys off", now);
+                }
+            }
             Action::Shortcuts => self.show_shortcuts = true,
             Action::About => self.show_about = true,
         }

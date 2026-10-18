@@ -515,3 +515,78 @@ fn a_number_body_drags_and_takes_typing() {
     assert!(!h.state().canvas.is_typing());
     assert_eq!(param(&h, "value"), Some(Value::Int(42)));
 }
+
+#[test]
+fn play_keys_send_keys_to_the_patch_instead_of_running_shortcuts() {
+    let mut h = harness(Some(two_nodes()));
+    h.hover_at(Pos2::new(600.0, 600.0));
+    steps(&mut h, 2);
+    let sent = |h: &Harness<'static, EditorApp>| h.state().engine.keys_sent();
+    assert!(!h.state().play_keys(), "off by default");
+
+    // The transport bar's keyboard button turns it on.
+    h.get_by_label(ac_app::icons::KEYBOARD).click();
+    steps(&mut h, 3);
+    assert!(h.state().play_keys());
+    // A goes to the patch (down and up); Select All doesn't run.
+    press(&mut h, Modifiers::NONE, Key::A);
+    assert!(h.state().document().selection.is_empty());
+    assert_eq!(sent(&h), 2);
+    // Space doesn't start the transport.
+    press(&mut h, Modifiers::NONE, Key::Space);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    steps(&mut h, 2);
+    assert!(!h.state().engine.handle.is_playing());
+    assert_eq!(sent(&h), 4);
+    // Escape keeps its job and isn't played; Ctrl shortcuts still work.
+    press(&mut h, Modifiers::NONE, Key::Escape);
+    assert_eq!(sent(&h), 4);
+    press(&mut h, Modifiers::COMMAND, Key::A);
+    assert_eq!(sent(&h), 4, "a modified key is a shortcut");
+    // A key held when Play keys turns off comes up with it.
+    h.key_down(Key::Q);
+    steps(&mut h, 2);
+    assert_eq!(sent(&h), 5);
+    press(&mut h, Modifiers::COMMAND, Key::K);
+    assert!(!h.state().play_keys(), "Ctrl+K turns it off");
+    assert_eq!(sent(&h), 6, "Q was released");
+    h.key_up(Key::Q);
+    steps(&mut h, 2);
+    assert_eq!(sent(&h), 6);
+
+    // Off: the shortcut works again and nothing is played.
+    press(&mut h, Modifiers::NONE, Key::A);
+    assert_eq!(h.state().document().selection.len(), 2);
+    assert_eq!(sent(&h), 6);
+    // The app can turn it on from code (a performance view does).
+    h.state_mut().set_play_keys(true);
+    press(&mut h, Modifiers::NONE, Key::X);
+    assert_eq!(
+        h.state().document().graph().nodes.len(),
+        2,
+        "X didn't delete"
+    );
+    assert_eq!(sent(&h), 8);
+}
+
+#[test]
+fn play_keys_leave_text_fields_their_typing() {
+    let mut p = Project::default();
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(1), "constant").at(0.0, 0.0));
+    let mut h = harness(Some(p));
+    h.hover_at(Pos2::new(600.0, 600.0));
+    steps(&mut h, 2);
+    // Start renaming the node, then turn Play keys on: the field keeps
+    // getting the typing, and nothing reaches the patch.
+    press(&mut h, Modifiers::NONE, Key::A);
+    press(&mut h, Modifiers::NONE, Key::F2);
+    assert!(h.state().canvas.is_typing(), "renaming");
+    h.state_mut().set_play_keys(true);
+    press(&mut h, Modifiers::NONE, Key::B);
+    h.event(Event::Text("b".into()));
+    steps(&mut h, 2);
+    assert_eq!(h.state().engine.keys_sent(), 0, "typing isn't played");
+    assert!(h.state().canvas.is_typing());
+}

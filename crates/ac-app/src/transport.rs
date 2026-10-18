@@ -36,6 +36,7 @@ impl TransportState {
         ui: &mut egui::Ui,
         doc: &mut Document,
         engine: &EngineHost,
+        play_keys: bool,
         now: f64,
     ) -> Vec<Action> {
         let mut actions = Vec::new();
@@ -106,6 +107,36 @@ impl TransportState {
                 .clicked()
             {
                 actions.push(Action::ToggleLoop);
+            }
+            if ui
+                .add(
+                    egui::Button::new(RichText::new(icons::KEYBOARD).size(17.0).color(
+                        if play_keys {
+                            theme::ACCENT
+                        } else {
+                            theme::TEXT
+                        },
+                    ))
+                    .selected(play_keys)
+                    .min_size(vec2(32.0, 28.0)),
+                )
+                .on_hover_text({
+                    let sc = Action::PlayKeys
+                        .shortcut()
+                        .map(|s| ui.ctx().format_shortcut(&s))
+                        .unwrap_or_default();
+                    if play_keys {
+                        format!("Play keys is on: computer keys go to the patch ({sc})")
+                    } else {
+                        format!(
+                            "Play keys: send computer keys to the patch instead of shortcuts \
+                             ({sc})"
+                        )
+                    }
+                })
+                .clicked()
+            {
+                actions.push(Action::PlayKeys);
             }
             ui.add_space(10.0);
 
