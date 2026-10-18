@@ -65,6 +65,8 @@ name = "ac-dsp"
 version = "0.3.0"
 dependencies = [
  "ac-core",
+ "realfft",
+ "serde_json",
 ]
 
 [[package]]
