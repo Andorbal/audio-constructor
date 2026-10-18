@@ -21,7 +21,9 @@ mod jack {
         p.graph
             .nodes
             .push(NodeInstance::new(NodeId(1), "oscillator").with_param("freq", 440.0));
-        p.graph.nodes.push(NodeInstance::new(NodeId(2), "audio_out"));
+        p.graph
+            .nodes
+            .push(NodeInstance::new(NodeId(2), "audio_out"));
         p.graph.wires.push(Wire::new(
             Endpoint::new(NodeId(1), "out"),
             Endpoint::new(NodeId(2), "in"),
@@ -61,7 +63,9 @@ mod jack {
             },
         );
         let (mut handle, processor) = engine.split();
-        let stream = Box::new(host).start(processor, None).expect("stream starts");
+        let stream = Box::new(host)
+            .start(processor, None)
+            .expect("stream starts");
         handle.play();
         let t0 = Instant::now();
         while handle.position() < 24_000 && t0.elapsed() < Duration::from_secs(10) {
