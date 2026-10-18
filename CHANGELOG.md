@@ -80,6 +80,17 @@ fixes and smaller changes.
 
 ### Changed
 
+- **More engine threads now speed up patches built from many light
+  nodes.** A run of nodes that only feed each other (an effect chain), and
+  each voice of a Voices node, now runs as one job on one core, so the
+  cores spend their time on audio instead of passing work back and forth.
+  On four threads, eight chains of two dozen filters and delays render
+  2.2–2.7× faster (they gained nothing before) and sixteen voices of the
+  Subtractive Synth Voice about twice as fast (Engine threads in the
+  Devices tab, `audioc run --threads`, `audioc bench --threads`). One
+  thread is as fast as before, and the output is the same sample for
+  sample on any number of threads. The Project tab's Schedule line counts
+  the chains.
 - **Sample & Hold**, **Random Walk**, and **Step Sequencer** are now named
   in words like every other node (they showed as SampleHold, RandomWalk,
   and StepSequencer). Projects that use them are unaffected.
