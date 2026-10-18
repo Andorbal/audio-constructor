@@ -14,7 +14,10 @@ and compared with its `*.expected.json`:
 
 Test inputs live in a top-level `"golden"` object in the project (preserved
 by the file format): `seconds`, `block_independent`, an `input` sine fed to
-`AudioIn`, and `midi` events (`[frame, [status, data1, data2]]`).
+`AudioIn`, and `midi` events (`[frame, [status, data1, data2]]`). The MIDI
+reaches the project's bindings too, the way a controller would:
+`bindings-midi-cc` sweeps a bound frequency (log scale) and level with
+controllers and fires a bound trigger with a note.
 
 Every node category has at least one project here. After an intentional
 change to a node's output, regenerate expectations and review the diff:
