@@ -1,23 +1,34 @@
-//! `audioc devices`: audio hosts and devices, and MIDI ports.
+//! `audioc devices`: audio hosts and devices, MIDI ports, gamepads, and
+//! how OSC works.
 
 use std::fmt::Write as _;
+use std::net::IpAddr;
 use std::process::ExitCode;
 
-use ac_io::{DeviceInfo, HostInfo};
+use ac_io::{DEFAULT_OSC_PORT, DeviceInfo, GamepadError, GamepadInfo, HostInfo};
 use anyhow::Result;
 
 pub fn devices() -> Result<ExitCode> {
     let hosts = ac_io::enumerate();
     let midi = ac_io::midi::list_inputs();
     let midi_out = ac_io::list_outputs();
-    print!("{}", report(&hosts, &midi, &midi_out));
+    let pads = ac_io::list_gamepads();
+    let ip = ac_io::osc::local_ip();
+    print!("{}", report(&hosts, &midi, &midi_out, &pads, ip));
     Ok(ExitCode::SUCCESS)
 }
 
-/// The whole listing as text (separate from printing so it can be tested).
 type Ports = Result<Vec<ac_io::MidiPortInfo>, ac_io::midi::MidiError>;
+type Pads = Result<Vec<GamepadInfo>, GamepadError>;
 
-pub fn report(hosts: &[HostInfo], midi: &Ports, midi_out: &Ports) -> String {
+/// The whole listing as text (separate from printing so it can be tested).
+pub fn report(
+    hosts: &[HostInfo],
+    midi: &Ports,
+    midi_out: &Ports,
+    pads: &Pads,
+    ip: Option<IpAddr>,
+) -> String {
     let mut s = String::new();
     if hosts.is_empty() {
         s.push_str("audio: no hosts compiled in\n");
@@ -37,6 +48,28 @@ pub fn report(hosts: &[HostInfo], midi: &Ports, midi_out: &Ports) -> String {
     }
     ports(&mut s, "MIDI inputs", midi);
     ports(&mut s, "MIDI outputs", midi_out);
+    s.push_str("Gamepads\n");
+    match pads {
+        Ok(p) if p.is_empty() => s.push_str("  (none connected)\n"),
+        Ok(p) => {
+            for g in p {
+                let _ = writeln!(s, "  {}  {}", g.index, g.name);
+            }
+        }
+        Err(e) => {
+            let _ = writeln!(s, "  unavailable: {e}");
+        }
+    }
+    s.push_str("OSC\n");
+    let port = DEFAULT_OSC_PORT;
+    let _ = writeln!(
+        s,
+        "  in: off until asked for; `audioc run --osc-in {port}` listens on UDP port {port}"
+    );
+    if let Some(ip) = ip {
+        let _ = writeln!(s, "      (send from a phone or tablet to {ip}:{port})");
+    }
+    s.push_str("  out: OSC Out nodes send to the address and port in their settings\n");
     s
 }
 
@@ -118,7 +151,11 @@ mod tests {
             name: "Synth".into(),
             id: "2".into(),
         }]);
-        let text = report(&hosts, &midi, &out);
+        let pads = Ok(vec![GamepadInfo {
+            index: 0,
+            name: "Wireless Controller".into(),
+        }]);
+        let text = report(&hosts, &midi, &out, &pads, Some([10, 0, 0, 5].into()));
         assert!(text.contains("ALSA (default host)"));
         assert!(text.contains("  * Speakers"));
         assert!(text.contains("    HDMI"));
@@ -126,14 +163,24 @@ mod tests {
         assert!(text.contains("inputs:\n    (none)"));
         assert!(text.contains("MIDI inputs\n  Keys 1"));
         assert!(text.contains("MIDI outputs\n  Synth"));
+        assert!(text.contains("Gamepads\n  0  Wireless Controller"));
+        assert!(text.contains("--osc-in 9000"));
+        assert!(text.contains("10.0.0.5:9000"));
     }
 
     #[test]
     fn nothing_present_still_reads_well() {
         let midi = Err(ac_io::midi::MidiError("no sequencer".into()));
-        let text = report(&[], &midi, &Ok(Vec::new()));
+        let pads = Err(GamepadError(
+            "gamepads aren't supported on this system".into(),
+        ));
+        let text = report(&[], &midi, &Ok(Vec::new()), &pads, None);
         assert!(text.contains("no hosts"));
         assert!(text.contains("unavailable: no sequencer"));
+        assert!(text.contains("Gamepads\n  unavailable: gamepads aren't supported"));
+        assert!(!text.contains("send from a phone"));
+        let none = report(&[], &midi, &Ok(Vec::new()), &Ok(Vec::new()), None);
+        assert!(none.contains("Gamepads\n  (none connected)"));
         let mut d = dev("x", false);
         d.default_sample_rate = None;
         d.sample_rates = None;

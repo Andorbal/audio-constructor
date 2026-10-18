@@ -37,7 +37,7 @@ enum Command {
     Render(render::RenderArgs),
     /// Run a project live on the audio devices until Ctrl+C.
     Run(live::RunArgs),
-    /// List audio hosts and devices, and MIDI inputs.
+    /// List audio hosts and devices, MIDI ports, gamepads, and how OSC works.
     Devices,
     /// Measure round-trip latency through a loopback cable.
     Latency(live::LatencyArgs),

@@ -8,8 +8,9 @@ use std::time::{Duration, Instant};
 
 use ac_engine::{Engine, EngineHandle, EngineOptions, Severity, required_output_channels};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, DiskRecorder, EventPorts, FileResources,
-    InputChoice, MidiInputs, MidiOutputs, MidiSelect, NullAudio, StreamInfo, Take, worker_pool,
+    AudioConfig, AudioHost, AudioStream, Baker, ControlInputs, CpalAudio, DiskRecorder, EventPorts,
+    FileResources, GamepadInfo, Gamepads, InputChoice, MidiInputs, MidiOutputs, MidiSelect,
+    NullAudio, OscInput, OscOutput, StreamInfo, Take, worker_pool,
 };
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
@@ -98,6 +99,13 @@ pub struct RunArgs {
     /// workers); independent parts of the patch run side by side.
     #[arg(long, default_value_t = 1)]
     threads: usize,
+    /// Listen for OSC on this UDP port, on every network interface (off
+    /// unless given).
+    #[arg(long, value_name = "PORT")]
+    osc_in: Option<u16>,
+    /// Don't listen to gamepads (they're on by default, plugged in any time).
+    #[arg(long)]
+    no_gamepad: bool,
 }
 
 /// Run until `stop` is set or the duration elapses.
@@ -185,13 +193,45 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
         println!("note: MIDI Out nodes send nowhere; choose ports with --midi-out");
     }
 
+    // Control surfaces: gamepads (unless turned off) and OSC (if asked).
+    let (mut controls, controls_rx) = ControlInputs::new();
+    let gamepads = if args.no_gamepad {
+        None
+    } else {
+        match controls.sender("gamepads") {
+            Ok(s) => {
+                let g = Gamepads::start(s);
+                println!("{}", gamepad_line(&g.connected(), g.error().as_deref()));
+                Some(g)
+            }
+            Err(e) => {
+                println!("gamepads: {e}");
+                None
+            }
+        }
+    };
+    let osc_in = match args.osc_in {
+        None | Some(0) => None,
+        Some(port) => {
+            let sender = controls.sender("osc").map_err(|e| anyhow!("{e}"))?;
+            let l = OscInput::listen(port, sender).map_err(|e| {
+                anyhow!("couldn't listen for OSC on UDP port {port}: {e}\nhint: try another port")
+            })?;
+            println!("{}", osc_in_line(l.port(), ac_io::osc::local_ip()));
+            Some(l)
+        }
+    };
+    // OSC Out nodes send to the address in their own settings.
+    let (osc_out, osc_out_queue) = OscOutput::new();
+
     let mut stream = host
         .start_with(
             processor,
             EventPorts {
                 midi_in: Some(midi_rx),
                 midi_out: Some(midi_out_queue),
-                ..EventPorts::default()
+                controls: Some(controls_rx),
+                osc_out: Some(osc_out_queue),
             },
         )
         .map_err(|e| anyhow!("{e}\nhint: try another `--buffer-size`, or `--null`"))?;
@@ -212,11 +252,15 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     let outcome = control_loop(
         &mut handle,
         stream.as_mut(),
-        Midi {
+        Devices {
             inputs: &mut midi,
             outputs: &mut midi_out,
             rescan_inputs: rescan_midi,
             rescan_outputs: rescan_out,
+            controls: &mut controls,
+            gamepads: gamepads.as_ref(),
+            osc_in: osc_in.as_ref(),
+            osc_out: &osc_out,
         },
         &recorder,
         stop,
@@ -226,6 +270,9 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     // After the stream, so the notes ended at stop still go out.
     std::thread::sleep(Duration::from_millis(20));
     drop(midi_out);
+    drop(osc_out);
+    drop(osc_in);
+    drop(gamepads);
     drop(handle);
     recorder.shutdown();
     for t in recorder.finished_takes() {
@@ -246,28 +293,61 @@ fn uses_kind(project: &ac_core::Project, kind: &str) -> bool {
         .any(|g| g.nodes.iter().any(|n| n.kind == kind))
 }
 
-/// The MIDI ports the control loop looks after.
-struct Midi<'a> {
+/// The MIDI ports and control surfaces the control loop looks after.
+struct Devices<'a> {
     inputs: &'a mut MidiInputs,
     outputs: &'a mut MidiOutputs,
     rescan_inputs: bool,
     rescan_outputs: bool,
+    controls: &'a mut ControlInputs,
+    gamepads: Option<&'a Gamepads>,
+    osc_in: Option<&'a OscInput>,
+    osc_out: &'a OscOutput,
+}
+
+/// `gamepads: 0 Pad A, 1 Pad B`, or why there are none.
+fn gamepad_line(pads: &[GamepadInfo], error: Option<&str>) -> String {
+    match (error, pads.is_empty()) {
+        (Some(e), _) => format!("gamepads: {e}"),
+        (None, true) => "gamepads: none connected (plug one in any time)".into(),
+        (None, false) => {
+            let list: Vec<String> = pads
+                .iter()
+                .map(|p| format!("{} {}", p.index, p.name))
+                .collect();
+            format!("gamepads: {}", list.join(", "))
+        }
+    }
+}
+
+/// Where to send OSC: the port, and this computer's address when known.
+fn osc_in_line(port: u16, ip: Option<std::net::IpAddr>) -> String {
+    match ip {
+        Some(ip) => format!("osc in: UDP port {port} (send to {ip}:{port})"),
+        None => format!("osc in: UDP port {port}"),
+    }
 }
 
 fn control_loop(
     handle: &mut EngineHandle,
     stream: &mut dyn AudioStream,
-    midi: Midi<'_>,
+    devices: Devices<'_>,
     recorder: &DiskRecorder,
     stop: &AtomicBool,
     duration: Option<Duration>,
 ) -> Result<()> {
-    let Midi {
+    let Devices {
         inputs: midi,
         outputs: midi_out,
         rescan_inputs: rescan_midi,
         rescan_outputs,
-    } = midi;
+        controls,
+        gamepads,
+        osc_in,
+        osc_out,
+    } = devices;
+    let mut pads_seen = gamepads.map(Gamepads::generation);
+    let mut osc_bad_seen = 0;
     let t0 = Instant::now();
     let mut next_status = t0 + STATUS_EVERY;
     let mut next_rescan = t0 + MIDI_RESCAN_EVERY;
@@ -278,7 +358,22 @@ fn control_loop(
         std::thread::sleep(TICK);
         handle.collect_garbage();
         midi.collect_garbage();
+        controls.collect_garbage();
         baker.poll(handle);
+        if let Some(g) = gamepads
+            && pads_seen != Some(g.generation())
+        {
+            // Hot-plug: say which gamepads there are now.
+            pads_seen = Some(g.generation());
+            println!("{}", gamepad_line(&g.connected(), g.error().as_deref()));
+        }
+        if let Some(l) = osc_in {
+            let bad = l.stats().malformed;
+            if bad > osc_bad_seen && osc_bad_seen == 0 {
+                eprintln!("warning: received UDP packets on the OSC port that aren't OSC");
+            }
+            osc_bad_seen = bad;
+        }
         let states: Vec<_> = handle
             .bakes()
             .iter()
@@ -312,7 +407,8 @@ fn control_loop(
         let now = Instant::now();
         if now >= next_status {
             next_status += STATUS_EVERY;
-            println!("{}", status_line(handle, now - t0, midi.dropped()));
+            let dropped = midi.dropped() + controls.dropped() + osc_out.dropped();
+            println!("{}", status_line(handle, now - t0, dropped));
         }
         if rescan_midi && now >= next_rescan {
             // Hot-plug: pick up controllers plugged in after start.
@@ -519,6 +615,34 @@ mod tests {
         assert_eq!(db(0.0), "-inf");
         assert_eq!(db(1.0), "0.0");
         assert_eq!(db(0.5), "-6.0");
+    }
+
+    #[test]
+    fn gamepad_and_osc_lines() {
+        assert_eq!(
+            gamepad_line(&[], None),
+            "gamepads: none connected (plug one in any time)"
+        );
+        assert_eq!(
+            gamepad_line(&[], Some("gamepads aren't supported on this system")),
+            "gamepads: gamepads aren't supported on this system"
+        );
+        let pads = [
+            GamepadInfo {
+                index: 0,
+                name: "Pad A".into(),
+            },
+            GamepadInfo {
+                index: 2,
+                name: "Pad B".into(),
+            },
+        ];
+        assert_eq!(gamepad_line(&pads, None), "gamepads: 0 Pad A, 2 Pad B");
+        assert_eq!(osc_in_line(9000, None), "osc in: UDP port 9000");
+        assert_eq!(
+            osc_in_line(9000, Some([192, 168, 1, 20].into())),
+            "osc in: UDP port 9000 (send to 192.168.1.20:9000)"
+        );
     }
 
     #[test]
