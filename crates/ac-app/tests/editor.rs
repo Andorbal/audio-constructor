@@ -589,7 +589,10 @@ fn the_devices_tab_turns_osc_listening_on_and_off() {
     let _ = h.get_by_label("COMPUTER KEYS");
     h.get_by_label("Listen on UDP port").click();
     steps(&mut h, 3);
-    assert_eq!(h.state().engine.osc_in.as_ref().map(|l| l.port()), Some(free));
+    assert_eq!(
+        h.state().engine.osc_in.as_ref().map(|l| l.port()),
+        Some(free)
+    );
     let _ = h.get_by_label_contains(&format!(":{free}"));
     // Something arrives: the tab counts it.
     let tx = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();

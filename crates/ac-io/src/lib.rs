@@ -1,7 +1,15 @@
 //! Audio Constructor device and file layer: WAV files, project files, asset
-//! loading, audio and MIDI devices, the real-time runtime around the
-//! engine, recording, and latency measurement. The engine never touches
-//! files or devices; hosts use this crate to feed it.
+//! loading, audio and MIDI devices, control surfaces (computer keys,
+//! gamepads, OSC), the real-time runtime around the engine, recording, and
+//! latency measurement. The engine never touches files or devices; hosts
+//! use this crate to feed it.
+//!
+//! Control surfaces feed a running stream the way MIDI does: make a
+//! [`ControlInputs`], hand its [`ControlReceiver`] to the stream in
+//! [`EventPorts::controls`], and give each source a [`ControlSender`]
+//! ([`Gamepads::start`], [`OscInput::listen`], or your own, like the
+//! editor's computer keys). OSC Out nodes send through an [`OscOutput`]
+//! whose queue goes in [`EventPorts::osc_out`].
 //!
 //! Running a project live:
 //!

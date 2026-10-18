@@ -125,7 +125,9 @@ A resizable panel (`N` toggles) with tabs:
   Search here is the same engine as the palette.
 - **Project**: sample rate, length, tempo map, seed, assets, missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
-  xrun counter, per-core load.
+  xrun counter, per-core load, and OSC: a checkbox and port to listen on
+  (9000 unless changed; off until turned on), the address to send to, and
+  what has arrived and what OSC Out nodes sent.
 - **Problems**: compile errors and disabled nodes, click to jump.
 
 ## Transport bar
@@ -134,6 +136,15 @@ Play/stop/record, position in bars:beats and time, tempo and time signature
 (click to edit the tempo map), loop toggle and range, metronome toggle (a
 built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
 `R` records, `Shift+Space` plays from the start.
+
+The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
+keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)
+instead of running canvas shortcuts. It's off by default because the
+canvas's shortcuts are single keys. While it's on, `Escape` and shortcuts
+with `Ctrl`/`Cmd`/`Alt` still work, text fields still get typing, holding a
+key doesn't repeat it, and every held key is released when Play keys turns
+off, a text field takes focus, or the window loses focus. The status bar
+says it's on.
 
 ## Panels (the "performance view")
 

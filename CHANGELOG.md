@@ -13,6 +13,32 @@ fixes and smaller changes.
 
 ## [0.5.0] - 2026-10-18
 
+### Added
+
+- **Gamepads**: plug in a game controller and the editor and `audioc run`
+  hear its buttons, sticks, and triggers. Controllers can come and go while
+  you play; each keeps its number while it's connected, and unplugging one
+  lets go of anything it was holding. The Devices tab and `audioc devices`
+  list them; `audioc run --no-gamepad` ignores them.
+- **OSC**: receive Open Sound Control from phone and tablet control apps or
+  other programs. Turn on listening in the Devices tab (port 9000 unless
+  you change it), which shows the address to send to and counts what
+  arrives, or run `audioc run --osc-in 9000`. Every argument of a message
+  is its own control, and a message without arguments works as a trigger.
+  Patches can send OSC too, each message to the address in its settings.
+- **Play keys**: the keyboard button in the transport bar (also
+  Transport ▸ Play Keys, `Ctrl+K`) sends your computer keys to the patch
+  instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
+  or Alt still work, text fields still get your typing, holding a key
+  doesn't repeat it, and keys never stick when you turn it off or switch
+  windows.
+
+### Changed
+
+- Building from source on Linux needs the udev development files
+  (`libudev-dev` on Debian and Ubuntu) as well as ALSA's; they let the
+  editor find gamepads.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
