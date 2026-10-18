@@ -13,6 +13,12 @@ pub fn open_project(path: &Path, registry: &Registry) -> Result<(Project, AssetS
     Ok((project, assets))
 }
 
+/// The person's block library: `blocks/` in the platform data folder
+/// (`None` where the platform has no such folder).
+pub fn default_library_dir() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "", "Audio Constructor").map(|d| d.data_dir().join("blocks"))
+}
+
 /// The directory a project file's relative paths resolve against.
 pub fn project_dir(path: &Path) -> PathBuf {
     match path.parent() {

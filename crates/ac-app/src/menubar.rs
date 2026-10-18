@@ -48,6 +48,8 @@ pub struct MenuState<'a> {
     /// The shipped examples, by name.
     pub examples: &'a [Example],
     pub registry: &'a Registry,
+    /// File ▸ Quit is offered (not in a plugin, whose host closes it).
+    pub can_quit: bool,
 }
 
 fn entry(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, icon: &str, enabled: bool) {
@@ -149,8 +151,10 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::SaveAs, icons::FLOPPY_DISK, true);
             entry(ui, &mut out, Action::ExportWav, icons::EXPORT, true);
             entry(ui, &mut out, Action::ExportPack, icons::PACKAGE, true);
-            ui.separator();
-            entry(ui, &mut out, Action::Quit, icons::SIGN_OUT, true);
+            if s.can_quit {
+                ui.separator();
+                entry(ui, &mut out, Action::Quit, icons::SIGN_OUT, true);
+            }
         });
         ui.menu_button("Edit", |ui| {
             let undo = s.undo.map_or("Undo".to_string(), |l| format!("Undo {l}"));
