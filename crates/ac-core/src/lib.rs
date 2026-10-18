@@ -8,6 +8,7 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod binding;
 pub mod block;
 pub mod clipboard;
 pub mod control;
@@ -28,6 +29,10 @@ pub mod util;
 pub mod value;
 pub mod whole;
 
+pub use binding::{
+    Binding, Effect, GateMode, InputEvent, Learner, Mapping, Reading, Source, SourceKey, Target,
+    TransportAction,
+};
 pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
 pub use clipboard::Subgraph;
 pub use control::{
