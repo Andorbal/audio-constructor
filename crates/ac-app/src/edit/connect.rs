@@ -31,35 +31,40 @@ fn names_match(output: &str, input: &str) -> bool {
 
 /// The wire `F` makes from a node with sockets `from` into one with
 /// sockets `to` whose inputs in `wired` are taken: the first output and
-/// the first free input it fits, preferring the same type over a
-/// conversion, then matching names (`out` → `in`). Returns the output's
-/// and the input's names.
+/// the first free input it fits (main signal sockets come first by
+/// convention), unless a pair's names match (`out` → `in`, `midi` →
+/// `midi`); among one output's inputs, the same type beats a conversion.
+/// Returns the output's and the input's names.
 pub fn lazy_pick(
     from: &Sockets,
     to: &Sockets,
     wired: &BTreeSet<String>,
 ) -> Option<(String, String)> {
-    let mut best: Option<((u8, u8, usize, usize), &SocketInfo, &SocketInfo)> = None;
-    for (oi, o) in from.outputs.iter().enumerate() {
-        if o.name == NEW_SOCKET {
-            continue;
-        }
-        for (ii, i) in to.inputs.iter().enumerate() {
-            if i.name == NEW_SOCKET || wired.contains(&i.name) || !compatible(o.ty, i.ty) {
-                continue;
-            }
-            let key = (
-                u8::from(!same_type(o.ty, i.ty)),
-                u8::from(!names_match(&o.name, &i.name)),
-                oi,
-                ii,
-            );
-            if best.as_ref().is_none_or(|(k, _, _)| key < *k) {
-                best = Some((key, o, i));
-            }
-        }
-    }
-    best.map(|(_, o, i)| (o.name.clone(), i.name.clone()))
+    let outputs = from
+        .outputs
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| o.name != NEW_SOCKET);
+    outputs
+        .flat_map(|(oi, o)| {
+            to.inputs
+                .iter()
+                .enumerate()
+                .filter(move |(_, i)| {
+                    i.name != NEW_SOCKET && !wired.contains(&i.name) && compatible(o.ty, i.ty)
+                })
+                .map(move |(ii, i)| {
+                    let key = (
+                        u8::from(!names_match(&o.name, &i.name)),
+                        oi,
+                        u8::from(!same_type(o.ty, i.ty)),
+                        ii,
+                    );
+                    (key, &o.name, &i.name)
+                })
+        })
+        .min_by_key(|(key, _, _)| *key)
+        .map(|(_, o, i)| (o.clone(), i.clone()))
 }
 
 /// Why the selected nodes weren't wired into a new one.
@@ -92,38 +97,41 @@ impl Source {
     }
 }
 
-/// Which input of a new node each selected node feeds, in selection order:
-/// each takes the first free input of its own type, or, when the new node
-/// has no input of that type at all, the first free one it converts to.
+/// Which input of a new node each selected node feeds, in selection order.
+/// The inputs fed are all of one type, the type of the first input the
+/// first selected node fits (a Mix's `in_N`, not its gains; a Math node's
+/// `a` and `b`), and each selected node takes the next of them in order.
 /// All or nothing: if one doesn't fit, nothing is wired.
 pub fn plan_feeds(
     sources: &[Source],
     inputs: &[SocketInfo],
 ) -> Result<Vec<(Endpoint, String)>, FeedError> {
     let inputs: Vec<&SocketInfo> = inputs.iter().filter(|s| s.name != NEW_SOCKET).collect();
-    let mut used = vec![false; inputs.len()];
+    let mut row = None;
+    let mut next = 0;
     let mut plan = Vec::new();
     for s in sources {
         let Some(out) = &s.output else {
             return Err(FeedError::NoOutput(s.node));
         };
-        let has_own_type = inputs.iter().any(|i| same_type(out.ty, i.ty));
-        let pick = inputs.iter().enumerate().position(|(k, i)| {
-            !used[k]
-                && if has_own_type {
-                    same_type(out.ty, i.ty)
-                } else {
-                    compatible(out.ty, i.ty)
-                }
+        let ty = *row.get_or_insert_with(|| {
+            inputs
+                .iter()
+                .find(|i| compatible(out.ty, i.ty))
+                .map(|i| i.ty)
         });
-        let Some(k) = pick else {
+        let pick = ty.and_then(|ty| {
+            inputs
+                .iter()
+                .enumerate()
+                .skip(next)
+                .find(|(_, i)| i.ty == ty && compatible(out.ty, i.ty))
+        });
+        let Some((k, input)) = pick else {
             return Err(FeedError::NoInput(s.node, out.ty));
         };
-        used[k] = true;
-        plan.push((
-            Endpoint::new(s.node, out.name.clone()),
-            inputs[k].name.clone(),
-        ));
+        next = k + 1;
+        plan.push((Endpoint::new(s.node, out.name.clone()), input.name.clone()));
     }
     Ok(plan)
 }
@@ -151,6 +159,36 @@ pub fn widen_for(registry: &Registry, kind: &str, config: &Config, needed: usize
     } else {
         config.clone()
     }
+}
+
+/// Would a wire from `from` into `to` close a loop that no Feedback node
+/// breaks? (Loops are only legal through Feedback, D4.)
+pub fn closes_loop(
+    graph: &Graph,
+    from: NodeId,
+    to: NodeId,
+    is_feedback: impl Fn(NodeId) -> bool,
+) -> bool {
+    if is_feedback(from) {
+        return false;
+    }
+    // Downstream of `to`, stopping at Feedback nodes: does it reach `from`?
+    let mut seen: BTreeSet<NodeId> = [to].into();
+    let mut todo = vec![to];
+    while let Some(n) = todo.pop() {
+        if n == from {
+            return true;
+        }
+        if is_feedback(n) {
+            continue;
+        }
+        for w in graph.wires_from(n) {
+            if seen.insert(w.to.node) {
+                todo.push(w.to.node);
+            }
+        }
+    }
+    false
 }
 
 /// The name a node goes by on the canvas: its label, its kind's name, or
@@ -235,25 +273,32 @@ mod tests {
     use SignalType::{Audio, Float, Midi, Trigger};
 
     #[test]
-    fn lazy_connect_prefers_the_same_type_then_matching_names() {
+    fn lazy_connect_follows_socket_order_and_names() {
         let gain = sockets(&[("in", Audio), ("gain", Float)], &[("out", Audio)]);
-        let osc = sockets(&[("freq", Float)], &[("out", Audio)]);
-        let lfo = sockets(&[("rate", Float)], &[("out", Float)]);
+        // Oscillators put out sample-rate floats.
+        let osc = sockets(&[("freq", Float)], &[("out", Float)]);
+        let env = sockets(&[("gate", Trigger)], &[("env", Float), ("end", Trigger)]);
         let none = BTreeSet::new();
+        // `out` → `in`, converting.
         assert_eq!(
             lazy_pick(&osc, &gain, &none),
             Some(("out".into(), "in".into()))
         );
-        // A float goes to the float input, not converted into the audio one.
+        // No names to go by: the same type before a conversion.
         assert_eq!(
-            lazy_pick(&lfo, &gain, &none),
-            Some(("out".into(), "gain".into()))
+            lazy_pick(&env, &gain, &none),
+            Some(("env".into(), "gain".into()))
         );
         // A taken input is skipped; a conversion is fine when it's all that's left.
         let taken: BTreeSet<String> = ["gain".to_string()].into();
         assert_eq!(
-            lazy_pick(&lfo, &gain, &taken),
-            Some(("out".into(), "in".into()))
+            lazy_pick(&env, &gain, &taken),
+            Some(("env".into(), "in".into()))
+        );
+        let taken: BTreeSet<String> = ["in".to_string()].into();
+        assert_eq!(
+            lazy_pick(&osc, &gain, &taken),
+            Some(("out".into(), "gain".into()))
         );
         // Names match: a stereo pair goes left to left.
         let split = sockets(&[], &[("out_l", Audio), ("out_r", Audio)]);
@@ -296,13 +341,25 @@ mod tests {
             plan_feeds(&[src(1, Audio), src(2, Audio), src(3, Audio)], &mix),
             Err(FeedError::NoInput(NodeId(3), Audio))
         );
-        // Floats go to float inputs when there are any…
+        // Sample-rate floats (oscillators) go into a Mix's audio inputs,
+        // not its gains.
+        let plan = plan_feeds(&[src(1, Float), src(2, Float)], &mix).unwrap();
+        assert_eq!(plan[0].1, "in_0");
+        assert_eq!(plan[1].1, "in_1");
+        // Two into a filter don't spill over into its cutoff.
         let biquad = [info("in", Audio), info("cutoff", Float), info("q", Float)];
-        let plan = plan_feeds(&[src(1, Audio), src(2, Float)], &biquad).unwrap();
-        assert_eq!(plan[1].1, "cutoff");
-        // …and convert into audio ones when there are none.
-        let plan = plan_feeds(&[src(1, Float), src(2, Float)], &mix[..2]).unwrap();
-        assert_eq!(plan.len(), 2);
+        assert_eq!(
+            plan_feeds(&[src(1, Float), src(2, Float)], &biquad),
+            Err(FeedError::NoInput(NodeId(2), Float))
+        );
+        // Floats into float inputs, first to last.
+        let math = [
+            info("a", Float),
+            info("b", Float),
+            info("op", SignalType::Int),
+        ];
+        let plan = plan_feeds(&[src(5, Float), src(4, Float)], &math).unwrap();
+        assert_eq!((plan[0].1.as_str(), plan[1].1.as_str()), ("a", "b"));
         // A node with no output, or one whose type nothing takes, stops it.
         let mute = Source {
             node: NodeId(9),
@@ -365,6 +422,31 @@ mod tests {
         // A new scope starts over.
         o.sync(&sel, &g, &[NodeId(7)]);
         assert_eq!(o.get(), &[NodeId(2), NodeId(4), NodeId(1)]);
+    }
+
+    #[test]
+    fn loops_need_a_feedback_node() {
+        // 1 → 2 → 3, and 4 is a Feedback node fed by 3.
+        let mut g = Graph::default();
+        for i in 1..=4u64 {
+            g.nodes.push(NodeInstance::new(NodeId(i), "gain"));
+        }
+        let ep = |n: u64, s: &str| Endpoint::new(NodeId(n), s);
+        g.connect(ep(1, "out"), ep(2, "in"));
+        g.connect(ep(2, "out"), ep(3, "in"));
+        g.connect(ep(3, "out"), ep(4, "in"));
+        let fb = |id: NodeId| id == NodeId(4);
+        assert!(closes_loop(&g, NodeId(3), NodeId(1), fb));
+        assert!(closes_loop(&g, NodeId(2), NodeId(1), fb));
+        assert!(
+            !closes_loop(&g, NodeId(1), NodeId(3), fb),
+            "just a shortcut"
+        );
+        // Back through the Feedback node is how a loop is made.
+        assert!(!closes_loop(&g, NodeId(4), NodeId(1), fb));
+        // Into a Feedback node that reaches back: the loop goes through it.
+        g.connect(ep(4, "out"), ep(1, "gain"));
+        assert!(!closes_loop(&g, NodeId(2), NodeId(4), fb));
     }
 
     #[test]

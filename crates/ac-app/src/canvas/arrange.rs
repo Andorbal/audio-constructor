@@ -211,12 +211,27 @@ impl Canvas {
                 .collect()
         };
         let (sl, sr) = (sockets(left.id), sockets(right.id));
+        // A wire that would close a loop without a Feedback node is never
+        // made (the compiler would leave the loop out, D25).
+        let feedback = |id: NodeId| {
+            graph
+                .node(id)
+                .and_then(|n| registry.get(&n.kind))
+                .is_some_and(|e| e.meta.feedback)
+        };
+        let open = |from: NodeId, to: NodeId| !connect::closes_loop(&graph, from, to, feedback);
         let pick = connect::lazy_pick(&sl, &sr, &wired(right.id))
+            .filter(|_| open(left.id, right.id))
             .map(|p| (left, right, p))
-            .or_else(|| connect::lazy_pick(&sr, &sl, &wired(left.id)).map(|p| (right, left, p)));
+            .or_else(|| {
+                connect::lazy_pick(&sr, &sl, &wired(left.id))
+                    .filter(|_| open(right.id, left.id))
+                    .map(|p| (right, left, p))
+            });
         let Some((from, to, (output, input))) = pick else {
             return Err(format!(
-                "Nothing to connect: no free input of {} takes an output of {}, or the other way round",
+                "Nothing to connect: no free input of {} takes an output of {}, or the other way \
+                 round without making a loop",
                 right.title, left.title
             ));
         };

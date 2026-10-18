@@ -306,6 +306,7 @@ fn row(ui: &mut egui::Ui, f: &Found, selected: bool, width: f32) -> egui::Respon
     } else {
         format!("{} · in {}", f.kind, f.place)
     };
+    let label = format!("{}, {place}", f.title);
     p.text(
         rect.left_bottom() + vec2(10.0, -4.0),
         egui::Align2::LEFT_BOTTOM,
@@ -313,6 +314,8 @@ fn row(ui: &mut egui::Ui, f: &Found, selected: bool, width: f32) -> egui::Respon
         theme::ui_font(theme::FONT_SMALL),
         theme::text_muted(),
     );
+    // Screen readers (and tests) read the row as one button.
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
     resp
 }
 
