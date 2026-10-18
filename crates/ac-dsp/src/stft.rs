@@ -192,6 +192,8 @@ pub struct OverlapAdd {
     acc: Vec<f32>,
     pos: usize,
     scratch: Vec<f32>,
+    /// Sanitized copy of the frame being added.
+    spectrum: Vec<f32>,
 }
 
 impl OverlapAdd {
@@ -207,6 +209,7 @@ impl OverlapAdd {
             acc: vec![0.0; max_size],
             pos: 0,
             scratch: vec![0.0; max_size],
+            spectrum: vec![0.0; 2 * (max_size / 2 + 1)],
         }
     }
 
@@ -272,8 +275,16 @@ impl OverlapAdd {
         if n == 0 || fft.size() != n {
             return;
         }
+        // One non-finite bin would spread over the whole inverse frame.
+        let spectrum = &mut self.spectrum[..2 * (n / 2 + 1)];
+        for (d, s) in spectrum
+            .iter_mut()
+            .zip(bins.iter().chain(std::iter::repeat(&0.0)))
+        {
+            *d = if s.is_finite() { *s } else { 0.0 };
+        }
         let frame = &mut self.scratch[..n];
-        fft.inverse(bins, frame);
+        fft.inverse(spectrum, frame);
         let (synth, acc) = (&self.synth[..n], &mut self.acc[..n]);
         let (tail, head) = acc.split_at_mut(self.pos);
         // `head` holds outputs pos..n, `tail` wraps around to 0..pos.
@@ -453,8 +464,12 @@ mod tests {
         assert!(bins.iter().all(|b| b.is_finite()));
         let mut ola = OverlapAdd::new(64);
         ola.configure(64, 16, Window::Hann);
+        bins[0] = 64.0;
         bins[6] = f32::NAN;
         ola.add(&mut fft, &bins);
-        assert!((0..64).all(|_| ola.pop().is_finite()));
+        let out: Vec<f32> = (0..64).map(|_| ola.pop()).collect();
+        assert!(out.iter().all(|v| v.is_finite()));
+        // The NaN bin counts as 0; the rest of the frame survives.
+        assert!(out.iter().any(|v| *v != 0.0));
     }
 }

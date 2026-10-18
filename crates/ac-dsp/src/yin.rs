@@ -2,8 +2,11 @@
 //! H. Kawahara, "YIN, a fundamental frequency estimator for speech and
 //! music", J. Acoust. Soc. Am. 111(4), 2002), steps 1–5 of the paper:
 //!
-//! 1–2. the difference function `d(τ) = Σ (x[j] − x[j + τ])²` over the
-//!      first half of the frame, for lags up to half the frame;
+//! 1–2. the difference function `d(τ) = Σ (x[j] − x[j − τ])²` over the
+//!      newest half of the frame, against samples up to half a frame
+//!      older. Integrating over the newest half (the paper's window runs
+//!      forward from the oldest) means a new note is recognized once a few
+//!      of its periods have arrived, not once it fills most of the frame;
 //! 3.   its cumulative mean normalized form `d'(τ) = d(τ) · τ / Σ_{1..τ} d`;
 //! 4.   an absolute threshold: the first lag whose `d'` dips below it (then
 //!      the bottom of that dip), or the global minimum if none does, which
@@ -34,6 +37,8 @@ pub struct Pitch {
 pub struct Yin {
     size: usize,
     fft: Fft,
+    /// The frame, newest sample first.
+    rev: Vec<f32>,
     time: Vec<f32>,
     spec_a: Vec<f32>,
     spec_b: Vec<f32>,
@@ -54,6 +59,7 @@ impl Yin {
         let bins = fft.bins();
         Yin {
             size,
+            rev: vec![0.0; size],
             time: vec![0.0; size],
             spec_a: vec![0.0; 2 * bins],
             spec_b: vec![0.0; 2 * bins],
@@ -92,12 +98,17 @@ impl Yin {
     ) -> Pitch {
         let n = self.size;
         let w = n / 2;
-        let Some(x) = frame.get(..n) else {
+        let Some(frame) = frame.get(..n) else {
             return Pitch::default();
         };
         if !(rate.is_finite() && rate > 0.0) {
             return Pitch::default();
         }
+        // Work newest-first, so the sums below run over the newest half.
+        for (r, s) in self.rev.iter_mut().zip(frame.iter().rev()) {
+            *r = *s;
+        }
+        let x: &[f32] = &self.rev;
         let e0: f64 = x[..w].iter().map(|v| f64::from(*v) * f64::from(*v)).sum();
         if e0 < SILENCE * w as f64 {
             return Pitch::default();
@@ -199,11 +210,16 @@ mod tests {
             .collect()
     }
 
+    /// A band-limited sawtooth: harmonics up to 20 kHz.
     fn saw(freq: f64, n: usize) -> Vec<f32> {
+        let harmonics = (20_000.0 / freq) as usize;
         (0..n)
             .map(|i| {
-                let p = (freq * i as f64 / RATE).fract();
-                (0.5 * (2.0 * p - 1.0)) as f32
+                let t = std::f64::consts::TAU * freq * i as f64 / RATE;
+                let s: f64 = (1..=harmonics)
+                    .map(|k| (k as f64 * t).sin() / k as f64)
+                    .sum();
+                (0.3 * s) as f32
             })
             .collect()
     }

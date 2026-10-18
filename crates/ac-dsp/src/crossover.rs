@@ -85,13 +85,16 @@ impl Crossover {
 
     /// Split `input` into `bands` (at least [`Crossover::bands`] buffers,
     /// each at least `input.len()` long). `state` is one channel's state.
+    /// NaN or infinite input samples count as 0.
     pub fn process(&self, state: &mut [Tdf2], input: &[f32], bands: &mut [Vec<f32>]) {
         let n = input.len();
         let Some(first) = bands.first_mut() else {
             return;
         };
         if let Some(dst) = first.get_mut(..n) {
-            dst.copy_from_slice(input);
+            for (d, s) in dst.iter_mut().zip(input) {
+                *d = if s.is_finite() { *s } else { 0.0 };
+            }
         }
         for (op, st) in self.ops.iter().zip(state.iter_mut()) {
             if op.src == op.dst {
