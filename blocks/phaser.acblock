@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "name": "Phaser",
+  "description": "The swirling, liquid sweep: a chain of allpass filters shifts the phase of the signal by an amount that depends on frequency, and blending it with the dry signal cancels a few bands, making notches that glide up and down the spectrum. Mono or stereo; the output has as many channels as the input.\n\n- `in`: the signal.\n- `rate` (Hz): sweeps per second.\n- `depth` (0 to 1): how far the notches sweep, up to two octaves either side of `center` (at 0.5, one octave either side).\n- `center` (Hz): the middle of the sweep. The notches sit around it: with 2 notches, at about 0.4 and 2.4 times the swept frequency.\n- `notches` (2, 3, or 4): how many notches, from 4, 6, or 8 allpass stages. More notches sound denser and more pronounced. Other values wrap around (5 is 2 again).\n- `mix` (0 to 1): 0 is dry, 1 is only the phase-shifted signal (a gentle wobble, no notches); 0.5 cancels fully and gives the deepest notches.\n- `out`: the result.\n\nInside: a `pure` sine Oscillator at `rate` is mapped exponentially between `center` ÷ and × the sweep ratio (Convert turns `depth` × 24 semitones into that ratio), so the sweep is even in octaves. Each stage is an Allpass with a one-sample delay, which makes it the first-order allpass of an analog phaser stage; its `gain` sets the frequency where it shifts the phase by 90°, and for a frequency f that gain is tan(π/4 − π·f / sample rate), worked out per sample by the Math and Unary nodes (Convert of π samples to seconds gives π / sample rate, so the sweep is the same at any rate). Select picks the output after 4, 6, or 8 stages, and a Crossfade blends it with the dry input. There is no feedback control: a loop around the stages needs a Feedback node, whose block of delay would make a comb filter instead of a phaser's resonance.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "modulation",
+    "phaser",
+    "filter",
+    "allpass",
+    "effect"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "11:in",
+        "20:a"
+      ]
+    },
+    {
+      "name": "rate",
+      "type": "float",
+      "unit": "hz",
+      "default": 0.3,
+      "range": [
+        0.02,
+        5.0
+      ],
+      "targets": [
+        "5:freq"
+      ]
+    },
+    {
+      "name": "depth",
+      "type": "float",
+      "default": 0.6,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "1:a"
+      ]
+    },
+    {
+      "name": "center",
+      "type": "float",
+      "unit": "hz",
+      "default": 800.0,
+      "range": [
+        200.0,
+        4000.0
+      ],
+      "targets": [
+        "3:a",
+        "4:a"
+      ]
+    },
+    {
+      "name": "notches",
+      "type": "int",
+      "default": 2,
+      "range": [
+        2.0,
+        4.0
+      ],
+      "targets": [
+        "19:index"
+      ]
+    },
+    {
+      "name": "mix",
+      "type": "float",
+      "default": 0.5,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "20:mix"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "20:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "math",
+        "params": {
+          "b": 24.0,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            300.0
+          ],
+          "label": "Depth (st)"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "convert",
+        "params": {
+          "op": "semitones_to_ratio"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            300.0
+          ],
+          "label": "Sweep ratio"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "op": "divide"
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            300.0
+          ],
+          "label": "Lowest (Hz)"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            430.0
+          ],
+          "label": "Highest (Hz)"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "shape": "sine",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            0.0
+          ],
+          "label": "LFO"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 1.0,
+          "in_min": -1.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ],
+          "label": "Sweep (Hz)"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "convert",
+        "params": {
+          "in": 3.141592654,
+          "op": "samples_to_seconds"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            260.0
+          ],
+          "label": "π / sample rate"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            0.0
+          ],
+          "label": "π·f / fs"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "math",
+        "params": {
+          "a": 0.785398163,
+          "op": "subtract"
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            130.0
+          ],
+          "label": "π/4 − π·f/fs"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "unary",
+        "params": {
+          "op": "tan"
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            260.0
+          ],
+          "label": "Coefficient"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ],
+          "label": "Stage 1"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1440.0,
+            0.0
+          ],
+          "label": "Stage 2"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1680.0,
+            0.0
+          ],
+          "label": "Stage 3"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1920.0,
+            0.0
+          ],
+          "label": "Stage 4"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            160.0
+          ],
+          "label": "Stage 5"
+        }
+      },
+      {
+        "id": "16",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1440.0,
+            160.0
+          ],
+          "label": "Stage 6"
+        }
+      },
+      {
+        "id": "17",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1680.0,
+            160.0
+          ],
+          "label": "Stage 7"
+        }
+      },
+      {
+        "id": "18",
+        "kind": "allpass",
+        "config": {
+          "max_delay": 0.001
+        },
+        "params": {
+          "delay": 0.0
+        },
+        "ui": {
+          "pos": [
+            1920.0,
+            160.0
+          ],
+          "label": "Stage 8"
+        }
+      },
+      {
+        "id": "19",
+        "kind": "select",
+        "config": {
+          "inputs": 3,
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            2160.0,
+            0.0
+          ],
+          "label": "Notches"
+        }
+      },
+      {
+        "id": "20",
+        "kind": "crossfade",
+        "ui": {
+          "pos": [
+            2400.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:b"
+      },
+      {
+        "from": "2:out",
+        "to": "4:b"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "3:out",
+        "to": "6:out_min"
+      },
+      {
+        "from": "4:out",
+        "to": "6:out_max"
+      },
+      {
+        "from": "6:out",
+        "to": "8:a"
+      },
+      {
+        "from": "7:out",
+        "to": "8:b"
+      },
+      {
+        "from": "8:out",
+        "to": "9:b"
+      },
+      {
+        "from": "9:out",
+        "to": "10:in"
+      },
+      {
+        "from": "10:out",
+        "to": "11:gain"
+      },
+      {
+        "from": "11:out",
+        "to": "12:in"
+      },
+      {
+        "from": "10:out",
+        "to": "12:gain"
+      },
+      {
+        "from": "12:out",
+        "to": "13:in"
+      },
+      {
+        "from": "10:out",
+        "to": "13:gain"
+      },
+      {
+        "from": "13:out",
+        "to": "14:in"
+      },
+      {
+        "from": "10:out",
+        "to": "14:gain"
+      },
+      {
+        "from": "14:out",
+        "to": "15:in"
+      },
+      {
+        "from": "10:out",
+        "to": "15:gain"
+      },
+      {
+        "from": "15:out",
+        "to": "16:in"
+      },
+      {
+        "from": "10:out",
+        "to": "16:gain"
+      },
+      {
+        "from": "16:out",
+        "to": "17:in"
+      },
+      {
+        "from": "10:out",
+        "to": "17:gain"
+      },
+      {
+        "from": "17:out",
+        "to": "18:in"
+      },
+      {
+        "from": "10:out",
+        "to": "18:gain"
+      },
+      {
+        "from": "14:out",
+        "to": "19:in_2"
+      },
+      {
+        "from": "16:out",
+        "to": "19:in_0"
+      },
+      {
+        "from": "18:out",
+        "to": "19:in_1"
+      },
+      {
+        "from": "19:out",
+        "to": "20:b"
+      }
+    ]
+  }
+}
