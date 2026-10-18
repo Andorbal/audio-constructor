@@ -90,9 +90,9 @@ mod asio {
     #[test]
     fn the_asio_host_is_built_in_and_fails_cleanly_without_drivers() {
         assert!(
-            ac_io::host_names().iter().any(|h| h == "ASIO"),
+            ac_io::audio::host_names().iter().any(|h| h == "ASIO"),
             "{:?}",
-            ac_io::host_names()
+            ac_io::audio::host_names()
         );
         // Listing works with or without installed drivers.
         let hosts = ac_io::enumerate();
