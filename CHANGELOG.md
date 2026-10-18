@@ -13,8 +13,49 @@ fixes and smaller changes.
 
 ## [0.5.0] - 2026-10-18
 
+Control surfaces: gamepads, the computer keyboard, and Open Sound Control
+reach the patch as nodes and as bindings on any input, and performance
+panels turn a patch into a playable surface.
+
 ### Added
 
+- **Gamepads**: plug in a game controller and the editor and `audioc run`
+  hear its buttons, sticks, and triggers. Controllers can come and go while
+  you play; each keeps its number while it's connected, and unplugging one
+  lets go of anything it was holding. The Devices tab and `audioc devices`
+  list them; `audioc run --no-gamepad` ignores them.
+- **OSC**: receive Open Sound Control from phone and tablet control apps or
+  other programs. Turn on listening in the Devices tab (port 9000 unless
+  you change it), which shows the address to send to and counts what
+  arrives, or run `audioc run --osc-in 9000`. Every argument of a message
+  is its own control, and a message without arguments works as a trigger.
+  Patches can send OSC too, each message to the address in its settings.
+- **Play keys**: the keyboard button in the transport bar (also
+  Transport ▸ Play Keys, `Ctrl+K`) sends your computer keys to the patch
+  instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
+  or Alt still work, text fields still get your typing, holding a key
+  doesn't repeat it, and keys never stick when you turn it off or switch
+  windows. Performance mode turns it on for you and puts it back when you
+  leave.
+- **Gamepad** node: a game controller in the patch. Every button is a gate
+  and a press trigger (release triggers too, if you ask), and the sticks
+  and analog triggers are numbers with an adjustable dead zone and
+  response curve. Each change lands on the exact sample it arrived on,
+  and a button held through a transport restart stays held.
+- **Keyboard In** node: the computer keyboard in the patch. Keys you list
+  become gates and press triggers, and the middle row of letters plays
+  notes like a piano (`A` to `'` for the white keys, the row above for
+  the black ones, `Z` and `X` to change octave), so you can play a synth
+  without a MIDI keyboard. A key always releases the note it started,
+  even after an octave change.
+- **OSC In** node: Open Sound Control messages to one address (a fader or
+  button on a phone or tablet control surface, say) come in as up to four
+  numbers that hold their last value, plus a trigger for each message.
+- **OSC Out** node: sends up to four numbers from the patch as Open Sound
+  Control messages to an address, host, and port, on a trigger or
+  whenever they change. Changes are sent at most once per `interval`
+  (20 ms by default), so a moving signal can't flood the network, and the
+  latest values always arrive in the end.
 - **Bindings**: drive any unwired number, switch, or trigger input from a
   MIDI controller or note, a computer key, a gamepad button or stick, or
   an OSC address. Right-click the input (or a control node's title) and
@@ -53,52 +94,12 @@ fixes and smaller changes.
   with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
   built with both, with the JACK build playing a project through a JACK
   server.
-- **Gamepad** node: a game controller in the patch. Every button is a gate
-  and a press trigger (release triggers too, if you ask), and the sticks
-  and analog triggers are numbers with an adjustable dead zone and
-  response curve. Each change lands on the exact sample it arrived on,
-  and a button held through a transport restart stays held.
-- **Keyboard In** node: the computer keyboard in the patch. Keys you list
-  become gates and press triggers, and the middle row of letters plays
-  notes like a piano (`A` to `'` for the white keys, the row above for
-  the black ones, `Z` and `X` to change octave), so you can play a synth
-  without a MIDI keyboard. A key always releases the note it started,
-  even after an octave change.
-- **OSC In** node: Open Sound Control messages to one address (a fader or
-  button on a phone or tablet control surface, say) come in as up to four
-  numbers that hold their last value, plus a trigger for each message.
-- **OSC Out** node: sends up to four numbers from the patch as Open Sound
-  Control messages to an address, host, and port, on a trigger or
-  whenever they change. Changes are sent at most once per `interval`
-  (20 ms by default), so a moving signal can't flood the network, and the
-  latest values always arrive in the end.
-- **Gamepads**: plug in a game controller and the editor and `audioc run`
-  hear its buttons, sticks, and triggers. Controllers can come and go while
-  you play; each keeps its number while it's connected, and unplugging one
-  lets go of anything it was holding. The Devices tab and `audioc devices`
-  list them; `audioc run --no-gamepad` ignores them.
-- **OSC**: receive Open Sound Control from phone and tablet control apps or
-  other programs. Turn on listening in the Devices tab (port 9000 unless
-  you change it), which shows the address to send to and counts what
-  arrives, or run `audioc run --osc-in 9000`. Every argument of a message
-  is its own control, and a message without arguments works as a trigger.
-  Patches can send OSC too, each message to the address in its settings.
-- **Play keys**: the keyboard button in the transport bar (also
-  Transport ▸ Play Keys, `Ctrl+K`) sends your computer keys to the patch
-  instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
-  or Alt still work, text fields still get your typing, holding a key
-  doesn't repeat it, and keys never stick when you turn it off or switch
-  windows. Performance mode turns it on for you and puts it back when you
-  leave.
 
 ### Changed
 
 - Building from source on Linux needs the udev development files
   (`libudev-dev` on Debian and Ubuntu) as well as ALSA's; they let the
   editor find gamepads.
-
-### Changed
-
 - Parameter smoothing now lands on the same samples whatever the block
   size, so a render with controller changes is identical at every block
   size.

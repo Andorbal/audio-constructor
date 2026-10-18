@@ -326,9 +326,107 @@ Needs manual verification (in the PR): listening to each block's golden
 render, and how the Library tab feels with a large library.
 
 ### M2.4 Control surfaces
-- [ ] Gamepad (gilrs), KeyboardIn, OSC in/out nodes; binding/learn UI for MIDI, keys, gamepad; transport bindings.
-- [ ] ASIO build (feature `asio`) documented and tested on Windows; JACK on Linux.
-- [ ] Panels: pin nodes, multiple panels, full-screen performance mode.
+- [x] Gamepad (gilrs), KeyboardIn, OSC in/out nodes; binding/learn UI for MIDI, keys, gamepad; transport bindings.
+- [x] ASIO build (feature `asio`) documented and tested on Windows; JACK on Linux.
+- [x] Panels: pin nodes, multiple panels, full-screen performance mode.
+
+*Verified:* keys, gamepads, and OSC reach the engine as `ControlEvent`s,
+like MIDI: one ring per source, one block late, with a sample offset.
+Outgoing OSC is built on the audio thread without allocating (DECISIONS
+D85–D88). The four nodes complete the P2 catalog; `all_nodes.rs` no longer
+exempts them. Each device and feature is covered as follows.
+
+Device layer (`cargo test -p ac-io`):
+- Control rings deliver in order, keep arrival order at equal offsets,
+  and drop and count when full; swapping a dropped sender's ring loses
+  nothing.
+- Gamepad mapping: each standard button maps once, analog triggers are
+  both buttons and axes, pad numbers stay put, and unplugging releases
+  held controls. The thread starts and stops on CI machines without a
+  gamepad.
+- OSC is tested over loopback with real packets: messages, bundles, and
+  garbage. A message without arguments acts as a trigger, deeply nested
+  bundles are refused, and a port already in use is an error, not a
+  panic.
+- OSC out reaches its target one block late, in order, and a full queue
+  drops and counts.
+
+Nodes (`cargo test -p ac-nodes`):
+- Unit tests next to each node check sample-accurate changes, state held
+  across blocks, dead zone and curve, reset, block sizes 1/64/512,
+  NaN, and bad configs.
+- Keyboard In always releases the note it started, even after an octave
+  change, including when MIDI floods past capacity.
+- OSC Out rate-limits changes and still sends the last value.
+- `configured_nodes.rs` floods all four nodes with events under the
+  allocation guard.
+
+Bindings (DECISIONS D92–D95):
+- `cargo test -p ac-engine --test bindings`:
+  - a MIDI CC moves a bound Gain on its own sample;
+  - a key toggles a Bool, and a button fires a trigger;
+  - transport bindings start, stop, and record;
+  - bindings to wired, missing, or unbindable inputs are reported, not
+    applied;
+  - bound values survive a recompile;
+  - group instances and nodes inside groups can be bound;
+  - offline renders are deterministic and block-size independent;
+  - the learn monitor hands raw events to the editor;
+  - a flood of bound events stays allocation-free.
+- Parameter smoothing now gives the same samples at every block size; no
+  earlier golden hash changed.
+- `--test bindings_cli`: `inspect` lists bindings and `validate` reports
+  the ones that can't act.
+
+Panels (DECISIONS D96–D99): `edit::pins` tests cover undo, pins removed
+with deleted or grouped nodes, and dangling pins dropped on open.
+
+Editor (egui_kittest):
+- `--test bindings`:
+  - Bind… learns a MIDI controller, a gamepad stick sent through the real
+    control rings, and a key;
+  - Esc cancels learning;
+  - deleting a node removes its bindings in the same undo step;
+  - the transport preset adds three gamepad buttons.
+- `--test panels`:
+  - `P` pins a Slider, `Ctrl+Tab` shows it, and a drag sets the document
+    and the engine as one undo step;
+  - panel Buttons are momentary;
+  - several panels can be added, renamed, and switched;
+  - cards move, resize, and unpin;
+  - `F11` sends the full-screen command and hides the chrome, and Esc
+    leaves;
+  - a Meter follows live audio;
+  - performance mode turns Play keys on and restores it on leaving.
+- `--test editor`: with Play keys on, keys go to the patch instead of
+  running shortcuts, and text fields keep their typing.
+
+Goldens: four new golden projects drive the nodes and bindings from test
+control events and test MIDI, and check the OSC sent like MIDI. They pass
+the hash, block-independence, and live-vs-offline checks:
+- `io-gamepad-keyboard-in`
+- `io-osc-in-out`
+- `bindings-midi-cc`
+- `bindings-controls`
+
+Backends (DECISIONS D100):
+- The CI job *JACK build (Linux)* builds the editor and `audioc` with
+  `jack`. It starts `jackd` with its dummy driver and runs
+  `crates/ac-io/tests/backends.rs`, which checks JACK is listed, opens at
+  the server's rate, and plays half a second through the engine. It then
+  runs `audioc run examples/start.acproj --host jack`.
+- *ASIO build (Windows)* builds both programs with `asio` (the build
+  downloads the SDK). It checks the ASIO host is listed and fails cleanly
+  without drivers; CI runners have none.
+
+Needs manual verification (in the PR):
+- an ASIO interface;
+- physical gamepads;
+- a phone OSC app;
+- how learning feels;
+- Play keys in a real window;
+- full screen on each OS;
+- touch on panels.
 
 ### M2.5 Editor conveniences
 - [ ] Auto-layout, align/distribute, portals, find, lazy connect, connect-selected-to-new-node, per-node timing display, minimap.
