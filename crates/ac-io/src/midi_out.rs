@@ -33,6 +33,9 @@ const OUT_RING: usize = 4096;
 /// The sender's longest sleep: the worst lateness of a message that arrives
 /// while it sleeps.
 const IDLE: Duration = Duration::from_millis(1);
+/// The sender's sleep while no port is connected (messages are discarded,
+/// so there's no timing to keep, and the thread shouldn't keep a core awake).
+const NO_PORTS_IDLE: Duration = Duration::from_millis(20);
 const CLIENT_NAME: &str = "Audio Constructor";
 
 /// A message and when it should leave, on [`crate::clock`].
@@ -115,6 +118,8 @@ struct Port {
 
 struct Shared {
     ports: Mutex<Vec<Port>>,
+    /// Whether `ports` is empty, readable without the lock.
+    no_ports: AtomicBool,
     stop: AtomicBool,
     sent: AtomicU64,
 }
@@ -145,6 +150,7 @@ impl MidiOutputs {
         let (tx, rx) = RingBuffer::new(OUT_RING);
         let shared = Arc::new(Shared {
             ports: Mutex::new(Vec::new()),
+            no_ports: AtomicBool::new(true),
             stop: AtomicBool::new(false),
             sent: AtomicU64::new(0),
         });
@@ -215,6 +221,9 @@ impl MidiOutputs {
                 Err(e) => self.last_error = Some(e),
             }
         }
+        self.shared
+            .no_ports
+            .store(open.is_empty(), Ordering::Relaxed);
         added
     }
 
@@ -227,6 +236,7 @@ impl MidiOutputs {
                 name: name.to_string(),
                 sink: Box::new(sink),
             });
+            self.shared.no_ports.store(false, Ordering::Relaxed);
         }
     }
 
@@ -288,6 +298,13 @@ fn open_port(info: &MidiPortInfo) -> Result<Sink, MidiError> {
 fn sender_thread(mut rx: Consumer<TimedMidi>, shared: &Shared) {
     let mut pending: VecDeque<TimedMidi> = VecDeque::with_capacity(OUT_RING);
     while !shared.stop.load(Ordering::Relaxed) {
+        if shared.no_ports.load(Ordering::Relaxed) {
+            // Nowhere to send: discard, and wake rarely.
+            while rx.pop().is_ok() {}
+            pending.clear();
+            std::thread::sleep(NO_PORTS_IDLE);
+            continue;
+        }
         while let Ok(m) = rx.pop() {
             pending.push_back(m);
         }
@@ -350,6 +367,23 @@ mod tests {
         assert!(got[1].0 >= t + 15_000_000);
         assert_eq!(outputs.sent(), 2);
         assert_eq!(outputs.dropped(), 0);
+    }
+
+    #[test]
+    fn with_no_port_messages_are_discarded_and_the_thread_idles() {
+        let (outputs, mut queue) = MidiOutputs::new();
+        assert!(outputs.connected().is_empty());
+        queue.push_block(
+            clock::now_ns(),
+            64,
+            48_000.0,
+            &[MidiEvent::new(0, note(60))],
+        );
+        std::thread::sleep(Duration::from_millis(60));
+        assert_eq!(outputs.sent(), 0);
+        let t0 = Instant::now();
+        drop(outputs);
+        assert!(t0.elapsed() < Duration::from_secs(1), "stops promptly");
     }
 
     #[test]
