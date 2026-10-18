@@ -88,12 +88,14 @@ pub fn type_color(ty: SignalType) -> Color32 {
         SignalType::Bool => Color32::from_rgb(0xE0, 0x6C, 0x9F),
         SignalType::Trigger => Color32::from_rgb(0xF2, 0xD1, 0x5C),
         SignalType::Midi => Color32::from_rgb(0xA9, 0x8B, 0xF0),
+        SignalType::Spectrum => Color32::from_rgb(0x4F, 0xD1, 0xD9),
+        SignalType::Buffer => Color32::from_rgb(0xC8, 0xA8, 0x78),
         SignalType::Any => Color32::from_rgb(0x9A, 0xA0, 0xA8),
     }
 }
 
-/// Socket shape: stream types are circles, events diamonds (the
-/// colorblind-safe channel). Spectrum and Buffer (Phase 2) will be squares.
+/// Socket shape: stream types are circles, events diamonds, and data
+/// handles (Spectrum, Buffer) squares (the colorblind-safe channel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SocketShape {
     Circle,
@@ -104,6 +106,8 @@ pub enum SocketShape {
 pub fn socket_shape(ty: SignalType) -> SocketShape {
     if ty.is_event() {
         SocketShape::Diamond
+    } else if ty.is_data() {
+        SocketShape::Square
     } else {
         SocketShape::Circle
     }
@@ -414,7 +418,9 @@ mod tests {
     #[test]
     fn every_type_has_a_distinct_color() {
         use SignalType::*;
-        let types = [Audio, Float, Int, Bool, Trigger, Midi, Any];
+        let types = [
+            Audio, Float, Int, Bool, Trigger, Midi, Spectrum, Buffer, Any,
+        ];
         for (i, a) in types.iter().enumerate() {
             for b in &types[i + 1..] {
                 assert_ne!(type_color(*a), type_color(*b), "{a} vs {b}");
@@ -422,6 +428,8 @@ mod tests {
         }
         assert_eq!(socket_shape(Trigger), SocketShape::Diamond);
         assert_eq!(socket_shape(Audio), SocketShape::Circle);
+        assert_eq!(socket_shape(Spectrum), SocketShape::Square);
+        assert_eq!(socket_shape(Buffer), SocketShape::Square);
     }
 
     #[test]

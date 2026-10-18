@@ -71,6 +71,13 @@ pub struct EngineStatus {
     pub timing_enabled: AtomicBool,
     /// Generation of the graph currently running.
     pub generation: AtomicU64,
+    /// Threads running the graph (1 without a worker pool).
+    pub cores: AtomicU32,
+    /// Last block's busy time of each thread (0 = the audio thread) as a
+    /// fraction of the block's budget (f32 bits).
+    pub core_load: [AtomicU32; 32],
+    /// Output latency of the running graph, in samples.
+    pub latency: AtomicU32,
 }
 
 impl EngineStatus {
@@ -87,6 +94,12 @@ impl EngineStatus {
 
     pub fn total_xruns(&self) -> u64 {
         self.xruns.load(Ordering::Relaxed) + self.device_xruns.load(Ordering::Relaxed)
+    }
+
+    /// Load of each thread running the graph (audio thread first).
+    pub fn core_loads(&self) -> Vec<f32> {
+        let n = (self.cores.load(Ordering::Relaxed).max(1) as usize).min(self.core_load.len());
+        self.core_load[..n].iter().map(load_f32).collect()
     }
 }
 

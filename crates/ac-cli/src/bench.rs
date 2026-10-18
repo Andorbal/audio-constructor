@@ -132,6 +132,7 @@ fn bench_one(
             sample_rate: rate,
             max_block: block,
             socket_telemetry: false,
+            offline: false,
         },
     );
     let telemetry = engine.handle.telemetry();

@@ -10,6 +10,10 @@ use crate::id::GroupId;
 use crate::node::{Node, NodeMeta, PrepareCtx};
 use crate::signal::{Channels, Signature, SocketSpec};
 use crate::value::{Config, Value};
+use crate::whole::{WholeCtx, WholeInputs, WholeOutputs};
+
+/// Signature of [`Node::render_whole`].
+pub type RenderWholeFn = fn(&Config, &WholeCtx, &WholeInputs) -> WholeOutputs;
 
 /// Function pointers for one node kind.
 #[derive(Clone)]
@@ -17,6 +21,7 @@ pub struct NodeEntry {
     pub meta: NodeMeta,
     pub describe: fn(&Config) -> Signature,
     pub create: fn(&Config, &PrepareCtx) -> Box<dyn Node>,
+    pub render_whole: RenderWholeFn,
 }
 
 impl fmt::Debug for NodeEntry {
@@ -52,6 +57,7 @@ impl Registry {
                 meta,
                 describe: N::describe,
                 create: create_boxed::<N>,
+                render_whole: N::render_whole,
             },
         );
         self

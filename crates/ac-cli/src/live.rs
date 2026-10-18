@@ -135,6 +135,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
             sample_rate: f64::from(info.sample_rate),
             max_block: info.max_block(),
             socket_telemetry: false,
+            offline: false,
         },
     );
     for d in &report.diagnostics {
@@ -298,6 +299,7 @@ pub fn latency(args: LatencyArgs) -> Result<ExitCode> {
             sample_rate: f64::from(info.sample_rate),
             max_block: info.max_block(),
             socket_telemetry: false,
+            offline: false,
         },
     );
     let (mut handle, processor) = engine.split();

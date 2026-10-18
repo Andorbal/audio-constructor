@@ -15,10 +15,20 @@
 //! Every accessor tolerates a bad index or a short buffer by returning silence
 //! or zero instead of panicking: this code runs on the audio thread.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::events::MidiEvent;
+use crate::node::AudioData;
 use crate::signal::{AutoTrigger, Rate};
+use crate::spectrum::{EMPTY_SPECTRUM, SpectrumBuf};
+
+/// The value a `Buffer` wire holds: a shared handle to audio, or nothing.
+///
+/// Cloning and dropping handles on the audio thread is fine (an atomic
+/// count); whoever creates a buffer keeps a handle of its own off the audio
+/// thread, so the last one is never dropped there (DECISIONS D53).
+pub type BufferRef = Option<Arc<AudioData>>;
 
 /// A buffer of zeros, for unwired inputs and out-of-range reads.
 const SILENCE: &[f32] = &[0.0; 4096];
@@ -70,6 +80,8 @@ pub enum InputSlot {
     },
     Trigger(TriggerSrc),
     Midi(Option<u32>),
+    Spectrum(Option<u32>),
+    Buffer(Option<u32>),
     /// Nothing (e.g. an unresolved `Any` socket).
     None,
 }
@@ -90,6 +102,8 @@ pub enum OutputSlot {
     },
     Trigger(u32),
     Midi(u32),
+    Spectrum(u32),
+    Buffer(u32),
     None,
 }
 
@@ -279,6 +293,8 @@ pub struct Inputs<'a> {
     pub chan_table: &'a [u32],
     pub triggers: &'a [Vec<u32>],
     pub midi: &'a [Vec<MidiEvent>],
+    pub spectra: &'a [SpectrumBuf],
+    pub buffers: &'a [BufferRef],
     pub auto: AutoFlags,
 }
 
@@ -398,11 +414,28 @@ impl<'a> Inputs<'a> {
         }
     }
 
+    /// The spectrum frames in this block (empty when unwired).
+    pub fn spectrum(&self, i: usize) -> &'a SpectrumBuf {
+        match self.slot(i) {
+            InputSlot::Spectrum(Some(k)) => self.spectra.get(k as usize).unwrap_or(&EMPTY_SPECTRUM),
+            _ => &EMPTY_SPECTRUM,
+        }
+    }
+
+    /// The buffer a `Buffer` input holds, if any.
+    pub fn buffer(&self, i: usize) -> Option<&'a Arc<AudioData>> {
+        match self.slot(i) {
+            InputSlot::Buffer(Some(k)) => self.buffers.get(k as usize).and_then(Option::as_ref),
+            _ => None,
+        }
+    }
+
     /// True if a wire feeds this input.
     pub fn is_wired(&self, i: usize) -> bool {
         match self.slot(i) {
             InputSlot::Float(FloatSrc::Param(_)) | InputSlot::Int(IntSrc::Param(_)) => false,
             InputSlot::Trigger(TriggerSrc::Unwired { .. }) | InputSlot::Midi(None) => false,
+            InputSlot::Spectrum(None) | InputSlot::Buffer(None) => false,
             InputSlot::Audio { count, .. } => count > 0 && !self.is_silence_audio(i),
             InputSlot::None => false,
             _ => true,
@@ -607,6 +640,8 @@ pub struct Outputs<'a> {
     pub ints: &'a mut [i32],
     pub triggers: &'a mut [Vec<u32>],
     pub midi: &'a mut [Vec<MidiEvent>],
+    pub spectra: &'a mut [SpectrumBuf],
+    pub buffers: &'a mut [BufferRef],
 }
 
 impl Outputs<'_> {
@@ -697,6 +732,31 @@ impl Outputs<'_> {
                 buf: self.midi.get_mut(k as usize),
             },
             _ => MidiOut { buf: None },
+        }
+    }
+
+    /// A `Spectrum` output (cleared at the start of each block), if connected.
+    pub fn spectrum(&mut self, i: usize) -> Option<&mut SpectrumBuf> {
+        match self.slot(i) {
+            OutputSlot::Spectrum(k) => self.spectra.get_mut(k as usize),
+            _ => None,
+        }
+    }
+
+    /// Set a `Buffer` output. The value persists from block to block, but a
+    /// recompile starts from none, so set it every block.
+    pub fn set_buffer(&mut self, i: usize, b: Option<&Arc<AudioData>>) {
+        if let OutputSlot::Buffer(k) = self.slot(i)
+            && let Some(slot) = self.buffers.get_mut(k as usize)
+        {
+            let same = match (slot.as_ref(), b) {
+                (Some(x), Some(y)) => Arc::ptr_eq(x, y),
+                (None, None) => true,
+                _ => false,
+            };
+            if !same {
+                *slot = b.cloned();
+            }
         }
     }
 

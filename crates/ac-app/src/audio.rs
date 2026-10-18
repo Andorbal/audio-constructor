@@ -78,6 +78,7 @@ fn engine_at(
             sample_rate: f64::from(info.sample_rate),
             max_block: info.max_block(),
             socket_telemetry: true,
+            offline: false,
         },
     );
     let (h, p) = engine.split();

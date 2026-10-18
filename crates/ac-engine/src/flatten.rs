@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use ac_core::{
     Config, Endpoint, GROUP_KIND, Graph, GroupDef, GroupId, Node, NodeId, NodeMeta, NodePath,
-    PrepareCtx, Project, REROUTE_KIND, Registry, Signature, Value,
+    PrepareCtx, Project, REROUTE_KIND, Registry, RenderWholeFn, Signature, Value,
 };
 
 use crate::report::CompileReport;
@@ -29,6 +29,7 @@ pub(crate) struct FlatNode {
     pub sig: Signature,
     pub meta: NodeMeta,
     pub create: fn(&Config, &PrepareCtx) -> Box<dyn Node>,
+    pub render_whole: RenderWholeFn,
 }
 
 /// A wire between flat nodes, by node index and socket index.
@@ -180,6 +181,7 @@ impl<'p> Builder<'p> {
                     sig,
                     meta: entry.meta.clone(),
                     create: entry.create,
+                    render_whole: entry.render_whole,
                 });
                 Item::Flat(self.nodes.len() - 1)
             } else {

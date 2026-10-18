@@ -17,16 +17,21 @@
 #![allow(clippy::panic)]
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::events::{MidiEvent, MidiMsg};
+use crate::io::BufferRef;
 use crate::io::{
     AutoFlags, FloatSrc, HostAccess, InputSlot, Inputs, IntSrc, Io, OutputSlot, Outputs, ParamSlot,
     TelemetryAccess, TriggerSrc,
 };
-use crate::node::{NoResources, Node, NodeMeta, Phase, PrepareCtx, ProcessCtx, Resources};
+use crate::node::{
+    AudioData, EngineInfo, NoResources, Node, NodeMeta, Phase, PrepareCtx, ProcessCtx, Resources,
+};
 use crate::param::param_value;
-use crate::signal::{Channels, OutRate, Rate, SignalType, Signature};
+use crate::signal::{Channels, OutRate, Rate, SignalType, Signature, SpectrumShape};
+use crate::spectrum::SpectrumBuf;
 use crate::time::{TempoMap, TransportView};
 use crate::value::{Config, Value};
 
@@ -40,7 +45,13 @@ enum Feed {
     Audio(Vec<Vec<f32>>),
     Triggers(Vec<u64>),
     Midi(Vec<(u64, MidiMsg)>),
+    Spectrum(SpectrumShape, Vec<(u64, Vec<f32>)>),
+    Buffer(Arc<AudioData>),
 }
+
+/// A spectrum frame as the harness collects it: absolute sample position and
+/// interleaved `re, im` bins.
+pub type Frame = (u64, Vec<f32>);
 
 /// Outputs collected over one [`Harness::run`].
 #[derive(Clone, Debug, Default)]
@@ -55,6 +66,10 @@ pub struct Output {
     pub triggers: BTreeMap<String, Vec<u64>>,
     /// MIDI outputs at absolute sample positions.
     pub midi: BTreeMap<String, Vec<(u64, MidiMsg)>>,
+    /// Spectrum outputs: every frame, at absolute sample positions.
+    pub spectra: BTreeMap<String, Vec<Frame>>,
+    /// Buffer outputs: the value after the last block.
+    pub buffers: BTreeMap<String, BufferRef>,
     /// Device output channels written by the node.
     pub host_out: Vec<Vec<f32>>,
 }
@@ -74,6 +89,12 @@ impl Output {
     }
     pub fn midi(&self, name: &str) -> &[(u64, MidiMsg)] {
         self.midi.get(name).map_or(&[], Vec::as_slice)
+    }
+    pub fn spectrum(&self, name: &str) -> &[Frame] {
+        self.spectra.get(name).map_or(&[], Vec::as_slice)
+    }
+    pub fn buffer(&self, name: &str) -> Option<&Arc<AudioData>> {
+        self.buffers.get(name).and_then(Option::as_ref)
     }
 }
 
@@ -102,6 +123,9 @@ pub struct Harness {
     scope_pos: AtomicU32,
     phases: Vec<Phase>,
     guard: Option<fn(&mut dyn FnMut())>,
+    /// Buffer outputs persist from block to block, as in the engine.
+    buffer_state: Vec<BufferRef>,
+    engine: EngineInfo,
 }
 
 impl Harness {
@@ -121,6 +145,7 @@ impl Harness {
             meta: N::meta(),
             describe: N::describe,
             create: |c, ctx| Box::new(N::new(c, ctx)),
+            render_whole: N::render_whole,
         };
         Self::from_entry(&entry, config, sample_rate, block, resources)
     }
@@ -170,6 +195,8 @@ impl Harness {
             host_midi: Vec::new(),
             phases: vec![Phase::Main],
             guard: None,
+            buffer_state: Vec::new(),
+            engine: EngineInfo::default(),
         }
     }
 
@@ -216,6 +243,39 @@ impl Harness {
             self.pending_play = true;
         }
         self
+    }
+
+    /// Engine figures nodes see in `ProcessCtx::engine` (load, xruns).
+    pub fn engine_info(&mut self, info: EngineInfo) -> &mut Self {
+        self.engine = info;
+        self
+    }
+
+    /// Run `render_whole` for a whole-input node over these inputs.
+    pub fn render_whole<N: Node>(
+        config: &Config,
+        sample_rate: f64,
+        inputs: Vec<crate::whole::WholeValue>,
+    ) -> crate::whole::WholeOutputs {
+        let frames = inputs
+            .iter()
+            .map(|v| match v {
+                crate::whole::WholeValue::Audio(c) => c.first().map_or(0, Vec::len),
+                crate::whole::WholeValue::Float(x) => x.len(),
+                crate::whole::WholeValue::Int(x) => x.len(),
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0);
+        N::render_whole(
+            config,
+            &crate::whole::WholeCtx {
+                sample_rate,
+                frames,
+                seed: 0x5eed,
+            },
+            &crate::whole::WholeInputs { values: inputs },
+        )
     }
 
     pub fn tempo(&mut self, tempo: TempoMap) -> &mut Self {
@@ -302,6 +362,22 @@ impl Harness {
         self
     }
 
+    /// Wire spectrum frames (at absolute sample positions) into an input.
+    pub fn spectrum(&mut self, name: &str, shape: SpectrumShape, frames: Vec<Frame>) -> &mut Self {
+        let i = self.idx(name);
+        let mut v = frames;
+        v.sort_by_key(|f| f.0);
+        self.feeds[i] = Feed::Spectrum(shape, v);
+        self
+    }
+
+    /// Wire a buffer into a `Buffer` input.
+    pub fn buffer(&mut self, name: &str, data: Arc<AudioData>) -> &mut Self {
+        let i = self.idx(name);
+        self.feeds[i] = Feed::Buffer(data);
+        self
+    }
+
     /// Device input channels (for `AudioIn`). Index = absolute frame.
     pub fn host_input(&mut self, channels: Vec<Vec<f32>>) -> &mut Self {
         self.host_in = channels;
@@ -384,6 +460,8 @@ impl Harness {
         let mut chan_table: Vec<u32> = Vec::new();
         let mut trig: Vec<Vec<u32>> = Vec::new();
         let mut midi: Vec<Vec<MidiEvent>> = Vec::new();
+        let mut spectra: Vec<SpectrumBuf> = Vec::new();
+        let mut buffers: Vec<BufferRef> = Vec::new();
         let mut slots: Vec<InputSlot> = Vec::with_capacity(n_in);
         for i in 0..n_in {
             let spec = self.sig.inputs[i].clone();
@@ -424,6 +502,24 @@ impl Harness {
                     InputSlot::Midi(Some((midi.len() - 1) as u32))
                 }
                 (_, SignalType::Midi) => InputSlot::Midi(None),
+                (Feed::Spectrum(shape, frames), SignalType::Spectrum) => {
+                    let inside: Vec<_> = frames
+                        .iter()
+                        .filter(|f| f.0 >= start && f.0 < end)
+                        .collect();
+                    let mut buf = SpectrumBuf::new(*shape, inside.len().max(1));
+                    for f in inside {
+                        buf.push_copy((f.0 - start) as u32, &f.1);
+                    }
+                    spectra.push(buf);
+                    InputSlot::Spectrum(Some((spectra.len() - 1) as u32))
+                }
+                (_, SignalType::Spectrum) => InputSlot::Spectrum(None),
+                (Feed::Buffer(b), SignalType::Buffer) => {
+                    buffers.push(Some(b.clone()));
+                    InputSlot::Buffer(Some((buffers.len() - 1) as u32))
+                }
+                (_, SignalType::Buffer) => InputSlot::Buffer(None),
                 (Feed::Audio(chs), SignalType::Audio) => {
                     let first = chan_table.len() as u32;
                     let want = match spec.channels {
@@ -514,11 +610,17 @@ impl Harness {
             .map(|i| self.input_channels(i))
             .max()
             .unwrap_or(1);
+        let follow_shape = self.feeds.iter().find_map(|f| match f {
+            Feed::Spectrum(shape, _) => Some(*shape),
+            _ => None,
+        });
         let mut o_samples: Vec<Vec<f32>> = Vec::new();
         let mut o_scalars: Vec<f32> = Vec::new();
         let mut o_ints: Vec<i32> = Vec::new();
         let mut o_trig: Vec<Vec<u32>> = Vec::new();
         let mut o_midi: Vec<Vec<MidiEvent>> = Vec::new();
+        let mut o_spectra: Vec<SpectrumBuf> = Vec::new();
+        let mut o_buffers = std::mem::take(&mut self.buffer_state);
         let mut o_slots = Vec::new();
         for spec in &self.sig.outputs {
             let slot = match spec.ty {
@@ -567,6 +669,23 @@ impl Harness {
                     o_midi.push(Vec::with_capacity(1024));
                     OutputSlot::Midi((o_midi.len() - 1) as u32)
                 }
+                SignalType::Spectrum => match spec.spectrum.or(follow_shape) {
+                    Some(shape) => {
+                        o_spectra.push(SpectrumBuf::new(shape, shape.max_frames(self.block)));
+                        OutputSlot::Spectrum((o_spectra.len() - 1) as u32)
+                    }
+                    None => OutputSlot::None,
+                },
+                SignalType::Buffer => {
+                    let k = o_slots
+                        .iter()
+                        .filter(|s| matches!(s, OutputSlot::Buffer(_)))
+                        .count();
+                    if o_buffers.len() <= k {
+                        o_buffers.resize(k + 1, None);
+                    }
+                    OutputSlot::Buffer(k as u32)
+                }
             };
             o_slots.push(slot);
         }
@@ -607,11 +726,15 @@ impl Harness {
             for m in &mut o_midi {
                 m.clear();
             }
+            for sp in &mut o_spectra {
+                sp.clear();
+            }
             let ctx = ProcessCtx {
                 frames,
                 sample_rate: self.sample_rate,
                 transport,
                 phase,
+                engine: self.engine,
             };
             let mut io = Io {
                 inputs: Inputs {
@@ -624,6 +747,8 @@ impl Harness {
                     chan_table: &chan_table,
                     triggers: &trig,
                     midi: &midi,
+                    spectra: &spectra,
+                    buffers: &buffers,
                     auto,
                 },
                 outputs: Outputs {
@@ -634,6 +759,8 @@ impl Harness {
                     ints: &mut o_ints,
                     triggers: &mut o_trig,
                     midi: &mut o_midi,
+                    spectra: &mut o_spectra,
+                    buffers: &mut o_buffers,
                 },
                 host: HostAccess {
                     input: &host_input,
@@ -698,9 +825,21 @@ impl Harness {
                             .map(|e| (start + u64::from(e.offset), e.msg)),
                     );
                 }
+                OutputSlot::Spectrum(k) => {
+                    out.spectra.entry(name).or_default().extend(
+                        o_spectra[k as usize]
+                            .iter()
+                            .map(|(o, bins)| (start + u64::from(o), bins.to_vec())),
+                    );
+                }
+                OutputSlot::Buffer(k) => {
+                    out.buffers
+                        .insert(name, o_buffers.get(k as usize).cloned().flatten());
+                }
                 OutputSlot::None => {}
             }
         }
+        self.buffer_state = o_buffers;
         if out.host_out.len() < self.host_out_channels {
             out.host_out.resize(self.host_out_channels, Vec::new());
         }

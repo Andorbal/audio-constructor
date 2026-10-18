@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use ac_core::{Graph, GroupDef, Project};
-use ac_engine::{CompileOptions, Severity, compile};
+use ac_engine::{BakeStore, CompileOptions, Severity, compile};
 use anyhow::{Result, anyhow};
 
 use crate::util::load;
@@ -20,10 +20,10 @@ pub fn validate(path: &Path, sample_rate: Option<u32>) -> Result<ExitCode> {
         &CompileOptions {
             sample_rate: f64::from(sample_rate.unwrap_or(project.settings.sample_rate)),
             max_block: project.settings.block_size as usize,
-            socket_telemetry: false,
-            generation: 0,
+            ..CompileOptions::default()
         },
         None,
+        &BakeStore::default(),
     );
     let r = &compiled.report;
     for d in &r.diagnostics {

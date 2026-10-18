@@ -241,6 +241,7 @@ fn golden_renders_are_deterministic_live_and_offline() {
                     sample_rate: f64::from(rate),
                     max_block: block,
                     socket_telemetry: true,
+                    offline: false,
                 },
             );
             let in_ch = i.input.as_ref().map_or(0, |d| d.channels.len());

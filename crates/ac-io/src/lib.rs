@@ -16,7 +16,7 @@
 //!     project,
 //!     registry,
 //!     Arc::new(ac_core::NoResources),
-//!     EngineOptions { sample_rate: f64::from(info.sample_rate), max_block: info.max_block(), socket_telemetry: true },
+//!     EngineOptions { sample_rate: f64::from(info.sample_rate), max_block: info.max_block(), socket_telemetry: true, offline: false },
 //! );
 //! let (mut handle, processor) = engine.split();
 //! let (mut midi, receiver) = MidiInputs::new();

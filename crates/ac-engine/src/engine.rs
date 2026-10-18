@@ -10,14 +10,19 @@
 //!
 //! Offline hosts keep both halves together and call [`Engine::process`].
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use ac_core::{HostAccess, MidiEvent, NodePath, Project, Registry, Resources, Value, param_value};
+use ac_core::{
+    EngineInfo, HostAccess, MidiEvent, NodePath, Project, Registry, Resources, Value, param_value,
+};
 use rtrb::{Consumer, Producer, RingBuffer};
 
+use crate::bake::{BakeInput, BakeJob, BakeResult, BakeSpec, BakeStore, WholeState};
 use crate::compile::{CarryLayout, CompileOptions, Compiled, ParamMap, compile};
 use crate::graph::{BlockTransport, CompiledGraph};
+use crate::pool::{MAX_WORKERS, RtPool};
 use crate::report::CompileReport;
 use crate::telemetry::{EngineStatus, TelemetryLayout, TelemetryReader, TelemetryStore};
 
@@ -33,6 +38,9 @@ pub struct EngineOptions {
     pub sample_rate: f64,
     pub max_block: usize,
     pub socket_telemetry: bool,
+    /// An offline render: every input is known, so whole-input nodes are
+    /// baked even when Audio In or MIDI In feeds them.
+    pub offline: bool,
 }
 
 impl Default for EngineOptions {
@@ -41,6 +49,7 @@ impl Default for EngineOptions {
             sample_rate: 48_000.0,
             max_block: 1024,
             socket_telemetry: true,
+            offline: false,
         }
     }
 }
@@ -109,6 +118,8 @@ pub struct Processor {
     status: Arc<EngineStatus>,
     clock: Option<ClockFn>,
     midi_scratch: Vec<MidiEvent>,
+    workers: Option<Arc<RtPool>>,
+    busy: [u64; MAX_WORKERS + 1],
 }
 
 /// The control-thread half.
@@ -130,6 +141,14 @@ pub struct EngineHandle {
     garbage_rx: Consumer<Box<CompiledGraph>>,
     param_tx: Producer<ParamMsg>,
     cmd_tx: Producer<Command>,
+    bakes: BakeStore,
+    bake_specs: Vec<BakeSpec>,
+    in_flight: HashSet<(NodePath, u64)>,
+    bake_input: BakeInput,
+    input_hash: u64,
+    bake_frames: Option<u64>,
+    resources_generation: u64,
+    bakes_dirty: bool,
 }
 
 /// Both halves together (offline hosts, tests).
@@ -147,17 +166,14 @@ impl Engine {
         resources: Arc<dyn Resources>,
         options: EngineOptions,
     ) -> (Engine, CompileReport) {
+        let bakes = BakeStore::default();
         let compiled = compile(
             &project,
             &registry,
             resources.as_ref(),
-            &CompileOptions {
-                sample_rate: options.sample_rate,
-                max_block: options.max_block,
-                socket_telemetry: options.socket_telemetry,
-                generation: 0,
-            },
+            &compile_options(&project, &options, 0, None, 0, 0),
             None,
+            &bakes,
         );
         let (graph_tx, graph_rx) = RingBuffer::new(GRAPH_RING);
         let (garbage_tx, garbage_rx) = RingBuffer::new(GARBAGE_RING);
@@ -179,6 +195,7 @@ impl Engine {
             telemetry,
             params,
             carry,
+            bakes: bake_specs,
             ..
         } = compiled;
         let processor = Processor {
@@ -194,6 +211,8 @@ impl Engine {
             status: status.clone(),
             clock: None,
             midi_scratch: Vec::with_capacity(MIDI_SCRATCH),
+            workers: None,
+            busy: [0; MAX_WORKERS + 1],
         };
         let handle = EngineHandle {
             registry,
@@ -212,6 +231,14 @@ impl Engine {
             garbage_rx,
             param_tx,
             cmd_tx,
+            bakes,
+            bake_specs,
+            in_flight: HashSet::new(),
+            bake_input: BakeInput::default(),
+            input_hash: 0,
+            bake_frames: None,
+            resources_generation: 0,
+            bakes_dirty: false,
         };
         (Engine { handle, processor }, report)
     }
@@ -261,9 +288,27 @@ impl EngineHandle {
     /// Change resources (e.g. after loading a new clip) and recompile.
     pub fn set_resources(&mut self, resources: Arc<dyn Resources>) -> CompileReport {
         self.resources = resources;
+        self.resources_generation += 1;
         // New resources mean nodes must be rebuilt, not carried.
         self.carry = CarryLayout::default();
         self.recompile()
+    }
+
+    /// Recompile the current project (e.g. after parameter changes upstream
+    /// of a baked node, so its bake is redone).
+    pub fn refresh(&mut self) -> CompileReport {
+        self.recompile()
+    }
+
+    fn options_for_compile(&self) -> CompileOptions {
+        compile_options(
+            &self.project,
+            &self.options,
+            self.generation,
+            self.bake_frames,
+            self.input_hash,
+            self.resources_generation,
+        )
     }
 
     fn recompile(&mut self) -> CompileReport {
@@ -273,19 +318,139 @@ impl EngineHandle {
             &self.project,
             &self.registry,
             self.resources.as_ref(),
-            &CompileOptions {
-                sample_rate: self.options.sample_rate,
-                max_block: self.options.max_block,
-                socket_telemetry: self.options.socket_telemetry,
-                generation: self.generation,
-            },
+            &self.options_for_compile(),
             Some(&self.carry),
+            &self.bakes,
         );
         let report = compiled.report.clone();
         self.report = report.clone();
+        self.bake_specs = compiled.bakes.clone();
+        self.bakes_dirty = false;
+        let live: HashSet<NodePath> = self.bake_specs.iter().map(|s| s.path.clone()).collect();
+        self.bakes.retain(&live);
         self.pending = Some(compiled);
         self.flush_pending();
         report
+    }
+
+    // --- whole-input nodes and baking ---
+
+    /// Audio and MIDI that `Audio In` and `MIDI In` will receive, for bakes
+    /// in an offline render. Recompiles.
+    pub fn set_bake_input(&mut self, input: BakeInput) -> CompileReport {
+        let mut h = ac_core::util::Fnv64::new();
+        if let Some(a) = &input.audio {
+            h.write(&a.sample_rate.to_le_bytes());
+            for ch in &a.channels {
+                for v in ch {
+                    h.write(&v.to_bits().to_le_bytes());
+                }
+                h.write(b"|");
+            }
+        }
+        for (at, msg) in input.midi.iter() {
+            h.write(&at.to_le_bytes());
+            h.write(format!("{msg:?}").as_bytes());
+        }
+        self.input_hash = h.finish();
+        self.bake_input = input;
+        self.recompile()
+    }
+
+    /// Frames bakes cover (default: the project length). Recompiles.
+    pub fn set_bake_frames(&mut self, frames: Option<u64>) -> CompileReport {
+        self.bake_frames = frames;
+        self.recompile()
+    }
+
+    /// Every whole-input node in the running graph and where it stands.
+    pub fn bakes(&self) -> &[BakeSpec] {
+        &self.bake_specs
+    }
+
+    /// Whether a bake for `path` is running.
+    pub fn is_baking(&self, path: &NodePath) -> bool {
+        self.in_flight.iter().any(|(p, _)| p == path)
+    }
+
+    /// Bake jobs that can start now: nodes waiting for a bake whose upstream
+    /// bakes are done, minus those already handed out. Run each with
+    /// [`BakeJob::run`] (on a worker thread live) and pass the result to
+    /// [`EngineHandle::finish_bake`].
+    pub fn take_bake_jobs(&mut self) -> Vec<BakeJob> {
+        let mut jobs = Vec::new();
+        let opts = self.options_for_compile();
+        let project = Arc::new(self.project.clone());
+        for spec in &self.bake_specs {
+            if !matches!(spec.state, WholeState::Pending | WholeState::Stale) {
+                continue;
+            }
+            let id = (spec.path.clone(), spec.key);
+            if self.in_flight.contains(&id) {
+                continue;
+            }
+            let deps_ready = spec.deps.iter().all(|d| {
+                self.bake_specs
+                    .iter()
+                    .find(|s| &s.path == d)
+                    .is_some_and(|s| s.state == WholeState::Baked)
+            });
+            if !deps_ready {
+                continue;
+            }
+            self.in_flight.insert(id);
+            jobs.push(BakeJob {
+                path: spec.path.clone(),
+                key: spec.key,
+                project: project.clone(),
+                registry: self.registry.clone(),
+                resources: self.resources.clone(),
+                options: opts.clone(),
+                store: self.bakes.clone(),
+                input: self.bake_input.clone(),
+            });
+        }
+        jobs
+    }
+
+    /// Install a finished bake. A result for an outdated key is dropped (a
+    /// newer job will come). Recompiles so the node streams it; returns
+    /// whether it was used.
+    pub fn finish_bake(&mut self, result: BakeResult) -> bool {
+        self.in_flight.remove(&(result.path.clone(), result.key));
+        let current = self
+            .bake_specs
+            .iter()
+            .any(|s| s.path == result.path && s.key == result.key);
+        if !current {
+            return false;
+        }
+        self.bakes.insert(result);
+        self.recompile();
+        true
+    }
+
+    /// Run every bake to completion on this thread, in dependency order
+    /// (offline renders and tests).
+    pub fn bake_all(&mut self) {
+        // Each pass finishes at least one bake or stops; the bound guards
+        // against a node whose bake can never become current.
+        for _ in 0..=self.bake_specs.len() * 2 + 1 {
+            let jobs = self.take_bake_jobs();
+            if jobs.is_empty() {
+                break;
+            }
+            for job in jobs {
+                let r = job.run();
+                self.finish_bake(r);
+            }
+        }
+    }
+
+    /// True when a parameter changed upstream of a baked node since the last
+    /// compile: call [`EngineHandle::refresh`] (debounced) to rebake.
+    pub fn bakes_dirty(&self) -> bool {
+        self.bakes_dirty
     }
 
     /// Push a compiled graph that couldn't be sent earlier (ring full).
@@ -336,6 +501,13 @@ impl EngineHandle {
             && let Some(node) = self.project.graph.node_mut(id)
         {
             node.params.insert(socket.to_string(), value.clone());
+            if self
+                .bake_specs
+                .iter()
+                .any(|s| s.upstream.iter().any(|u| u.0.first() == path.0.first()))
+            {
+                self.bakes_dirty = true;
+            }
         }
         let Some(targets) = self.params.get(&(path.clone(), socket.to_string())) else {
             return false;
@@ -447,6 +619,15 @@ impl Processor {
         self.clock = clock;
     }
 
+    /// Spread independent steps across a pool of real-time worker threads
+    /// (or run everything on the audio thread with `None`). Results are
+    /// identical either way.
+    pub fn set_workers(&mut self, workers: Option<Arc<RtPool>>) {
+        let threads = workers.as_ref().map_or(1, |w| w.workers() + 1);
+        self.status.cores.store(threads as u32, Ordering::Relaxed);
+        self.workers = workers;
+    }
+
     pub fn status(&self) -> &Arc<EngineStatus> {
         &self.status
     }
@@ -515,7 +696,19 @@ impl Processor {
                 frames: n,
                 midi: &self.midi_scratch,
             };
-            self.graph.run(n, block, &mut host, node_clock);
+            let engine = EngineInfo {
+                load: self.status.load_fraction(),
+                xruns: self.status.total_xruns(),
+                latency: self.graph.latency,
+            };
+            self.graph.run(
+                n,
+                block,
+                &mut host,
+                node_clock,
+                self.workers.as_deref(),
+                engine,
+            );
             self.transport.start_flag = false;
             self.transport.stop_flag = false;
             self.graph.advance_params(n);
@@ -551,6 +744,7 @@ impl Processor {
             let prev = f32::from_bits(s.master_peak[c].load(Ordering::Relaxed));
             s.master_peak[c].store(p.max(prev * decay).to_bits(), Ordering::Relaxed);
         }
+        s.latency.store(self.graph.latency, Ordering::Relaxed);
         if let (Some(t0), Some(clock)) = (t_start, self.clock) {
             let elapsed = clock().saturating_sub(t0) as f64;
             let budget = frames as f64 / self.graph.sample_rate * 1e9;
@@ -558,6 +752,22 @@ impl Processor {
             s.load.store((load as f32).to_bits(), Ordering::Relaxed);
             if load > 1.0 {
                 s.xruns.fetch_add(1, Ordering::Relaxed);
+            }
+            // Per-core load: time each thread spent on steps this block.
+            if let Some(w) = self.workers.as_deref() {
+                w.take_busy(&mut self.busy);
+                for (k, b) in self.busy.iter().enumerate().take(w.workers() + 1) {
+                    let l = if budget > 0.0 {
+                        *b as f64 / budget
+                    } else {
+                        0.0
+                    };
+                    if let Some(a) = s.core_load.get(k) {
+                        a.store((l as f32).to_bits(), Ordering::Relaxed);
+                    }
+                }
+            } else if let Some(a) = s.core_load.first() {
+                a.store((load as f32).to_bits(), Ordering::Relaxed);
             }
         }
     }
@@ -635,5 +845,33 @@ impl Processor {
                 self.graph.set_param(m.slot, m.value);
             }
         }
+    }
+}
+
+/// Compile settings for a project under engine options.
+fn compile_options(
+    project: &Project,
+    options: &EngineOptions,
+    generation: u64,
+    bake_frames: Option<u64>,
+    input_hash: u64,
+    resources_generation: u64,
+) -> CompileOptions {
+    let length = project.settings.length;
+    let length = if length.is_finite() {
+        length.clamp(0.0, 24.0 * 3600.0)
+    } else {
+        0.0
+    };
+    CompileOptions {
+        sample_rate: options.sample_rate,
+        max_block: options.max_block,
+        socket_telemetry: options.socket_telemetry,
+        generation,
+        offline: options.offline,
+        bake_block: (project.settings.block_size as usize).clamp(1, 16_384),
+        bake_frames: bake_frames.unwrap_or((length * options.sample_rate).ceil() as u64),
+        input_hash,
+        resources_generation,
     }
 }

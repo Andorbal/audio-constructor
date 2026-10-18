@@ -8,19 +8,24 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+mod bake;
 mod compile;
 mod engine;
 mod flatten;
 mod graph;
+mod internal;
 mod null_host;
+mod pool;
 mod render;
 mod report;
 mod telemetry;
 
+pub use bake::{BakeInput, BakeJob, BakeResult, BakeSpec, BakeStore, WholeState};
 pub use compile::{CarryLayout, CompileOptions, Compiled, ParamMap, ParamTarget, compile};
 pub use engine::{ClockFn, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 pub use graph::CompiledGraph;
 pub use null_host::NullHost;
+pub use pool::{Job, MAX_WORKERS, RtPool};
 pub use render::{RenderOptions, Rendered, apply_overrides, render, required_output_channels};
 pub use report::{CompileReport, CompileStats, Diagnostic, Severity};
 pub use telemetry::{
