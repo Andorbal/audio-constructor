@@ -190,6 +190,29 @@ fn match_score(q: &str, meta: &NodeMeta) -> Option<i32> {
     best
 }
 
+/// How well `query` matches `text` the way node search ranks a name,
+/// ignoring case: exactly (1000), as a prefix (800 less the length),
+/// anywhere (500 less the length), or as a subsequence ("bqd" in "biquad",
+/// 200 plus a bonus for runs). `None` if it doesn't match. The editor's
+/// find bar ranks nodes with it.
+pub fn fuzzy_score(query: &str, text: &str) -> Option<i32> {
+    let q = query.trim().to_lowercase();
+    if q.is_empty() {
+        return None;
+    }
+    let t = text.to_lowercase();
+    let len = t.len().min(300) as i32;
+    if t == q {
+        Some(1000)
+    } else if t.starts_with(&q) {
+        Some(800 - len)
+    } else if t.contains(&q) {
+        Some(500 - len)
+    } else {
+        subsequence_score(&q, &t).map(|s| 200 + s)
+    }
+}
+
 /// Subsequence match ("bqd" in "biquad"); rewards contiguous runs.
 fn subsequence_score(q: &str, s: &str) -> Option<i32> {
     let mut chars = s.chars().peekable();
@@ -372,6 +395,17 @@ mod tests {
         assert_eq!(r.search("bqd")[0].meta.kind, "test_biquad");
         assert!(r.search("zzz").is_empty());
         assert_eq!(r.search("").len(), 2);
+    }
+
+    #[test]
+    fn fuzzy_scores_rank_like_node_search() {
+        assert_eq!(fuzzy_score("Gain", "gain"), Some(1000));
+        let prefix = fuzzy_score("osc", "Oscillator").unwrap();
+        let inside = fuzzy_score("cill", "Oscillator").unwrap();
+        let loose = fuzzy_score("oclt", "Oscillator").unwrap();
+        assert!(prefix > inside && inside > loose && loose >= 200);
+        assert_eq!(fuzzy_score("zz", "Oscillator"), None);
+        assert_eq!(fuzzy_score("  ", "Oscillator"), None);
     }
 
     #[test]
