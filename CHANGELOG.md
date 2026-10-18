@@ -11,6 +11,8 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.5.0] - 2026-10-18
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
@@ -215,6 +217,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Andorbal/audio-constructor/compare/v0.1.0...v0.2.0
