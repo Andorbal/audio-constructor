@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time.
+
 <a id="adsr"></a>
 ## ADSR
 

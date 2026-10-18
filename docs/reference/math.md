@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates.
+
 <a id="accumulate"></a>
 ## Accumulate
 
