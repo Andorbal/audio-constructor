@@ -10,7 +10,7 @@
 //!   ignored), so new energy anywhere in the spectrum counts and decays
 //!   don't.
 //! - [`PeakPicker`] reports a frame as an onset when its flux is a local
-//!   maximum and exceeds the mean of the preceding frames by `delta`.
+//!   maximum and reaches `ratio × mean + delta` over the preceding frames.
 //! - [`locate`] finds the sample where an onset starts inside a frame, so a
 //!   trigger can be placed more precisely than one hop.
 
@@ -80,13 +80,14 @@ impl PeakPicker {
 
     /// Add the next value. Returns the previous value if it was an onset: a
     /// local maximum (above the value before it, at least the new one) that
-    /// is at least `delta` above the mean of the [`MEAN_FRAMES`] values
-    /// before it.
-    pub fn push(&mut self, value: f32, delta: f32) -> Option<f32> {
+    /// reaches `ratio × mean + delta`, where `mean` is the mean of the
+    /// [`MEAN_FRAMES`] values before it. The ratio matters in steady noise,
+    /// whose flux has a large mean; the offset in near silence.
+    pub fn push(&mut self, value: f32, ratio: f32, delta: f32) -> Option<f32> {
         let value = if value.is_finite() { value } else { 0.0 };
         let c = self.candidate;
         let mean = self.history.iter().sum::<f32>() / MEAN_FRAMES as f32;
-        let onset = c > self.before && c >= value && c >= mean + delta;
+        let onset = c > self.before && c >= value && c >= ratio * mean + delta;
         self.history[self.at] = c;
         self.at = (self.at + 1) % MEAN_FRAMES;
         self.before = c;
@@ -161,9 +162,18 @@ mod tests {
         let hits: Vec<usize> = seq
             .iter()
             .enumerate()
-            .filter_map(|(i, &v)| p.push(v, 0.5).map(|_| i - 1))
+            .filter_map(|(i, &v)| p.push(v, 1.0, 0.5).map(|_| i - 1))
             .collect();
         assert_eq!(hits, vec![4]);
+        // A ratio raises the bar in proportion to the background.
+        let mut p = PeakPicker::new();
+        for _ in 0..10 {
+            p.push(1.0, 1.5, 0.1);
+        }
+        assert!(p.push(1.55, 1.5, 0.1).is_none());
+        assert!(p.push(1.0, 1.5, 0.1).is_none(), "1.55 < 1.5 × 1 + 0.1");
+        p.push(1.8, 1.5, 0.1);
+        assert_eq!(p.push(1.0, 1.5, 0.1), Some(1.8));
     }
 
     #[test]
