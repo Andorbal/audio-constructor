@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ac_core::{
-    AudioData, Block, BlockSource, Endpoint, NodeId, NodePath, Origin, Project, Value, Wire,
+    AudioData, Block, BlockSource, Control, Endpoint, GamepadAxis, GamepadButton, Key, MidiMsg,
+    NodeId, NodeInstance, NodePath, Origin, Project, Source, Target, TransportAction, Value, Wire,
 };
 use ac_engine::{Engine, EngineOptions, HostIo, RenderOptions, WholeState, render};
 use ac_io::{AssetStore, FileResources, Library};
@@ -27,6 +28,8 @@ const EXPECTED: &[&str] = &[
     "generative-patch",
     "tape-loop",
     "guitar-to-synth",
+    "build-a-keyboard",
+    "gamepad-jam",
 ];
 
 /// Examples that only make sound from a live input.
@@ -191,6 +194,93 @@ fn examples_without_live_inputs_make_sound() {
         assert!(peak > 0.01, "{name} is silent (peak {peak})");
         assert!(peak <= 1.0, "{name} clips (peak {peak})");
     }
+}
+
+/// Kinds that have a widget to pin to a performance panel (UX.md "Panels").
+const PINNABLE: &[&str] = &[
+    "button",
+    "toggle",
+    "slider",
+    "knob",
+    "xy_pad",
+    "keyboard",
+    "number",
+    "dropdown",
+    "meter",
+    "scope",
+    "analyzer",
+    "readout",
+    "clip",
+    "record",
+    "audio_out",
+];
+
+/// Panels pin top-level nodes that have widgets, and bindings drive
+/// unwired inputs that exist (a wired input ignores its binding), so
+/// what an example shows on its panel and plays from its controls works.
+#[test]
+fn example_panels_and_bindings_point_at_real_controls() {
+    let registry = ac_nodes::registry();
+    let mut problems = Vec::new();
+    for path in examples() {
+        let name = stem(&path);
+        let project = ac_io::load_project(&path).expect("example loads");
+        for panel in &project.panels {
+            assert!(
+                !panel.items.is_empty(),
+                "{name}: panel {} is empty",
+                panel.name
+            );
+            for item in &panel.items {
+                match project.graph.node(item.node) {
+                    Some(n) if PINNABLE.contains(&n.kind.as_str()) => {}
+                    Some(n) => problems.push(format!(
+                        "{name}: panel {} pins a {} (no widget)",
+                        panel.name, n.kind
+                    )),
+                    None => problems.push(format!(
+                        "{name}: panel {} pins missing node {}",
+                        panel.name, item.node
+                    )),
+                }
+            }
+        }
+        for b in &project.bindings {
+            let Target::Input { node, socket } = &b.target else {
+                continue;
+            };
+            let [id] = node.0.as_slice() else {
+                problems.push(format!("{name}: binding into a group ({node})"));
+                continue;
+            };
+            let Some(n) = project.graph.node(*id) else {
+                problems.push(format!("{name}: binding to missing node {node}"));
+                continue;
+            };
+            let inputs: Vec<String> = match n.group_def() {
+                Some(def) => project.group_defs[&def]
+                    .inputs
+                    .iter()
+                    .map(|i| i.name.clone())
+                    .collect(),
+                None => registry.get(&n.kind).map_or(Vec::new(), |e| {
+                    (e.describe)(&n.config)
+                        .inputs
+                        .iter()
+                        .map(|s| s.name.to_string())
+                        .collect()
+                }),
+            };
+            if !inputs.contains(socket) {
+                problems.push(format!("{name}: {} has no input {socket}", n.kind));
+            }
+            let to = Endpoint::new(*id, socket.as_str());
+            if project.graph.wire_into(&to).is_some() {
+                problems.push(format!("{name}: {node}:{socket} is bound but wired"));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
 
 #[test]
@@ -408,4 +498,240 @@ fn guitar_to_synth_follows_the_riff_and_the_guitar() {
     let out = render_with(&switch_on(&project), &path, &options);
     let level = peak(&out.channels);
     assert!(level > 0.05 && level <= 1.0, "peak {level}");
+}
+
+/// `project` with the param `socket` of the node labeled `label` set.
+fn set(project: &Project, label: &str, socket: &str, value: Value) -> Project {
+    let mut p = project.clone();
+    let id = labeled(&p, label);
+    let node = p.graph.node_mut(id).expect("node");
+    node.params.insert(socket.into(), value);
+    p
+}
+
+/// Render `seconds` of `project` with control-surface events at the given
+/// times (seconds).
+fn render_controls(
+    project: &Project,
+    path: &Path,
+    seconds: f64,
+    controls: &[(f64, Control, f32)],
+) -> ac_engine::Rendered {
+    let rate = f64::from(project.settings.sample_rate);
+    let options = RenderOptions {
+        to: Some(seconds),
+        controls: controls
+            .iter()
+            .map(|(t, c, v)| ((t * rate) as u64, *c, *v))
+            .collect(),
+        ..RenderOptions::default()
+    };
+    render_with(project, path, &options)
+}
+
+/// A slice of `x` between two times (seconds).
+fn between(x: &[f32], rate: f64, from: f64, to: f64) -> &[f32] {
+    &x[(from * rate) as usize..(to * rate) as usize]
+}
+
+/// Build a Keyboard plays its demo phrase by default; picking Computer keys
+/// plays the piano row of Keyboard In, and On-screen keyboard the Keyboard,
+/// shifted by Octave.
+#[test]
+fn build_a_keyboard_plays_the_demo_the_computer_keys_and_the_on_screen_keys() {
+    let path = example("build-a-keyboard");
+    let project = ac_io::load_project(&path).expect("loads");
+    let rate = f64::from(project.settings.sample_rate);
+    let synth = listening_to(&project, Endpoint::new(labeled(&project, "Synth"), "out"));
+    let demo = render_project(&synth, &path, 2.0);
+    assert!(peak(&demo.channels) > 0.05, "the demo plays");
+
+    // Computer keys: silent until A and G, which play middle C and the G
+    // above it at the Velocity knob's 0.8.
+    let keys = tapping_midi(
+        &set(&synth, "Play with", "value", Value::Int(1)),
+        "Notes",
+        "out",
+    );
+    let key = |name| Control::Key(Key::from_name(name).expect("key"));
+    let presses = [
+        (0.5, key("A"), 1.0),
+        (0.5, key("G"), 1.0),
+        (1.5, key("A"), 0.0),
+        (1.5, key("G"), 0.0),
+    ];
+    let out = render_controls(&keys, &path, 2.0, &presses);
+    let ch = &out.channels[0];
+    assert_eq!(ac_core::testing::peak(between(ch, rate, 0.0, 0.5)), 0.0);
+    assert!(ac_core::testing::peak(between(ch, rate, 0.6, 1.4)) > 0.05);
+    assert_eq!(chords(&out.midi, rate), vec![(0.5, vec![60, 67], 102)]);
+    let silent = render_controls(&keys, &path, 1.0, &[]);
+    assert_eq!(peak(&silent.channels), 0.0, "no keys, no notes");
+    assert!(silent.midi.is_empty());
+
+    // On-screen keyboard: key 12 is C4 from the lowest C3, an octave up C5.
+    let board = set(&synth, "Play with", "value", Value::Int(2));
+    let board = set(&board, "On-screen keyboard", "key_12", Value::Bool(true));
+    let board = tapping_midi(
+        &set(&board, "Octave", "value", Value::Int(1)),
+        "Notes",
+        "out",
+    );
+    let out = render_project(&board, &path, 1.0);
+    assert!(ac_core::testing::peak(between(&out.channels[0], rate, 0.1, 0.9)) > 0.05);
+    assert_eq!(chords(&out.midi, rate), vec![(0.0, vec![72], 102)]);
+
+    // The Play panel holds the keyboard and the source menu.
+    let panel = project
+        .panels
+        .iter()
+        .find(|p| p.name == "Play")
+        .expect("a Play panel");
+    for label in [
+        "On-screen keyboard",
+        "Play with",
+        "Octave",
+        "Velocity",
+        "Cutoff (Hz)",
+    ] {
+        assert!(
+            panel.contains(labeled(&project, label)),
+            "{label} isn't pinned"
+        );
+    }
+}
+
+/// `project` with a MIDI Out fed from output `socket` of the node labeled
+/// `label`, so a render reports the notes passing there.
+fn tapping_midi(project: &Project, label: &str, socket: &str) -> Project {
+    let mut p = project.clone();
+    let from = labeled(&p, label);
+    let id = NodeId(p.graph.ids().last().map_or(1, |n| n.0 + 1));
+    p.graph.nodes.push(NodeInstance::new(id, "midi_out"));
+    p.graph
+        .connect(Endpoint::new(from, socket), Endpoint::new(id, "midi"));
+    p
+}
+
+/// A chord: when it starts (seconds, to 10 ms), its notes in order, and
+/// its first note's velocity.
+type Strum = (f64, Vec<u8>, u8);
+
+/// Note-ons in `midi`, grouped by when they start.
+fn chords(midi: &[(u64, MidiMsg)], rate: f64) -> Vec<Strum> {
+    let mut out: Vec<Strum> = Vec::new();
+    for (t, m) in midi {
+        if let MidiMsg::NoteOn { note, velocity, .. } = m
+            && *velocity > 0
+        {
+            let at = (*t as f64 / rate * 100.0).round() / 100.0;
+            match out.last_mut() {
+                Some((s, notes, _)) if *s == at => notes.push(*note),
+                _ => out.push((at, vec![*note], *velocity)),
+            }
+        }
+    }
+    for (_, notes, _) in &mut out {
+        notes.sort_unstable();
+    }
+    out
+}
+
+/// Gamepad Jam: the demo strums Am, F, C, G, one a bar, and plays the drums;
+/// Select on the controller takes over (a binding flips the Gamepad switch),
+/// D-pad right strums the next chord and D-pad left starts over, the right
+/// trigger strums harder, the left stick moves the Cutoff knob, and A plays
+/// the kick.
+#[test]
+fn gamepad_jam_plays_the_demo_and_follows_the_controller() {
+    let path = example("gamepad-jam");
+    let project = ac_io::load_project(&path).expect("loads");
+    let rate = f64::from(project.settings.sample_rate);
+    let tapped = tapping_midi(&project, "In A minor", "midi");
+    let am = vec![57, 60, 64];
+    let f = vec![53, 57, 60];
+    let c = vec![48, 52, 55];
+    let g = vec![55, 59, 62];
+    let notes = |played: &[Strum]| -> Vec<(f64, Vec<u8>)> {
+        played.iter().map(|(t, n, _)| (*t, n.clone())).collect()
+    };
+
+    // The demo: a chord at the top of every bar (120 bpm: every 2 s).
+    let out = render_project(&tapped, &path, 8.0);
+    assert_eq!(
+        notes(&chords(&out.midi, rate)),
+        vec![(0.0, am.clone()), (2.0, f.clone()), (4.0, c), (6.0, g)]
+    );
+
+    // The controller takes over at 1 s; the demo's chord at 2 s is gone.
+    let button = |b| Control::GamepadButton { pad: 0, button: b };
+    let press = |t: f64, b| [(t, button(b), 1.0), (t + 0.05, button(b), 0.0)];
+    let mut controls = Vec::new();
+    controls.extend(press(1.0, GamepadButton::Select));
+    let right_trigger = Control::GamepadAxis {
+        pad: 0,
+        axis: GamepadAxis::RightTrigger,
+    };
+    controls.push((2.9, right_trigger, 1.0));
+    controls.extend(press(3.0, GamepadButton::DpadRight));
+    controls.extend(press(4.0, GamepadButton::DpadLeft));
+    controls.extend(press(5.0, GamepadButton::DpadRight));
+    let out = render_controls(&tapped, &path, 7.0, &controls);
+    let played = chords(&out.midi, rate);
+    assert_eq!(notes(&played), vec![(0.0, am.clone()), (3.0, f), (5.0, am)]);
+    assert!(played[0].2 < 100, "the demo strums at 0.7");
+    assert_eq!(played[1].2, 127, "the right trigger pulled all the way");
+
+    // The left stick is bound to the Cutoff knob: all the way right is its top.
+    let knob = listening_to(
+        &project,
+        Endpoint::new(labeled(&project, "Cutoff (Hz)"), "out"),
+    );
+    let stick = Control::GamepadAxis {
+        pad: 0,
+        axis: GamepadAxis::LeftX,
+    };
+    let out = render_controls(&knob, &path, 1.0, &[(0.5, stick, 1.0)]);
+    let ch = &out.channels[0];
+    assert!(
+        (ch[(0.25 * rate) as usize] - 2500.0).abs() < 1.0,
+        "the knob's own value"
+    );
+    assert!(
+        (ch[(0.75 * rate) as usize] - 12000.0).abs() < 1.0,
+        "the stick's"
+    );
+
+    // With the controller playing, nothing sounds until A plays the kick.
+    let drums = listening_to(&project, Endpoint::new(labeled(&project, "Drums"), "out"));
+    let on = set(&drums, "Controller", "value", Value::Bool(true));
+    let out = render_controls(&on, &path, 1.5, &press(0.5, GamepadButton::South));
+    let ch = &out.channels[0];
+    assert_eq!(ac_core::testing::peak(between(ch, rate, 0.0, 0.5)), 0.0);
+    assert!(ac_core::testing::peak(between(ch, rate, 0.5, 0.8)) > 0.05);
+
+    // Start plays and stops on any controller, as the Devices tab's preset
+    // would on A (which is the kick here).
+    assert!(project.bindings.iter().any(|b| {
+        b.source
+            == Source::GamepadButton {
+                pad: None,
+                button: GamepadButton::Start,
+            }
+            && b.target
+                == Target::Transport {
+                    action: TransportAction::PlayStop,
+                }
+    }));
+    let panel = project
+        .panels
+        .iter()
+        .find(|p| p.name == "Jam")
+        .expect("a Jam panel");
+    for label in ["Controller", "Cutoff (Hz)", "Resonance"] {
+        assert!(
+            panel.contains(labeled(&project, label)),
+            "{label} isn't pinned"
+        );
+    }
 }

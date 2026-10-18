@@ -15,7 +15,7 @@ fixes and smaller changes.
 
 ### Added
 
-- Seven new example projects, each a working patch with notes on the canvas
+- Nine new example projects, each a working patch with notes on the canvas
   saying what each part does and what to try. All of them play when you
   press Space, and render with `audioc render`, without any hardware:
   - **Sidechain Pump**: a pad that ducks under a four-on-the-floor kick
@@ -24,6 +24,17 @@ fixes and smaller changes.
   - **Drum Machine**: the Drum Machine block playing from the transport,
     and its per-drum triggers playing a second kit of Samplers cut from
     one audio file; a switch flips between the two kits.
+  - **Build a Keyboard**: the Subtractive Synth Voice block made
+    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) or
+    an on-screen Keyboard, with velocity, octave, and timbre knobs, all on
+    a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo phrase plays
+    until you pick a keyboard in its Play with menu.
+  - **Gamepad Jam**: drums on a game controller's face buttons, strummed
+    chords stepped by the D-pad, a filter on the left stick, and strum
+    strength and echo on the analog triggers, with bindings for play/stop
+    on Start and for the sticks and triggers, and a **Jam** panel. A demo
+    pattern plays the same parts until you press Select on the controller
+    to take over.
   - **Multiband Compressor**: a four-track loop through the Multiband
     Compressor block, with before and after meters, a bypass switch, and a
     meter per band showing how hard each band is turned down.
@@ -39,6 +50,11 @@ fixes and smaller changes.
   - **Guitar-to-Synth**: a synth that follows the pitch and dynamics of a
     guitar on Audio In, with a recorded riff standing in until you switch
     the guitar on.
+- `audioc bench` has a ninth stress project, `subtractive-voices-16`:
+  sixteen voices of the shipped Subtractive Synth Voice block (two saws, a
+  ladder filter, and an envelope each), all sounding at once. It is the
+  synth the Phase 2 performance target is measured on; the results are in
+  `bench/README.md`.
 - A **user guide** in [docs/guide](docs/guide/README.md), written for
   musicians and sound designers rather than programmers: getting started
   and setting up your sound card, the editor, building a first synth and

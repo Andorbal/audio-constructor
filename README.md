@@ -143,8 +143,12 @@ patch with notes on the canvas saying what each part does and what to try:
   tempo.
 - **Drum Machine**: the Drum Machine block, and a kit of Samplers played
   from its triggers.
+- **Build a Keyboard**: a polyphonic synth played from the computer keys or
+  an on-screen keyboard, with a performance panel to play it full screen.
 - **Reverse Delay**: echoes that play backwards, and why Reverse bakes from
   a Clip but switches off on Audio In.
+- **Gamepad Jam**: drums on the face buttons, chords on the D-pad, and a
+  filter on the stick, with bindings and a panel for a game controller.
 - **Multiband Compressor**: a mix compressed in three bands, with a meter
   per band.
 - **Vocoder**: a synth chord that talks, with a robot voice built from
