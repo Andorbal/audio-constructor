@@ -119,10 +119,30 @@ cargo run --release -p ac-app -- examples/guitar-pedalboard.acproj
 
 Press `Space` to play, `Shift+A` to add a node, drag between sockets to
 wire, `Ctrl+Z` to undo. Pick your audio interface and MIDI keyboard in the
-side panel's **Devices** tab (`N` toggles the panel). The examples in
-`examples/` are good places to start: **Start**, **Guitar Pedalboard**,
-**Subtractive Synth**, **Four Tracks**, and **Reverse Delay** (a Phase 2
-preview).
+side panel's **Devices** tab (`N` toggles the panel).
+
+The examples in `examples/` are good places to start. Each is a working
+patch with notes on the canvas saying what each part does and what to try:
+
+- **Start**: an oscillator to the output, and a first tour of the editor.
+- **Guitar Pedalboard**: a guitar through a tone filter and an echo, live.
+- **Subtractive Synth**: a mono synth played from a MIDI keyboard.
+- **Four Tracks**: four looping clips, each through a Track group, mixed.
+- **Sidechain Pump**: a pad that ducks under the kick drum, in time with the
+  tempo.
+- **Drum Machine**: the Drum Machine block, and a kit of Samplers played
+  from its triggers.
+- **Reverse Delay**: echoes that play backwards, and why Reverse bakes from
+  a Clip but switches off on Audio In.
+- **Multiband Compressor**: a mix compressed in three bands, with a meter
+  per band.
+- **Vocoder**: a synth chord that talks, with a robot voice built from
+  filters or with yours.
+- **Generative Patch**: Euclidean rhythms and seeded random notes, snapped
+  to a scale.
+- **Tape Loop**: phrases circling a worn, wobbling tape loop until they
+  fade.
+- **Guitar-to-Synth**: a synth that follows a guitar's pitch and dynamics.
 
 ![The Subtractive Synth example: MIDI note, oscillator, filter, and envelopes, with a clock-driven demo note](docs/images/editor-synth.png)
 
