@@ -474,6 +474,13 @@ like the computer keyboard, pushes into the same per-source rings, and one
 | macOS | CoreAudio | Already low latency; aggregate devices supported by the OS. |
 | Windows | WASAPI shared + exclusive; **ASIO** (feature `asio`) | ASIO needs the Steinberg ASIO SDK at build time and a signed license to distribute binaries; it ships as an opt-in build. WASAPI exclusive gets most of the way for many interfaces. |
 | Linux | ALSA; JACK (feature `jack`); PipeWire via its JACK/ALSA shims | Native PipeWire later if the shims prove limiting. |
+
+The optional backends are built on every change (DECISIONS D100): CI
+builds the editor and `audioc` with `jack` on Linux and plays a project
+through a JACK server's dummy driver (`crates/ac-io/tests/backends.rs`),
+and builds both with `asio` on Windows, where it checks the ASIO host is
+listed and fails cleanly without drivers. Release archives are built
+without either feature.
 | Web | Web Audio `AudioWorklet` | Requires cross-origin isolation headers for `SharedArrayBuffer`. |
 
 - Buffer sizes from 32 to 2048 frames; the settings panel shows the measured

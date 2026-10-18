@@ -13,6 +13,13 @@ fixes and smaller changes.
 
 ## [0.5.0] - 2026-10-18
 
+### Added
+
+- **JACK and ASIO builds are covered**: the README explains how to build
+  with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
+  built with both, with the JACK build playing a project through a JACK
+  server.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
