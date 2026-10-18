@@ -15,11 +15,6 @@ use crate::theme;
 /// 4:30, like most hardware.
 const KNOB_SWEEP: f32 = 1.5 * PI;
 
-/// Raised surfaces (button tops, knob caps) and their hovered shade.
-const RAISED: Color32 = Color32::from_rgb(0x32, 0x36, 0x3F);
-const RAISED_HOVER: Color32 = Color32::from_rgb(0x3A, 0x3F, 0x49);
-const SHADOW: Color32 = Color32::from_rgb(0x15, 0x16, 0x1A);
-
 fn controls_color() -> Color32 {
     theme::category_color(ac_core::Category::Controls)
 }
@@ -39,16 +34,16 @@ pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: boo
     let base = if down {
         theme::category_color(ac_core::Category::Controls)
     } else if hovered {
-        Color32::from_rgb(0x3A, 0x3F, 0x49)
+        theme::raised_hover()
     } else {
-        Color32::from_rgb(0x32, 0x36, 0x3F)
+        theme::raised()
     };
     if !down {
         // A lip under the button so it reads as raised.
         painter.rect_filled(
             rect.translate(vec2(0.0, 2.0 * zoom)),
             r,
-            theme::fade(Color32::from_rgb(0x1A, 0x1C, 0x21), alpha),
+            theme::fade(theme::raised_lip(), alpha),
         );
     }
     painter.rect_filled(rect, r, theme::fade(base, alpha));
@@ -64,9 +59,9 @@ pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: boo
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
             theme::fade(
                 if down {
-                    theme::TEXT_STRONG
+                    theme::text_strong()
                 } else {
-                    theme::TEXT
+                    theme::text()
                 },
                 alpha,
             ),
@@ -85,9 +80,9 @@ pub fn toggle(painter: &Painter, rect: Rect, zoom: f32, on: bool, hovered: bool,
     let fill = if on {
         on_color
     } else if hovered {
-        Color32::from_rgb(0x3A, 0x3F, 0x49)
+        theme::toggle_hover()
     } else {
-        Color32::from_rgb(0x30, 0x34, 0x3C)
+        theme::toggle_off()
     };
     painter.rect_filled(track, theme::radius(h / 2.0), theme::fade(fill, alpha));
     let knob_x = if on {
@@ -98,7 +93,7 @@ pub fn toggle(painter: &Painter, rect: Rect, zoom: f32, on: bool, hovered: bool,
     painter.circle_filled(
         pos2(knob_x, track.center().y),
         h / 2.0 - 2.5 * zoom,
-        theme::fade(theme::TEXT_STRONG, alpha),
+        theme::fade(theme::text_strong(), alpha),
     );
     if zoom >= 0.4 {
         painter.text(
@@ -108,9 +103,9 @@ pub fn toggle(painter: &Painter, rect: Rect, zoom: f32, on: bool, hovered: bool,
             theme::canvas_font(theme::FONT_NODE_TITLE, zoom, false),
             theme::fade(
                 if on {
-                    theme::TEXT_STRONG
+                    theme::text_strong()
                 } else {
-                    theme::TEXT_MUTED
+                    theme::text_muted()
                 },
                 alpha,
             ),
@@ -138,7 +133,7 @@ pub fn slider(
     painter.rect_filled(
         track,
         theme::radius(track_h / 2.0),
-        theme::fade(theme::WIDGET_BG, alpha),
+        theme::fade(theme::widget_bg(), alpha),
     );
     let fill = Rect::from_min_size(track.min, vec2(track.width() * t.clamp(0.0, 1.0), track_h));
     let color = theme::category_color(ac_core::Category::Controls);
@@ -152,19 +147,15 @@ pub fn slider(
         track.center().y,
     );
     let kr = if hovered || active { 6.5 } else { 5.5 } * zoom;
-    painter.circle_filled(
-        knob,
-        kr + 1.0,
-        theme::fade(Color32::from_rgb(0x15, 0x16, 0x1A), alpha),
-    );
-    painter.circle_filled(knob, kr, theme::fade(theme::TEXT_STRONG, alpha));
+    painter.circle_filled(knob, kr + 1.0, theme::fade(theme::body_shadow(), alpha));
+    painter.circle_filled(knob, kr, theme::fade(theme::text_strong(), alpha));
     if zoom >= 0.4 {
         painter.text(
             pos2(rect.center().x, rect.min.y + 6.0 * zoom),
             Align2::CENTER_CENTER,
             text,
             theme::canvas_font(theme::FONT_VALUE, zoom, true),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         );
     }
 }
@@ -216,7 +207,7 @@ pub fn knob(
     let w = (4.0 * zoom).max(1.0);
     painter.add(Shape::line(
         arc(center, r, knob_angle(0.0), knob_angle(1.0)),
-        Stroke::new(w, theme::fade(theme::WIDGET_BG, alpha)),
+        Stroke::new(w, theme::fade(theme::widget_bg(), alpha)),
     ));
     let (a, b) = (knob_angle(origin), knob_angle(t));
     if (b - a).abs() > 1e-3 {
@@ -229,19 +220,19 @@ pub fn knob(
     painter.circle_filled(
         center + vec2(0.0, 1.5 * zoom),
         cap,
-        theme::fade(SHADOW, alpha),
+        theme::fade(theme::body_shadow(), alpha),
     );
     let fill = if hovered || active {
-        RAISED_HOVER
+        theme::raised_hover()
     } else {
-        RAISED
+        theme::raised()
     };
     painter.circle_filled(center, cap, theme::fade(fill, alpha));
     if active {
         painter.circle_stroke(
             center,
             cap,
-            Stroke::new(1.0, theme::fade(theme::ACCENT, alpha)),
+            Stroke::new(1.0, theme::fade(theme::accent(), alpha)),
         );
     }
     painter.line_segment(
@@ -251,7 +242,7 @@ pub fn knob(
         ],
         Stroke::new(
             (2.0 * zoom).max(1.0),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         ),
     );
     if text_h > 0.0 {
@@ -260,7 +251,7 @@ pub fn knob(
             Align2::CENTER_CENTER,
             text,
             theme::canvas_font(theme::FONT_VALUE, zoom, true),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         );
     }
 }
@@ -277,8 +268,8 @@ pub fn xy_pad(
     alpha: f32,
 ) {
     let r = theme::radius(4.0 * zoom);
-    painter.rect_filled(rect, r, theme::fade(theme::SCOPE_BG, alpha));
-    let grid = Stroke::new(1.0, theme::fade(theme::SCOPE_GRID, alpha));
+    painter.rect_filled(rect, r, theme::fade(theme::scope_bg(), alpha));
+    let grid = Stroke::new(1.0, theme::fade(theme::scope_grid(), alpha));
     for i in 1..4 {
         let f = i as f32 / 4.0;
         let x = rect.min.x + rect.width() * f;
@@ -293,9 +284,9 @@ pub fn xy_pad(
             1.0,
             theme::fade(
                 if hovered || touched {
-                    theme::NODE_HOVER
+                    theme::node_hover()
                 } else {
-                    theme::NODE_OUTLINE
+                    theme::node_outline()
                 },
                 alpha,
             ),
@@ -321,11 +312,11 @@ pub fn xy_pad(
     if touched {
         painter.circle_filled(p, dot * 2.0, theme::fade(color, 0.2 * alpha));
     }
-    painter.circle_filled(p, dot + 1.0, theme::fade(SHADOW, alpha));
+    painter.circle_filled(p, dot + 1.0, theme::fade(theme::body_shadow(), alpha));
     painter.circle_filled(
         p,
         dot,
-        theme::fade(if touched { color } else { theme::TEXT_STRONG }, alpha),
+        theme::fade(if touched { color } else { theme::text_strong() }, alpha),
     );
 }
 
@@ -345,16 +336,16 @@ pub fn keyboard(
 ) {
     let lit = controls_color();
     let r = theme::radius(2.0 * zoom);
-    let edge = Stroke::new(1.0, theme::fade(SHADOW, alpha));
+    let edge = Stroke::new(1.0, theme::fade(theme::body_shadow(), alpha));
     for k in keys {
         let down = held.contains(&k.index);
         let fill = match (k.black, down, hovered == Some(k.index)) {
             (false, true, _) => lit,
-            (false, false, true) => Color32::from_rgb(0xC9, 0xCD, 0xD4),
-            (false, false, false) => Color32::from_rgb(0xE6, 0xE8, 0xEC),
-            (true, true, _) => theme::mix(lit, SHADOW, 0.25),
-            (true, false, true) => Color32::from_rgb(0x44, 0x48, 0x52),
-            (true, false, false) => Color32::from_rgb(0x1E, 0x20, 0x25),
+            (false, false, true) => theme::KEY_WHITE_HOVER,
+            (false, false, false) => theme::KEY_WHITE,
+            (true, true, _) => theme::mix(lit, theme::body_shadow(), 0.25),
+            (true, false, true) => theme::KEY_BLACK_HOVER,
+            (true, false, false) => theme::KEY_BLACK,
         };
         let rect = if k.black {
             k.rect
@@ -386,9 +377,9 @@ pub fn keyboard(
                 theme::canvas_font(8.5, zoom, false),
                 theme::fade(
                     if down {
-                        theme::TEXT_STRONG
+                        theme::text_strong()
                     } else {
-                        Color32::from_rgb(0x6A, 0x70, 0x7A)
+                        theme::KEY_LABEL
                     },
                     alpha,
                 ),
@@ -410,16 +401,16 @@ pub fn number(
 ) {
     let r = theme::radius(4.0 * zoom);
     let bg = if hovered || active {
-        theme::WIDGET_BG_HOVER
+        theme::widget_bg_hover()
     } else {
-        theme::WELL_BG
+        theme::well_bg()
     };
     painter.rect_filled(rect, r, theme::fade(bg, alpha));
     if active {
         painter.rect_stroke(
             rect,
             r,
-            Stroke::new(1.0, theme::fade(theme::ACCENT, alpha)),
+            Stroke::new(1.0, theme::fade(theme::accent(), alpha)),
             StrokeKind::Inside,
         );
     }
@@ -429,7 +420,7 @@ pub fn number(
             Align2::CENTER_CENTER,
             text,
             theme::canvas_font(17.0, zoom, true),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         );
     }
 }
@@ -447,9 +438,9 @@ pub fn dropdown(
 ) {
     let r = theme::radius(theme::WIDGET_RADIUS * zoom);
     let bg = if hovered || open {
-        theme::WIDGET_BG_HOVER
+        theme::widget_bg_hover()
     } else {
-        theme::WIDGET_BG
+        theme::widget_bg()
     };
     painter.rect_filled(rect, r, theme::fade(bg, alpha));
     painter.rect_stroke(
@@ -459,9 +450,9 @@ pub fn dropdown(
             1.0,
             theme::fade(
                 if open {
-                    theme::ACCENT
+                    theme::accent()
                 } else {
-                    theme::NODE_OUTLINE
+                    theme::node_outline()
                 },
                 alpha,
             ),
@@ -477,13 +468,13 @@ pub fn dropdown(
         Align2::RIGHT_CENTER,
         icons::CARET_DOWN,
         theme::canvas_font(theme::FONT_SMALL, zoom, false),
-        theme::fade(theme::TEXT_MUTED, alpha),
+        theme::fade(theme::text_muted(), alpha),
     );
     let mut job = egui::text::LayoutJob::single_section(
         label.to_string(),
         egui::TextFormat::simple(
             theme::canvas_font(theme::FONT_NODE_TITLE, zoom, false),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         ),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width((rect.width() - 3.0 * pad).max(8.0));
@@ -491,7 +482,7 @@ pub fn dropdown(
     painter.galley(
         pos2(rect.min.x + pad, rect.center().y - galley.size().y / 2.0),
         galley,
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
 }
 
@@ -518,12 +509,12 @@ pub fn meter(painter: &Painter, rect: Rect, zoom: f32, ch: [MeterChannel; 2], al
             Align2::CENTER_CENTER,
             format!("{}", mark as i32),
             theme::canvas_font(9.5, zoom, true),
-            theme::fade(theme::TEXT_FAINT, alpha),
+            theme::fade(theme::text_faint(), alpha),
         );
     }
     let peak = ch[0].hold.max(ch[1].hold);
     let (txt, color) = if peak < 1e-5 {
-        ("-∞".to_string(), theme::TEXT_FAINT)
+        ("-∞".to_string(), theme::text_faint())
     } else {
         (format!("{:.1}", db(peak)), theme::meter_color(db(peak)))
     };
@@ -539,15 +530,15 @@ pub fn meter(painter: &Painter, rect: Rect, zoom: f32, ch: [MeterChannel; 2], al
 /// One meter bar.
 pub fn meter_bar(painter: &Painter, bar: Rect, zoom: f32, c: MeterChannel, alpha: f32) {
     let r = theme::radius(2.0 * zoom);
-    painter.rect_filled(bar, r, theme::fade(theme::METER_BG, alpha));
+    painter.rect_filled(bar, r, theme::fade(theme::meter_bg(), alpha));
     let w = bar.width();
     let p = meter_pos(c.peak);
     if p > 0.0 {
         // Color by zone so the bar reads like a classic meter.
         let zones = [
-            (-60.0f32, -12.0f32, theme::METER_LOW),
-            (-12.0, -3.0, theme::METER_MID),
-            (-3.0, 3.0, theme::METER_HIGH),
+            (-60.0f32, -12.0f32, theme::meter_low()),
+            (-12.0, -3.0, theme::meter_mid()),
+            (-3.0, 3.0, theme::meter_high()),
         ];
         for (lo, hi, color) in zones {
             let a = ((lo + 60.0) / 63.0).max(0.0);
@@ -606,9 +597,9 @@ pub fn analyzer(
     painter.rect_filled(
         rect,
         theme::radius(4.0 * zoom),
-        theme::fade(theme::SCOPE_BG, alpha),
+        theme::fade(theme::scope_bg(), alpha),
     );
-    let grid = theme::fade(theme::SCOPE_GRID, alpha);
+    let grid = theme::fade(theme::scope_grid(), alpha);
     for db in [-24.0, -48.0, -72.0] {
         let y = rect.max.y - analyzer_height(db) * rect.height();
         painter.line_segment(
@@ -643,11 +634,11 @@ pub fn analyzer(
         );
         // Meter colors near full scale.
         let c = if db > -6.0 {
-            theme::METER_HIGH
+            theme::meter_high()
         } else if db > -18.0 {
-            theme::METER_MID
+            theme::meter_mid()
         } else {
-            theme::METER_LOW
+            theme::meter_low()
         };
         painter.rect_filled(bar, 0.0, theme::fade(c, alpha));
     }
@@ -665,9 +656,9 @@ pub fn scope(
     painter.rect_filled(
         rect,
         theme::radius(4.0 * zoom),
-        theme::fade(theme::SCOPE_BG, alpha),
+        theme::fade(theme::scope_bg(), alpha),
     );
-    let grid = theme::fade(theme::SCOPE_GRID, alpha);
+    let grid = theme::fade(theme::scope_grid(), alpha);
     painter.line_segment(
         [
             pos2(rect.min.x, rect.center().y),
@@ -723,7 +714,7 @@ pub fn readout(painter: &Painter, rect: Rect, zoom: f32, text: &str, alpha: f32)
     painter.rect_filled(
         rect,
         theme::radius(4.0 * zoom),
-        theme::fade(theme::WELL_BG, alpha),
+        theme::fade(theme::well_bg(), alpha),
     );
     if zoom >= 0.3 {
         painter.text(
@@ -731,7 +722,7 @@ pub fn readout(painter: &Painter, rect: Rect, zoom: f32, text: &str, alpha: f32)
             Align2::CENTER_CENTER,
             text,
             theme::canvas_font(17.0, zoom, true),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         );
     }
 }
@@ -747,16 +738,16 @@ pub fn clip(
     alpha: f32,
 ) {
     let bg = if hovered {
-        theme::WIDGET_BG_HOVER
+        theme::widget_bg_hover()
     } else {
-        theme::WIDGET_BG
+        theme::widget_bg()
     };
     painter.rect_filled(rect, theme::radius(4.0 * zoom), theme::fade(bg, alpha));
     if missing {
         painter.rect_stroke(
             rect,
             theme::radius(4.0 * zoom),
-            Stroke::new(1.0, theme::fade(theme::ERROR, alpha)),
+            Stroke::new(1.0, theme::fade(theme::error(), alpha)),
             StrokeKind::Inside,
         );
     }
@@ -772,7 +763,7 @@ pub fn clip(
             .unwrap_or_else(|| file.to_string())
     };
     let (icon, color) = if missing {
-        (icons::FILE_X, theme::ERROR)
+        (icons::FILE_X, theme::error())
     } else {
         (
             icons::FILE_AUDIO,
@@ -791,9 +782,9 @@ pub fn clip(
         theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
         theme::fade(
             if file.is_empty() {
-                theme::TEXT_MUTED
+                theme::text_muted()
             } else {
-                theme::TEXT
+                theme::text()
             },
             alpha,
         ),
@@ -803,7 +794,7 @@ pub fn clip(
     painter.galley(
         pos2(rect.min.x + 24.0 * zoom, rect.center().y - row / 2.0),
         galley,
-        theme::TEXT,
+        theme::text(),
     );
 }
 
@@ -822,7 +813,7 @@ pub fn record(
     painter.rect_filled(
         rect,
         theme::radius(4.0 * zoom),
-        theme::fade(theme::WELL_BG, alpha),
+        theme::fade(theme::well_bg(), alpha),
     );
     let lamp = pos2(rect.min.x + 12.0 * zoom, rect.center().y);
     let blink = if recording {
@@ -830,7 +821,11 @@ pub fn record(
     } else {
         0.25
     };
-    painter.circle_filled(lamp, 5.0 * zoom, theme::fade(theme::RECORD, blink * alpha));
+    painter.circle_filled(
+        lamp,
+        5.0 * zoom,
+        theme::fade(theme::record(), blink * alpha),
+    );
     if zoom < 0.4 {
         return;
     }
@@ -848,9 +843,9 @@ pub fn record(
         theme::canvas_font(theme::FONT_VALUE, zoom, true),
         theme::fade(
             if recording {
-                theme::TEXT_STRONG
+                theme::text_strong()
             } else {
-                theme::TEXT_MUTED
+                theme::text_muted()
             },
             alpha,
         ),
@@ -861,7 +856,7 @@ pub fn record(
             Align2::RIGHT_CENTER,
             format!("{} {}", icons::WARNING, dropped as u64),
             theme::canvas_font(theme::FONT_SMALL, zoom, true),
-            theme::fade(theme::WARNING, alpha),
+            theme::fade(theme::warning(), alpha),
         );
     }
 }
@@ -890,7 +885,7 @@ pub fn comment(
 ) {
     let r = theme::radius(6.0 * zoom);
     painter.add(theme::node_shadow().as_shape(rect, r));
-    painter.rect_filled(rect, r, theme::fade(theme::NOTE_BG, alpha));
+    painter.rect_filled(rect, r, theme::fade(theme::note_bg(), alpha));
     let header = Rect::from_min_size(rect.min, vec2(rect.width(), 20.0 * zoom));
     painter.rect_filled(
         header,
@@ -900,7 +895,7 @@ pub fn comment(
             sw: 0,
             se: 0,
         },
-        theme::fade(theme::NOTE_HEADER, alpha),
+        theme::fade(theme::note_header(), alpha),
     );
     // A folded corner, bottom right.
     let f = 14.0 * zoom;
@@ -911,13 +906,13 @@ pub fn comment(
             pos2(c.x, c.y - f),
             pos2(c.x - f, c.y - f),
         ],
-        theme::fade(theme::NOTE_HEADER, alpha),
+        theme::fade(theme::note_header(), alpha),
         Stroke::NONE,
     ));
     let outline = if selected {
-        theme::NODE_SELECTED
+        theme::node_selected()
     } else {
-        theme::fade(theme::NOTE_HEADER, 1.0)
+        theme::fade(theme::note_header(), 1.0)
     };
     painter.rect_stroke(
         rect,
@@ -936,7 +931,7 @@ pub fn comment(
         Align2::LEFT_CENTER,
         format!("{}  {}", icons::NOTE, title.unwrap_or("Note")),
         theme::canvas_font(theme::FONT_SMALL, zoom, false),
-        theme::fade(theme::NOTE_TEXT, 0.8 * alpha),
+        theme::fade(theme::note_text(), 0.8 * alpha),
     );
     let body = Rect::from_min_max(
         pos2(rect.min.x + 10.0 * zoom, header.max.y + 6.0 * zoom),
@@ -952,16 +947,16 @@ pub fn comment(
         theme::canvas_font(theme::FONT_NODE_TITLE, zoom, false),
         theme::fade(
             if text.is_empty() {
-                theme::TEXT_MUTED
+                theme::text_muted()
             } else {
-                theme::NOTE_TEXT
+                theme::note_text()
             },
             alpha,
         ),
         body.width().max(10.0),
     );
     let clip = painter.with_clip_rect(body.intersect(painter.clip_rect()));
-    clip.galley(body.min, galley, theme::NOTE_TEXT);
+    clip.galley(body.min, galley, theme::note_text());
 }
 
 /// The resize grip of a resizable card (comments, frames).

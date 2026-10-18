@@ -16,16 +16,19 @@ use crate::audio::{AudioMode, EngineHost};
 use crate::canvas::{Canvas, CanvasEvent, CanvasIo, PendingWire};
 use crate::dialogs::{self, Confirm, FilePurpose, PathPrompt};
 use crate::document::Document;
+use crate::edit::connect::{self, FeedError, SelectionOrder, Source};
 use crate::edit::{self, HIDE_UNWIRED, pins};
 use crate::export::{ExportSummary, export_wav};
 use crate::files::{self, Recent};
+use crate::find::{FindBar, Found};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
-use crate::theme;
+use crate::settings::{self, AppSettings};
+use crate::theme::{self, ThemeChoice};
 use crate::transport::TransportState;
 
 mod sharing;
@@ -45,6 +48,8 @@ pub struct AppOptions {
     /// The folder of the person's own and imported blocks. `None` keeps
     /// them in memory, with only the shipped blocks to start from.
     pub library: Option<PathBuf>,
+    /// The editor's theme and UI scale, and where they're saved.
+    pub settings: AppSettings,
 }
 
 impl AppOptions {
@@ -58,6 +63,7 @@ impl AppOptions {
             native_dialogs: false,
             seed: 1,
             library: None,
+            settings: AppSettings::in_memory(),
         }
     }
 }
@@ -67,6 +73,8 @@ impl AppOptions {
 enum AfterConfirm {
     New,
     Open(PathBuf),
+    /// A shipped example, opened as an untitled copy.
+    OpenExample(PathBuf),
     Quit,
 }
 
@@ -96,6 +104,8 @@ pub struct EditorApp {
     pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
     show_timing: bool,
+    /// Per-node timing read from the engine while it's shown.
+    timing: crate::timing::Timings,
     show_shortcuts: bool,
     show_about: bool,
     title: String,
@@ -118,6 +128,15 @@ pub struct EditorApp {
     /// Play keys' state before performance mode turned it on, while
     /// performance mode lasts.
     play_keys_before_performance: Option<bool>,
+    /// The find bar (`Ctrl+F`).
+    pub find: FindBar,
+    /// The order the selected nodes were selected in.
+    selection_order: SelectionOrder,
+    /// The selected nodes the palette's pick will be wired from, in
+    /// selection order (connect selected to new node).
+    palette_feed: Vec<NodeId>,
+    /// Theme and UI scale (View menu), saved as they change.
+    settings: AppSettings,
 }
 
 impl EditorApp {
@@ -211,6 +230,7 @@ impl EditorApp {
             takes: Vec::new(),
             export_job: None,
             show_timing: false,
+            timing: crate::timing::Timings::default(),
             show_shortcuts: false,
             show_about: false,
             title: String::new(),
@@ -225,7 +245,12 @@ impl EditorApp {
             bound: crate::bindings::BoundInputs::default(),
             play_keys: PlayKeys::default(),
             play_keys_before_performance: None,
+            find: FindBar::default(),
+            selection_order: SelectionOrder::default(),
+            palette_feed: Vec::new(),
+            settings: opts.settings,
         };
+        app.apply_settings(ctx);
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
             app.open(&p, 0.0);
@@ -305,6 +330,33 @@ impl EditorApp {
         self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
 
+    /// The editor's settings (theme and UI scale).
+    pub fn settings(&self) -> &AppSettings {
+        &self.settings
+    }
+
+    /// Show the settings' theme and scale in `ctx`.
+    fn apply_settings(&self, ctx: &egui::Context) {
+        theme::set_choice(ctx, self.settings.prefs.theme);
+        ctx.set_zoom_factor(self.settings.prefs.ui_scale);
+    }
+
+    /// View ▸ Theme: switch now and remember the choice.
+    pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
+        self.settings.set_theme(choice);
+        theme::set_choice(ctx, choice);
+        ctx.request_repaint();
+    }
+
+    /// View ▸ UI Scale: everything (canvas text included) scales by
+    /// `scale` from the next frame, and the choice is remembered.
+    pub fn set_ui_scale(&mut self, ctx: &egui::Context, scale: f32, now: f64) {
+        self.settings.set_ui_scale(scale);
+        let scale = self.settings.prefs.ui_scale;
+        ctx.set_zoom_factor(scale);
+        self.say(format!("Interface at {:.0} %", scale * 100.0), now);
+    }
+
     fn say(&mut self, text: impl Into<String>, now: f64) {
         self.status = Some((text.into(), now, false));
     }
@@ -324,15 +376,25 @@ impl EditorApp {
         let themed = egui::Id::unique("audio-constructor-theme");
         if !ctx.data(|d| d.get_temp::<bool>(themed).unwrap_or(false)) {
             theme::apply(&ctx);
+            self.apply_settings(&ctx);
             ctx.data_mut(|d| d.insert_temp(themed, true));
         }
+        // Draw with the theme egui shows (Follow System can change it).
+        theme::follow(&ctx);
         // The canvas is keyboard-driven: with nothing focused, Tab and the
         // arrow keys belong to it, not to egui's focus navigation.
         if ctx.memory(|m| m.focused().is_none()) {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
+        self.track_selection();
         self.handle_keys(&ctx, now);
         self.update_bindings(now);
+        if self.show_timing {
+            let tele = self.engine.handle.telemetry();
+            self.timing.update(&tele, &self.doc, now);
+            // The numbers move with the audio, not with the pointer.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
         if self.learn.is_some() {
             // Keep polling for the control that will bind.
             ctx.request_repaint_after(std::time::Duration::from_millis(30));
@@ -345,7 +407,7 @@ impl EditorApp {
             self.chrome(ui, &ctx, now);
         }
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(theme::CANVAS_BG))
+            .frame(egui::Frame::new().fill(theme::canvas_bg()))
             .show(ui, |ui| {
                 if self.perform.shown {
                     self.show_panels(ui, &ctx, now);
@@ -361,7 +423,7 @@ impl EditorApp {
                     report: &self.engine.report,
                     missing_assets: &self.missing,
                     calm,
-                    show_timing: self.show_timing,
+                    timing: self.show_timing.then_some(&self.timing),
                     bound: &self.bound,
                     events: Vec::new(),
                 };
@@ -379,7 +441,19 @@ impl EditorApp {
             .palette
             .show(&ctx, &self.registry, &self.library, &self.doc)
         {
-            self.add_candidate(&p.candidate, p.at, p.pending, now);
+            let feed = std::mem::take(&mut self.palette_feed);
+            self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+        }
+        if !self.palette.open {
+            self.palette_feed.clear();
+        }
+        if self.perform.shown {
+            self.find.close();
+        } else if let Some(f) =
+            self.find
+                .show(&ctx, self.canvas.screen, &self.doc.project, &self.registry)
+        {
+            self.jump_to_found(&f, now);
         }
         self.dialogs(&ctx, now);
         // Buttons this frame may have started or ended performance mode.
@@ -393,21 +467,26 @@ impl EditorApp {
         egui::Panel::top("menu-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
+                let examples = self.side.help.examples();
                 let state = MenuState {
                     undo: self.doc.undo_label(),
                     redo: self.doc.redo_label(),
                     has_selection: !self.doc.selection.is_empty(),
                     side_panel: self.side.open,
                     timing: self.show_timing,
+                    minimap: self.canvas.minimap,
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
                     play_keys: self.play_keys.is_on(),
+                    theme: self.settings.prefs.theme,
+                    ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
+                    examples,
                     registry: &self.registry,
                 };
                 let cmds = menubar::show(ui, &state);
@@ -418,9 +497,9 @@ impl EditorApp {
         egui::Panel::top("transport")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(10, 5))
-                    .stroke(egui::Stroke::new(1.0, theme::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, theme::border())),
             )
             .exact_size(44.0)
             .show(ui, |ui| {
@@ -436,7 +515,7 @@ impl EditorApp {
         egui::Panel::bottom("status-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(10, 3)),
             )
             .exact_size(24.0)
@@ -448,7 +527,7 @@ impl EditorApp {
                 .size_range(240.0..=640.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(theme::PANEL_BG)
+                        .fill(theme::panel_bg())
                         .inner_margin(egui::Margin::symmetric(10, 4)),
                 )
                 .show(ui, |ui| {
@@ -459,6 +538,7 @@ impl EditorApp {
                         engine: &mut self.engine,
                         assets: &self.assets,
                         missing: &self.missing,
+                        timing: self.show_timing.then_some(&self.timing),
                         requests: Vec::new(),
                         now,
                     };
@@ -476,9 +556,9 @@ impl EditorApp {
         egui::Panel::top("performance-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(12, 6))
-                    .stroke(egui::Stroke::new(1.0, theme::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, theme::border())),
             )
             .exact_size(52.0)
             .show(ui, |ui| {
@@ -502,7 +582,6 @@ impl EditorApp {
         let engine = &mut self.engine.handle;
         let report = &self.engine.report;
         let missing = &self.missing;
-        let show_timing = self.show_timing;
         let bound = &self.bound;
         let events = self.doc.at_root(|doc| {
             let mut io = CanvasIo {
@@ -513,7 +592,7 @@ impl EditorApp {
                 report,
                 missing_assets: missing,
                 calm,
-                show_timing,
+                timing: None,
                 bound,
                 events: Vec::new(),
             };
@@ -535,7 +614,7 @@ impl EditorApp {
                         icons::LINK
                     ))
                     .small()
-                    .color(theme::ACCENT),
+                    .color(theme::accent()),
                 );
                 if ui.small_button("Cancel").clicked() {
                     self.cancel_learn(now);
@@ -549,7 +628,7 @@ impl EditorApp {
                         take.relative_path
                     ))
                     .small()
-                    .color(theme::TEXT),
+                    .color(theme::text()),
                 );
                 if ui.small_button("Create Clip from take").clicked() {
                     self.clip_from_take(&take, now);
@@ -563,12 +642,12 @@ impl EditorApp {
                     ui.label(
                         RichText::new(format!("+{} more", self.takes.len() - 1))
                             .small()
-                            .color(theme::TEXT_MUTED),
+                            .color(theme::text_muted()),
                     );
                 }
             } else if let Some((text, t, warn)) = &self.status {
                 if now - t < 8.0 || *t == 0.0 {
-                    let color = if *warn { theme::WARNING } else { theme::TEXT };
+                    let color = if *warn { theme::warning() } else { theme::text() };
                     let icon = if *warn { icons::WARNING } else { icons::INFO };
                     ui.label(
                         RichText::new(format!("{icon}  {text}"))
@@ -593,18 +672,22 @@ impl EditorApp {
                         icons::KEYBOARD
                     ))
                     .small()
-                    .color(theme::ACCENT),
+                    .color(theme::accent()),
                 );
             } else {
                 let hint = if self.perform.shown {
                     "Drag or click a widget to play it · drag a card by its edge to move it · \
                      F11 performance mode · Ctrl+Tab canvas"
                 } else if self.doc.selection.is_empty() {
-                    "Shift+A add · drag from a socket to wire · double-click empty canvas to search"
+                    "Shift+A add · drag from a socket to wire · double-click empty canvas to search \
+                     · Ctrl+F find · Ctrl+L lay out"
+                } else if self.doc.selection.len() >= 2 {
+                    "F connect two · Shift+A add a node wired from these · Ctrl+L lay out · \
+                     Shift+Alt+A align · Ctrl+G group"
                 } else {
                     "G move · Shift+D duplicate · X delete · Ctrl+G group · M mute · H collapse"
                 };
-                ui.label(RichText::new(hint).small().color(theme::TEXT_FAINT));
+                ui.label(RichText::new(hint).small().color(theme::text_faint()));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let icon = if self.engine.is_running() {
@@ -614,7 +697,7 @@ impl EditorApp {
                 };
                 let text = format!("{icon} {}", self.engine.describe());
                 let r = ui.add(
-                    egui::Button::new(RichText::new(text).small().color(theme::TEXT_MUTED))
+                    egui::Button::new(RichText::new(text).small().color(theme::text_muted()))
                         .frame(false),
                 );
                 if r.on_hover_text("Audio device settings").clicked() {
@@ -628,7 +711,7 @@ impl EditorApp {
                         egui::Button::new(
                             RichText::new(format!("{} {n}", icons::WARNING))
                                 .small()
-                                .color(if errors { theme::ERROR } else { theme::WARNING }),
+                                .color(if errors { theme::error() } else { theme::warning() }),
                         )
                         .frame(false),
                     );
@@ -803,6 +886,7 @@ impl EditorApp {
         let typing = ctx.egui_wants_keyboard_input()
             || self.canvas.is_typing()
             || self.palette.open
+            || self.find.open
             || self.perform.is_typing();
         let modal = self.confirm.is_some() || self.prompt.is_some();
         // Play keys: held keys come up when typing starts, a dialog opens,
@@ -891,8 +975,8 @@ impl EditorApp {
                         continue;
                     }
                     if key == Key::Escape && pressed {
-                        if self.palette.open {
-                            continue; // the palette handles it
+                        if self.palette.open || self.find.open {
+                            continue; // they handle it
                         }
                         if self.perform.shown {
                             // A field takes its own Escape; then popups and
@@ -930,9 +1014,12 @@ impl EditorApp {
                     let action = match key {
                         Key::Delete | Key::Backspace if !modifiers.any() => Some(Action::Delete),
                         // `+` needs Shift on most layouts; `=` is the same key.
-                        Key::Plus | Key::Equals if !modifiers.command && !modifiers.alt => {
-                            Some(Action::ZoomIn)
+                        // With Ctrl (Cmd), they scale the whole interface.
+                        Key::Plus | Key::Equals if modifiers.alt => None,
+                        Key::Plus | Key::Equals if modifiers.command || modifiers.ctrl => {
+                            Some(Action::UiScaleUp)
                         }
+                        Key::Plus | Key::Equals => Some(Action::ZoomIn),
                         _ => actions::for_key(key, modifiers),
                     };
                     let Some(a) = action else { continue };
@@ -977,14 +1064,21 @@ impl EditorApp {
                 screen,
                 canvas,
                 pending,
-            } => self.palette.open_at(screen, canvas, pending),
+            } => {
+                let feed = pending.is_none();
+                self.find.close();
+                self.palette.open_at(screen, canvas, pending);
+                if feed {
+                    self.prepare_feed();
+                }
+            }
             CanvasEvent::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
+                self.side.show_help(kind.as_deref());
             }
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
@@ -1067,8 +1161,8 @@ impl EditorApp {
     }
 
     fn panel_request(&mut self, ctx: &egui::Context, r: PanelRequest, now: f64) {
-        let _ = ctx;
         match r {
+            PanelRequest::Run(a) => self.run(ctx, a, now),
             PanelRequest::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
@@ -1079,7 +1173,7 @@ impl EditorApp {
             }
             PanelRequest::Navigate(path) => {
                 if let Some(id) = self.doc.navigate_to(&path) {
-                    self.canvas.focus_node(&self.doc, &self.registry, id);
+                    self.canvas.jump_to(&self.doc, &self.registry, id);
                 } else {
                     self.warn("That node no longer exists.", now);
                 }
@@ -1095,6 +1189,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
+            PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1120,9 +1216,13 @@ impl EditorApp {
             MenuCommand::OpenRecent(p) => self.request_open(p, now),
             MenuCommand::ForgetRecent(p) => self.recent.remove(&p),
             MenuCommand::ClearRecent => self.recent.clear(),
+            MenuCommand::OpenExample(p) => self.request(AfterConfirm::OpenExample(p), now),
+            MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
+            MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
-                self.add_candidate(&c, at, None, now);
+                let feed = self.feed_order();
+                self.add_node_from(&c, at, None, &feed, now);
             }
         }
     }
@@ -1162,6 +1262,104 @@ impl EditorApp {
         pending: Option<PendingWire>,
         now: f64,
     ) -> Option<NodeId> {
+        self.add_node_from(c, at, pending, &[], now)
+    }
+
+    /// Follow the selection, so its order is known (selection is a set).
+    fn track_selection(&mut self) {
+        let prefix = self.doc.scope_prefix();
+        self.selection_order
+            .sync(&self.doc.selection, self.doc.graph(), &prefix);
+    }
+
+    /// The selected nodes in selection order when there are two or more of
+    /// them (what connect-selected-to-new-node wires), else nothing.
+    fn feed_order(&mut self) -> Vec<NodeId> {
+        self.track_selection();
+        let order: Vec<NodeId> = self
+            .selection_order
+            .get()
+            .iter()
+            .copied()
+            .filter(|id| !edit::is_virtual(*id))
+            .collect();
+        if order.len() >= 2 { order } else { Vec::new() }
+    }
+
+    /// The palette just opened without a wire: with several nodes
+    /// selected, what it adds is wired from them.
+    fn prepare_feed(&mut self) {
+        self.palette_feed = self.feed_order();
+        let n = self.palette_feed.len();
+        self.palette.note = (n >= 2).then(|| {
+            format!("The {n} selected nodes will be wired into it, in the order you selected them")
+        });
+    }
+
+    /// Why the selected nodes weren't wired into a new node, for the
+    /// status line.
+    fn feed_reason(&self, e: &FeedError) -> String {
+        let name = |id: NodeId| {
+            self.doc.graph().node(id).map_or_else(
+                || "a selected node".to_string(),
+                |n| connect::title(n, &self.registry, &self.doc.project.group_defs),
+            )
+        };
+        match e {
+            FeedError::NoOutput(id) => format!("{} has no output", name(*id)),
+            FeedError::NoInput(id, ty) => format!(
+                "it has no free input that takes the {} output of {}",
+                ty.name(),
+                name(*id)
+            ),
+        }
+    }
+
+    /// Jump to a node the find bar found: into its group, selected and
+    /// in view.
+    fn jump_to_found(&mut self, f: &Found, now: f64) {
+        match self.doc.navigate_to(&f.path) {
+            Some(id) => {
+                self.canvas.jump_to(&self.doc, &self.registry, id);
+                if f.place.is_empty() {
+                    self.say(format!("{} ({})", f.title, f.kind), now);
+                } else {
+                    self.say(format!("{} ({}) in {}", f.title, f.kind, f.place), now);
+                }
+            }
+            None => self.warn("That node no longer exists.", now),
+        }
+    }
+
+    /// [`EditorApp::add_candidate`], wired from `feed` (two or more nodes
+    /// in selection order) when there's no pending wire: each feeds the
+    /// new node's inputs in turn, and the node goes to their right (D103).
+    fn add_node_from(
+        &mut self,
+        c: &Candidate,
+        at: egui::Pos2,
+        pending: Option<PendingWire>,
+        feed: &[NodeId],
+        now: f64,
+    ) -> Option<NodeId> {
+        let feed: Vec<NodeId> = if pending.is_none() {
+            feed.iter()
+                .copied()
+                .filter(|id| self.doc.graph().node(*id).is_some())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let feeding = feed.len() >= 2;
+        let bounds = if feeding {
+            self.canvas
+                .node_rects(&self.doc, &self.registry, &feed)
+                .into_iter()
+                .map(|(_, r)| r)
+                .reduce(|a, b| a.union(b))
+        } else {
+            None
+        };
         let pos = match &pending {
             Some(p) if p.from.is_some() => at - vec2(14.0, 40.0),
             Some(_) => at - vec2(theme::NODE_WIDTH - 14.0, 40.0),
@@ -1179,9 +1377,14 @@ impl EditorApp {
             None => None,
         };
         let kind = c.kind.clone();
-        let config = c.config.clone();
+        let config = if feeding && block.is_none() {
+            connect::widen_for(&self.registry, &kind, &c.config, feed.len())
+        } else {
+            c.config.clone()
+        };
         let socket = c.socket.clone();
         let mut error = None;
+        let mut fed: Option<Result<usize, FeedError>> = None;
         let id = self
             .doc
             .edit(&self.registry, &format!("Add {}", c.name), |g, ctx| {
@@ -1212,10 +1415,55 @@ impl EditorApp {
                         error = Some(e.to_string());
                     }
                 }
+                if feeding {
+                    let sources: Vec<Source> = feed
+                        .iter()
+                        .map(|n| {
+                            let s = connect::wirable(g.node(*n), ctx.sockets(g, *n));
+                            Source::of(*n, &s)
+                        })
+                        .collect();
+                    let inputs = ctx.sockets(g, id).inputs;
+                    fed = Some(connect::plan_feeds(&sources, &inputs).map(|plan| {
+                        let wired = plan
+                            .into_iter()
+                            .filter(|(from, input)| {
+                                let to = Endpoint::new(id, input.clone());
+                                edit::connect(g, ctx, from.clone(), to).is_ok()
+                            })
+                            .count();
+                        // To the right of the selection, level with its middle.
+                        let size = g
+                            .node(id)
+                            .map(|n| edit::approx_size(n, &ctx.sockets(g, id)));
+                        if let (Some(b), Some(size), Some(n)) = (bounds, size, g.node_mut(id)) {
+                            n.ui.pos = [
+                                b.max.x + edit::layout::COLUMN_GAP,
+                                b.center().y - size[1] / 2.0,
+                            ];
+                        }
+                        wired
+                    }));
+                }
                 Some(id)
             });
         if let Some(e) = error {
             self.warn(e, now);
+        }
+        match &fed {
+            Some(Ok(n)) => self.say(
+                format!(
+                    "Added {} and wired the {n} selected nodes into it, in the order you selected \
+                     them",
+                    c.name
+                ),
+                now,
+            ),
+            Some(Err(e)) => {
+                let why = self.feed_reason(e);
+                self.warn(format!("Added {} without wiring: {why}", c.name), now);
+            }
+            None => {}
         }
         let id = id?;
         self.doc.selection = [id].into();
@@ -1343,7 +1591,42 @@ impl EditorApp {
             Action::AddNode => {
                 let at = self.canvas.pointer_canvas();
                 let screen = self.canvas.transform().to_screen(at);
+                self.find.close();
                 self.palette.open_at(screen, at, None);
+                self.prepare_feed();
+            }
+            Action::AutoLayout => match self.canvas.auto_layout(&mut self.doc, &reg) {
+                Ok(n) => self.say(format!("Laid out {n} nodes · Ctrl+Z undoes it"), now),
+                Err(e) => self.say(e, now),
+            },
+            Action::ArrangeMenu => {
+                if self.selected_real().len() >= 2 {
+                    self.canvas.open_arrange_menu();
+                } else {
+                    self.say("Select two or more nodes to align or distribute", now);
+                }
+            }
+            Action::AlignLeft
+            | Action::AlignCenter
+            | Action::AlignRight
+            | Action::AlignTop
+            | Action::AlignMiddle
+            | Action::AlignBottom
+            | Action::DistributeHorizontally
+            | Action::DistributeVertically => {
+                if let Some(how) = a.align()
+                    && let Err(e) = self.canvas.align_selection(&mut self.doc, &reg, how)
+                {
+                    self.say(e, now);
+                }
+            }
+            Action::LazyConnect => match self.canvas.lazy_connect(&mut self.doc, &reg) {
+                Ok(what) => self.say(what, now),
+                Err(e) => self.warn(e, now),
+            },
+            Action::Find => {
+                self.palette.close();
+                self.find.show_bar();
             }
             Action::Frame => self.canvas.frame_selection(&mut self.doc, &reg),
             Action::Group => {
@@ -1389,10 +1672,13 @@ impl EditorApp {
                 }
                 let mut all = Vec::new();
                 for g_id in groups {
-                    if let Some(new) = self
-                        .doc
-                        .edit(&reg, "Ungroup", |g, ctx| edit::group::ungroup(g, ctx, g_id))
-                    {
+                    let ungrouped = self.doc.edit(&reg, "Ungroup", |g, ctx| {
+                        let new = edit::group::ungroup(g, ctx, g_id)?;
+                        // Portals that come out keep names of their own.
+                        edit::portal::after_paste(g, &new);
+                        Some(new)
+                    });
+                    if let Some(new) = ungrouped {
                         all.extend(new);
                     }
                 }
@@ -1420,8 +1706,17 @@ impl EditorApp {
                 }
             }),
             Action::NodeHelp => {
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                // One node: its reference. Otherwise the list of every node.
+                let sel = self.selected_real();
+                let kind = sel
+                    .first()
+                    .filter(|_| sel.len() == 1)
+                    .and_then(|id| self.doc.graph().node(*id))
+                    .map(|n| n.kind.clone());
+                if kind.is_none() {
+                    self.side.help.kind = None;
+                }
+                self.side.show_help(kind.as_deref());
             }
             Action::FitAll => self.canvas.fit_all(&self.doc, &reg),
             Action::FitSelection => self.canvas.fit_selection(&self.doc, &reg),
@@ -1434,9 +1729,24 @@ impl EditorApp {
                 self.canvas.fit(None, 1.0);
                 self.canvas.view = v;
             }
+            Action::UiScaleUp => {
+                let s = settings::scale_up(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleDown => {
+                let s = settings::scale_down(self.settings.prefs.ui_scale);
+                self.set_ui_scale(ctx, s, now);
+            }
+            Action::UiScaleReset => self.set_ui_scale(ctx, 1.0, now),
             Action::ToggleSidePanel => self.side.open = !self.side.open,
+            Action::Minimap => self.canvas.minimap = !self.canvas.minimap,
+            Action::Portal => match self.canvas.toggle_portal(&mut self.doc, &reg, now) {
+                Ok(text) => self.say(text, now),
+                Err(text) => self.warn(text, now),
+            },
             Action::ShowTiming => {
                 self.show_timing = !self.show_timing;
+                self.timing.clear();
                 self.engine
                     .handle
                     .status()
@@ -1673,6 +1983,7 @@ impl EditorApp {
                 self.say("New project", now);
             }
             AfterConfirm::Open(path) => self.open(&path, now),
+            AfterConfirm::OpenExample(path) => self.open_example(&path, now),
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -1751,6 +2062,31 @@ impl EditorApp {
             self.say(text, now);
         }
         Ok(())
+    }
+
+    /// Open a shipped example the way the Start project opens: as an
+    /// untitled copy, so saving never overwrites the shipped file. Its
+    /// audio files still load from beside it.
+    pub fn open_example(&mut self, path: &Path, now: f64) {
+        match files::open_project(path, &self.registry) {
+            Ok((mut project, assets)) => {
+                // Its stored view was set on someone else's window.
+                project.view = None;
+                let name = if project.name.trim().is_empty() {
+                    file_name(path)
+                } else {
+                    project.name.clone()
+                };
+                self.replace_document(project, None, files::project_dir(path), assets);
+                self.say(
+                    format!(
+                        "Opened the example “{name}” as a new project: Save As keeps your changes"
+                    ),
+                    now,
+                );
+            }
+            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+        }
     }
 
     /// Show `project` as a new, unsaved document (examples, tests).
@@ -2023,7 +2359,7 @@ impl eframe::App for EditorApp {
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        theme::CANVAS_BG.to_normalized_gamma_f32()
+        theme::canvas_bg().to_normalized_gamma_f32()
     }
 }
 

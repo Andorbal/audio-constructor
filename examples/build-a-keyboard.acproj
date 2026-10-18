@@ -1,0 +1,1832 @@
+{
+  "schema_version": 1,
+  "name": "Build a Keyboard",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 9.6,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 100.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Build a keyboard: one polyphonic synth and three ways to play it, all at once. Press Space and a demo phrase plays.\n\nPlay along: press Ctrl+K (or the keyboard button in the transport bar) to turn on Play keys. The middle row of letters, A S D F G H J K L, plays the white keys up from middle C and W E T Y U O P the black keys; Z and X shift an octave down and up. Or click the on-screen keyboard's keys. Hold several keys for chords, and turn Demo off to play on your own.\n\nCtrl+Tab shows the Play panel, the keyboard and knobs without the wires; F11 plays it full screen, with Play keys on."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -330.0
+          ],
+          "size": [
+            760.0,
+            184.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "knob",
+        "config": {
+          "min": 0.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.8
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Velocity"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "number",
+        "config": {
+          "type": "int",
+          "min": -3,
+          "max": 3
+        },
+        "params": {
+          "value": 0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ],
+          "label": "Octave"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 16.0,
+          "notes": [
+            [
+              0.0,
+              3.8,
+              57,
+              72
+            ],
+            [
+              0.0,
+              3.8,
+              60,
+              72
+            ],
+            [
+              0.0,
+              3.8,
+              64,
+              72
+            ],
+            [
+              0.0,
+              0.95,
+              76,
+              100
+            ],
+            [
+              1.0,
+              0.45,
+              74,
+              100
+            ],
+            [
+              1.5,
+              0.45,
+              72,
+              100
+            ],
+            [
+              2.0,
+              1.45,
+              74,
+              100
+            ],
+            [
+              3.5,
+              0.45,
+              72,
+              100
+            ],
+            [
+              4.0,
+              3.8,
+              53,
+              72
+            ],
+            [
+              4.0,
+              3.8,
+              57,
+              72
+            ],
+            [
+              4.0,
+              3.8,
+              60,
+              72
+            ],
+            [
+              4.0,
+              0.95,
+              72,
+              100
+            ],
+            [
+              5.0,
+              0.95,
+              69,
+              100
+            ],
+            [
+              6.0,
+              1.45,
+              72,
+              100
+            ],
+            [
+              7.5,
+              0.45,
+              74,
+              100
+            ],
+            [
+              8.0,
+              3.8,
+              55,
+              72
+            ],
+            [
+              8.0,
+              3.8,
+              60,
+              72
+            ],
+            [
+              8.0,
+              3.8,
+              64,
+              72
+            ],
+            [
+              8.0,
+              0.95,
+              76,
+              100
+            ],
+            [
+              9.0,
+              0.45,
+              79,
+              100
+            ],
+            [
+              9.5,
+              0.45,
+              76,
+              100
+            ],
+            [
+              10.0,
+              1.95,
+              74,
+              100
+            ],
+            [
+              12.0,
+              3.8,
+              55,
+              72
+            ],
+            [
+              12.0,
+              3.8,
+              59,
+              72
+            ],
+            [
+              12.0,
+              3.8,
+              62,
+              72
+            ],
+            [
+              12.0,
+              0.95,
+              74,
+              100
+            ],
+            [
+              13.0,
+              0.95,
+              71,
+              100
+            ],
+            [
+              14.0,
+              1.95,
+              67,
+              100
+            ]
+          ],
+          "channel": 1
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Demo phrase"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "keyboard_in",
+        "config": {
+          "keys": "",
+          "low": 60,
+          "channel": 1
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            180.0
+          ],
+          "label": "Computer keys"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "keyboard",
+        "config": {
+          "low": 48,
+          "keys": 25,
+          "channel": 1
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            270.0
+          ],
+          "label": "On-screen keyboard"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "toggle",
+        "params": {
+          "value": true
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ],
+          "label": "Demo"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "switch",
+        "config": {
+          "type": "midi"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            150.0
+          ],
+          "label": "Demo gate"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "merge",
+        "config": {
+          "type": "midi",
+          "inputs": 3
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            290.0
+          ],
+          "label": "Notes"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "comment",
+        "config": {
+          "text": "Keyboard In turns the computer keys into MIDI notes, and Keyboard is a piano you click; Velocity sets how hard both of them play, and Octave shifts the on-screen keys. The Demo phrase is a MIDI Pattern: select it to see its notes in the Node tab's piano roll. The Demo gate, a Switch set to carry MIDI, passes it while Demo is on.\n\nAn input takes one wire, so a Merge joins all three into Notes. A note played from two of them at once sounds once and ends when both let go, and turning Demo off lets go of the demo's notes, so nothing hangs."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            450.0
+          ],
+          "size": [
+            736.0,
+            136.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "knob",
+        "config": {
+          "min": 100.0,
+          "max": 8000.0,
+          "unit": "hz",
+          "scale": "log"
+        },
+        "params": {
+          "value": 900.0
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            0.0
+          ],
+          "label": "Cutoff (Hz)"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "knob",
+        "config": {
+          "min": 0.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.25
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            150.0
+          ],
+          "label": "Resonance"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "knob",
+        "config": {
+          "min": 0.0,
+          "max": 5.0
+        },
+        "params": {
+          "value": 2.5
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            300.0
+          ],
+          "label": "Brightness (octaves)"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "knob",
+        "config": {
+          "min": 0.02,
+          "max": 3.0,
+          "unit": "seconds",
+          "scale": "log"
+        },
+        "params": {
+          "value": 0.35
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            450.0
+          ],
+          "label": "Release (s)"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "voices",
+        "config": {
+          "def": "subtractive-synth-voice",
+          "voices": 8,
+          "steal": "oldest"
+        },
+        "params": {
+          "attack": 0.005,
+          "decay": 0.5,
+          "detune": 12.0,
+          "level": -7.0,
+          "sustain": 0.55
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ],
+          "label": "Synth"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "comment",
+        "config": {
+          "text": "Voices plays the Subtractive Synth Voice block once for every note, up to eight at a time, and adds them up, so chords work. The knobs set every voice at once: Cutoff is where the filter rests, Brightness how far each note's envelope opens it, and Release how long a note rings after you let go. Tab into the Synth to see one voice."
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            300.0
+          ],
+          "size": [
+            466.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "group",
+        "config": {
+          "def": "plate-reverb"
+        },
+        "params": {
+          "damping": 0.35,
+          "decay": 1.8,
+          "mix": 0.2,
+          "predelay": 0.02
+        },
+        "ui": {
+          "pos": [
+            1620.0,
+            0.0
+          ],
+          "label": "Room"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1890.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2160.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Add Karplus-Strong String from the Library tab (it arrives as a Voices node) and wire Notes into it instead, for a keyboard of plucked strings.\n• Put a Chord node between Notes and Synth: every key plays a whole chord.\n• Set the Synth's voices to 1 and hold two keys: the newest note steals the voice.\n• Draw your own phrase in the Demo phrase's piano roll.\n• Add an Arpeggiator after Notes, with a Clock (interval 0.25) on its clock.\n• Add a MIDI In, set Notes' Inputs to 4 in the Node tab, and wire it into in_3: a MIDI keyboard plays along too."
+        },
+        "ui": {
+          "pos": [
+            1620.0,
+            200.0
+          ],
+          "size": [
+            560.0,
+            184.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:out",
+        "to": "5:velocity"
+      },
+      {
+        "from": "2:out",
+        "to": "6:velocity"
+      },
+      {
+        "from": "3:out",
+        "to": "6:octave"
+      },
+      {
+        "from": "4:midi",
+        "to": "14:b"
+      },
+      {
+        "from": "7:out",
+        "to": "14:select"
+      },
+      {
+        "from": "14:out",
+        "to": "8:in_0"
+      },
+      {
+        "from": "5:midi",
+        "to": "8:in_1"
+      },
+      {
+        "from": "6:midi",
+        "to": "8:in_2"
+      },
+      {
+        "from": "8:out",
+        "to": "e:midi"
+      },
+      {
+        "from": "a:out",
+        "to": "e:cutoff"
+      },
+      {
+        "from": "b:out",
+        "to": "e:resonance"
+      },
+      {
+        "from": "c:out",
+        "to": "e:env_amount"
+      },
+      {
+        "from": "d:out",
+        "to": "e:release"
+      },
+      {
+        "from": "e:out",
+        "to": "10:in"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      },
+      {
+        "from": "11:out",
+        "to": "12:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Notes: a demo, your computer keys, and the on-screen keys",
+        "rect": [
+          -24.0,
+          -52.0,
+          784.0,
+          662.0
+        ]
+      },
+      {
+        "label": "The synth: eight voices, one set of knobs",
+        "rect": [
+          786.0,
+          -52.0,
+          784.0,
+          653.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "plate-reverb": {
+      "name": "Plate Reverb",
+      "description": "A dense, bright plate reverb: a burst of echoes that thickens at once into a smooth, shimmering tail. Mono or stereo in (summed to mono, as a plate is), wide stereo out.\n\n- `in`: the signal.\n- `predelay` (s): a gap before the reverb starts, which keeps the dry attack clear; 0.01 to 0.04 s for vocals and snares.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60).\n- `damping` (0 to 1): how much faster the highs die away than the lows; 0 is a bright metal plate, 0.5 a darker, softer one.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; 0.2 to 0.35 sits a sound in a mix, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the figure-eight tank from Jon Dattorro's \"Effect Design, Part 1: Reverberator and Other Filters\" (JAES, 1997), with his delay lengths converted to seconds. The input is summed to mono, delayed by `predelay`, and smeared by four input Allpasses (4.8, 3.6, 12.7, and 9.3 ms). It then enters two tank halves, each an Allpass whose delay wobbles slightly (a slow sine Oscillator through a Map, to keep the tail from ringing), a feedforward Comb used as a delay line with the damping lowpass and the decay gain, a second Allpass, and another Comb as a delay with the decay gain. Each half feeds the other: the left half goes straight into the right, and the right comes back to the left through a Feedback node, the loop's only cycle (its one block of delay barely lengthens a loop of about 0.73 s). The decay gain comes from `decay` through Math and Convert: the loop applies it four times per trip, so each is −60 dB × 0.19 s ÷ `decay`. As in the original, each output reads the opposite half: the left channel mixes the outputs of the right half's four stages, and the right channel the left half's. A Mid/Side encode and decode at width 1.6 then widens the pair until the two sides are uncorrelated, and an equal-power Crossfade blends that with the dry input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "reverb",
+        "space",
+        "plate",
+        "stereo",
+        "effect"
+      ],
+      "source": "shipped:plate-reverb",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "26:a"
+          ]
+        },
+        {
+          "name": "predelay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.02,
+          "range": [
+            0.0,
+            0.25
+          ],
+          "targets": [
+            "2:time"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 2.5,
+          "range": [
+            0.3,
+            20.0
+          ],
+          "targets": [
+            "10:b"
+          ]
+        },
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.25,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "14:damping",
+            "19:damping"
+          ]
+        },
+        {
+          "name": "mix",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "26:mix"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "26:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Mono sum"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.5
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                0.0
+              ],
+              "label": "Predelay"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.004771,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                0.0
+              ],
+              "label": "Input diffuser 1"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.003595,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                130.0
+              ],
+              "label": "Input diffuser 2"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.012735,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                0.0
+              ],
+              "label": "Input diffuser 3"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.009307,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                130.0
+              ],
+              "label": "Input diffuser 4"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "freq": 0.7,
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                300.0
+              ],
+              "label": "Wobble"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.023118,
+              "out_min": 0.022042
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                300.0
+              ],
+              "label": "Left wobble (s)"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.029972,
+              "out_min": 0.031048
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                520.0
+              ],
+              "label": "Right wobble (s)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "a": -11.4,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "dB per pass"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Decay gain"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                300.0
+              ],
+              "label": "Into left half"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                300.0
+              ],
+              "label": "Left diffuser"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.149625,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                300.0
+              ],
+              "label": "Left delay 1 + damping"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.060482,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                300.0
+              ],
+              "label": "Left allpass"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.124996,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                300.0
+              ],
+              "label": "Left delay 2"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                600.0
+              ],
+              "label": "Into right half"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                600.0
+              ],
+              "label": "Right diffuser"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.141696,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                600.0
+              ],
+              "label": "Right delay 1 + damping"
+            }
+          },
+          {
+            "id": "20",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.089244,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                600.0
+              ],
+              "label": "Right allpass"
+            }
+          },
+          {
+            "id": "21",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.10628,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                600.0
+              ],
+              "label": "Right delay 2"
+            }
+          },
+          {
+            "id": "22",
+            "kind": "feedback",
+            "ui": {
+              "pos": [
+                1920.0,
+                820.0
+              ],
+              "label": "Back to the left half"
+            }
+          },
+          {
+            "id": "23",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                300.0
+              ],
+              "label": "Left: right-half taps"
+            }
+          },
+          {
+            "id": "24",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                560.0
+              ],
+              "label": "Right: left-half taps"
+            }
+          },
+          {
+            "id": "25",
+            "kind": "merge_channels",
+            "ui": {
+              "pos": [
+                2400.0,
+                300.0
+              ],
+              "label": "Stereo"
+            }
+          },
+          {
+            "id": "27",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                2400.0,
+                440.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "28",
+            "kind": "mid_side",
+            "config": {
+              "mode": "decode"
+            },
+            "params": {
+              "width": 1.6
+            },
+            "ui": {
+              "pos": [
+                2400.0,
+                560.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "26",
+            "kind": "crossfade",
+            "params": {
+              "curve": "equal_power"
+            },
+            "ui": {
+              "pos": [
+                2640.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:mid",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "7:out",
+            "to": "9:in"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "6:out",
+            "to": "12:in_0"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:in"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "16:in"
+          },
+          {
+            "from": "11:out",
+            "to": "14:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "16:feedback"
+          },
+          {
+            "from": "6:out",
+            "to": "17:in_0"
+          },
+          {
+            "from": "17:out",
+            "to": "18:in"
+          },
+          {
+            "from": "18:out",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "20:in"
+          },
+          {
+            "from": "20:out",
+            "to": "21:in"
+          },
+          {
+            "from": "11:out",
+            "to": "19:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "21:feedback"
+          },
+          {
+            "from": "8:out",
+            "to": "13:delay"
+          },
+          {
+            "from": "9:out",
+            "to": "18:delay"
+          },
+          {
+            "from": "16:out",
+            "to": "17:in_1"
+          },
+          {
+            "from": "21:out",
+            "to": "22:in"
+          },
+          {
+            "from": "22:out",
+            "to": "12:in_1"
+          },
+          {
+            "from": "18:out",
+            "to": "23:in_0"
+          },
+          {
+            "from": "19:out",
+            "to": "23:in_1"
+          },
+          {
+            "from": "20:out",
+            "to": "23:in_2"
+          },
+          {
+            "from": "21:out",
+            "to": "23:in_3"
+          },
+          {
+            "from": "13:out",
+            "to": "24:in_0"
+          },
+          {
+            "from": "14:out",
+            "to": "24:in_1"
+          },
+          {
+            "from": "15:out",
+            "to": "24:in_2"
+          },
+          {
+            "from": "16:out",
+            "to": "24:in_3"
+          },
+          {
+            "from": "23:out",
+            "to": "25:in_0"
+          },
+          {
+            "from": "24:out",
+            "to": "25:in_1"
+          },
+          {
+            "from": "25:out",
+            "to": "27:in"
+          },
+          {
+            "from": "27:mid",
+            "to": "28:mid"
+          },
+          {
+            "from": "27:side",
+            "to": "28:side"
+          },
+          {
+            "from": "28:out",
+            "to": "26:b"
+          }
+        ]
+      }
+    },
+    "subtractive-synth-voice": {
+      "name": "Subtractive Synth Voice",
+      "description": "One voice of a classic subtractive synth: two detuned sawtooth oscillators, a resonant ladder filter swept by an envelope, and the same envelope on the volume. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one and wire MIDI into its `midi` input for a polyphonic synth that plays chords, pads, leads, and basses.\n\n- `cutoff` (Hz) is where the filter sits while the envelope is at rest; `resonance` (0 to 1) adds a peak there, and near 1 the filter starts to whistle.\n- `env_amount` (octaves) is how far the envelope opens the filter above `cutoff` at its peak: 3 means three octaves (eight times the frequency). Negative values close the filter instead.\n- `attack`, `decay`, and `release` (seconds) and `sustain` (0 to 1) shape the envelope. It sweeps the filter and sets the volume at once, so a short decay with a low sustain makes a pluck, and a slow attack makes a pad.\n- `detune` (cents) pulls the two oscillators apart, one up and one down by half of it, for a thicker, beating sound; 0 makes them one.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. Half of `detune`, in semitones, becomes a frequency ratio (Convert) that divides one Oscillator's frequency and multiplies the other's. A Mix adds the two saws at −9 dB each, and a 24 dB per octave Ladder filters them. An ADSR follows the gate: multiplied by `env_amount` it is an offset in octaves, 2 raised to it multiplies `cutoff`, and the envelope times velocity drives the VCA, a Math multiply on the filtered sound, followed by a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "subtractive",
+        "polyphonic",
+        "filter"
+      ],
+      "source": "shipped:subtractive-synth-voice",
+      "inputs": [
+        {
+          "name": "cutoff",
+          "type": "float",
+          "unit": "hz",
+          "default": 500.0,
+          "range": [
+            20.0,
+            20000.0
+          ],
+          "targets": [
+            "f:a"
+          ]
+        },
+        {
+          "name": "resonance",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:resonance"
+          ]
+        },
+        {
+          "name": "env_amount",
+          "type": "float",
+          "default": 3.0,
+          "range": [
+            -4.0,
+            8.0
+          ],
+          "targets": [
+            "d:b"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.5,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "c:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.3,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "c:release"
+          ]
+        },
+        {
+          "name": "detune",
+          "type": "float",
+          "default": 12.0,
+          "range": [
+            0.0,
+            100.0
+          ],
+          "targets": [
+            "2:a"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "b:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "b:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "b": 0.005,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Half the detune (st)"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "convert",
+            "params": {
+              "op": "semitones_to_ratio"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                140.0
+              ],
+              "label": "Detune ratio"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Lower pitch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                140.0
+              ],
+              "label": "Upper pitch"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Saw A"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                320.0
+              ],
+              "label": "Saw B"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": -9.0,
+              "gain_1": -9.0
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "ladder",
+            "params": {
+              "drive": 0.0,
+              "mode": "lp24"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Octaves above cutoff"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "math",
+            "params": {
+              "a": 2.0,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "2^octaves"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Filter cutoff"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                840.0
+              ],
+              "label": "Volume"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "1:freq",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "5:a"
+          },
+          {
+            "from": "3:out",
+            "to": "5:b"
+          },
+          {
+            "from": "4:out",
+            "to": "6:freq"
+          },
+          {
+            "from": "5:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "6:out",
+            "to": "8:in_0"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in_1"
+          },
+          {
+            "from": "8:out",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:gate",
+            "to": "c:gate"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "d:out",
+            "to": "e:b"
+          },
+          {
+            "from": "e:out",
+            "to": "f:b"
+          },
+          {
+            "from": "f:out",
+            "to": "9:cutoff"
+          },
+          {
+            "from": "c:out",
+            "to": "10:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "10:b"
+          },
+          {
+            "from": "10:out",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Two detuned saws",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              680.0
+            ]
+          },
+          {
+            "label": "Filter and VCA",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              228.0
+            ]
+          },
+          {
+            "label": "Envelope: filter sweep and volume",
+            "rect": [
+              226.0,
+              640.0,
+              1244.0,
+              344.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "panels": [
+    {
+      "name": "Play",
+      "items": [
+        {
+          "node": "7"
+        },
+        {
+          "node": "6"
+        },
+        {
+          "node": "3"
+        },
+        {
+          "node": "2"
+        },
+        {
+          "node": "a"
+        },
+        {
+          "node": "b"
+        },
+        {
+          "node": "c"
+        },
+        {
+          "node": "d"
+        },
+        {
+          "node": "11"
+        }
+      ]
+    }
+  ]
+}

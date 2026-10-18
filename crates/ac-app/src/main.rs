@@ -21,6 +21,7 @@ fn main() -> eframe::Result {
         recent: Recent::load_default(),
         native_dialogs: std::env::var_os("AC_NO_NATIVE_DIALOGS").is_none(),
         seed,
+        settings: ac_app::settings::AppSettings::load_default(),
         library: directories::ProjectDirs::from("", "", "Audio Constructor")
             .map(|d| d.data_dir().join("blocks")),
     };

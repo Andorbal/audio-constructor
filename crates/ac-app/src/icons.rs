@@ -52,6 +52,16 @@ pub const PENCIL: &str = "\u{E3B4}";
 pub const PUSH_PIN: &str = "\u{E3E2}";
 pub const PUSH_PIN_SLASH: &str = "\u{E3E4}";
 pub const SQUARES_FOUR: &str = "\u{E464}";
+pub const ALIGN_LEFT: &str = "\u{E50E}";
+pub const ALIGN_CENTER_HORIZONTAL: &str = "\u{E50A}";
+pub const ALIGN_RIGHT: &str = "\u{E510}";
+pub const ALIGN_TOP: &str = "\u{E512}";
+pub const ALIGN_CENTER_VERTICAL: &str = "\u{E50C}";
+pub const ALIGN_BOTTOM: &str = "\u{E506}";
+pub const ARROWS_OUT_LINE_HORIZONTAL: &str = "\u{E534}";
+pub const ARROWS_OUT_LINE_VERTICAL: &str = "\u{E536}";
+pub const FLOW_ARROW: &str = "\u{E6EC}";
+pub const PLUGS_CONNECTED: &str = "\u{EB5A}";
 
 pub const WARNING: &str = "\u{E4E0}";
 pub const WARNING_CIRCLE: &str = "\u{E4E2}";
@@ -68,6 +78,9 @@ pub const CPU: &str = "\u{E610}";
 pub const LIGHTNING: &str = "\u{E2DE}";
 
 pub const BOOK_OPEN: &str = "\u{E0E6}";
+pub const LIGHTBULB: &str = "\u{E2DC}";
+pub const CIRCLE_HALF: &str = "\u{E1BC}";
+pub const TEXT_AA: &str = "\u{E6EE}";
 pub const BOOKS: &str = "\u{E758}";
 pub const SLIDERS: &str = "\u{E434}";
 pub const GEAR: &str = "\u{E270}";

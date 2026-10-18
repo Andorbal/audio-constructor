@@ -28,8 +28,23 @@ pub struct TelemetryStore {
     pub(crate) socket_value: Box<[AtomicU32]>,
     /// Running count of events emitted by each event output.
     pub(crate) socket_events: Box<[AtomicU32]>,
-    /// Processing time of each node's last block, in nanoseconds.
+    /// Processing time of each node in the last host block, in
+    /// nanoseconds: every step of the node (a Feedback has two) in every
+    /// sub-block the block was split into. Written only while timing is on.
     pub(crate) node_time: Box<[AtomicU32]>,
+    /// The running sum for the block in progress, moved into `node_time`
+    /// when the block ends so a reader never sees a half-counted block.
+    pub(crate) node_time_acc: Box<[AtomicU32]>,
+}
+
+impl TelemetryStore {
+    /// End a host block's timing: publish each node's sum and start over.
+    /// Called by the processor once every step of the block has run.
+    pub(crate) fn publish_node_times(&self) {
+        for (acc, out) in self.node_time_acc.iter().zip(self.node_time.iter()) {
+            out.store(acc.swap(0, Ordering::Relaxed), Ordering::Relaxed);
+        }
+    }
 }
 
 /// Where a node's telemetry lives in the store.
@@ -69,6 +84,8 @@ pub struct EngineStatus {
     pub dropped_messages: AtomicU64,
     /// Measure per-node processing time (costs two clock reads per node).
     pub timing_enabled: AtomicBool,
+    /// Frames in the last host block, which sets its real-time budget.
+    pub block_frames: AtomicU32,
     /// Generation of the graph currently running.
     pub generation: AtomicU64,
     /// Threads running the graph (1 without a worker pool).
@@ -93,6 +110,14 @@ impl EngineStatus {
             load_f32(&self.master_peak[0]),
             load_f32(&self.master_peak[1]),
         ]
+    }
+
+    /// The real-time budget of the last host block (its length), in
+    /// nanoseconds; `None` before the first block.
+    pub fn block_budget_ns(&self) -> Option<f64> {
+        let frames = self.block_frames.load(Ordering::Relaxed);
+        let rate = self.sample_rate.load(Ordering::Relaxed);
+        (frames > 0 && rate > 0).then(|| f64::from(frames) / f64::from(rate) * 1e9)
     }
 
     pub fn total_xruns(&self) -> u64 {
@@ -187,9 +212,19 @@ impl TelemetryReader {
         Some(self.store.socket_events[i].load(Ordering::Relaxed))
     }
 
-    /// Last block's processing time for a node, in nanoseconds.
+    /// Last host block's processing time for a node, in nanoseconds.
     pub fn node_time_ns(&self, path: &NodePath) -> Option<u32> {
         let t = self.layout.nodes.get(path)?.time?;
         Some(self.store.node_time[t].load(Ordering::Relaxed))
+    }
+
+    /// Every timed node with its last host block's processing time, in
+    /// nanoseconds (in no particular order). Nodes inside groups and the
+    /// copies inside Voices have their own paths; the editor sums them.
+    pub fn node_times(&self) -> impl Iterator<Item = (&NodePath, u32)> + '_ {
+        self.layout.nodes.iter().filter_map(|(path, t)| {
+            let a = self.store.node_time.get(t.time?)?;
+            Some((path, a.load(Ordering::Relaxed)))
+        })
     }
 }

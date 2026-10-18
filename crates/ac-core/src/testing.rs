@@ -776,6 +776,7 @@ impl Harness {
                     spectra: &spectra,
                     buffers: &buffers,
                     auto,
+                    local: Default::default(),
                 },
                 outputs: Outputs {
                     slots: &o_slots,

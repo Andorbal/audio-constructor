@@ -116,14 +116,11 @@ fn inline(text: &str, size: f32, color: Color32) -> LayoutJob {
     let mut job = LayoutJob::default();
     let normal = TextFormat::simple(theme::ui_font(size), color);
     let mut bold = normal.clone();
-    bold.color = theme::TEXT_STRONG;
+    bold.color = theme::text_strong();
     let mut italic = normal.clone();
     italic.italics = true;
-    let mut code = TextFormat::simple(
-        theme::mono_font(size - 1.0),
-        Color32::from_rgb(0xE6, 0xC0, 0x8A),
-    );
-    code.background = Color32::from_rgb(0x2C, 0x30, 0x38);
+    let mut code = TextFormat::simple(theme::mono_font(size - 1.0), theme::code_text());
+    code.background = theme::code_bg();
     let mut rest = text;
     let mut buf = String::new();
     let push = |job: &mut LayoutJob, s: &mut String, f: &TextFormat| {
@@ -179,25 +176,25 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
                     2 => theme::FONT_HEADING,
                     _ => theme::FONT_UI + 1.0,
                 };
-                ui.label(RichText::new(text).size(size).color(theme::TEXT_STRONG));
+                ui.label(RichText::new(text).size(size).color(theme::text_strong()));
             }
             Block::Paragraph(text) => {
-                let mut job = inline(&text, theme::FONT_UI, theme::TEXT);
+                let mut job = inline(&text, theme::FONT_UI, theme::text());
                 job.wrap.max_width = width;
                 ui.add(egui::Label::new(job).wrap());
                 ui.add_space(4.0);
             }
             Block::Item(text) => {
                 ui.horizontal_top(|ui| {
-                    ui.label(RichText::new("•").color(theme::TEXT_MUTED));
-                    let mut job = inline(&text, theme::FONT_UI, theme::TEXT);
+                    ui.label(RichText::new("•").color(theme::text_muted()));
+                    let mut job = inline(&text, theme::FONT_UI, theme::text());
                     job.wrap.max_width = ui.available_width();
                     ui.add(egui::Label::new(job).wrap());
                 });
             }
             Block::Code(code) => {
                 egui::Frame::new()
-                    .fill(theme::WELL_BG)
+                    .fill(theme::well_bg())
                     .corner_radius(theme::radius(5.0))
                     .inner_margin(egui::Margin::same(8))
                     .show(ui, |ui| {
@@ -205,7 +202,7 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
                         ui.label(
                             RichText::new(code)
                                 .font(theme::mono_font(theme::FONT_VALUE))
-                                .color(theme::TEXT),
+                                .color(theme::text()),
                         );
                     });
             }
@@ -217,9 +214,9 @@ pub fn show(ui: &mut egui::Ui, md: &str) {
                         for (r, row) in rows.iter().enumerate() {
                             for c in row {
                                 let color = if r == 0 {
-                                    theme::TEXT_STRONG
+                                    theme::text_strong()
                                 } else {
-                                    theme::TEXT
+                                    theme::text()
                                 };
                                 ui.add(
                                     egui::Label::new(inline(c, theme::FONT_SMALL + 0.5, color))
@@ -263,7 +260,7 @@ mod tests {
 
     #[test]
     fn inline_formatting_splits_sections() {
-        let job = inline("Try **this**: wire `out` into *it*", 13.0, theme::TEXT);
+        let job = inline("Try **this**: wire `out` into *it*", 13.0, theme::text());
         let texts: Vec<&str> = job
             .sections
             .iter()
@@ -271,7 +268,7 @@ mod tests {
             .collect();
         assert_eq!(texts, ["Try ", "this", ": wire ", "out", " into ", "it"]);
         // Unbalanced markers are plain text.
-        let job = inline("2 * 3 and `x", 13.0, theme::TEXT);
+        let job = inline("2 * 3 and `x", 13.0, theme::text());
         assert_eq!(job.text, "2 * 3 and `x");
     }
 }

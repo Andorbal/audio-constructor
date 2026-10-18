@@ -1,6 +1,8 @@
-//! The side panel (`N`): Node, Library, Project, Devices, and Problems tabs.
+//! The side panel (`N`): Node, Library, Project, Devices, Problems, and
+//! Help tabs.
 
 mod bindings_ui;
+mod help_tab;
 mod library;
 pub mod markdown;
 mod node_tab;
@@ -19,6 +21,7 @@ use crate::icons;
 use crate::palette::Candidate;
 use crate::theme;
 
+pub use help_tab::HelpView;
 pub use library::{BlockFilter, LibraryItem, filter_blocks, first_sentence};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -28,15 +31,18 @@ pub enum Tab {
     Project,
     Devices,
     Problems,
+    /// A node kind's reference (F1), or every node.
+    Help,
 }
 
 impl Tab {
-    const ALL: [Tab; 5] = [
+    const ALL: [Tab; 6] = [
         Tab::Node,
         Tab::Library,
         Tab::Project,
         Tab::Devices,
         Tab::Problems,
+        Tab::Help,
     ];
 
     fn label(self) -> (&'static str, &'static str) {
@@ -46,6 +52,7 @@ impl Tab {
             Tab::Project => (icons::GEAR, "Project"),
             Tab::Devices => (icons::PLUGS, "Devices"),
             Tab::Problems => (icons::WARNING, "Problems"),
+            Tab::Help => (icons::BOOK_OPEN, "Help"),
         }
     }
 }
@@ -73,6 +80,12 @@ pub enum PanelRequest {
     UpdateAllBlocks,
     /// Learn a binding for an input or a transport action.
     Learn(ac_core::Target),
+    /// Show a node kind's reference in the Help tab.
+    Help(String),
+    /// Open a shipped example (after the unsaved-changes check).
+    OpenExample(std::path::PathBuf),
+    /// Run an editor command.
+    Run(crate::actions::Action),
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -96,6 +109,8 @@ pub struct SidePanel {
     pub block_filter: BlockFilter,
     label_edit: Option<(NodeId, String)>,
     pub devices: DevicesState,
+    /// What the Help tab shows.
+    pub help: HelpView,
 }
 
 impl Default for SidePanel {
@@ -107,6 +122,19 @@ impl Default for SidePanel {
             block_filter: BlockFilter::default(),
             label_edit: None,
             devices: DevicesState::default(),
+            help: HelpView::default(),
+        }
+    }
+}
+
+impl SidePanel {
+    /// Open the Help tab on `kind`'s reference (or on the list of every
+    /// node, for `None`).
+    pub fn show_help(&mut self, kind: Option<&str>) {
+        self.open = true;
+        self.tab = Tab::Help;
+        if let Some(k) = kind {
+            self.help.show_kind(k);
         }
     }
 }
@@ -119,6 +147,8 @@ pub struct PanelIo<'a> {
     pub engine: &'a mut EngineHost,
     pub assets: &'a AssetStore,
     pub missing: &'a BTreeSet<String>,
+    /// Per-node timing, while it's shown (`Ctrl+T`).
+    pub timing: Option<&'a crate::timing::Timings>,
     pub requests: Vec<PanelRequest>,
     pub now: f64,
 }
@@ -143,32 +173,56 @@ impl SidePanel {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
-            for tab in Tab::ALL {
-                let (icon, name) = tab.label();
-                let count = if tab == Tab::Problems {
+            let font = theme::ui_font(theme::FONT_SMALL + 0.5);
+            let count_of = |tab: Tab| {
+                if tab == Tab::Problems {
                     io.engine.report.diagnostics.len()
                 } else {
                     0
-                };
-                let text = if count > 0 {
-                    format!("{icon} {name} {count}")
-                } else {
-                    format!("{icon} {name}")
-                };
+                }
+            };
+            let text_of = |tab: Tab, named: bool| {
+                let (icon, name) = tab.label();
+                match (named, count_of(tab)) {
+                    (true, 0) => format!("{icon} {name}"),
+                    (true, n) => format!("{icon} {name} {n}"),
+                    (false, 0) => icon.to_string(),
+                    (false, n) => format!("{icon} {n}"),
+                }
+            };
+            // Too narrow for every name: the tabs not shown keep only
+            // their icons (named on hover).
+            let pad = ui.spacing().button_padding.x * 2.0 + 2.0;
+            let needed: f32 = Tab::ALL
+                .iter()
+                .map(|t| {
+                    let g =
+                        ui.painter()
+                            .layout_no_wrap(text_of(*t, true), font.clone(), theme::text());
+                    g.size().x + pad
+                })
+                .sum();
+            let compact = needed > ui.available_width();
+            for tab in Tab::ALL {
                 let selected = self.tab == tab;
-                let mut rt = RichText::new(text).size(theme::FONT_SMALL + 0.5);
+                let count = count_of(tab);
+                let mut rt = RichText::new(text_of(tab, selected || !compact)).font(font.clone());
                 if selected {
-                    rt = rt.color(theme::TEXT_STRONG);
+                    rt = rt.color(theme::text_strong());
                 } else if count > 0 && io.engine.report.has_errors() {
-                    rt = rt.color(theme::ERROR);
+                    rt = rt.color(theme::error());
                 } else {
-                    rt = rt.color(theme::TEXT_MUTED);
+                    rt = rt.color(theme::text_muted());
                 }
                 let b = egui::Button::new(rt)
                     .selected(selected)
                     .frame_when_inactive(false)
                     .min_size(vec2(0.0, 24.0));
-                if ui.add(b).clicked() {
+                let mut r = ui.add(b);
+                if compact && !selected {
+                    r = r.on_hover_text(tab.label().1);
+                }
+                if r.clicked() {
                     self.tab = tab;
                 }
             }
@@ -186,6 +240,7 @@ impl SidePanel {
                     Tab::Project => project_tab::show(ui, io),
                     Tab::Devices => status_tabs::devices(ui, io, &mut self.devices),
                     Tab::Problems => status_tabs::problems(ui, io),
+                    Tab::Help => help_tab::show(ui, io, &mut self.help),
                 }
                 ui.add_space(12.0);
             });
@@ -198,7 +253,7 @@ pub(crate) fn section(ui: &mut egui::Ui, text: &str) {
     ui.label(
         RichText::new(text.to_uppercase())
             .size(theme::FONT_SMALL - 0.5)
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
     ui.add_space(2.0);
 }

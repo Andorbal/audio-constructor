@@ -17,8 +17,8 @@ use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use ac_core::{
-    Endpoint, GroupDef, GroupId, GroupOutput, MidiEvent, MidiMsg, NoResources, NodeId,
-    NodeInstance, NodePath, Project, Resources, SignalType, Wire,
+    BlockSource, Endpoint, GroupDef, GroupId, GroupOutput, MidiEvent, MidiMsg, NoResources, NodeId,
+    NodeInstance, NodePath, Origin, Project, Resources, SignalType, Wire,
 };
 use ac_engine::{Engine, EngineOptions, HostIo, RtPool};
 use anyhow::{Result, anyhow};
@@ -384,7 +384,12 @@ pub fn stress_projects() -> Vec<(String, Project, Vec<MidiMsg>)> {
             parallel_chains(8, 12),
             Vec::new(),
         ),
-        ("poly-synth-16".into(), poly_synth(16), chord),
+        ("poly-synth-16".into(), poly_synth(16), chord.clone()),
+        (
+            "subtractive-voices-16".into(),
+            subtractive_voices(16),
+            chord,
+        ),
         (
             "fft-chains-16".into(),
             stage_chains(
@@ -578,6 +583,33 @@ fn poly_synth(voices: u64) -> Project {
     p
 }
 
+/// The Phase 2 acceptance synth (docs/ROADMAP.md): the shipped Subtractive
+/// Synth Voice block (two detuned saws, a 24 dB ladder filter swept by an
+/// envelope, the same envelope on the volume) as the body of a `voices`-voice
+/// Voices node, every voice sounding a held chord.
+fn subtractive_voices(voices: u64) -> Project {
+    let mut p = Project {
+        name: format!("{voices} voices of the Subtractive Synth Voice block"),
+        ..Project::default()
+    };
+    let source = BlockSource::new(Origin::Shipped, "subtractive-synth-voice");
+    let def = GroupId::from("subtractive-synth-voice");
+    if let Some(b) = ac_io::Library::shipped_only().get(&source) {
+        p.group_defs
+            .extend(b.block.instance(&def, &source, true).group_defs);
+    }
+    p.graph.nodes.push(node(1, "midi_in"));
+    p.graph.nodes.push(
+        node(2, "voices")
+            .with_config(json!({ "def": def.0, "voices": voices }))
+            .with_param("level", -24.0),
+    );
+    p.graph.nodes.push(node(3, "audio_out"));
+    wire(&mut p, 1, "midi", 2, "midi");
+    wire(&mut p, 2, "out", 3, "in");
+    p
+}
+
 /// 1000 band-limited saw oscillators summed through a tree of 8-input mixers.
 fn oscillators(count: u64) -> Project {
     let mut p = Project {
@@ -713,4 +745,52 @@ fn synths(voices: u64) -> Project {
     p.graph.nodes.push(node(id, "audio_out"));
     wire(&mut p, mix, "out", id, "in");
     p
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_engine::{BakeStore, CompileOptions, compile};
+
+    #[test]
+    fn stress_projects_compile_cleanly() {
+        let registry = ac_nodes::registry();
+        for (name, project, _) in stress_projects() {
+            let compiled = compile(
+                &project,
+                &registry,
+                &NoResources,
+                &CompileOptions::default(),
+                None,
+                &BakeStore::default(),
+            );
+            assert!(!compiled.report.has_errors(), "{name}: {}", compiled.report);
+        }
+    }
+
+    /// The acceptance synth is the shipped block as it ships, sixteen voices
+    /// of it, played by a chord of sixteen notes so every voice sounds.
+    #[test]
+    fn the_acceptance_synth_is_sixteen_voices_of_the_shipped_block() {
+        let (_, project, chord) = stress_projects()
+            .into_iter()
+            .find(|(n, _, _)| n == "subtractive-voices-16")
+            .expect("in the suite");
+        let source = BlockSource::new(Origin::Shipped, "subtractive-synth-voice");
+        let shipped = ac_io::Library::shipped_only()
+            .get(&source)
+            .expect("shipped")
+            .block
+            .clone();
+        let id = GroupId::from("subtractive-synth-voice");
+        assert_eq!(ac_core::Block::from_project(&project, &id), Some(shipped));
+        let voices = project
+            .graph
+            .nodes
+            .iter()
+            .find(|n| n.kind == "voices")
+            .expect("a Voices node");
+        assert_eq!(voices.config["voices"], 16);
+        assert_eq!(chord.len(), 16);
+    }
 }

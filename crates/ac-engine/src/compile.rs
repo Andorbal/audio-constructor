@@ -12,16 +12,18 @@
 //! 7. Latency compensation: where paths of different latency merge, delay
 //!    the early inputs so they line up with the slowest.
 //! 8. Build steps with virtual buffers, inserting implicit conversions.
-//! 9. Group steps into waves of mutually independent steps (what the
-//!    multi-core scheduler runs in parallel) and assign physical buffers by
-//!    wave so they're reused.
+//! 9. Group steps into chains (runs one thread works through in order) and
+//!    chains into waves of mutually independent chains, what the multi-core
+//!    scheduler runs in parallel (`chains.rs`); assign physical buffers by
+//!    wave so they're reused, and let chains recycle the buffers only they
+//!    read.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, MIDI_CAPACITY, MidiEvent, Node,
-    NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry,
+    Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, LOCAL, MIDI_CAPACITY, MidiEvent,
+    Node, NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry,
     RenderWholeFn, Resources, SignalType, SocketSpec, SpectrumBuf, SpectrumShape, TempoMap,
     TriggerSrc, WholeInputs, conversion, param_value,
     util::{Fnv64, derive_seed},
@@ -30,9 +32,10 @@ use serde_json::json;
 
 use crate::bake::{BakeSpec, BakeStore, WholeState};
 use crate::bindings::{BindingTable, BindingValues, compile_bindings};
-use crate::flatten::{Flat, FlatNode, flatten};
+use crate::chains::{self, StepInfo};
+use crate::flatten::{Flat, FlatNode, flatten, voice_copies};
 use crate::graph::{
-    Bypass, CompiledGraph, NodeBox, Pool, Range, SocketTele, Step, StepKind, StepWork, Vacant, Wave,
+    At, Bypass, CompiledGraph, NodeBox, Pool, Range, SocketTele, Step, StepKind, Vacant, Wave, Work,
 };
 use crate::internal::{self, Baked, COMP_DELAY_KIND, Capture, CompDelay, CompType};
 use crate::report::{CompileReport, Severity};
@@ -242,6 +245,10 @@ impl Builder {
             o_midi: (0, 0),
             o_spectra: (0, 0),
             o_buffers: (0, 0),
+            o_stash: (0, 0),
+            acquire: (0, 0),
+            release: (0, 0),
+            reads_chain: false,
             tele_values: (0, 0),
             tele_scope: (0, 0),
             tele_scope_pos: None,
@@ -852,9 +859,48 @@ pub(crate) fn compile_with(
     };
     let binding_values = bindings.values.clone();
 
-    // --- 9. waves and physical buffers ---
-    let waves_of = levels(&b, &extra_deps);
+    // --- 9. chains, waves, and physical buffers ---
+    let n_steps = b.steps.len();
+    let mut step_node: Vec<Option<usize>> = vec![None; n_steps];
+    for (fi, steps) in node_steps.iter().enumerate() {
+        for &s in steps {
+            step_node[s] = Some(fi);
+        }
+    }
+    let copies = voice_copies(&flat.nodes);
+    let mut infos: Vec<StepInfo> = step_reads(&b)
+        .into_iter()
+        .enumerate()
+        .map(|(s, reads)| StepInfo {
+            reads,
+            after: Vec::new(),
+            serial: b.steps[s].serial,
+            node: step_node[s].map(|fi| fi as u32),
+            voice: step_node[s].and_then(|fi| copies.get(fi).copied().flatten()),
+        })
+        .collect();
+    // A conversion step goes with the step it feeds, the next one with a node.
+    let mut next_voice = None;
+    for info in infos.iter_mut().rev() {
+        if info.node.is_some() {
+            next_voice = info.voice;
+        } else {
+            info.voice = next_voice;
+        }
+    }
+    for &(s, d) in &extra_deps {
+        if let Some(info) = infos.get_mut(s) {
+            info.after.push(d);
+        }
+    }
+    let plan = chains::plan(&infos);
+    let waves_of: Vec<usize> = plan
+        .chain_of
+        .iter()
+        .map(|&c| plan.chains.get(c).map_or(0, |ch| ch.wave))
+        .collect();
     let n_waves = waves_of.iter().copied().max().map_or(0, |m| m + 1);
+    let (own, release_after) = chain_owned(&b, &plan);
     // Lifetimes in waves: from the defining step's wave to the latest wave
     // that reads the buffer (not the latest reading step, which can sit in
     // an earlier wave).
@@ -892,9 +938,9 @@ pub(crate) fn compile_with(
             }
         }
     }
-    let sample_map = assign(&vsamples, n_waves, true);
-    let trig_map = assign(&vtriggers, n_waves, false);
-    let midi_map = assign(&vmidi, n_waves, false);
+    let sample_map = assign(&vsamples, n_waves, true, &own);
+    let trig_map = assign(&vtriggers, n_waves, false, &[]);
+    let midi_map = assign(&vmidi, n_waves, false, &[]);
     let n_samples = sample_map
         .iter()
         .copied()
@@ -902,59 +948,204 @@ pub(crate) fn compile_with(
         .map_or(1, |m| m as usize + 1);
     let n_trig = trig_map.iter().copied().max().map_or(0, |m| m as usize + 1);
     let n_midi = midi_map.iter().copied().max().map_or(0, |m| m as usize + 1);
-    let map_s = |v: u32| sample_map.get(v as usize).copied().unwrap_or(0);
+
+    // Steps in run order, chain by chain, with their outputs laid out in the
+    // same order, so a wave's, a chain's, and a step's outputs are each one
+    // contiguous range of the work space. `pos` is where each value lands.
+    // A chain hands its own buffers from value to value: each takes the
+    // one freed last (still warm in cache), and a step's outputs never get
+    // a buffer one of its inputs is in.
+    let mut lay = Layout::new(&b);
+    let mut steps: Vec<Step> = Vec::with_capacity(n_steps);
+    let mut chain_base: Vec<At> = Vec::with_capacity(plan.chains.len());
+    let mut run_index = vec![0usize; n_steps];
+    let mut recycle: Vec<(u32, u32)> = Vec::new();
+    let mut stash_of = vec![0u32; b.vsamples.len()];
+    let mut stash_at = 0u32;
+    for chain in &plan.chains {
+        let mut base = lay.at(steps.len());
+        base.stash = stash_at as usize;
+        chain_base.push(base);
+        let k0 = steps.len();
+        let (mut free, mut used) = (Vec::<u32>::new(), 0u32);
+        for &s in &chain.steps {
+            run_index[s] = steps.len();
+            let mut st = lay.place(&b, &b.steps[s]);
+            let slot = |v: u32| lay.pos_samples[v as usize] - base.samples as u32;
+            let a0 = recycle.len() as u32;
+            for &v in range_of(&b.out_samples, b.steps[s].o_samples) {
+                if own[v as usize] {
+                    let j = free.pop().unwrap_or_else(|| {
+                        used += 1;
+                        used - 1
+                    });
+                    stash_of[v as usize] = j;
+                    recycle.push((j, slot(v)));
+                }
+            }
+            st.acquire = (a0, recycle.len() as u32);
+            let r0 = recycle.len() as u32;
+            for &v in &release_after[s] {
+                let j = stash_of[v as usize];
+                recycle.push((j, slot(v)));
+                free.push(j);
+            }
+            st.release = (r0, recycle.len() as u32);
+            steps.push(st);
+        }
+        // The chain's first step holds its part of the stash.
+        let end = stash_at + used;
+        for (i, st) in steps[k0..].iter_mut().enumerate() {
+            st.o_stash = if i == 0 { (stash_at, end) } else { (end, end) };
+        }
+        stash_at = end;
+    }
+    // Reads of what an earlier step of the same chain wrote come from the
+    // chain's work space; the rest from the pool's physical buffers.
+    for (s, &run) in run_index.iter().enumerate() {
+        let chain = plan.chain_of[s];
+        let base = chain_base.get(chain).copied().unwrap_or_default();
+        // Value `v`, written by step `def` and laid out by `pos`, as a LOCAL
+        // index when `def` is in this chain.
+        let reads_chain = std::cell::Cell::new(false);
+        let local = |v: &mut u32, def: Option<usize>, pos: &[u32], base: usize| {
+            if def.is_some_and(|d| plan.chain_of.get(d) == Some(&chain))
+                && let Some(&p) = pos.get(*v as usize)
+                && p != u32::MAX
+                && p as usize >= base
+            {
+                *v = LOCAL | (p - base as u32);
+                reads_chain.set(true);
+            }
+        };
+        let sample_def = |v: u32| b.vsamples.get(v as usize).map(|l| l.def);
+        let (i0, i1) = (b.steps[s].inputs.0 as usize, b.steps[s].inputs.1 as usize);
+        for i in i0..i1 {
+            let Some(slot) = b.input_slots.get_mut(i) else {
+                continue;
+            };
+            match slot {
+                InputSlot::Float(FloatSrc::Sample(v)) if *v != 0 => {
+                    local(v, sample_def(*v), &lay.pos_samples, base.samples);
+                }
+                InputSlot::Float(FloatSrc::Scalar(k)) => {
+                    let def = b.scalar_def.get(*k as usize).copied();
+                    local(k, def, &lay.pos_scalars, base.scalars);
+                }
+                InputSlot::Float(FloatSrc::Int(k)) | InputSlot::Int(IntSrc::Int(k)) => {
+                    let def = b.int_def.get(*k as usize).copied();
+                    local(k, def, &lay.pos_ints, base.ints);
+                }
+                InputSlot::Audio { start, count } => {
+                    for c in *start..*start + *count {
+                        if let Some(v) = b.chan_table.get_mut(c as usize)
+                            && *v != 0
+                        {
+                            local(v, sample_def(*v), &lay.pos_samples, base.samples);
+                        }
+                    }
+                }
+                InputSlot::Trigger(TriggerSrc::Wired(v)) => {
+                    let def = b.vtriggers.get(*v as usize).map(|l| l.def);
+                    local(v, def, &lay.pos_triggers, base.triggers);
+                }
+                InputSlot::Midi(Some(v)) => {
+                    let def = b.vmidi.get(*v as usize).map(|l| l.def);
+                    local(v, def, &lay.pos_midi, base.midi);
+                }
+                InputSlot::Spectrum(Some(k)) => {
+                    let def = b.spectra.get(*k as usize).map(|sp| sp.1);
+                    local(k, def, &lay.pos_spectra, base.spectra);
+                }
+                InputSlot::Buffer(Some(k)) => {
+                    let def = b.buffer_def.get(*k as usize).copied();
+                    local(k, def, &lay.pos_buffers, base.buffers);
+                }
+                _ => {}
+            }
+        }
+        if let Some(st) = steps.get_mut(run) {
+            if let StepKind::FillFromScalar { scalar } = &mut st.kind {
+                let def = b.scalar_def.get(*scalar as usize).copied();
+                local(scalar, def, &lay.pos_scalars, base.scalars);
+            }
+            st.reads_chain = reads_chain.get();
+        }
+    }
+    let map_s = |v: u32| {
+        if v & LOCAL != 0 {
+            v
+        } else {
+            sample_map.get(v as usize).copied().unwrap_or(0)
+        }
+    };
+    let map_t = |v: u32| {
+        if v & LOCAL != 0 {
+            v
+        } else {
+            trig_map.get(v as usize).copied().unwrap_or(0)
+        }
+    };
+    let map_m = |v: u32| {
+        if v & LOCAL != 0 {
+            v
+        } else {
+            midi_map.get(v as usize).copied().unwrap_or(0)
+        }
+    };
     for s in &mut b.input_slots {
         match s {
             InputSlot::Float(FloatSrc::Sample(v)) => *v = map_s(*v),
-            InputSlot::Trigger(TriggerSrc::Wired(v)) => {
-                *v = trig_map.get(*v as usize).copied().unwrap_or(0)
-            }
-            InputSlot::Midi(Some(v)) => *v = midi_map.get(*v as usize).copied().unwrap_or(0),
+            InputSlot::Trigger(TriggerSrc::Wired(v)) => *v = map_t(*v),
+            InputSlot::Midi(Some(v)) => *v = map_m(*v),
             _ => {}
         }
     }
     for v in &mut b.chan_table {
         *v = map_s(*v);
     }
-    for v in &mut b.out_samples {
-        *v = map_s(*v);
+    for v in &mut lay.out_samples {
+        // Chain-owned values have no pool buffer to move.
+        *v = if own.get(*v as usize).copied().unwrap_or(false) {
+            u32::MAX
+        } else {
+            map_s(*v)
+        };
     }
-    for v in &mut b.out_triggers {
-        *v = trig_map.get(*v as usize).copied().unwrap_or(0);
+    for v in &mut lay.out_triggers {
+        *v = map_t(*v);
     }
-    for v in &mut b.out_midi {
-        *v = midi_map.get(*v as usize).copied().unwrap_or(0);
+    for v in &mut lay.out_midi {
+        *v = map_m(*v);
     }
 
-    // Steps in wave order: within a wave, the parallel ones first, then the
-    // ones that write device outputs, each in schedule order.
-    let mut perm: Vec<usize> = (0..b.steps.len()).collect();
-    perm.sort_by_key(|&s| (waves_of[s], b.steps[s].serial, s));
-    let steps: Vec<Step> = perm.iter().map(|&s| b.steps[s].clone()).collect();
+    // Waves: each wave's parallel chains, then its device-output steps.
     let mut waves: Vec<Wave> = Vec::new();
+    let mut chain_ranges: Vec<Range> = Vec::new();
+    let mut k = 0u32;
     let mut current = usize::MAX;
-    for (k, &s) in perm.iter().enumerate() {
-        let k = k as u32;
-        if waves_of[s] != current {
-            current = waves_of[s];
+    for chain in &plan.chains {
+        let (k0, k1) = (k, k + chain.steps.len() as u32);
+        k = k1;
+        if chain.wave != current {
+            current = chain.wave;
+            let c = chain_ranges.len() as u32;
             waves.push(Wave {
-                start: k,
-                parallel_end: k,
-                end: k,
+                start: k0,
+                parallel_end: k0,
+                end: k0,
+                chains: (c, c),
             });
         }
         if let Some(w) = waves.last_mut() {
-            w.end = k + 1;
-            if !steps[k as usize].serial {
-                w.parallel_end = k + 1;
+            w.end = k1;
+            if !chain.serial {
+                chain_ranges.push((k0, k1));
+                w.parallel_end = k1;
+                w.chains.1 = chain_ranges.len() as u32;
             }
         }
     }
-    let widest_wave = waves
-        .iter()
-        .map(|w| (w.end - w.start) as usize)
-        .max()
-        .unwrap_or(0);
 
     let telemetry = Arc::new(TelemetryStore {
         node_values: atomics(n_values),
@@ -964,35 +1155,23 @@ pub(crate) fn compile_with(
         socket_value: atomics(n_socket),
         socket_events: atomics(n_socket),
         node_time: atomics(n_time),
+        node_time_acc: atomics(n_time),
     });
 
-    // Work space sized to the widest step, one per step of the widest wave.
-    let widest = |f: fn(&Step) -> Range| {
-        steps
-            .iter()
-            .map(|s| {
-                let r = f(s);
-                (r.1 - r.0) as usize
-            })
-            .max()
-            .unwrap_or(0)
-    };
-    let shape = StepWork::sized(
-        widest(|s| s.o_samples),
-        widest(|s| s.o_scalars),
-        widest(|s| s.o_ints),
-        widest(|s| s.o_triggers),
-        widest(|s| s.o_midi),
-        widest(|s| s.o_spectra),
-        widest(|s| s.o_buffers),
-    );
-    let work: Vec<StepWork> = (0..widest_wave).map(|_| shape.clone_empty()).collect();
+    // Work space for the widest wave of each kind.
+    let mut room = At::default();
+    for w in &waves {
+        let size = At::end(&steps, w.end as usize).minus(At::start(&steps, w.start as usize));
+        room = room.max(size);
+    }
+    let work = Work::sized(room, max_block);
 
     let nodes = nb.nodes;
     report.stats.nodes = nodes.len();
     report.stats.steps = steps.len();
     report.stats.waves = waves.len();
-    report.stats.sample_buffers = n_samples;
+    report.stats.chains = chain_ranges.len();
+    report.stats.sample_buffers = n_samples + room.stash;
     report.stats.params = b.params.len();
     report.stats.live_sources = live_sources;
     report.stats.latency = total_latency;
@@ -1053,15 +1232,17 @@ pub(crate) fn compile_with(
         carry: nb.carry,
         steps,
         waves,
+        chains: chain_ranges,
+        recycle,
         input_slots: b.input_slots,
         output_slots: b.output_slots,
-        out_samples: b.out_samples,
-        out_scalars: b.out_scalars,
-        out_ints: b.out_ints,
-        out_triggers: b.out_triggers,
-        out_midi: b.out_midi,
-        out_spectra: b.out_spectra,
-        out_buffers: b.out_buffers,
+        out_samples: lay.out_samples,
+        out_scalars: lay.out_scalars,
+        out_ints: lay.out_ints,
+        out_triggers: lay.out_triggers,
+        out_midi: lay.out_midi,
+        out_spectra: lay.out_spectra,
+        out_buffers: lay.out_buffers,
         chan_table: b.chan_table,
         pool,
         params: b.params,
@@ -1382,80 +1563,223 @@ fn bake_key(
     h.finish()
 }
 
-/// The wave of every step: one more than the latest wave it reads from.
-/// Steps in one wave never read each other's outputs, so they can run at
-/// the same time.
-fn levels(b: &Builder, extra: &[(usize, usize)]) -> Vec<usize> {
-    let n = b.steps.len();
-    let mut deps: Vec<Vec<usize>> = vec![Vec::new(); n];
-    for (s, step) in b.steps.iter().enumerate() {
-        let d = &mut deps[s];
-        if let StepKind::FillFromScalar { scalar } = step.kind
-            && let Some(&def) = b.scalar_def.get(scalar as usize)
-        {
-            d.push(def);
+/// Sample buffers that only the chain writing them reads (outside
+/// device-output steps): those live in the chain's own recycled buffers
+/// instead of the pool. Also, for every step, the owned values whose last
+/// reader it is (or that it writes and nothing reads), to free after it.
+fn chain_owned(b: &Builder, plan: &chains::Plan) -> (Vec<bool>, Vec<Vec<u32>>) {
+    let n = b.vsamples.len();
+    let mut place = vec![0usize; b.steps.len()];
+    for ch in &plan.chains {
+        for (i, &s) in ch.steps.iter().enumerate() {
+            place[s] = i;
         }
-        let slots = b
-            .input_slots
-            .get(step.inputs.0 as usize..step.inputs.1 as usize)
-            .unwrap_or(&[]);
-        for slot in slots {
+    }
+    let chain_of = |s: usize| plan.chain_of.get(s).copied();
+    let mut own = vec![false; n];
+    let mut last = vec![0usize; n];
+    for (v, l) in b.vsamples.iter().enumerate().skip(1) {
+        own[v] = l.last != usize::MAX
+            && chain_of(l.def)
+                .and_then(|c| plan.chains.get(c))
+                .is_some_and(|c| !c.serial);
+        last[v] = place.get(l.def).copied().unwrap_or(0);
+    }
+    for (s, step) in b.steps.iter().enumerate() {
+        let mut read = |v: u32| {
+            let Some(l) = b.vsamples.get(v as usize) else {
+                return;
+            };
+            if v == 0 {
+                return;
+            }
+            if chain_of(s) == chain_of(l.def) {
+                last[v as usize] = last[v as usize].max(place[s]);
+            } else {
+                own[v as usize] = false;
+            }
+        };
+        for slot in range_of(&b.input_slots, step.inputs) {
             match *slot {
-                InputSlot::Float(FloatSrc::Sample(v)) => {
-                    if v != 0 {
-                        d.push(b.vsamples[v as usize].def);
-                    }
-                }
-                InputSlot::Float(FloatSrc::Scalar(k)) => {
-                    if let Some(&def) = b.scalar_def.get(k as usize) {
-                        d.push(def);
-                    }
-                }
-                InputSlot::Float(FloatSrc::Int(k)) | InputSlot::Int(IntSrc::Int(k)) => {
-                    if let Some(&def) = b.int_def.get(k as usize) {
-                        d.push(def);
-                    }
-                }
+                InputSlot::Float(FloatSrc::Sample(v)) => read(v),
                 InputSlot::Audio { start, count } => {
                     for c in start..start + count {
-                        let v = b.chan_table[c as usize];
-                        if v != 0 {
-                            d.push(b.vsamples[v as usize].def);
+                        if let Some(&v) = b.chan_table.get(c as usize) {
+                            read(v);
                         }
-                    }
-                }
-                InputSlot::Trigger(TriggerSrc::Wired(v)) => d.push(b.vtriggers[v as usize].def),
-                InputSlot::Midi(Some(v)) => d.push(b.vmidi[v as usize].def),
-                InputSlot::Spectrum(Some(k)) => {
-                    if let Some(&(_, def)) = b.spectra.get(k as usize) {
-                        d.push(def);
-                    }
-                }
-                InputSlot::Buffer(Some(k)) => {
-                    if let Some(&def) = b.buffer_def.get(k as usize) {
-                        d.push(def);
                     }
                 }
                 _ => {}
             }
         }
     }
-    for &(s, d) in extra {
-        if s < n {
-            deps[s].push(d);
+    let mut release = vec![Vec::new(); b.steps.len()];
+    for v in (1..n).filter(|&v| own[v]) {
+        let step = chain_of(b.vsamples[v].def)
+            .and_then(|c| plan.chains.get(c))
+            .and_then(|c| c.steps.get(last[v]));
+        if let Some(&s) = step {
+            release[s].push(v as u32);
         }
     }
-    let mut level = vec![0usize; n];
-    for s in 0..n {
-        // Dependencies always come earlier in schedule order.
-        level[s] = deps[s]
-            .iter()
-            .filter(|&&d| d < s)
-            .map(|&d| level[d] + 1)
-            .max()
-            .unwrap_or(0);
+    (own, release)
+}
+
+/// The steps whose outputs each step reads (the chain planner's input).
+fn step_reads(b: &Builder) -> Vec<Vec<usize>> {
+    let sample_def = |v: u32| b.vsamples.get(v as usize).map(|l| l.def);
+    b.steps
+        .iter()
+        .map(|step| {
+            let mut d = Vec::new();
+            if let StepKind::FillFromScalar { scalar } = step.kind
+                && let Some(&def) = b.scalar_def.get(scalar as usize)
+            {
+                d.push(def);
+            }
+            for slot in range_of(&b.input_slots, step.inputs) {
+                let def = match *slot {
+                    InputSlot::Float(FloatSrc::Sample(v)) if v != 0 => sample_def(v),
+                    InputSlot::Float(FloatSrc::Scalar(k)) => b.scalar_def.get(k as usize).copied(),
+                    InputSlot::Float(FloatSrc::Int(k)) | InputSlot::Int(IntSrc::Int(k)) => {
+                        b.int_def.get(k as usize).copied()
+                    }
+                    InputSlot::Audio { start, count } => {
+                        for c in start..start + count {
+                            if let Some(&v) = b.chan_table.get(c as usize)
+                                && v != 0
+                            {
+                                d.extend(sample_def(v));
+                            }
+                        }
+                        None
+                    }
+                    InputSlot::Trigger(TriggerSrc::Wired(v)) => {
+                        b.vtriggers.get(v as usize).map(|l| l.def)
+                    }
+                    InputSlot::Midi(Some(v)) => b.vmidi.get(v as usize).map(|l| l.def),
+                    InputSlot::Spectrum(Some(k)) => b.spectra.get(k as usize).map(|sp| sp.1),
+                    InputSlot::Buffer(Some(k)) => b.buffer_def.get(k as usize).copied(),
+                    _ => None,
+                };
+                d.extend(def);
+            }
+            d
+        })
+        .collect()
+}
+
+/// Steps' outputs laid out in run order (see `graph::At`), and where each
+/// virtual value landed (`u32::MAX`: nowhere).
+struct Layout {
+    out_samples: Vec<u32>,
+    out_scalars: Vec<u32>,
+    out_ints: Vec<u32>,
+    out_triggers: Vec<u32>,
+    out_midi: Vec<u32>,
+    out_spectra: Vec<u32>,
+    out_buffers: Vec<u32>,
+    pos_samples: Vec<u32>,
+    pos_scalars: Vec<u32>,
+    pos_ints: Vec<u32>,
+    pos_triggers: Vec<u32>,
+    pos_midi: Vec<u32>,
+    pos_spectra: Vec<u32>,
+    pos_buffers: Vec<u32>,
+}
+
+impl Layout {
+    fn new(b: &Builder) -> Layout {
+        Layout {
+            out_samples: Vec::with_capacity(b.out_samples.len()),
+            out_scalars: Vec::with_capacity(b.out_scalars.len()),
+            out_ints: Vec::with_capacity(b.out_ints.len()),
+            out_triggers: Vec::with_capacity(b.out_triggers.len()),
+            out_midi: Vec::with_capacity(b.out_midi.len()),
+            out_spectra: Vec::with_capacity(b.out_spectra.len()),
+            out_buffers: Vec::with_capacity(b.out_buffers.len()),
+            pos_samples: vec![u32::MAX; b.vsamples.len()],
+            pos_scalars: vec![u32::MAX; b.scalar_def.len()],
+            pos_ints: vec![u32::MAX; b.int_def.len()],
+            pos_triggers: vec![u32::MAX; b.vtriggers.len()],
+            pos_midi: vec![u32::MAX; b.vmidi.len()],
+            pos_spectra: vec![u32::MAX; b.spectra.len()],
+            pos_buffers: vec![u32::MAX; b.buffer_def.len()],
+        }
     }
-    level
+
+    /// Where the next step placed will start (the stash is laid out by chain).
+    fn at(&self, step: usize) -> At {
+        At {
+            step,
+            samples: self.out_samples.len(),
+            scalars: self.out_scalars.len(),
+            ints: self.out_ints.len(),
+            triggers: self.out_triggers.len(),
+            midi: self.out_midi.len(),
+            spectra: self.out_spectra.len(),
+            buffers: self.out_buffers.len(),
+            stash: 0,
+        }
+    }
+
+    /// Append `step`'s outputs and return it with its new ranges.
+    fn place(&mut self, b: &Builder, step: &Step) -> Step {
+        fn put(src: &[u32], r: Range, dst: &mut Vec<u32>, pos: &mut [u32]) -> Range {
+            let start = dst.len() as u32;
+            for &v in range_of(src, r) {
+                if let Some(p) = pos.get_mut(v as usize) {
+                    *p = dst.len() as u32;
+                }
+                dst.push(v);
+            }
+            (start, dst.len() as u32)
+        }
+        let mut s = step.clone();
+        s.o_samples = put(
+            &b.out_samples,
+            s.o_samples,
+            &mut self.out_samples,
+            &mut self.pos_samples,
+        );
+        s.o_scalars = put(
+            &b.out_scalars,
+            s.o_scalars,
+            &mut self.out_scalars,
+            &mut self.pos_scalars,
+        );
+        s.o_ints = put(
+            &b.out_ints,
+            s.o_ints,
+            &mut self.out_ints,
+            &mut self.pos_ints,
+        );
+        s.o_triggers = put(
+            &b.out_triggers,
+            s.o_triggers,
+            &mut self.out_triggers,
+            &mut self.pos_triggers,
+        );
+        s.o_midi = put(
+            &b.out_midi,
+            s.o_midi,
+            &mut self.out_midi,
+            &mut self.pos_midi,
+        );
+        s.o_spectra = put(
+            &b.out_spectra,
+            s.o_spectra,
+            &mut self.out_spectra,
+            &mut self.pos_spectra,
+        );
+        s.o_buffers = put(
+            &b.out_buffers,
+            s.o_buffers,
+            &mut self.out_buffers,
+            &mut self.pos_buffers,
+        );
+        s
+    }
 }
 
 fn range_of<T>(v: &[T], r: Range) -> &[T] {
@@ -1780,13 +2104,17 @@ fn cycle_members(
 /// Assign physical buffers to virtual ones by lifetime (in waves). Outputs
 /// of a wave are allocated before that wave's inputs are freed, so no step
 /// writes a buffer another step of its wave reads. For sample buffers,
-/// physical 0 is reserved silence.
-fn assign(lives: &[Life], n_waves: usize, reserve_zero: bool) -> Vec<u32> {
+/// physical 0 is reserved silence. Values marked in `own` live in their
+/// chain's buffers and get none.
+fn assign(lives: &[Life], n_waves: usize, reserve_zero: bool, own: &[bool]) -> Vec<u32> {
     let mut map = vec![0u32; lives.len()];
     let first = usize::from(reserve_zero);
     let mut by_def: Vec<Vec<usize>> = vec![Vec::new(); n_waves + 1];
     let mut by_last: Vec<Vec<usize>> = vec![Vec::new(); n_waves + 1];
     for (v, l) in lives.iter().enumerate().skip(first) {
+        if own.get(v).copied().unwrap_or(false) {
+            continue;
+        }
         by_def[l.def.min(n_waves)].push(v);
         by_last[l.last.min(n_waves)].push(v);
     }
@@ -1823,7 +2151,7 @@ mod tests {
             Life { def: 1, last: 2 },
             Life { def: 2, last: 3 },
         ];
-        let m = assign(&lives, 4, true);
+        let m = assign(&lives, 4, true, &[]);
         assert_eq!(m[0], 0);
         assert_ne!(m[1], m[2]);
         assert_eq!(m[3], m[1]);

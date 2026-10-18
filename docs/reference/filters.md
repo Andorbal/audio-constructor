@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Filters for shaping tone, for synth sounds, and for building reverbs and resonators.
+
 <a id="allpass"></a>
 ## Allpass
 

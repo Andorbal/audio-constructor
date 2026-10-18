@@ -311,7 +311,8 @@ struct Devices<'a> {
     osc_out: &'a OscOutput,
 }
 
-/// `gamepads: 0 Pad A, 1 Pad B`, or why there are none.
+/// `gamepads: 1 Pad A, 2 Pad B` (numbered as Gamepad nodes count them),
+/// or why there are none.
 fn gamepad_line(pads: &[GamepadInfo], error: Option<&str>) -> String {
     match (error, pads.is_empty()) {
         (Some(e), _) => format!("gamepads: {e}"),
@@ -319,7 +320,7 @@ fn gamepad_line(pads: &[GamepadInfo], error: Option<&str>) -> String {
         (None, false) => {
             let list: Vec<String> = pads
                 .iter()
-                .map(|p| format!("{} {}", p.index, p.name))
+                .map(|p| format!("{} {}", p.number(), p.name))
                 .collect();
             format!("gamepads: {}", list.join(", "))
         }
@@ -643,7 +644,7 @@ mod tests {
                 name: "Pad B".into(),
             },
         ];
-        assert_eq!(gamepad_line(&pads, None), "gamepads: 0 Pad A, 2 Pad B");
+        assert_eq!(gamepad_line(&pads, None), "gamepads: 1 Pad A, 3 Pad B");
         assert_eq!(osc_in_line(9000, None), "osc in: UDP port 9000");
         assert_eq!(
             osc_in_line(9000, Some([192, 168, 1, 20].into())),

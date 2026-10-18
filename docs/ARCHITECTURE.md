@@ -306,12 +306,23 @@ Steps:
    floats, triggers, and MIDI are delayed; block-rate values aren't
    (DECISIONS D56). The delays are internal nodes, so they carry over too.
 8. **Topological sort** into an ordered list of steps, then group the steps
-   into **waves**: a step's wave is one more than the latest wave it reads
-   from, so the steps of a wave never depend on each other and can run on
-   different cores (DECISIONS D57).
+   into **chains** and the chains into **waves** (DECISIONS D57, D114). A
+   chain is a run of steps one thread works through in order. A step joins
+   the chain of what it reads when exactly one chain holds the latest of its
+   inputs and either each step of that chain it reads feeds nothing else (a
+   linear run) or both belong to the same voice copy of a Voices node;
+   device-output steps and a Feedback node's second step never join. A
+   chain's wave is one more than the latest wave it reads from, so the
+   chains of a wave never depend on each other and can run on different
+   cores, while each step reads what earlier steps of its own chain wrote
+   straight from the chain's work space. Eight chains of two dozen nodes
+   are one wave, not two dozen, so handing waves to the workers costs a
+   few hand-offs per block instead of one per node.
 9. **Allocate buffers** once: a pool of audio/float buffers sized to the
    maximum block size, with lifetimes counted in waves so buffers are reused
-   without two steps of one wave sharing a buffer.
+   without two steps of one wave sharing a buffer. A sample buffer that only
+   its own chain reads stays out of the pool: the chain hands a few buffers
+   of its own from step to step as it runs.
 
 Compilation happens off the audio thread (UI thread or a background thread).
 Swapping in the result is one atomic pointer exchange at a block boundary.
@@ -381,9 +392,19 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   back to the cushion and counts a device xrun.
 - **Telemetry out**: meters, scope rings, per-socket levels, per-node
   timings, and the xrun counter are relaxed atomics the UI reads at frame
-  rate (DECISIONS D22). Nothing waits on the UI.
-- **Multi-core**: each wave's steps are split into jobs that a fixed pool of
-  real-time workers and the callback thread claim from one lock-free counter;
+  rate (DECISIONS D22). Nothing waits on the UI. Per-node timing runs only
+  while `EngineStatus::timing_enabled` is set (the editor's `Ctrl+T`): each
+  step adds its time (two clock reads) to its node's running sum, and when
+  the host block ends the processor publishes every sum and starts over, so
+  a node's reading covers all its steps and sub-blocks and a reader never
+  sees a half-counted block. `EngineStatus::block_frames` gives the block's
+  budget; `TelemetryReader::node_times` lists every node's time by engine
+  path, and the editor smooths them and sums them for groups and voices
+  (D105).
+- **Multi-core**: each wave's chains are split into jobs (runs of
+  consecutive chains of about equal length, a few per thread) that a fixed
+  pool of real-time workers and the callback thread claim from one
+  lock-free counter;
   the callback thread waits only for jobs another thread has claimed, so a
   sleeping worker costs parallelism, never an xrun. Steps that write the
   device outputs run last in their wave, one by one, so output sums the same
@@ -541,7 +562,7 @@ without either feature.
   (bundles flattened, time tags ignored); OSC out sends from a sender
   thread (D87). The listener and each MIDI port also keep the newest
   messages, with addresses and port names as text, in a mutex-guarded log
-  for the editor's Devices tab (D101); the engine never reads it.
+  for the editor's Devices tab (D115); the engine never reads it.
 - The computer keyboard is a control source like any other: with Play keys
   on, the editor sends key presses and releases into its own ring instead
   of running shortcuts (D88).
@@ -638,5 +659,6 @@ through the `Engine` API.
   visible.
 - **UI tests**: egui_kittest drives the editor (add node, wire, undo) without
   a display. Snapshot tests run where a software renderer is available.
-- **Runtime instrumentation**: per-node CPU time and the xrun counter are
-  always collected (cheap) and can be shown in the editor, Blender-style.
+- **Runtime instrumentation**: the xrun counter and per-thread load are
+  always collected; per-node CPU time is collected while the editor shows
+  it (`Ctrl+T`) and by `audioc bench`, and costs nothing otherwise.

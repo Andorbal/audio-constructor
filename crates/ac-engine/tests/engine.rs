@@ -521,6 +521,25 @@ fn stop_and_seek() {
 }
 
 #[test]
+fn stopping_ends_recording() {
+    use std::sync::atomic::Ordering;
+    let (e, _) = engine(chain(), 32);
+    let mut host = NullHost::new(e, 0, 2);
+    host.handle().set_recording(true);
+    host.handle().play();
+    host.run(64, 32);
+    let recording = |h: &mut NullHost| h.handle().status().recording.load(Ordering::Relaxed);
+    assert!(recording(&mut host));
+    host.handle().stop();
+    host.run(32, 32);
+    assert!(!recording(&mut host), "a stop ends the take");
+    // Playing again doesn't resume it: recording has to be turned on again.
+    host.handle().play();
+    host.run(32, 32);
+    assert!(!recording(&mut host));
+}
+
+#[test]
 fn telemetry_reports_socket_levels() {
     let (e, _) = engine(chain(), 32);
     let mut host = NullHost::new(e, 0, 2);
@@ -531,6 +550,53 @@ fn telemetry_reports_socket_levels() {
     assert!(level >= 63.0, "{level}");
     assert_eq!(t.socket_value(&path(1), "out"), Some(63.0));
     assert!(t.status().blocks.load(std::sync::atomic::Ordering::Relaxed) >= 2);
+}
+
+/// A clock that moves on 1 µs every time it's read, so each step of a node
+/// measures exactly 1 µs.
+fn ticking_clock() -> u64 {
+    static NOW: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    NOW.fetch_add(1_000, std::sync::atomic::Ordering::Relaxed)
+}
+
+#[test]
+fn node_timing_sums_every_step_of_a_host_block() {
+    use std::sync::atomic::Ordering::Relaxed;
+    // The loop of `feedback_closes_a_loop_with_one_block_of_delay`: the
+    // Feedback node runs as two steps (read early, write late).
+    let p = P::new()
+        .node(1, "t_block")
+        .param(1, "value", 1.0)
+        .node(2, "t_sum")
+        .node(3, "t_fb")
+        .node(4, "t_out")
+        .wire(1, "out", 2, "in")
+        .wire(3, "out", 2, "b")
+        .wire(2, "out", 3, "in")
+        .wire(2, "out", 4, "in")
+        .build();
+    let (e, _) = engine(p, 16);
+    let mut host = NullHost::new(e, 0, 2);
+    host.processor().set_clock(Some(ticking_clock));
+    host.handle().play();
+    host.run(64, 64);
+    let t = host.handle().telemetry();
+    // Off by default: nothing is measured.
+    assert_eq!(t.node_time_ns(&path(2)), Some(0));
+    t.status().timing_enabled.store(true, Relaxed);
+    // A 64-frame host block runs as four sub-blocks of 16; each step reads
+    // the clock twice, so it costs 1 µs per sub-block.
+    host.run(64, 64);
+    assert_eq!(t.node_time_ns(&path(2)), Some(4_000));
+    assert_eq!(t.node_time_ns(&path(3)), Some(8_000), "both Feedback steps");
+    let all: Vec<(String, u32)> = t.node_times().map(|(p, ns)| (p.to_string(), ns)).collect();
+    assert_eq!(all.len(), 4, "{all:?}");
+    assert_eq!(t.status().block_frames.load(Relaxed), 64);
+    let budget = t.status().block_budget_ns().unwrap();
+    assert!((budget - 64.0 / 48_000.0 * 1e9).abs() < 1e-6);
+    // The next block starts its sums from zero.
+    host.run(32, 32);
+    assert_eq!(t.node_time_ns(&path(2)), Some(2_000));
 }
 
 #[test]

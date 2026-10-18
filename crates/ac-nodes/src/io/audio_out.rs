@@ -153,6 +153,7 @@ mod tests {
                 spectra: &[],
                 buffers: &[],
                 auto: AutoFlags::default(),
+                local: Default::default(),
             },
             outputs: Outputs {
                 slots: &[],

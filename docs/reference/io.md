@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files.
+
 <a id="audio-in"></a>
 ## Audio In
 

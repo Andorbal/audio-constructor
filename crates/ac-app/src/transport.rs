@@ -55,11 +55,11 @@ impl TransportState {
                 RichText::new(icon)
                     .family(theme::icons_fill_family())
                     .size(18.0)
-                    .color(if on { color } else { theme::TEXT })
+                    .color(if on { color } else { theme::text() })
             };
             if ui
                 .add(
-                    egui::Button::new(big(icons::SKIP_BACK, false, theme::TEXT))
+                    egui::Button::new(big(icons::SKIP_BACK, false, theme::text()))
                         .min_size(vec2(32.0, 28.0)),
                 )
                 .on_hover_text("Go to start")
@@ -70,7 +70,7 @@ impl TransportState {
             let play = if playing { icons::STOP } else { icons::PLAY };
             if ui
                 .add(
-                    egui::Button::new(big(play, playing, theme::PLAY))
+                    egui::Button::new(big(play, playing, theme::play()))
                         .selected(playing)
                         .min_size(vec2(40.0, 28.0)),
                 )
@@ -85,7 +85,7 @@ impl TransportState {
             }
             if ui
                 .add(
-                    egui::Button::new(big(icons::RECORD, recording, theme::RECORD))
+                    egui::Button::new(big(icons::RECORD, recording, theme::record()))
                         .selected(recording)
                         .min_size(vec2(32.0, 28.0)),
                 )
@@ -98,9 +98,9 @@ impl TransportState {
             if ui
                 .add(
                     egui::Button::new(RichText::new(icons::REPEAT).size(17.0).color(if looping {
-                        theme::ACCENT
+                        theme::accent()
                     } else {
-                        theme::TEXT
+                        theme::text()
                     }))
                     .selected(looping)
                     .min_size(vec2(32.0, 28.0)),
@@ -114,9 +114,9 @@ impl TransportState {
                 .add(
                     egui::Button::new(RichText::new(icons::KEYBOARD).size(17.0).color(
                         if play_keys {
-                            theme::ACCENT
+                            theme::accent()
                         } else {
-                            theme::TEXT
+                            theme::text()
                         },
                     ))
                     .selected(play_keys)
@@ -146,16 +146,16 @@ impl TransportState {
             let (bars, time) = position_text(&tempo, pos);
             let (rect, _) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());
             ui.painter()
-                .rect_filled(rect, theme::radius(6.0), theme::WELL_BG);
+                .rect_filled(rect, theme::radius(6.0), theme::well_bg());
             ui.painter().text(
                 pos2(rect.min.x + 10.0, rect.center().y),
                 Align2::LEFT_CENTER,
                 bars,
                 theme::mono_font(16.0),
                 if playing {
-                    theme::TEXT_STRONG
+                    theme::text_strong()
                 } else {
-                    theme::TEXT
+                    theme::text()
                 },
             );
             ui.painter().text(
@@ -163,7 +163,7 @@ impl TransportState {
                 Align2::RIGHT_CENTER,
                 time,
                 theme::mono_font(theme::FONT_SMALL),
-                theme::TEXT_MUTED,
+                theme::text_muted(),
             );
             ui.add_space(6.0);
 
@@ -289,9 +289,9 @@ impl TransportState {
                 // Xruns and load.
                 let xruns = status.total_xruns();
                 let x_color = if xruns > 0 {
-                    theme::WARNING
+                    theme::warning()
                 } else {
-                    theme::TEXT_MUTED
+                    theme::text_muted()
                 };
                 ui.label(
                     RichText::new(format!("{} {xruns}", icons::LIGHTNING))
@@ -301,11 +301,11 @@ impl TransportState {
                 .on_hover_text("Xruns: blocks that missed their deadline");
                 let load = status.load_fraction();
                 let l_color = if load > 0.8 {
-                    theme::ERROR
+                    theme::error()
                 } else if load > 0.5 {
-                    theme::WARNING
+                    theme::warning()
                 } else {
-                    theme::TEXT_MUTED
+                    theme::text_muted()
                 };
                 ui.label(
                     RichText::new(format!(
@@ -350,7 +350,7 @@ impl TransportState {
         ui.painter().rect_stroke(
             bars.expand(1.0),
             theme::radius(3.0),
-            Stroke::new(1.0, theme::BORDER),
+            Stroke::new(1.0, theme::border()),
             StrokeKind::Outside,
         );
         if self.meter.iter().any(|c| c.peak > 1e-5) {

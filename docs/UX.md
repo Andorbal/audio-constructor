@@ -24,9 +24,19 @@ patterns; the look is our own.
 
 ## Look
 
-- Own look on every platform, like Blender. Dark theme by default; light
-  theme later. All colors, radii, spacing, and type scale live in one theme
-  module (`ac-app/src/theme.rs`) so the look can be tuned in one place.
+- Own look on every platform, like Blender. Dark theme by default, and a
+  light theme: View ▸ Theme picks **Dark**, **Light**, or **Follow
+  System** (the operating system's light or dark mode, followed while the
+  editor runs), switching at once and remembered in the editor's settings
+  (D107, D109). All colors, radii, spacing, and type scale live in one theme
+  module (`ac-app/src/theme.rs`) so the look can be tuned in one place:
+  each theme is a `Palette` of every color the editor draws with.
+- Readable in both themes: body text has at least 4.5:1 contrast on every
+  panel and card (the WCAG AA level), and signal colors at least 3:1 on the
+  canvas and on cards; tests check both. The light theme keeps the dark
+  theme's hues but deepens them (amber audio becomes a burnt orange, the
+  yellow trigger an olive), and node headers mix the category color into
+  white with dark titles instead of into the card with light ones.
 - Typeface: Inter for UI, JetBrains Mono for values. Icons from a single
   consistent set (Phosphor).
 - Nodes: rounded cards with a category-colored header strip, a subtle shadow,
@@ -38,21 +48,29 @@ patterns; the look is our own.
   when an event passes.
 - Canvas: dotted grid, zoom from 10 % to 300 % with smooth steps, minimap in a
   corner when the graph exceeds the viewport.
+- Minimap: while any of the graph is out of view, a small map sits in the
+  canvas's bottom-right corner, above the zoom readout: cards as dots in
+  their category colors (reroutes and portals in their wire's color),
+  frames, the selection outlined, and the visible part of the canvas as an
+  accent rectangle. Pressing in it moves the view there and dragging
+  follows the pointer; it shows the graph of the group you're in. It hides
+  itself once everything fits, and `Shift+M` (View ▸ Minimap) turns it off
+  and on.
 
 ### Socket colors and shapes
 
 Shape distinguishes stream from event (and is the colorblind-safe channel).
 
-| Type | Color | Shape |
-| --- | --- | --- |
-| Audio | amber `#F0A030` | circle |
-| Float | sky `#6FB1E6` | circle |
-| Int | green `#5FC88F` | circle |
-| Bool | pink `#E06C9F` | circle |
-| Trigger | yellow `#F2D15C` | diamond |
-| Midi | violet `#A98BF0` | diamond |
-| Spectrum | cyan `#4FD1D9` | square |
-| Buffer | sand `#C8A878` | square |
+| Type | Color (dark) | Light theme | Shape |
+| --- | --- | --- | --- |
+| Audio | amber `#F0A030` | `#C46F00` | circle |
+| Float | sky `#6FB1E6` | `#2B7BC0` | circle |
+| Int | green `#5FC88F` | `#1F8A55` | circle |
+| Bool | pink `#E06C9F` | `#C2407D` | circle |
+| Trigger | yellow `#F2D15C` | `#977C00` | diamond |
+| Midi | violet `#A98BF0` | `#7A55D6` | diamond |
+| Spectrum | cyan `#4FD1D9` | `#138A94` | square |
+| Buffer | sand `#C8A878` | `#9A7444` | square |
 
 Category header colors: I/O red, Generators orange, Level/Dynamics gold,
 Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
@@ -89,16 +107,17 @@ slate.
 | Action | Gesture |
 | --- | --- |
 | Pan | middle-drag, space+drag, two-finger scroll |
-| Zoom | wheel, pinch, `Home` to fit all, `.` to fit selection |
+| Zoom | wheel, pinch, `+`/`-`, `Home` to fit all, `.` to fit selection (`Ctrl+=`/`Ctrl+-` scale the whole interface instead; see "Accessibility and scaling") |
 | Select | click, shift-click, box-drag, `A` all, `Alt+A` none, `L` linked |
 | Move | drag selected; `G` grab (Blender style); snaps to grid with Ctrl |
 | Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad) |
 | Wire | drag from socket to socket; drop on empty canvas opens the palette **filtered to compatible nodes** and auto-wires the result |
 | Insert on wire | drop a node onto a wire to splice it in (if types match) |
 | Disconnect | drag a wire end away and release, or `Ctrl+drag` across wires to cut |
-| Connect selected to new node | select several nodes, add a `Mix`: the inputs are wired in selection order |
-| Lazy connect | `F` with two selected nodes wires the first compatible sockets |
+| Connect selected to new node | select two or more nodes, then add a node (`Shift+A` or the Add menu): they're wired into it in selection order and it goes to their right (see below) |
+| Lazy connect | `F` with two selected nodes wires the left one into the right one (see below); the status line says what was wired, or why not |
 | Reroute | `Shift+right-drag` across a wire |
+| Portal | right-click a wire or a reroute ▸ **Make Portal**; `Shift+P` makes portals of the selected reroutes, or of the wires between the selected nodes, and turns selected portal tags back into wires |
 | Delete | `X`/`Delete`; `Ctrl+X` deletes and reconnects through (keeps the chain) |
 | Duplicate | `Shift+D` (with internal wires), `Ctrl+Shift+D` (also keeps incoming wires) |
 | Copy/paste | `Ctrl+C`/`Ctrl+V` as JSON text; works across projects and into chat |
@@ -106,24 +125,101 @@ slate.
 | Collapse | `H`; `Ctrl+H` collapses all unwired sockets |
 | Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; `Tab` enters/leaves a group; `Ctrl+Alt+G` ungroups |
 | Frame | `Ctrl+J` puts a labeled frame around the selection; frames move their contents |
-| Align / distribute | `Alt+A` menu; **auto-layout selection** `Ctrl+L` (layered, left-to-right) |
+| Minimap | `Shift+M` shows or hides it; click or drag in it to move the view |
+| Align / distribute | `Shift+Alt+A` menu at the pointer (also Edit ▸ Align / Distribute, and a node's right-click menu with several selected); **auto-layout** `Ctrl+L` lays out the selection, or the whole graph with nothing selected (layered, left to right) |
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
-| Find | `Ctrl+F` finds nodes by name/type and jumps to them |
-| Help | `F1` on a node opens its reference in the side panel |
+| Find | `Ctrl+F` finds nodes by name, kind, or id, inside groups too, and jumps to them: `↑`/`↓` choose, `Enter` jumps, `Esc` closes |
+| Help | `F1` on a node opens its reference in the side panel's Help tab (also Node Help in its right-click menu, and the Help button in the Node tab); with nothing selected, the list of every node |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
 
-Wire routing: béziers by default, with a "straight with bends" option. Wires
-behind nodes are dimmed. Long wires can be turned into named **portals**
+Wire routing: béziers (a "straight with bends" option is planned, not built
+yet). Wires behind nodes are dimmed. Long wires can be turned into named **portals**
 (a pair of Reroutes that are drawn as labels instead of a line) to tame
-spaghetti.
+spaghetti:
+
+- **Making one.** Right-click a wire ▸ **Make Portal**: a *sender* tag
+  appears by the source and a *receiver* tag by the destination, and the
+  line between them goes. A plain reroute's menu does the same, the reroute
+  becoming the sender with a receiver by each node it fed. `Shift+P` works
+  on the selection: selected reroutes become portals, or else the wires
+  between the selected nodes do. Each is one undo step. The portal is named
+  after its source (`Oscillator out`), and names stay unique in a graph.
+- **One sender, many receivers.** A source has at most one sender: making a
+  portal of another wire from the same output adds a receiver to it, and so
+  does pasting a copy of a receiver (or `Shift+D` on one) where its sender
+  is.
+- **Tags.** A tag is a small flag pointing the way the signal goes, in the
+  wire's color, with the portal's name and one socket: a sender's input on
+  its left, a receiver's output at its tip, so wires connect to tags like
+  to any socket. A tag with no other end (its sender was deleted, or a
+  sender with no receivers left) is outlined in the warning color.
+  Hovering a tag lights up its other end; selecting one does too.
+  Double-clicking jumps to the other end (a sender with several receivers
+  goes to the next one each time); the tag's menu has the same jump.
+- **Renaming.** `F2`, the tag's menu, or the Node tab's name field renames
+  the whole portal (its sender and every receiver).
+- **Back to a wire.** `Shift+P` on selected tags, or **Back to Wire** in a
+  tag's menu, removes them and wires each destination straight from the
+  source again. A sender takes all its receivers; a receiver goes alone,
+  and its sender with it once none is left.
+- Portals work inside groups, and copy and paste keep them sane: a pasted
+  portal gets a name of its own, and a receiver pasted without its sender
+  joins the sender of its name. In the project a portal is ordinary
+  Reroutes and wires with a name on each tag (DECISIONS D104), so it plays
+  exactly like the wire it replaced.
+
+### Arranging and quick wiring
+
+Each of these is one undo step; moving cards never interrupts the sound.
+
+- **Auto-layout** (`Ctrl+L`) arranges the selection, or the whole graph
+  when nothing is selected, in columns that follow the wires from left to
+  right, keeping its top-left corner where it was. A loop is drawn from
+  its start to its `Feedback` node, with the wire back from there.
+  Sources and modulators sit just before what they drive. Separate
+  pieces of the graph stack in the order they were in, and unwired cards
+  (notes, mostly) line up in a row above or below, on the side they were
+  on. A frame whose nodes are all being laid out moves and resizes with
+  them; a frame only partly selected stays put. Cards keep their sizes:
+  collapsed pills, reroutes, portal tags, and notes take the room they're
+  drawn with. A portal's sender goes just after its source and each
+  receiver just before its destination, however far apart they end up.
+- **Align / distribute** (`Shift+Alt+A`, since `Alt+A` is select none):
+  align left, center, right, top, middle, or bottom, or distribute
+  horizontally or vertically with equal gaps (the two outer cards stay).
+  Only nodes move; frames stay where they are.
+- **Lazy connect** (`F`, two nodes selected) wires the left node's first
+  output into the first free input of the right node that takes it, in
+  socket order (main sockets come first), unless a pair's names match
+  (`out` → `in`, `out_l` → `in_l`, `midi` → `midi`); among one output's
+  choices, an input of the same type beats one that converts. If nothing
+  fits left to right, it tries right to left. It never makes a loop
+  without a `Feedback` node, and a portal tag offers only the socket it
+  shows. Press it again for the next free input.
+- **Connect selected to new node**: with two or more nodes selected,
+  the node added from the palette (`Shift+A`, which says so) or the Add
+  menu is wired from them, each one's first output in the order they
+  were selected (nodes selected together, by a box or `A`, count top to
+  bottom), into the new node's inputs of one type: the first type the
+  first selected node fits, so two oscillators go into a `Mix`'s `in_0`
+  and `in_1`, never its gains or a filter's cutoff. A `Mix` (or `Select`)
+  grows inputs to fit. The new node goes to their right. If any selected
+  node doesn't fit, nothing is wired, the node goes where it was added,
+  and the status line says why.
+- **Find** (`Ctrl+F`) searches labels, kind names, and ids (from their
+  start) in every graph of the project, portals by name, and notes by
+  their text. A node
+  inside a group shows the group it's in, once per instance of it.
+  `Enter` enters the group, selects the node, and centers it; the bar
+  stays open for the next result until `Esc` or a click elsewhere.
 
 ## Side panel
 
 A resizable panel (`N` toggles) with tabs:
 
-- **Node**: everything about the selected node: full parameter list, docs,
-  bindings, timing, latency.
+- **Node**: everything about the selected node: full parameter list, docs
+  (with its "Try this" tip highlighted), bindings, timing, latency.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette.
 - **Project**: sample rate, length, tempo map, seed, bindings, assets,
@@ -137,14 +233,30 @@ A resizable panel (`N` toggles) with tabs:
   with their age, so a control's number or address is read off the list
   rather than guessed. Click an OSC address to copy it; with one OSC In
   selected, **Use** beside each address sets that node's address. Clear
-  empties a list (D101).
+  empties a list (D115).
 - **Problems**: compile errors and disabled nodes, click to jump.
+- **Help**: a node's reference (`F1`, D110): its name and category, what
+  it does, its "Try this" tip in a highlighted box, every socket with its
+  type, unit, default, and range or choices (as the node has them with
+  its default settings), and **Used in**: the blocks in the library
+  (shipped, the person's own, imported) and the shipped example projects
+  that hold the node, inside nested groups too. Clicking a block adds it
+  at the center of the view, like the Library tab; clicking an example
+  opens it as a new, untitled project (after asking about unsaved
+  changes), the way the Start project opens, so saving never overwrites
+  the shipped file. "All nodes" goes back to the list of every node by
+  category; the search field finds nodes by name or synonym, like the
+  palette.
+
+When the panel is too narrow for every tab's name, the tabs not shown keep
+only their icons, named on hover.
 
 ## Transport bar
 
 Play/stop/record, position in bars:beats and time, tempo and time signature
-(click to edit the tempo map), loop toggle and range, metronome toggle (a
-built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
+(click to edit the tempo map), loop toggle and range, master meter, CPU and
+xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
+**Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
 `R` records, `Shift+Space` plays from the start. At its right end, a
 **Canvas | Panels** switch and the performance-mode button.
 
@@ -256,24 +368,47 @@ all honor them (DECISIONS D92).
 
 - Socket meters: audio sockets show a small level bar; float sockets show a
   tick on their range.
-- Hover a wire to see its live value or a mini-scope.
-- Optional per-node timing in headers (`Ctrl+T`), heat-colored, so a slow
-  patch shows where its time goes.
+- Hover a socket to see its live value large. (Hovering a wire for its value
+  or a mini-scope is planned, not built yet.)
+- Optional per-node timing in headers (`Ctrl+T`, View ▸ Node Timing),
+  heat-colored, so a slow patch shows where its time goes: each header shows
+  the node's processing time per block (`37 µs`), steadied over about half
+  a second, on a chip colored from cool through the warning color to the
+  error color by its share of the block's real-time budget (log scale: a
+  node at 0.2 % or less is cool, a quarter of the budget or more is as hot
+  as it gets). Hover the chip for the share. A group's header shows the sum
+  of everything inside it, and a Voices node the sum of every voice; inside
+  a Voices body each node shows the sum of its copies. The Node tab shows
+  the selected node's time and share with a small bar, or a **Measure**
+  button while timing is off. It is off by default: off, the engine reads
+  no clock and the editor reads nothing (D105).
 - Disabled, baking, and error states are visible from across the canvas.
 
 ## Onboarding and examples
 
 - First launch opens a **Start** project with a guided patch: an oscillator
   wired to the output with comments explaining what to try.
-- **Examples** menu with the shipped projects (see ROADMAP). Each is a
-  working patch and a lesson: "Guitar Pedalboard", "Subtractive Synth",
-  "Four Tracks", "Sidechain Pump", "Drum Machine", "Build a Keyboard",
-  "Reverse Delay", "Gamepad Jam".
-- Every node's help has "try this" tips and links to blocks that use it.
+- **File ▸ Examples** lists the shipped projects (see ROADMAP and
+  `docs/guide/examples.md`) and opens one as an untitled copy, so saving
+  asks where to put it instead of overwriting the example. Each is a
+  working patch and a lesson, from "Start" and "Guitar Pedalboard" to
+  "Build a Keyboard" and "Gamepad Jam".
+- Every node's help has "try this" tips and links to blocks that use it:
+  the Help tab (`F1`) shows the tip highlighted and lists, under **Used
+  in**, the blocks and examples built with the node. Every node's doc
+  comment has its tip as a paragraph starting with `**Try this:**` (a test
+  fails for a node without one).
 
 ## Accessibility and scaling
 
-- UI scale from 75 % to 200 %; everything is vector.
+- UI scale from 75 % to 200 %; everything is vector. View ▸ UI Scale has
+  the steps 75, 90, 100, 110, 125, 150, 175, and 200 %; `Ctrl+=` and
+  `Ctrl+-` go a step up or down and `Ctrl+0` back to 100 %, even while
+  typing or with the panels shown. It is egui's zoom factor, so everything
+  scales, canvas text included; the canvas's own zoom is separate. The
+  scale is remembered in the editor's settings (D108, D109).
+- A light theme (View ▸ Theme) with the same contrast rules as the dark
+  one (see "Look").
 - Socket shapes carry type information in addition to color.
 - All canvas actions have keyboard equivalents; the palette is fully
   keyboard driven.

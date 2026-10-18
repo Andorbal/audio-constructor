@@ -43,6 +43,14 @@ pub struct GamepadInfo {
     pub name: String,
 }
 
+impl GamepadInfo {
+    /// The number people see: 1 for the first gamepad, as a Gamepad
+    /// node's `pad` config and a binding's label count them.
+    pub fn number(&self) -> u16 {
+        u16::from(self.index) + 1
+    }
+}
+
 /// The gamepad system couldn't be opened.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GamepadError(pub String);

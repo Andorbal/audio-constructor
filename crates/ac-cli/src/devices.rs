@@ -53,7 +53,7 @@ pub fn report(
         Ok(p) if p.is_empty() => s.push_str("  (none connected)\n"),
         Ok(p) => {
             for g in p {
-                let _ = writeln!(s, "  {}  {}", g.index, g.name);
+                let _ = writeln!(s, "  {}  {}", g.number(), g.name);
             }
         }
         Err(e) => {
@@ -163,7 +163,7 @@ mod tests {
         assert!(text.contains("inputs:\n    (none)"));
         assert!(text.contains("MIDI inputs\n  Keys 1"));
         assert!(text.contains("MIDI outputs\n  Synth"));
-        assert!(text.contains("Gamepads\n  0  Wireless Controller"));
+        assert!(text.contains("Gamepads\n  1  Wireless Controller"));
         assert!(text.contains("--osc-in 9000"));
         assert!(text.contains("10.0.0.5:9000"));
     }

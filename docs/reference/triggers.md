@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates.
+
 <a id="burst"></a>
 ## Burst
 
