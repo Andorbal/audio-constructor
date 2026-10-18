@@ -140,7 +140,7 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Math](math.md#math) | Combines two values, `a` and `b`, with an arithmetic operation. |
 | [Quantize](math.md#quantize) | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
 | [Random](math.md#random) | A new random value on every `trigger`, held until the next. |
-| [SampleHold](math.md#sample-hold) | Samples `in` at each `trigger` and holds that value until the next. |
+| [Sample & Hold](math.md#sample-hold) | Samples `in` at each `trigger` and holds that value until the next. |
 | [Select](math.md#select) | Passes on one of several inputs, picked by `index`. |
 | [Smooth](math.md#smooth) | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
 | [Switch](math.md#switch) | Passes on `a` while `select` is false and `b` while it is true. |
@@ -156,8 +156,8 @@ Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' i
 | [ADSR](modulation.md#adsr) | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
 | [Envelope](modulation.md#envelope) | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |
 | [LFO](modulation.md#lfo) | A low-frequency oscillator for modulation: a cheap, block-rate wave to move other parameters. |
-| [RandomWalk](modulation.md#random-walk) | Smooth random modulation that wanders around `center`, never further than `range` from it. |
-| [StepSequencer](modulation.md#step-sequencer) | A row of step values played one after another, moving on with each `clock` trigger. |
+| [Random Walk](modulation.md#random-walk) | Smooth random modulation that wanders around `center`, never further than `range` from it. |
+| [Step Sequencer](modulation.md#step-sequencer) | A row of step values played one after another, moving on with each `clock` trigger. |
 
 <a id="triggers"></a>
 ## Triggers & Gates

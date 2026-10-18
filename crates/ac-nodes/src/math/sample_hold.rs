@@ -7,7 +7,7 @@ use crate::segments::Runs;
 
 node! {
     kind: "sample_hold",
-    name: "SampleHold",
+    name: "Sample & Hold",
     category: Math,
     keywords: ["sample and hold", "s&h", "latch", "freeze", "snapshot", "track"],
     /// Samples `in` at each `trigger` and holds that value until the next.

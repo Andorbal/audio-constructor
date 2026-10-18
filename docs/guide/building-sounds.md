@@ -160,9 +160,9 @@ Modulation is wiring a moving signal into a parameter. Some sources:
 | **Oscillator** | The same at audio rate (tick **Pure** in its Settings for sharp corners) | FM, fast wobbles, ring modulation (multiply two with **Math**) |
 | **ADSR**, **Envelope** | A shape each time a gate opens; Envelope is drawn as breakpoints, with sustain and loop points | Notes, swells, filter envelopes |
 | **Graph** | A drawn curve played over a time you set | Automation lanes, one-off sweeps, custom LFO shapes when looped |
-| **StepSequencer** | A row of values, one step per `clock` trigger | Arpeggiated filters, rhythmic gates, melodies |
-| **RandomWalk** | A smooth wander around a center | Slow drift, "analog" instability |
-| **Random**, **SampleHold** | A new value on each trigger | Random notes, stepped noise |
+| **Step Sequencer** | A row of values, one step per `clock` trigger | Arpeggiated filters, rhythmic gates, melodies |
+| **Random Walk** | A smooth wander around a center | Slow drift, "analog" instability |
+| **Random**, **Sample & Hold** | A new value on each trigger | Random notes, stepped noise |
 | **Envelope Follower** | The level of a sound | Making one sound control another (auto-wah, ducking) |
 
 Most modulators put out a value in a fixed range (an LFO from −1 to 1,
@@ -285,7 +285,7 @@ example is built around one.
 
 ## Randomness that repeats
 
-Random, Probability, Noise, RandomWalk, and the random LFO shapes all
+Random, Probability, Noise, Random Walk, and the random LFO shapes all
 draw from the project's **seed** (in the Project tab). The same seed
 gives the same "random" choices every time you play or render, so a
 generative patch is repeatable; change the seed for a new variation.
