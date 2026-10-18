@@ -589,3 +589,43 @@ fn a_number_on_a_panel_takes_typing() {
     assert!(!h.state().perform.is_typing());
     assert_eq!(param(&h, NodeId(1), "value"), Some(Value::Int(42)));
 }
+
+#[test]
+fn performance_mode_turns_play_keys_on_and_restores_it() {
+    let mut h = harness(with_panel(nodes(&[("slider", json!({}))]), "Live", &[1]));
+    assert!(!h.state().play_keys());
+    press(&mut h, Modifiers::NONE, Key::F11);
+    assert!(h.state().performance_mode());
+    assert!(h.state().play_keys(), "on while performing");
+    // Space goes to the patch (down and up), not the transport.
+    let sent = h.state().engine.keys_sent();
+    press(&mut h, Modifiers::NONE, Key::Space);
+    assert_eq!(h.state().engine.keys_sent(), sent + 2);
+    assert!(!h.state().engine.handle.is_playing());
+    // F11 still leaves, and Play keys goes back to off.
+    press(&mut h, Modifiers::NONE, Key::F11);
+    assert!(!h.state().performance_mode());
+    assert!(!h.state().play_keys());
+
+    // On before: still on after, even if turned off while performing
+    // (Ctrl+K works on panels).
+    h.state_mut().set_play_keys(true);
+    press(&mut h, Modifiers::NONE, Key::F11);
+    assert!(h.state().performance_mode() && h.state().play_keys());
+    press(&mut h, Modifiers::COMMAND, Key::K);
+    assert!(!h.state().play_keys());
+    key(&h, Key::Escape, true);
+    key(&h, Key::Escape, false);
+    steps(&mut h, 3);
+    assert!(!h.state().performance_mode());
+    assert!(h.state().play_keys(), "back to what it was");
+
+    // The performance bar's keyboard button toggles it.
+    h.state_mut().set_play_keys(false);
+    press(&mut h, Modifiers::NONE, Key::F11);
+    assert!(h.state().play_keys());
+    h.get_by_label(icons::KEYBOARD).click();
+    steps(&mut h, 3);
+    assert!(!h.state().play_keys());
+    assert!(h.state().performance_mode());
+}

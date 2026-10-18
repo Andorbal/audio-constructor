@@ -16,6 +16,7 @@ pub mod palette;
 pub mod panels;
 pub mod params;
 pub mod perform;
+pub mod play_keys;
 pub mod theme;
 pub mod transport;
 pub mod undo;

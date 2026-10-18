@@ -6,15 +6,21 @@
 //! Switching devices at the same rate moves the processor to the new stream
 //! without rebuilding the engine; a different rate rebuilds the engine at
 //! that rate (the transport and node state start over).
+//!
+//! Besides MIDI, the engine hears control surfaces: the computer keys (when
+//! Play keys is on, see `play_keys.rs`), gamepads, and OSC on a UDP port
+//! chosen in the Devices tab (off until turned on). OSC Out nodes send
+//! through a sender thread here.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ac_core::{Project, Registry, Resources};
+use ac_core::{CONTROL_CAPACITY, Control, ControlEvent, Key, Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, Latency, LatencyError, MidiInputs,
-    MidiOutputs, MidiPorts, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
+    AudioConfig, AudioHost, AudioStream, Baker, ControlInputs, ControlReceiver, ControlSender,
+    CpalAudio, DEFAULT_OSC_PORT, EventPorts, Gamepads, Latency, LatencyError, MidiInputs,
+    MidiOutputs, MidiSelect, NullAudio, OscInput, OscOutput, StreamInfo, StreamStats, worker_pool,
 };
 
 /// Rate and buffer of the null stream when there's no device.
@@ -67,6 +73,26 @@ pub struct EngineHost {
     mode_off: bool,
     /// Bakes whole-input nodes in the background.
     pub baker: Baker,
+    /// Key, gamepad, and OSC sources feeding the engine.
+    pub controls: Option<ControlInputs>,
+    /// The computer keys (Play keys): one of `controls`' sources.
+    keys: Option<ControlSender>,
+    keys_sent: u64,
+    /// Whether gamepads are listened to (with a device runtime).
+    device_sources: bool,
+    pub gamepads: Option<Gamepads>,
+    /// The OSC listener, while it's on.
+    pub osc_in: Option<OscInput>,
+    /// The port OSC listens on (the Devices tab edits it).
+    pub osc_port: u16,
+    /// Why OSC couldn't listen, if it couldn't.
+    pub osc_error: Option<String>,
+    /// Where OSC Out nodes' messages go (with a device runtime).
+    pub osc_out: Option<OscOutput>,
+    /// The idle processor's event ports (`AudioMode::Off`), so
+    /// [`EngineHost::tick_idle`] can feed it control events.
+    idle_ports: EventPorts,
+    idle_controls: Vec<ControlEvent>,
 }
 
 fn engine_at(
@@ -142,20 +168,103 @@ impl EngineHost {
             synced_revision: 0,
             mode_off: host.is_none(),
             baker: Baker::new(),
+            controls: None,
+            keys: None,
+            keys_sent: 0,
+            device_sources: matches!(mode, AudioMode::Device(_)),
+            gamepads: None,
+            osc_in: None,
+            osc_port: DEFAULT_OSC_PORT,
+            osc_error: None,
+            osc_out: None,
+            idle_ports: EventPorts::default(),
+            idle_controls: Vec::with_capacity(CONTROL_CAPACITY),
         };
-        let ports = if matches!(mode, AudioMode::Device(_)) {
-            MidiPorts {
-                input: Some(me.new_midi_inputs()),
-                output: Some(me.new_midi_outputs()),
+        let mut ports = if me.device_sources {
+            EventPorts {
+                midi_in: Some(me.new_midi_inputs()),
+                midi_out: Some(me.new_midi_outputs()),
+                osc_out: Some(me.new_osc_output()),
+                ..EventPorts::default()
             }
         } else {
-            MidiPorts::default()
+            EventPorts::default()
         };
+        // The computer keys work in every mode (tests play them too).
+        ports.controls = Some(me.new_controls());
         match host {
             Some(h) => me.run(h, processor, ports, project),
-            None => me.idle = Some(processor),
+            None => {
+                me.idle = Some(processor);
+                me.idle_ports = ports;
+            }
         }
         me
+    }
+
+    /// Fresh control rings: the computer keys, gamepads (with a device
+    /// runtime), and OSC if it was listening, all on the new rings.
+    fn new_controls(&mut self) -> ControlReceiver {
+        // Old sources first, so OSC can bind its port again.
+        self.keys = None;
+        self.gamepads = None;
+        let osc = self.osc_in.take().map(|l| l.port());
+        let (mut inputs, rx) = ControlInputs::new();
+        self.keys = inputs.sender("computer keys").ok();
+        if self.device_sources {
+            self.gamepads = inputs.sender("gamepads").ok().map(Gamepads::start);
+        }
+        self.controls = Some(inputs);
+        if osc.is_some() {
+            self.set_osc_in(osc);
+        }
+        rx
+    }
+
+    fn new_osc_output(&mut self) -> ac_io::OscOutQueue {
+        let (out, queue) = OscOutput::new();
+        self.osc_out = Some(out);
+        queue
+    }
+
+    /// Listen for OSC on `port` (`None` or 0: stop listening). A port that
+    /// can't be opened is reported in `osc_error`.
+    pub fn set_osc_in(&mut self, port: Option<u16>) {
+        // Close the old socket first, so the same port can be bound again.
+        self.osc_in = None;
+        self.osc_error = None;
+        let Some(port) = port.filter(|p| *p != 0) else {
+            return;
+        };
+        self.osc_port = port;
+        let Some(inputs) = self.controls.as_mut() else {
+            self.osc_error = Some("control input isn't running".into());
+            return;
+        };
+        let listener = inputs
+            .sender("osc")
+            .map_err(|e| e.to_string())
+            .and_then(|s| {
+                OscInput::listen(port, s)
+                    .map_err(|e| format!("couldn't listen on UDP port {port}: {e}"))
+            });
+        match listener {
+            Ok(l) => self.osc_in = Some(l),
+            Err(e) => self.osc_error = Some(e),
+        }
+    }
+
+    /// Send a computer key going down or up to the engine (Play keys).
+    pub fn send_key(&mut self, key: Key, down: bool) {
+        if let Some(k) = self.keys.as_mut() {
+            k.send(Control::Key(key), if down { 1.0 } else { 0.0 });
+            self.keys_sent += 1;
+        }
+    }
+
+    /// Key events sent to the engine so far.
+    pub fn keys_sent(&self) -> u64 {
+        self.keys_sent
     }
 
     fn new_midi_inputs(&mut self) -> ac_io::MidiReceiver {
@@ -188,12 +297,12 @@ impl EngineHost {
         &mut self,
         host: Box<dyn AudioHost>,
         mut processor: Processor,
-        midi: MidiPorts,
+        ports: EventPorts,
         project: &Project,
     ) {
         processor.set_workers(worker_pool(self.config.threads));
         let is_null = host.info().host == "null";
-        match host.start_with(processor, midi) {
+        match host.start_with(processor, ports) {
             Ok(s) => {
                 self.info = s.info().clone();
                 self.stream = Some(s);
@@ -205,14 +314,11 @@ impl EngineHost {
                 };
                 if is_null {
                     self.idle = Some(back.processor);
+                    self.idle_ports = back.ports;
                     return;
                 }
                 let null = Box::new(null_host(project, self.info.sample_rate));
-                let ports = MidiPorts {
-                    input: back.midi,
-                    output: back.midi_out,
-                };
-                match null.start_with(back.processor, ports) {
+                match null.start_with(back.processor, back.ports) {
                     Ok(s) => {
                         self.info = s.info().clone();
                         self.stream = Some(s);
@@ -220,6 +326,7 @@ impl EngineHost {
                     Err(e2) => {
                         if let Some(b) = e2.returned {
                             self.idle = Some(b.processor);
+                            self.idle_ports = b.ports;
                         }
                     }
                 }
@@ -247,18 +354,25 @@ impl EngineHost {
         self.device_error = None;
         self.latency = LatencyState::Idle;
         let stopped = self.stream.take().and_then(|s| s.stop());
-        let (processor, mut midi) = match stopped {
-            Some(mut s) => {
-                let ports = s.midi_ports();
-                (Some(s.processor), ports)
-            }
-            None => (self.idle.take(), MidiPorts::default()),
+        let (processor, mut ports) = match stopped {
+            Some(s) => (Some(s.processor), s.ports),
+            None => (self.idle.take(), std::mem::take(&mut self.idle_ports)),
         };
-        if midi.input.is_none() {
-            midi.input = Some(self.new_midi_inputs());
+        let first_device = !self.device_sources;
+        self.device_sources = true;
+        if ports.midi_in.is_none() {
+            ports.midi_in = Some(self.new_midi_inputs());
         }
-        if midi.output.is_none() {
-            midi.output = Some(self.new_midi_outputs());
+        if ports.midi_out.is_none() {
+            ports.midi_out = Some(self.new_midi_outputs());
+        }
+        if ports.osc_out.is_none() {
+            ports.osc_out = Some(self.new_osc_output());
+        }
+        if ports.controls.is_none() {
+            ports.controls = Some(self.new_controls());
+        } else if first_device && let Some(inputs) = self.controls.as_mut() {
+            self.gamepads = inputs.sender("gamepads").ok().map(Gamepads::start);
         }
         let same_rate = host.info().sample_rate == self.info.sample_rate;
         let processor = match processor {
@@ -274,7 +388,7 @@ impl EngineHost {
             }
         };
         self.mode_off = false;
-        self.run(Box::new(host), processor, midi, project);
+        self.run(Box::new(host), processor, ports, project);
     }
 
     /// Recompile with the editor's project (state carries over).
@@ -312,6 +426,9 @@ impl EngineHost {
         }
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();
+        }
+        if let Some(c) = self.controls.as_mut() {
+            c.collect_garbage();
         }
         if self.last_rescan.elapsed() > MIDI_RESCAN {
             self.rescan_midi();
@@ -382,11 +499,22 @@ impl EngineHost {
     }
 
     /// Run the idle processor for one block (tests drive the engine this way
-    /// when no stream runs it).
+    /// when no stream runs it), with the control events sent since the last
+    /// one (Play keys, gamepads, OSC).
     pub fn tick_idle(&mut self, frames: usize) {
         let Some(p) = self.idle.as_mut() else {
             return;
         };
+        let rate = f64::from(self.info.sample_rate);
+        match self.idle_ports.controls.as_mut() {
+            Some(c) => c.drain(
+                ac_io::clock::now_ns(),
+                frames,
+                rate,
+                &mut self.idle_controls,
+            ),
+            None => self.idle_controls.clear(),
+        }
         let ch = self.info.out_channels.max(1);
         let mut out = vec![0.0f32; ch * frames];
         let mut io = HostIo {
@@ -397,7 +525,7 @@ impl EngineHost {
             out_channels: ch,
             midi: &[],
             midi_out: None,
-            controls: &[],
+            controls: &self.idle_controls,
             osc_out: None,
         };
         p.process(&mut io);
@@ -441,6 +569,42 @@ mod tests {
             host.latency,
             LatencyState::Done(Err(_)) | LatencyState::Running
         ));
+    }
+
+    #[test]
+    fn keys_reach_the_idle_engine_and_osc_can_listen_and_stop() {
+        let registry = Arc::new(ac_nodes::registry());
+        let mut host = EngineHost::start(
+            &Project::default(),
+            registry,
+            Arc::new(ac_core::NoResources),
+            &AudioMode::Off,
+        );
+        assert!(host.gamepads.is_none(), "no gamepad thread without devices");
+        host.send_key(Key::from_name("A").unwrap(), true);
+        assert_eq!(host.keys_sent(), 1);
+        // The idle tick drains the keys' ring into the engine.
+        host.tick_idle(64);
+        let mut rest = Vec::with_capacity(8);
+        let rx = host.idle_ports.controls.as_mut().unwrap();
+        rx.drain(ac_io::clock::now_ns(), 64, 48_000.0, &mut rest);
+        assert!(rest.is_empty(), "already delivered");
+        assert_eq!(host.idle_controls.len(), 1);
+        assert_eq!(host.idle_controls[0].value, 1.0);
+        // Port 0 asks the system for a free one; then stop.
+        host.set_osc_in(Some(0));
+        assert!(host.osc_in.is_none(), "0 means off");
+        let free = std::net::UdpSocket::bind("0.0.0.0:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        host.set_osc_in(Some(free));
+        assert!(host.osc_error.is_none(), "{:?}", host.osc_error);
+        assert_eq!(host.osc_in.as_ref().map(|l| l.port()), Some(free));
+        host.set_osc_in(None);
+        assert!(host.osc_in.is_none());
+        assert_eq!(host.osc_port, free, "the port is remembered");
     }
 
     #[test]
