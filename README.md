@@ -4,15 +4,16 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: Phase 1 (foundation) is built: the engine, the command line, and
-> the desktop editor. Phase 2 is under way: polyphony, nodes that bake their
-> whole input, latency compensation, multi-core processing, and the Phase 2
-> node library (about eighty nodes, with editors for curves, step grids,
-> piano rolls, and bands) are in, as are blocks (23 ship, from reverbs to a
-> drum machine), packs for sharing projects, and control surfaces
-> (gamepads, the computer keyboard, OSC, bindings with learn, and
-> performance panels), and editor conveniences (auto-layout, find,
-> portals, a minimap, a light theme, UI scale, and F1 help). See
+> Status: Phases 1 (foundation) and 2 (depth) are built. Phase 1 gave the
+> engine, the command line, and the desktop editor. Phase 2 added
+> polyphony, nodes that bake their whole input, latency compensation,
+> multi-core processing, the Phase 2 node library (with editors for
+> curves, step grids, piano rolls, and bands), 23 shipped blocks, packs
+> for sharing projects, control surfaces (gamepads, the computer keyboard,
+> OSC, bindings with learn, performance panels), editor conveniences
+> (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
+> help), 14 example projects, and a [user guide](docs/guide/README.md).
+> Phase 3 (plugins, the web, packaging) is next. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 

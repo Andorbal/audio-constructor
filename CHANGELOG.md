@@ -13,6 +13,10 @@ fixes and smaller changes.
 
 ## [0.7.0] - 2026-10-18
 
+The end of Phase 2: fourteen example projects to learn from, a user guide,
+and an engine that spreads light patches and polyphonic synths across
+cores.
+
 ### Added
 
 - Nine new example projects, each a working patch with notes on the canvas
