@@ -771,9 +771,11 @@ fn the_worker_pool_gives_bit_identical_results() {
             workers as u32 + 1
         );
     }
-    // Waves: the chains run side by side, four deep, then the mix and output.
+    // Waves: each chain is one job and the eight run side by side, then the
+    // mix and the output.
     let e = live(wide(8), block);
-    assert_eq!(e.handle.report().stats.waves, 6);
+    assert_eq!(e.handle.report().stats.waves, 3);
+    assert_eq!(e.handle.report().stats.chains, 9);
 }
 
 #[test]
