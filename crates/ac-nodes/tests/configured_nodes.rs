@@ -1,7 +1,9 @@
 //! Real-time hygiene for node configurations the default sweep in
 //! `all_nodes.rs` doesn't reach: a Clip with a loaded (and resampled) file,
-//! tempo-synced Delay, a wide Mix, a pure Oscillator. Each runs at block
-//! sizes 1, 64, and 1024 with every input driven, under an allocation guard.
+//! tempo-synced Delay, a wide Mix, a pure Oscillator, the delay-based
+//! filters and time effects at their buffer-size extremes, and Mid/Side
+//! decoding. Each runs at block sizes 1, 64, and 1024 with every input
+//! driven, under an allocation guard.
 
 use std::sync::Arc;
 
@@ -46,6 +48,12 @@ fn configured_nodes_process_without_allocating() {
         ("delay", json!({ "unit": "beats", "max_time": 0.5 })),
         ("mix", json!({ "inputs": 64 })),
         ("oscillator", json!({ "pure": true })),
+        ("comb", json!({ "max_delay": 2.0 })),
+        ("allpass", json!({ "max_delay": 0.001 })),
+        ("freeze", json!({ "max_time": 0.05 })),
+        ("pitch_shift", json!({ "max_grain": 0.2 })),
+        ("pitch_shift", json!({ "max_grain": 0.01 })),
+        ("mid_side", json!({ "mode": "decode" })),
     ];
     let reg = ac_nodes::registry();
     for (kind, config) in cases {
