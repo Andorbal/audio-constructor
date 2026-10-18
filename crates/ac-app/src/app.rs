@@ -16,9 +16,11 @@ use crate::audio::{AudioMode, EngineHost};
 use crate::canvas::{Canvas, CanvasEvent, CanvasIo, PendingWire};
 use crate::dialogs::{self, Confirm, FilePurpose, PathPrompt};
 use crate::document::Document;
+use crate::edit::connect::{self, FeedError, SelectionOrder, Source};
 use crate::edit::{self, HIDE_UNWIRED, pins};
 use crate::export::{ExportSummary, export_wav};
 use crate::files::{self, Recent};
+use crate::find::{FindBar, Found};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
@@ -118,6 +120,13 @@ pub struct EditorApp {
     /// Play keys' state before performance mode turned it on, while
     /// performance mode lasts.
     play_keys_before_performance: Option<bool>,
+    /// The find bar (`Ctrl+F`).
+    pub find: FindBar,
+    /// The order the selected nodes were selected in.
+    selection_order: SelectionOrder,
+    /// The selected nodes the palette's pick will be wired from, in
+    /// selection order (connect selected to new node).
+    palette_feed: Vec<NodeId>,
 }
 
 impl EditorApp {
@@ -225,6 +234,9 @@ impl EditorApp {
             bound: crate::bindings::BoundInputs::default(),
             play_keys: PlayKeys::default(),
             play_keys_before_performance: None,
+            find: FindBar::default(),
+            selection_order: SelectionOrder::default(),
+            palette_feed: Vec::new(),
         };
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
@@ -331,6 +343,7 @@ impl EditorApp {
         if ctx.memory(|m| m.focused().is_none()) {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
+        self.track_selection();
         self.handle_keys(&ctx, now);
         self.update_bindings(now);
         if self.learn.is_some() {
@@ -379,7 +392,19 @@ impl EditorApp {
             .palette
             .show(&ctx, &self.registry, &self.library, &self.doc)
         {
-            self.add_candidate(&p.candidate, p.at, p.pending, now);
+            let feed = std::mem::take(&mut self.palette_feed);
+            self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+        }
+        if !self.palette.open {
+            self.palette_feed.clear();
+        }
+        if self.perform.shown {
+            self.find.close();
+        } else if let Some(f) =
+            self.find
+                .show(&ctx, self.canvas.screen, &self.doc.project, &self.registry)
+        {
+            self.jump_to_found(&f, now);
         }
         self.dialogs(&ctx, now);
         // Buttons this frame may have started or ended performance mode.
@@ -600,7 +625,11 @@ impl EditorApp {
                     "Drag or click a widget to play it · drag a card by its edge to move it · \
                      F11 performance mode · Ctrl+Tab canvas"
                 } else if self.doc.selection.is_empty() {
-                    "Shift+A add · drag from a socket to wire · double-click empty canvas to search"
+                    "Shift+A add · drag from a socket to wire · double-click empty canvas to search \
+                     · Ctrl+F find · Ctrl+L lay out"
+                } else if self.doc.selection.len() >= 2 {
+                    "F connect two · Shift+A add a node wired from these · Ctrl+L lay out · \
+                     Shift+Alt+A align · Ctrl+G group"
                 } else {
                     "G move · Shift+D duplicate · X delete · Ctrl+G group · M mute · H collapse"
                 };
@@ -803,6 +832,7 @@ impl EditorApp {
         let typing = ctx.egui_wants_keyboard_input()
             || self.canvas.is_typing()
             || self.palette.open
+            || self.find.open
             || self.perform.is_typing();
         let modal = self.confirm.is_some() || self.prompt.is_some();
         // Play keys: held keys come up when typing starts, a dialog opens,
@@ -891,8 +921,8 @@ impl EditorApp {
                         continue;
                     }
                     if key == Key::Escape && pressed {
-                        if self.palette.open {
-                            continue; // the palette handles it
+                        if self.palette.open || self.find.open {
+                            continue; // they handle it
                         }
                         if self.perform.shown {
                             // A field takes its own Escape; then popups and
@@ -977,7 +1007,13 @@ impl EditorApp {
                 screen,
                 canvas,
                 pending,
-            } => self.palette.open_at(screen, canvas, pending),
+            } => {
+                let feed = pending.is_none();
+                self.palette.open_at(screen, canvas, pending);
+                if feed {
+                    self.prepare_feed();
+                }
+            }
             CanvasEvent::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
@@ -1079,7 +1115,7 @@ impl EditorApp {
             }
             PanelRequest::Navigate(path) => {
                 if let Some(id) = self.doc.navigate_to(&path) {
-                    self.canvas.focus_node(&self.doc, &self.registry, id);
+                    self.canvas.jump_to(&self.doc, &self.registry, id);
                 } else {
                     self.warn("That node no longer exists.", now);
                 }
@@ -1122,7 +1158,8 @@ impl EditorApp {
             MenuCommand::ClearRecent => self.recent.clear(),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
-                self.add_candidate(&c, at, None, now);
+                let feed = self.feed_order();
+                self.add_node_from(&c, at, None, &feed, now);
             }
         }
     }
@@ -1162,6 +1199,101 @@ impl EditorApp {
         pending: Option<PendingWire>,
         now: f64,
     ) -> Option<NodeId> {
+        self.add_node_from(c, at, pending, &[], now)
+    }
+
+    /// Follow the selection, so its order is known (selection is a set).
+    fn track_selection(&mut self) {
+        let prefix = self.doc.scope_prefix();
+        self.selection_order
+            .sync(&self.doc.selection, self.doc.graph(), &prefix);
+    }
+
+    /// The selected nodes in selection order when there are two or more of
+    /// them (what connect-selected-to-new-node wires), else nothing.
+    fn feed_order(&mut self) -> Vec<NodeId> {
+        self.track_selection();
+        let order: Vec<NodeId> = self
+            .selection_order
+            .get()
+            .iter()
+            .copied()
+            .filter(|id| !edit::is_virtual(*id))
+            .collect();
+        if order.len() >= 2 { order } else { Vec::new() }
+    }
+
+    /// The palette just opened without a wire: with several nodes
+    /// selected, what it adds is wired from them.
+    fn prepare_feed(&mut self) {
+        self.palette_feed = self.feed_order();
+        let n = self.palette_feed.len();
+        self.palette.note = (n >= 2).then(|| {
+            format!("The {n} selected nodes will be wired into it, in the order you selected them")
+        });
+    }
+
+    /// Why the selected nodes weren't wired into a new node, for the
+    /// status line.
+    fn feed_reason(&self, e: &FeedError) -> String {
+        let name = |id: NodeId| {
+            self.doc.graph().node(id).map_or_else(
+                || "a selected node".to_string(),
+                |n| connect::title(n, &self.registry, &self.doc.project.group_defs),
+            )
+        };
+        match e {
+            FeedError::NoOutput(id) => format!("{} has no output", name(*id)),
+            FeedError::NoInput(id, ty) => format!(
+                "it has no free input that takes the {} output of {}",
+                ty.name(),
+                name(*id)
+            ),
+        }
+    }
+
+    /// Jump to a node the find bar found: into its group, selected and
+    /// in view.
+    fn jump_to_found(&mut self, f: &Found, now: f64) {
+        match self.doc.navigate_to(&f.path) {
+            Some(id) => {
+                self.canvas.jump_to(&self.doc, &self.registry, id);
+                if f.place.is_empty() {
+                    self.say(format!("{} ({})", f.title, f.kind), now);
+                } else {
+                    self.say(format!("{} ({}) in {}", f.title, f.kind, f.place), now);
+                }
+            }
+            None => self.warn("That node no longer exists.", now),
+        }
+    }
+
+    /// [`EditorApp::add_candidate`], wired from `feed` (two or more nodes
+    /// in selection order) when there's no pending wire: each feeds the
+    /// new node's inputs in turn, and the node goes to their right (D103).
+    fn add_node_from(
+        &mut self,
+        c: &Candidate,
+        at: egui::Pos2,
+        pending: Option<PendingWire>,
+        feed: &[NodeId],
+        now: f64,
+    ) -> Option<NodeId> {
+        let feed: Vec<NodeId> = if pending.is_none() {
+            feed.iter()
+                .copied()
+                .filter(|id| self.doc.graph().node(*id).is_some())
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let feeding = feed.len() >= 2;
+        let bounds = self
+            .canvas
+            .node_rects(&self.doc, &self.registry, &feed)
+            .into_iter()
+            .map(|(_, r)| r)
+            .reduce(|a, b| a.union(b));
         let pos = match &pending {
             Some(p) if p.from.is_some() => at - vec2(14.0, 40.0),
             Some(_) => at - vec2(theme::NODE_WIDTH - 14.0, 40.0),
@@ -1179,9 +1311,14 @@ impl EditorApp {
             None => None,
         };
         let kind = c.kind.clone();
-        let config = c.config.clone();
+        let config = if feeding && block.is_none() {
+            connect::widen_for(&self.registry, &kind, &c.config, feed.len())
+        } else {
+            c.config.clone()
+        };
         let socket = c.socket.clone();
         let mut error = None;
+        let mut fed: Option<Result<usize, FeedError>> = None;
         let id = self
             .doc
             .edit(&self.registry, &format!("Add {}", c.name), |g, ctx| {
@@ -1212,10 +1349,52 @@ impl EditorApp {
                         error = Some(e.to_string());
                     }
                 }
+                if feeding {
+                    let sources: Vec<Source> = feed
+                        .iter()
+                        .map(|n| Source::of(*n, &ctx.sockets(g, *n)))
+                        .collect();
+                    let inputs = ctx.sockets(g, id).inputs;
+                    fed = Some(connect::plan_feeds(&sources, &inputs).map(|plan| {
+                        let wired = plan
+                            .into_iter()
+                            .filter(|(from, input)| {
+                                let to = Endpoint::new(id, input.clone());
+                                edit::connect(g, ctx, from.clone(), to).is_ok()
+                            })
+                            .count();
+                        // To the right of the selection, level with its middle.
+                        let size = g
+                            .node(id)
+                            .map(|n| edit::approx_size(n, &ctx.sockets(g, id)));
+                        if let (Some(b), Some(size), Some(n)) = (bounds, size, g.node_mut(id)) {
+                            n.ui.pos = [
+                                b.max.x + edit::layout::COLUMN_GAP,
+                                b.center().y - size[1] / 2.0,
+                            ];
+                        }
+                        wired
+                    }));
+                }
                 Some(id)
             });
         if let Some(e) = error {
             self.warn(e, now);
+        }
+        match &fed {
+            Some(Ok(n)) => self.say(
+                format!(
+                    "Added {} and wired the {n} selected nodes into it, in the order you selected \
+                     them",
+                    c.name
+                ),
+                now,
+            ),
+            Some(Err(e)) => {
+                let why = self.feed_reason(e);
+                self.warn(format!("Added {} without wiring: {why}", c.name), now);
+            }
+            None => {}
         }
         let id = id?;
         self.doc.selection = [id].into();
@@ -1343,7 +1522,42 @@ impl EditorApp {
             Action::AddNode => {
                 let at = self.canvas.pointer_canvas();
                 let screen = self.canvas.transform().to_screen(at);
+                self.find.close();
                 self.palette.open_at(screen, at, None);
+                self.prepare_feed();
+            }
+            Action::AutoLayout => match self.canvas.auto_layout(&mut self.doc, &reg) {
+                Ok(n) => self.say(format!("Laid out {n} nodes · Ctrl+Z undoes it"), now),
+                Err(e) => self.say(e, now),
+            },
+            Action::ArrangeMenu => {
+                if self.selected_real().len() >= 2 {
+                    self.canvas.open_arrange_menu();
+                } else {
+                    self.say("Select two or more nodes to align or distribute", now);
+                }
+            }
+            Action::AlignLeft
+            | Action::AlignCenter
+            | Action::AlignRight
+            | Action::AlignTop
+            | Action::AlignMiddle
+            | Action::AlignBottom
+            | Action::DistributeHorizontally
+            | Action::DistributeVertically => {
+                if let Some(how) = a.align()
+                    && let Err(e) = self.canvas.align_selection(&mut self.doc, &reg, how)
+                {
+                    self.say(e, now);
+                }
+            }
+            Action::LazyConnect => match self.canvas.lazy_connect(&mut self.doc, &reg) {
+                Ok(what) => self.say(what, now),
+                Err(e) => self.warn(e, now),
+            },
+            Action::Find => {
+                self.palette.close();
+                self.find.show_bar();
             }
             Action::Frame => self.canvas.frame_selection(&mut self.doc, &reg),
             Action::Group => {

@@ -156,12 +156,61 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::SelectAll, icons::SELECTION, true);
             entry(ui, &mut out, Action::SelectNone, icons::SELECTION, sel);
             entry(ui, &mut out, Action::SelectLinked, icons::SELECTION, sel);
+            entry(
+                ui,
+                &mut out,
+                Action::Find,
+                icons::MAGNIFYING_GLASS,
+                !s.panels,
+            );
             ui.separator();
             entry(ui, &mut out, Action::Grab, icons::CROSSHAIR, sel);
             entry(ui, &mut out, Action::Rename, icons::PENCIL, sel);
             entry(ui, &mut out, Action::Mute, icons::SPEAKER_SLASH, sel);
             entry(ui, &mut out, Action::Collapse, icons::CARET_DOWN, sel);
             entry(ui, &mut out, Action::HideUnwired, icons::SELECTION, sel);
+            ui.separator();
+            entry(
+                ui,
+                &mut out,
+                Action::LazyConnect,
+                icons::PLUGS_CONNECTED,
+                sel && !s.panels,
+            );
+            entry(
+                ui,
+                &mut out,
+                Action::AutoLayout,
+                icons::FLOW_ARROW,
+                !s.panels,
+            );
+            ui.add_enabled_ui(sel && !s.panels, |ui| {
+                ui.menu_button(
+                    format!("{}  {}", icons::ALIGN_LEFT, Action::ArrangeMenu.label()),
+                    |ui| {
+                        if let Some(sc) = Action::ArrangeMenu.shortcut() {
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} opens this at the pointer",
+                                    ui.ctx().format_shortcut(&sc)
+                                ))
+                                .small()
+                                .color(theme::text_faint()),
+                            );
+                        }
+                        for (i, (icon, a)) in crate::canvas::arrange_items()
+                            .into_iter()
+                            .enumerate()
+                            .skip(1)
+                        {
+                            if i == 7 {
+                                ui.separator();
+                            }
+                            entry(ui, &mut out, a, icon, true);
+                        }
+                    },
+                );
+            });
             ui.separator();
             entry(ui, &mut out, Action::Pin, icons::PUSH_PIN, sel && !s.panels);
         });

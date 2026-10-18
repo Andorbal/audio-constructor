@@ -25,6 +25,8 @@ pub enum Target {
     Frame(usize),
     Wire(Wire, Pos2),
     Canvas(Pos2),
+    /// Align, distribute, and auto-layout for the selection.
+    Arrange,
 }
 
 impl Target {
@@ -309,6 +311,48 @@ impl Canvas {
                         return true;
                     }
                 }
+                let several = io
+                    .doc
+                    .selection
+                    .iter()
+                    .filter(|id| !edit::is_virtual(**id))
+                    .count();
+                if several >= 2 {
+                    ui.separator();
+                    if several == 2
+                        && item(
+                            ui,
+                            icons::PLUGS_CONNECTED,
+                            Action::LazyConnect.label(),
+                            Some(Action::LazyConnect),
+                        )
+                    {
+                        run(io, Action::LazyConnect);
+                        return true;
+                    }
+                    if item(
+                        ui,
+                        icons::FLOW_ARROW,
+                        Action::AutoLayout.label(),
+                        Some(Action::AutoLayout),
+                    ) {
+                        run(io, Action::AutoLayout);
+                        return true;
+                    }
+                    // Its own menu, in place: a submenu would close with
+                    // this one on the click that picks from it.
+                    if item(
+                        ui,
+                        icons::ALIGN_LEFT,
+                        Action::ArrangeMenu.label(),
+                        Some(Action::ArrangeMenu),
+                    ) {
+                        if let Some((_, at)) = self.menu {
+                            self.menu = Some((Target::Arrange, at));
+                        }
+                        return false;
+                    }
+                }
                 if pin_items(ui, io, n) {
                     return true;
                 }
@@ -370,6 +414,23 @@ impl Canvas {
                     });
                     self.mark_born(&new, now);
                     return true;
+                }
+                false
+            }
+            Target::Arrange => {
+                ui.label(
+                    RichText::new("Arrange the selection")
+                        .color(theme::text_muted())
+                        .small(),
+                );
+                for (i, (icon, a)) in arrange_items().into_iter().enumerate() {
+                    if i == 1 || i == 7 {
+                        ui.separator();
+                    }
+                    if item(ui, icon, a.label(), Some(a)) {
+                        run(io, a);
+                        return true;
+                    }
                 }
                 false
             }
@@ -714,6 +775,28 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
         }
     }
     false
+}
+
+/// The arrange menu's entries: auto-layout, the six alignments, and the
+/// two ways to distribute (the Edit menu lists the same).
+pub fn arrange_items() -> [(&'static str, Action); 9] {
+    [
+        (icons::FLOW_ARROW, Action::AutoLayout),
+        (icons::ALIGN_LEFT, Action::AlignLeft),
+        (icons::ALIGN_CENTER_HORIZONTAL, Action::AlignCenter),
+        (icons::ALIGN_RIGHT, Action::AlignRight),
+        (icons::ALIGN_TOP, Action::AlignTop),
+        (icons::ALIGN_CENTER_VERTICAL, Action::AlignMiddle),
+        (icons::ALIGN_BOTTOM, Action::AlignBottom),
+        (
+            icons::ARROWS_OUT_LINE_HORIZONTAL,
+            Action::DistributeHorizontally,
+        ),
+        (
+            icons::ARROWS_OUT_LINE_VERTICAL,
+            Action::DistributeVertically,
+        ),
+    ]
 }
 
 fn tooltip(ui: &egui::Ui, p: Pos2, add: impl FnOnce(&mut egui::Ui)) {

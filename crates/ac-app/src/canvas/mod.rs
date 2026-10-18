@@ -6,6 +6,7 @@
 //! canvas hit-tests by hand rather than through egui widgets so that the
 //! drawing order, the hit order, and the zoomed geometry always agree.
 
+mod arrange;
 pub mod bodies;
 pub mod controls;
 mod interact;
@@ -18,6 +19,7 @@ pub mod view;
 pub mod widgets;
 pub mod wires;
 
+pub use menu::arrange_items;
 pub use paint::pretty as paint_pretty;
 
 use std::collections::{BTreeSet, HashMap};

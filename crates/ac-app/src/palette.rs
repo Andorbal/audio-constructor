@@ -104,6 +104,9 @@ pub struct Palette {
     pub screen: Pos2,
     pub canvas: Pos2,
     pub pending: Option<PendingWire>,
+    /// A line above the search saying what happens to the node added
+    /// (the selected nodes it will be wired from).
+    pub note: Option<String>,
     focus: bool,
     /// Frames since it opened (the opening click mustn't close it).
     age: u32,
@@ -238,6 +241,7 @@ impl Palette {
         self.screen = screen;
         self.canvas = canvas;
         self.pending = pending;
+        self.note = None;
         self.focus = true;
         self.age = 0;
     }
@@ -245,6 +249,7 @@ impl Palette {
     pub fn close(&mut self) {
         self.open = false;
         self.pending = None;
+        self.note = None;
     }
 
     /// Show the palette; returns the chosen candidate.
@@ -312,6 +317,13 @@ impl Palette {
                                         .color(theme::text_muted()),
                                 );
                             });
+                        }
+                        if let Some(note) = &self.note {
+                            ui.label(
+                                RichText::new(format!("{}  {note}", icons::PLUGS_CONNECTED))
+                                    .small()
+                                    .color(theme::text_muted()),
+                            );
                         }
                         let te = egui::TextEdit::singleline(&mut self.query)
                             .id(egui::Id::unique("add-node-query"))
