@@ -1,5 +1,5 @@
-//! `audioc blocks` and `audioc block-update`: the block library from the
-//! command line (ARCHITECTURE §12).
+//! `audioc blocks`, `block-update`, `pack`, and `unpack`: the block library
+//! and project packs from the command line (ARCHITECTURE §12).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -139,4 +139,60 @@ pub fn update(args: UpdateArgs) -> Result<ExitCode> {
     } else {
         ExitCode::SUCCESS
     })
+}
+
+#[derive(Debug, Args)]
+pub struct PackArgs {
+    /// The project to pack.
+    project: PathBuf,
+    /// The pack to write (default: next to the project, `<name>.acpack`).
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+}
+
+/// `audioc pack`: a project and its audio files in one file to share.
+pub fn pack(args: PackArgs) -> Result<ExitCode> {
+    let registry = ac_nodes::registry();
+    let out = args
+        .output
+        .unwrap_or_else(|| args.project.with_extension(ac_io::PACK_EXTENSION));
+    let r = ac_io::write_pack(&args.project, &out, &registry).map_err(|e| anyhow!(e))?;
+    for m in &r.missing {
+        eprintln!("warning: {m} is missing; the pack doesn't include it");
+    }
+    for (was, now) in &r.moved {
+        println!("copied {was} into the pack as {now}");
+    }
+    println!("packed {} files → {}", r.files, out.display());
+    Ok(if r.missing.is_empty() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(2)
+    })
+}
+
+#[derive(Debug, Args)]
+pub struct UnpackArgs {
+    /// The pack to unpack.
+    pack: PathBuf,
+    /// The folder to unpack into (default: a new folder next to the pack).
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    /// Overwrite files that are already there.
+    #[arg(long)]
+    force: bool,
+}
+
+/// `audioc unpack`: the project and audio files from a pack.
+pub fn unpack(args: UnpackArgs) -> Result<ExitCode> {
+    let project = match &args.output {
+        Some(dir) => {
+            let bytes =
+                std::fs::read(&args.pack).map_err(|e| anyhow!("{}: {e}", args.pack.display()))?;
+            ac_io::unpack(&bytes, dir, args.force).map_err(|e| anyhow!(e))?
+        }
+        None => ac_io::unpack_beside(&args.pack).map_err(|e| anyhow!(e))?,
+    };
+    println!("unpacked → {}", project.display());
+    Ok(ExitCode::SUCCESS)
 }

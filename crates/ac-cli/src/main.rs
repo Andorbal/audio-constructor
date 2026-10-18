@@ -65,6 +65,10 @@ enum Command {
     Blocks(blocks::BlocksArgs),
     /// Update projects' copies of library blocks to the library's versions.
     BlockUpdate(blocks::UpdateArgs),
+    /// Bundle a project and its audio files into one `.acpack` to share.
+    Pack(blocks::PackArgs),
+    /// Unpack an `.acpack` into a folder.
+    Unpack(blocks::UnpackArgs),
     /// Rewrite project and block files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
@@ -98,6 +102,8 @@ fn main() -> ExitCode {
         Command::Bench(args) => bench::run(args),
         Command::Blocks(args) => blocks::list(args),
         Command::BlockUpdate(args) => blocks::update(args),
+        Command::Pack(args) => blocks::pack(args),
+        Command::Unpack(args) => blocks::unpack(args),
     };
     match result {
         Ok(code) => code,

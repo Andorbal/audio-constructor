@@ -48,6 +48,7 @@ pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
 pub mod null;
+pub mod pack;
 pub mod priority;
 pub mod project_file;
 pub mod record;
@@ -66,6 +67,7 @@ pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, b
 pub use midi_file::{midi_file_bytes, write_midi_file};
 pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
 pub use null::{NullAudio, NullHost, NullStream};
+pub use pack::{PACK_EXTENSION, PackReport, unpack, unpack_beside, write_pack};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{

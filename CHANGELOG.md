@@ -13,6 +13,21 @@ fixes and smaller changes.
 
 ## [0.4.0] - 2026-10-18
 
+### Added
+
+- **Blocks**: a group saved to its own `.acblock` file (name, description,
+  version, author, tags), so a patch built once can be used in any project.
+  Projects keep a copy of every block they use and remember where it came
+  from, so a newer version in the library can update them.
+- `audioc blocks` lists the block library, and `audioc block-update`
+  brings a project's copies of library blocks up to date (`--check` only
+  reports).
+- **Packs**: `audioc pack song.acproj` bundles a project and the audio files
+  it uses into one `.acpack` to share, copying in files from outside the
+  project's folder; `audioc unpack` unpacks one, and never writes outside
+  the folder it unpacks into.
+- The **Tremolo** block.
+
 ## [0.3.0] - 2026-10-18
 
 Milestone M2.2 of the roadmap: the Phase 2 node library, about eighty new
