@@ -214,6 +214,18 @@ impl NodeMeta {
         out.trim_end().to_string()
     }
 
+    /// The "Try this" tip (NODES.md): the paragraph of the docs that starts
+    /// with "Try this", without that label. The editor's help shows it
+    /// highlighted.
+    pub fn tip(&self) -> Option<String> {
+        split_tip(&self.doc_text()).1
+    }
+
+    /// The docs without the tip paragraph.
+    pub fn description(&self) -> String {
+        split_tip(&self.doc_text()).0
+    }
+
     /// The first paragraph of the docs: a one-line summary.
     pub fn summary(&self) -> String {
         self.doc_text()
@@ -223,6 +235,42 @@ impl NodeMeta {
             .replace('\n', " ")
             .trim()
             .to_string()
+    }
+}
+
+/// Split Markdown docs into everything but the "Try this" paragraph, and
+/// that paragraph's text after its label (`**Try this:**`, bold or not).
+/// Paragraphs are separated by blank lines; the first tip paragraph wins.
+pub fn split_tip(doc: &str) -> (String, Option<String>) {
+    const LABEL: &str = "try this";
+    let mut rest = Vec::new();
+    let mut tip = None;
+    for para in doc.split("\n\n") {
+        let t = para.trim();
+        let body = t.strip_prefix("**").unwrap_or(t);
+        let is_tip = tip.is_none()
+            && body
+                .get(..LABEL.len())
+                .is_some_and(|s| s.eq_ignore_ascii_case(LABEL))
+            && !body[LABEL.len()..]
+                .chars()
+                .next()
+                .is_some_and(char::is_alphanumeric);
+        if is_tip {
+            let text = body[LABEL.len()..].trim_start_matches([':', '*', ' ', '\n']);
+            tip = Some(capitalize(text.trim()));
+        } else if !t.is_empty() {
+            rest.push(para.trim_matches('\n'));
+        }
+    }
+    (rest.join("\n\n"), tip.filter(|t| !t.is_empty()))
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(first) => first.to_uppercase().chain(c).collect(),
+        None => String::new(),
     }
 }
 
