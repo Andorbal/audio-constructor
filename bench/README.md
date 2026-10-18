@@ -58,10 +58,11 @@ leaves out the driver and the editor.
   does not: its chains are 24 cheap nodes deep (a Biquad or a Delay takes
   1–2 µs per block), so each of its 27 waves holds about 8 µs of work, and
   handing a wave to the workers and waiting for them costs about as much on
-  this machine. Each step also lands on whichever thread claims it first,
-  so a chain's state and buffers move between cores from wave to wave.
-  Keeping a step on the thread that ran it last, or running a whole linear
-  chain as one job, would cut both costs.
+  this machine. Giving each thread the same steps every block, so a chain's
+  state stays on one core, didn't help in a trial (0.5–1.0× on four
+  threads), so the cost is the hand-off itself: running a whole linear
+  chain as one job, so the chains' 27 waves become three, is what would
+  let this shape scale.
 - The threaded figures vary from run to run here because every vCPU is
   busy: when the system runs anything else, it takes a core from a worker
   that holds a job, and the wave waits for it. Four threads on four vCPUs
