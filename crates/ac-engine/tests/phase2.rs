@@ -840,6 +840,35 @@ fn spectrum_paths_carry_latency_and_audio_lines_up_with_them() {
 }
 
 #[test]
+fn a_dry_path_cancels_against_fft_then_ifft() {
+    // osc → fft → ifft → math.a ; osc → math.b ; a − b → out. The engine
+    // delays the dry path by the FFT's window, so the difference is silence.
+    let p = P::new()
+        .node_with(NodeInstance::new(NodeId(1), "oscillator").with_param("freq", 220.0))
+        .node(2, "fft")
+        .node(3, "ifft")
+        .node_with(
+            NodeInstance::new(NodeId(4), "math")
+                .with_param("op", ac_core::Value::Text("subtract".into())),
+        )
+        .node(5, "t_out")
+        .wire(1, "out", 2, "in")
+        .wire(2, "spectrum", 3, "spectrum")
+        .wire(3, "out", 4, "a")
+        .wire(1, "out", 4, "b")
+        .wire(4, "out", 5, "in")
+        .build();
+    let r = offline(&p, 64, 0.2);
+    assert_eq!(
+        r.report.stats.compensation,
+        vec![(path(4), "b".to_string(), 2047)]
+    );
+    let out = &r.channels[0];
+    let peak = out[4096..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak < 1e-4, "residual {peak}");
+}
+
+#[test]
 fn spectrum_wires_are_type_checked() {
     let p = P::new()
         .node(1, "t_spec")
