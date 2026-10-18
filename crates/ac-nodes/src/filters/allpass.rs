@@ -14,19 +14,19 @@ node! {
     /// but smears the signal in time, turning a click into a dense,
     /// decaying train of echoes. A reverb ingredient.
     ///
-    /// - `delay` (seconds) is the spacing of the echoes. Reads are
-    ///   interpolated, so it can be modulated (slow wobble breaks up metallic
+    /// - `delay` (seconds) is the spacing of the echoes. Reads between
+    ///   samples go through an allpass interpolator, which keeps the response
+    ///   flat, so it can be modulated (slow wobble breaks up metallic
     ///   ringing); a block-rate `delay` glides across each block. It is held
-    ///   between one sample and `max_delay`.
+    ///   between one sample and `max_delay` (delays under 1.5 samples are
+    ///   held at 1).
     /// - `gain` (−0.99 to 0.99, clamped) sets how much echoes feed back and
     ///   forward: higher magnitudes give longer, denser smears. 0 is a plain
     ///   delay.
     ///
-    /// With a steady `delay` the magnitude response is flat: what changes
-    /// is only the phase, so on its own it sounds subtle on steady tones and
-    /// obvious on clicks and drums. (A delay that falls between samples is
-    /// interpolated, which softens the top octave very slightly, about
-    /// 0.2 dB at 12 kHz.) Several in series with unrelated delays
+    /// The magnitude response is flat at any delay: what changes is only
+    /// the phase, so on its own it sounds subtle on steady tones and obvious
+    /// on clicks and drums. Several in series with unrelated delays
     /// (1 to 20 ms, gain around 0.6) make a diffuser; see also `Diffuser`,
     /// which does that in one node.
     ///
@@ -171,7 +171,7 @@ mod tests {
         // Lossless: all the energy comes out.
         let mut h = Harness::new::<Allpass>(json!({}));
         h.set_audio("in", vec![impulse(48_000)])
-            .set("delay", 0.007)
+            .set("delay", 0.0071)
             .set("gain", 0.7);
         let o = h.run(48_000).audio("out")[0].clone();
         let energy: f64 = o.iter().map(|v| f64::from(*v).powi(2)).sum();
@@ -199,13 +199,12 @@ mod tests {
                 );
             }
         }
-        // Fractional delays interpolate, losing a little treble.
-        for f in [100.0, 1000.0, 5000.0] {
+        // Fractional delays (340.8 samples) are read through an allpass
+        // interpolator, so they lose nothing either.
+        for f in [100.0, 1000.0, 5000.0, 12_000.0, 19_000.0] {
             let m = magnitude(0.0071, 0.7, f);
             assert!((m - 1.0).abs() < 0.01, "f {f}: {m}");
         }
-        let m = magnitude(0.0071, 0.7, 12_000.0);
-        assert!(m > 0.95 && m <= 1.0, "{m}");
     }
 
     #[test]
