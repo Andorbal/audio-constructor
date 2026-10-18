@@ -10,6 +10,7 @@
 
 pub mod block;
 pub mod clipboard;
+pub mod control;
 pub mod events;
 pub mod graph;
 pub mod group;
@@ -29,6 +30,10 @@ pub mod whole;
 
 pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
 pub use clipboard::Subgraph;
+pub use control::{
+    CONTROL_CAPACITY, Control, ControlEvent, GamepadAxis, GamepadButton, Key, OSC_OUT_CAPACITY,
+    OscMessage, osc_address_hash,
+};
 pub use events::{MIDI_CAPACITY, MidiEvent, MidiMsg, note_to_hz};
 pub use graph::{
     Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, VOICE_KIND,

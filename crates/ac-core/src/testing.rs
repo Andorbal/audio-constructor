@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use crate::control::{Control, ControlEvent, OscMessage};
 use crate::events::{MidiEvent, MidiMsg};
 use crate::io::BufferRef;
 use crate::io::{
@@ -75,6 +76,9 @@ pub struct Output {
     /// MIDI the node sent to the devices, at absolute sample positions
     /// (`host_output` nodes only).
     pub host_midi_out: Vec<(u64, MidiMsg)>,
+    /// OSC the node sent, at absolute sample positions (`host_output` nodes
+    /// only); each message's `offset` is its position in its block.
+    pub host_osc_out: Vec<(u64, OscMessage)>,
 }
 
 impl Output {
@@ -121,6 +125,7 @@ pub struct Harness {
     host_in: Vec<Vec<f32>>,
     host_out_channels: usize,
     host_midi: Vec<(u64, MidiMsg)>,
+    host_controls: Vec<(u64, Control, f32)>,
     telemetry: Vec<AtomicU32>,
     scope: Vec<AtomicU32>,
     scope_pos: AtomicU32,
@@ -196,6 +201,7 @@ impl Harness {
             host_in: Vec::new(),
             host_out_channels: 0,
             host_midi: Vec::new(),
+            host_controls: Vec::new(),
             phases: vec![Phase::Main],
             guard: None,
             buffer_state: Vec::new(),
@@ -397,6 +403,14 @@ impl Harness {
     pub fn host_midi(&mut self, events: &[(u64, MidiMsg)]) -> &mut Self {
         self.host_midi = events.to_vec();
         self.host_midi.sort_by_key(|e| e.0);
+        self
+    }
+
+    /// Control-surface input (for `Gamepad`, `KeyboardIn`, `OscIn`), at
+    /// absolute frames.
+    pub fn host_controls(&mut self, events: &[(u64, Control, f32)]) -> &mut Self {
+        self.host_controls = events.to_vec();
+        self.host_controls.sort_by_key(|e| e.0);
         self
     }
 
@@ -709,6 +723,13 @@ impl Harness {
             .filter(|e| e.0 >= start && e.0 < end)
             .map(|e| MidiEvent::new((e.0 - start) as u32, e.1))
             .collect();
+        let mut host_osc_out: Vec<OscMessage> = Vec::with_capacity(crate::OSC_OUT_CAPACITY);
+        let host_controls: Vec<ControlEvent> = self
+            .host_controls
+            .iter()
+            .filter(|e| e.0 >= start && e.0 < end)
+            .map(|e| ControlEvent::new((e.0 - start) as u32, e.1, e.2))
+            .collect();
 
         let auto = AutoFlags {
             play: std::mem::take(&mut self.pending_play),
@@ -777,6 +798,8 @@ impl Harness {
                     frames,
                     midi: &host_midi,
                     midi_out: self.meta.host_output.then_some(&mut host_midi_out),
+                    controls: &host_controls,
+                    osc_out: self.meta.host_output.then_some(&mut host_osc_out),
                 },
                 telemetry: TelemetryAccess {
                     values: &self.telemetry,
@@ -856,6 +879,11 @@ impl Harness {
             host_midi_out
                 .iter()
                 .map(|e| (start + u64::from(e.offset), e.msg)),
+        );
+        out.host_osc_out.extend(
+            host_osc_out
+                .iter()
+                .map(|m| (start + u64::from(m.offset), *m)),
         );
 
         self.frame = end;

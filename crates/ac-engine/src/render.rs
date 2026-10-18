@@ -331,6 +331,8 @@ pub fn render(
             out_channels,
             midi: &midi,
             midi_out: Some(&mut midi_out),
+            controls: &[],
+            osc_out: None,
         };
         engine.process(&mut io);
         for (c, ch) in channels.iter_mut().enumerate() {

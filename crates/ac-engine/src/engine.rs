@@ -15,7 +15,8 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use ac_core::{
-    EngineInfo, HostAccess, MidiEvent, NodePath, Project, Registry, Resources, Value, param_value,
+    CONTROL_CAPACITY, ControlEvent, EngineInfo, HostAccess, MidiEvent, NodePath, OscMessage,
+    Project, Registry, Resources, Value, param_value,
 };
 use rtrb::{Consumer, Producer, RingBuffer};
 
@@ -77,6 +78,12 @@ pub struct HostIo<'a> {
     /// capacity; messages beyond its capacity are dropped. `None`: no MIDI
     /// output.
     pub midi_out: Option<&'a mut Vec<MidiEvent>>,
+    /// Control-surface events (keys, gamepads, OSC) received during this
+    /// block, offsets relative to its first frame, in order.
+    pub controls: &'a [ControlEvent],
+    /// Where `OscOut` nodes put OSC messages, like `midi_out`. `None`: no
+    /// OSC output.
+    pub osc_out: Option<&'a mut Vec<OscMessage>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -123,6 +130,7 @@ pub struct Processor {
     status: Arc<EngineStatus>,
     clock: Option<ClockFn>,
     midi_scratch: Vec<MidiEvent>,
+    control_scratch: Vec<ControlEvent>,
     workers: Option<Arc<RtPool>>,
     busy: [u64; MAX_WORKERS + 1],
 }
@@ -216,6 +224,7 @@ impl Engine {
             status: status.clone(),
             clock: None,
             midi_scratch: Vec::with_capacity(MIDI_SCRATCH),
+            control_scratch: Vec::with_capacity(CONTROL_CAPACITY),
             workers: None,
             busy: [0; MAX_WORKERS + 1],
         };
@@ -684,6 +693,19 @@ impl Processor {
                         .push(MidiEvent::new((off - done) as u32, e.msg));
                 }
             }
+            self.control_scratch.clear();
+            for e in io.controls {
+                let off = e.offset as usize;
+                if off >= done
+                    && off < done + n
+                    && self.control_scratch.len() < self.control_scratch.capacity()
+                {
+                    self.control_scratch.push(ControlEvent {
+                        offset: (off - done) as u32,
+                        ..*e
+                    });
+                }
+            }
             let block = BlockTransport {
                 playing: t.playing,
                 recording: t.recording,
@@ -701,6 +723,8 @@ impl Processor {
                 frames: n,
                 midi: &self.midi_scratch,
                 midi_out: io.midi_out.as_deref_mut(),
+                controls: &self.control_scratch,
+                osc_out: io.osc_out.as_deref_mut(),
             };
             let engine = EngineInfo {
                 load: self.status.load_fraction(),

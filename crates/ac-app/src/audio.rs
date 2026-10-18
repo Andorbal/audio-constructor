@@ -397,6 +397,8 @@ impl EngineHost {
             out_channels: ch,
             midi: &[],
             midi_out: None,
+            controls: &[],
+            osc_out: None,
         };
         p.process(&mut io);
         self.handle.collect_garbage();

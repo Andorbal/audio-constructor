@@ -74,6 +74,8 @@ impl NullHost {
             out_channels: self.out_channels,
             midi,
             midi_out: Some(&mut self.midi_out),
+            controls: &[],
+            osc_out: None,
         };
         self.processor.process(&mut io);
         self.handle.collect_garbage();

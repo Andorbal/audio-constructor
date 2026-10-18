@@ -219,6 +219,8 @@ mod tests {
             out_channels: 2,
             midi: &[],
             midi_out: None,
+            controls: &[],
+            osc_out: None,
         };
         back.process(&mut io);
         assert!(handle.position() >= pos);

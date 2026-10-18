@@ -222,6 +222,8 @@ impl BakeJob {
                 frames: n,
                 midi: &midi,
                 midi_out: None,
+                controls: &[],
+                osc_out: None,
             };
             let transport = BlockTransport {
                 playing: true,

@@ -639,6 +639,8 @@ impl CallbackCore {
                                     .midi_out
                                     .is_some()
                                     .then_some(&mut self.midi_out_chunk),
+                                controls: &[],
+                                osc_out: None,
                             };
                             p.process(&mut io);
                             if let Some(q) = self.midi_out.as_mut() {
