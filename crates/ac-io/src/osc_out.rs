@@ -86,6 +86,8 @@ struct Shared {
     stop: AtomicBool,
     sent: AtomicU64,
     errors: AtomicU64,
+    /// Times the sender woke, so tests can check an unused output sleeps.
+    wakes: AtomicU64,
 }
 
 /// The control-thread end: runs the sender thread and reports on it.
@@ -192,14 +194,17 @@ fn sender_thread(mut rx: Consumer<TimedOsc>, shared: &Shared) {
     let mut pending: VecDeque<TimedOsc> = VecDeque::with_capacity(OUT_RING);
     let mut sockets = Sockets::default();
     let mut buf = Vec::with_capacity(256);
-    let mut last_activity = 0u64;
+    // Idle until the first message: most projects have no OSC Out, and a
+    // sender polling every millisecond competes with the audio thread.
+    let mut last_activity: Option<u64> = None;
     while !shared.stop.load(Ordering::Relaxed) {
+        shared.wakes.fetch_add(1, Ordering::Relaxed);
         while let Ok(m) = rx.pop() {
             pending.push_back(m);
         }
         let now = clock::now_ns();
         if !pending.is_empty() {
-            last_activity = now;
+            last_activity = Some(now);
         }
         // In order, even if a later callback stamped a slightly earlier time.
         while pending.front().is_some_and(|m| m.time_ns <= now) {
@@ -214,7 +219,7 @@ fn sender_thread(mut rx: Consumer<TimedOsc>, shared: &Shared) {
                 shared.errors.fetch_add(1, Ordering::Relaxed);
             }
         }
-        let idle = now.saturating_sub(last_activity) > IDLE_AFTER_NS;
+        let idle = last_activity.is_none_or(|t| now.saturating_sub(t) > IDLE_AFTER_NS);
         let wait = match pending.front() {
             Some(m) => Duration::from_nanos(m.time_ns.saturating_sub(now)).min(ACTIVE_WAIT),
             None if idle => IDLE_WAIT,
@@ -294,6 +299,15 @@ mod tests {
         assert_no_alloc::assert_no_alloc(|| queue.push_block(0, 64, 48_000.0, &msgs));
         assert_eq!(dropped.load(Ordering::Relaxed), 5);
         assert_eq!(rx.pop().unwrap().msg, m);
+    }
+
+    #[test]
+    fn an_unused_output_sleeps_from_the_start() {
+        let (out, _queue) = OscOutput::new();
+        std::thread::sleep(Duration::from_millis(200));
+        let wakes = out.shared.wakes.load(Ordering::Relaxed);
+        // About 40 at the idle wait; polling at the active wait would be 200.
+        assert!(wakes <= 60, "{wakes} wakes in 200 ms");
     }
 
     #[test]
