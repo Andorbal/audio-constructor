@@ -21,8 +21,9 @@ use crate::fft::Fft;
 /// logarithm to minus infinity, and keeps the deep valleys between a few
 /// loud harmonics from dragging the averaged envelope far below them.
 const FLOOR: f32 = 1e-3;
-/// Absolute floor for an all-silent frame.
-const SILENT: f32 = 1e-20;
+/// Absolute power floor for an all-silent frame (well above `f32`'s
+/// subnormal range).
+const SILENT_POWER: f32 = 1e-30;
 
 /// Estimates log-magnitude envelopes for spectra of one FFT size. Allocates
 /// in [`CepstralEnvelope::new`] only.
@@ -80,25 +81,21 @@ impl CepstralEnvelope {
             out.fill(0.0);
             return;
         }
+        // Work in power (no square roots): ln |X| = ½ ln |X|².
         let mut loudest = 0.0f32;
-        for k in 0..bins {
+        for (k, pair) in self.bins.chunks_exact_mut(2).enumerate() {
             let re = spectrum.get(2 * k).copied().unwrap_or(0.0);
             let im = spectrum.get(2 * k + 1).copied().unwrap_or(0.0);
-            let m = (re * re + im * im).sqrt();
-            if m.is_finite() {
-                loudest = loudest.max(m);
-            }
+            let p = re * re + im * im;
+            // Non-finite bins (and overflowing ones) count as silent.
+            let p = if p.is_finite() { p } else { 0.0 };
+            loudest = loudest.max(p);
+            pair[0] = p;
+            pair[1] = 0.0;
         }
-        let floor = (loudest * FLOOR).max(SILENT);
-        for k in 0..bins {
-            let re = spectrum.get(2 * k).copied().unwrap_or(0.0);
-            let im = spectrum.get(2 * k + 1).copied().unwrap_or(0.0);
-            let m = (re * re + im * im).sqrt();
-            let m = if m.is_finite() { m.max(floor) } else { floor };
-            if let Some(pair) = self.bins.get_mut(2 * k..2 * k + 2) {
-                pair[0] = m.ln();
-                pair[1] = 0.0;
-            }
+        let floor = (loudest * FLOOR * FLOOR).max(SILENT_POWER);
+        for pair in self.bins.chunks_exact_mut(2) {
+            pair[0] = 0.5 * pair[0].max(floor).ln();
         }
         // A real, even log spectrum has a real, even cepstrum.
         fft.inverse(&self.bins, &mut self.cepstrum);

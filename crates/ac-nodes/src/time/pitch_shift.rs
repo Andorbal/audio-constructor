@@ -133,8 +133,9 @@ struct Spectral {
     fft: Fft,
     envelope: CepstralEnvelope,
     window: Vec<f32>,
-    /// Makes analysis × synthesis windows overlap-add to 1.
-    gain: f32,
+    /// The synthesis window: the analysis window scaled so analysis ×
+    /// synthesis windows overlap-add to 1.
+    synthesis: Vec<f32>,
     hop: usize,
     frame: Vec<f32>,
     spec_dry: Vec<f32>,
@@ -170,10 +171,11 @@ impl Spectral {
         let hop = n / 4;
         let bins = n / 2 + 1;
         let lifter = ((LIFTER * rate).round() as usize).clamp(4, n / 4);
+        let gain = ola_gain(&window, hop);
         Spectral {
             fft: Fft::new(n),
             envelope: CepstralEnvelope::new(n, lifter),
-            gain: ola_gain(&window, hop),
+            synthesis: window.iter().map(|w| w * gain).collect(),
             window,
             hop,
             frame: vec![0.0; n],
@@ -191,28 +193,19 @@ impl Spectral {
     /// Process the frame that ends at ring position `pos` and overlap-add
     /// it into the channel's accumulator.
     fn frame(&mut self, ch: &mut Channel, pos: usize, semitones: f32, formant: f32) {
-        let n = self.size();
-        let first = pos + 1;
+        // The oldest sample of the frame; the ring is read as two
+        // contiguous runs from there.
+        let first = (pos + 1) % self.size().max(1);
         // Formants moved exactly with the pitch need no correction: the
         // frame passes through (windowed twice and overlap-added, which
         // reconstructs it).
         let identity = (semitones - formant).abs() < 1e-4;
-        for (j, f) in self.frame.iter_mut().enumerate() {
-            let k = (first + j) % n;
-            *f = ch.shifted_ring.get(k).copied().unwrap_or(0.0)
-                * self.window.get(j).copied().unwrap_or(0.0);
-        }
+        windowed(&ch.shifted_ring, first, &self.window, &mut self.frame);
         if identity {
-            for (o, f) in self.out.iter_mut().zip(&self.frame) {
-                *o = *f;
-            }
+            self.out.copy_from_slice(&self.frame);
         } else {
             self.fft.forward(&self.frame, &mut self.spec_shifted);
-            for (j, f) in self.frame.iter_mut().enumerate() {
-                let k = (first + j) % n;
-                *f = ch.dry_ring.get(k).copied().unwrap_or(0.0)
-                    * self.window.get(j).copied().unwrap_or(0.0);
-            }
+            windowed(&ch.dry_ring, first, &self.window, &mut self.frame);
             self.fft.forward(&self.frame, &mut self.spec_dry);
             self.envelope
                 .log_envelope(&mut self.fft, &self.spec_dry, &mut self.log_env);
@@ -231,13 +224,24 @@ impl Spectral {
             }
             self.fft.inverse(&self.spec_shifted, &mut self.out);
         }
-        for (j, o) in self.out.iter().enumerate() {
-            let k = (first + j) % n;
-            let w = self.window.get(j).copied().unwrap_or(0.0) * self.gain;
-            if let Some(a) = ch.acc.get_mut(k) {
-                *a += o * w;
-            }
+        let split = first.min(ch.acc.len());
+        let (head, tail) = ch.acc.split_at_mut(split);
+        for ((a, o), w) in tail
+            .iter_mut()
+            .chain(head.iter_mut())
+            .zip(&self.out)
+            .zip(&self.synthesis)
+        {
+            *a += o * w;
         }
+    }
+}
+
+/// `ring` read from `first` round to `first − 1`, times `window`, into `out`.
+fn windowed(ring: &[f32], first: usize, window: &[f32], out: &mut [f32]) {
+    let (head, tail) = ring.split_at(first.min(ring.len()));
+    for ((o, r), w) in out.iter_mut().zip(tail.iter().chain(head)).zip(window) {
+        *o = r * w;
     }
 }
 
@@ -248,6 +252,8 @@ impl PitchShift {
         let formant = io.inputs.float(FORMANT);
         let grain = io.inputs.float(GRAIN);
         let center = self.center as f64;
+        // The pitch ratio for the last `semitones` seen (usually steady).
+        let mut ratio = (f32::NAN, 1.0f64);
         for (i, step) in self.plan.iter_mut().take(frames).enumerate() {
             let st = finite_or(semitones.at(i), 0.0).clamp(-24.0, 24.0);
             let fm = finite_or(formant.at(i), 0.0).clamp(-12.0, 12.0);
@@ -258,17 +264,19 @@ impl PitchShift {
             // Each head's delay sweeps `w` samples around the center; at
             // phase 0.5 a head sits on the center at full level, at 0 and 1
             // it is silent while it jumps.
-            let s = (std::f64::consts::PI * a).sin();
+            let s = (std::f32::consts::PI * a as f32).sin();
             *step = Step {
                 delay_a: center + (a - 0.5) * w,
                 delay_b: center + (b - 0.5) * w,
-                weight_a: (s * s) as f32,
+                weight_a: s * s,
                 semitones: st,
                 formant: fm,
             };
             // The delay changes by (1 − r) samples per sample.
-            let ratio = f64::from(st / 12.0).exp2();
-            self.phase += (1.0 - ratio) / w;
+            if st != ratio.0 {
+                ratio = (st, f64::from(st / 12.0).exp2());
+            }
+            self.phase += (1.0 - ratio.1) / w;
             self.phase -= self.phase.floor();
         }
     }
@@ -349,8 +357,9 @@ impl Node for PitchShift {
         self.plan(io, frames);
         let input = io.inputs.audio(IN);
         let mix = io.inputs.float(MIX);
-        let n = self.spectral.size();
-        let hop = self.spectral.hop;
+        // Frame size and hop are powers of two, so positions wrap by masking.
+        let mask = self.spectral.size() - 1;
+        let hop_mask = self.spectral.hop - 1;
         let (center, latency) = (self.center, self.latency);
         let start = self.pos;
         let mut out = io.outputs.audio(OUT);
@@ -376,16 +385,16 @@ impl Node for PitchShift {
                     *d = aligned;
                     *s = shifted;
                 }
-                if pos % hop == hop - 1 {
+                if pos & hop_mask == hop_mask {
                     self.spectral.frame(ch, pos, step.semitones, step.formant);
                 }
-                pos = (pos + 1) % n;
+                pos = (pos + 1) & mask;
                 let wet = ch.acc.get_mut(pos).map_or(0.0, std::mem::take);
                 let m = finite_or(mix.at(i), 1.0).clamp(0.0, 1.0);
                 *o = dry * (1.0 - m) + wet * m;
             }
         }
-        self.pos = (start + frames) % n;
+        self.pos = (start + frames) & mask;
     }
 
     fn latency(&self) -> u32 {
