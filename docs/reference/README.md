@@ -26,13 +26,29 @@ node. Edit the node's source, not these files.
 | [Math](math.md#math) | Math & Logic | Combines two values, `a` and `b`, with an arithmetic operation. |
 | [Unary](math.md#unary) | Math & Logic | Applies a one-input function to `in`: trigonometry, exponentials, rounding, and the like. |
 | [ADSR](modulation.md#adsr) | Modulation | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
+| [Burst](triggers.md#burst) | Triggers & Gates | Fires a quick run of triggers after each trigger. |
 | [Clock](triggers.md#clock) | Triggers & Gates | Fires a trigger every `interval`, locked to the transport. |
+| [Clock Divide](triggers.md#clock-divide) | Triggers & Gates | Passes every Nth trigger. |
+| [Clock Multiply](triggers.md#clock-multiply) | Triggers & Gates | Fills the gap between incoming triggers with evenly spaced ones. |
+| [Euclidean](triggers.md#euclidean) | Triggers & Gates | Steps through a Euclidean rhythm: `pulses` hits spread as evenly as possible over `steps`. |
+| [Gate to Trigger](triggers.md#gate-to-trigger) | Triggers & Gates | Fires a trigger where a gate turns on, turns off, or both. |
+| [Latch](triggers.md#latch) | Triggers & Gates | Remembers an on/off state that triggers set, reset, and flip. |
+| [Probability](triggers.md#probability) | Triggers & Gates | Lets each trigger through with a chance. |
+| [Threshold Trigger](triggers.md#threshold-trigger) | Triggers & Gates | Fires a trigger when a level rises above a threshold. |
+| [Timer](triggers.md#timer) | Triggers & Gates | Counts the time since `start`, and fires `done` once `duration` has passed. |
+| [Trigger Delay](triggers.md#trigger-delay) | Triggers & Gates | Delays each trigger by a time in seconds or beats. |
+| [Trigger to Gate](triggers.md#trigger-to-gate) | Triggers & Gates | Turns each trigger into a gate of a set length. |
 | [MIDI Note](sequencing.md#midi-note) | Sequencing & Notes | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |
 | [Voice](sequencing.md#voice) | Sequencing & Notes | One voice's note, inside the body of a `Voices` node. |
 | [Voices](sequencing.md#voices) | Sequencing & Notes | Makes any patch polyphonic: its body (a group) runs once per voice, each voice plays one note at a time, and the voices' outputs are added together. |
 | [Button](controls.md#button) | Controls | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |
+| [Dropdown](controls.md#dropdown) | Controls | A menu of named choices; outputs the index of the one picked. |
+| [Keyboard](controls.md#keyboard) | Controls | A piano keyboard you play with the mouse or the computer keyboard; it sends the notes out as MIDI. |
+| [Knob](controls.md#knob) | Controls | A round dial for a value you set by hand, with a range, a unit, and a linear or log scale. |
+| [Number](controls.md#number) | Controls | A number you type in: a `Float` or an `Int`, optionally kept within a range. |
 | [Slider](controls.md#slider) | Controls | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | Controls | An on/off switch. |
+| [XY Pad](controls.md#xy-pad) | Controls | A square pad you drag a point around on: two values at once, plus a gate while you touch it. |
 | [Meter](display.md#meter) | Display | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Display | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | Display | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |
