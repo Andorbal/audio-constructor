@@ -6,7 +6,9 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 
 > Status: Phase 1 (foundation) is built: the engine, the command line, and
 > the desktop editor. Phase 2 is under way: polyphony, nodes that bake their
-> whole input, latency compensation, and multi-core processing are in. See
+> whole input, latency compensation, multi-core processing, and the Phase 2
+> node library (about eighty nodes, with editors for curves, step grids,
+> piano rolls, and bands) are in. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
