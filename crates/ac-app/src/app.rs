@@ -1009,6 +1009,7 @@ impl EditorApp {
                 pending,
             } => {
                 let feed = pending.is_none();
+                self.find.close();
                 self.palette.open_at(screen, canvas, pending);
                 if feed {
                     self.prepare_feed();
@@ -1288,12 +1289,15 @@ impl EditorApp {
             Vec::new()
         };
         let feeding = feed.len() >= 2;
-        let bounds = self
-            .canvas
-            .node_rects(&self.doc, &self.registry, &feed)
-            .into_iter()
-            .map(|(_, r)| r)
-            .reduce(|a, b| a.union(b));
+        let bounds = if feeding {
+            self.canvas
+                .node_rects(&self.doc, &self.registry, &feed)
+                .into_iter()
+                .map(|(_, r)| r)
+                .reduce(|a, b| a.union(b))
+        } else {
+            None
+        };
         let pos = match &pending {
             Some(p) if p.from.is_some() => at - vec2(14.0, 40.0),
             Some(_) => at - vec2(theme::NODE_WIDTH - 14.0, 40.0),

@@ -1367,4 +1367,48 @@ mod tests {
         let y = fit_column(&[0.0, 50.0], &[1.0, 1.0], &[10.0]);
         assert_eq!(y, vec![0.0, 50.0]);
     }
+
+    #[test]
+    fn a_big_tangled_graph_lays_out_quickly_without_overlaps() {
+        // 300 cards, each fed by up to three earlier ones (a fixed
+        // pseudo-random pattern), drawn in a scramble.
+        let n = 300u64;
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let cards: Vec<Card> = (1..=n)
+            .map(|i| {
+                let (x, y) = ((next() % 3000) as f32, (next() % 3000) as f32);
+                card(
+                    i,
+                    x,
+                    y,
+                    60.0 + (next() % 4) as f32 * 30.0,
+                    &["a", "b", "c"],
+                    &["out"],
+                )
+            })
+            .collect();
+        let mut wires = Vec::new();
+        for i in 2..=n {
+            for (k, s) in ["a", "b", "c"].iter().enumerate() {
+                if k == 0 || next() % 3 == 0 {
+                    let from = 1 + next() % (i - 1);
+                    wires.push(wire(from, "out", i, s));
+                }
+            }
+        }
+        let t = std::time::Instant::now();
+        let a = arrange(&cards, &wires, &[]);
+        assert!(t.elapsed().as_secs_f32() < 10.0, "{:?}", t.elapsed());
+        let r = rects(&cards, &a);
+        assert_no_overlaps(&r);
+        for w in &wires {
+            assert!(r[&w.from.node].max.x < r[&w.to.node].min.x, "{w:?}");
+        }
+    }
 }
