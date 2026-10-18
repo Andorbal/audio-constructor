@@ -40,8 +40,8 @@ pub use io::{
     TriggerOut, TriggerSrc,
 };
 pub use node::{
-    AudioData, Category, Causality, Determinism, EngineInfo, NoResources, Node, NodeMeta, Phase,
-    PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
+    AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
+    NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};

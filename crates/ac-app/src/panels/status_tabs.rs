@@ -1,10 +1,10 @@
-//! The Devices tab (audio device, latency, MIDI inputs) and the Problems
-//! tab (compile diagnostics, click to jump).
+//! The Devices tab (audio device, latency, MIDI inputs and outputs) and
+//! the Problems tab (compile diagnostics, click to jump).
 
 use ac_engine::Severity;
 use egui::RichText;
 
-use ac_io::InputChoice;
+use ac_io::{InputChoice, MidiSelect};
 
 use super::{DevicesState, PanelIo, PanelRequest, section};
 use crate::audio::LatencyState;
@@ -383,6 +383,54 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 io.engine.rescan_midi();
             }
         }
+    }
+
+    section(ui, "MIDI outputs");
+    if io.engine.midi_out.is_none() {
+        ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::TEXT_MUTED));
+        return;
+    }
+    if state.midi_outputs.is_none() {
+        state.midi_outputs = Some(
+            ac_io::list_outputs()
+                .map(|ports| ports.into_iter().map(|p| p.name).collect())
+                .unwrap_or_default(),
+        );
+    }
+    let ports = state.midi_outputs.clone().unwrap_or_default();
+    let choice = io.engine.midi_out_choice.clone();
+    let mut pick = None;
+    ui.label(RichText::new("MIDI Out nodes send to:").color(theme::TEXT_MUTED));
+    if ui.radio(choice == MidiSelect::None, "nowhere").clicked() {
+        pick = Some(MidiSelect::None);
+    }
+    for p in &ports {
+        if ui
+            .radio(choice == MidiSelect::Matching(p.clone()), p)
+            .clicked()
+        {
+            pick = Some(MidiSelect::Matching(p.clone()));
+        }
+    }
+    if ports.len() > 1 && ui.radio(choice == MidiSelect::All, "all ports").clicked() {
+        pick = Some(MidiSelect::All);
+    }
+    if let Some(p) = pick {
+        io.engine.set_midi_out(p);
+    }
+    if let Some(m) = io.engine.midi_out.as_ref() {
+        if let Some(e) = m.last_error() {
+            ui.label(RichText::new(e.to_string()).color(theme::TEXT_MUTED));
+        } else if ports.is_empty() {
+            ui.label(RichText::new("No MIDI outputs found.").color(theme::TEXT_MUTED));
+        }
+        if m.dropped() > 0 {
+            ui.colored_label(theme::WARNING, format!("{} messages dropped", m.dropped()));
+        }
+    }
+    if ui.button(format!("{}  Refresh", icons::REDO)).clicked() {
+        state.midi_outputs = None;
+        io.engine.rescan_midi();
     }
 }
 

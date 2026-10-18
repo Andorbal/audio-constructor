@@ -1,4 +1,4 @@
-//! `audioc devices`: audio hosts and devices, and MIDI inputs.
+//! `audioc devices`: audio hosts and devices, and MIDI ports.
 
 use std::fmt::Write as _;
 use std::process::ExitCode;
@@ -9,15 +9,15 @@ use anyhow::Result;
 pub fn devices() -> Result<ExitCode> {
     let hosts = ac_io::enumerate();
     let midi = ac_io::midi::list_inputs();
-    print!("{}", report(&hosts, &midi));
+    let midi_out = ac_io::list_outputs();
+    print!("{}", report(&hosts, &midi, &midi_out));
     Ok(ExitCode::SUCCESS)
 }
 
 /// The whole listing as text (separate from printing so it can be tested).
-pub fn report(
-    hosts: &[HostInfo],
-    midi: &Result<Vec<ac_io::MidiPortInfo>, ac_io::midi::MidiError>,
-) -> String {
+type Ports = Result<Vec<ac_io::MidiPortInfo>, ac_io::midi::MidiError>;
+
+pub fn report(hosts: &[HostInfo], midi: &Ports, midi_out: &Ports) -> String {
     let mut s = String::new();
     if hosts.is_empty() {
         s.push_str("audio: no hosts compiled in\n");
@@ -35,8 +35,14 @@ pub fn report(
         section(&mut s, "outputs", &h.outputs);
         section(&mut s, "inputs", &h.inputs);
     }
-    s.push_str("MIDI inputs\n");
-    match midi {
+    ports(&mut s, "MIDI inputs", midi);
+    ports(&mut s, "MIDI outputs", midi_out);
+    s
+}
+
+fn ports(s: &mut String, title: &str, ports: &Ports) {
+    let _ = writeln!(s, "{title}");
+    match ports {
         Ok(ports) if ports.is_empty() => s.push_str("  (none)\n"),
         Ok(ports) => {
             for p in ports {
@@ -47,7 +53,6 @@ pub fn report(
             let _ = writeln!(s, "  unavailable: {e}");
         }
     }
-    s
 }
 
 fn section(s: &mut String, title: &str, devices: &[DeviceInfo]) {
@@ -109,19 +114,24 @@ mod tests {
             name: "Keys 1".into(),
             id: "1".into(),
         }]);
-        let text = report(&hosts, &midi);
+        let out = Ok(vec![ac_io::MidiPortInfo {
+            name: "Synth".into(),
+            id: "2".into(),
+        }]);
+        let text = report(&hosts, &midi, &out);
         assert!(text.contains("ALSA (default host)"));
         assert!(text.contains("  * Speakers"));
         assert!(text.contains("    HDMI"));
         assert!(text.contains("2 ch · 48000 Hz (8000–192000) · buffer 32–8192 frames · f32"));
         assert!(text.contains("inputs:\n    (none)"));
         assert!(text.contains("MIDI inputs\n  Keys 1"));
+        assert!(text.contains("MIDI outputs\n  Synth"));
     }
 
     #[test]
     fn nothing_present_still_reads_well() {
         let midi = Err(ac_io::midi::MidiError("no sequencer".into()));
-        let text = report(&[], &midi);
+        let text = report(&[], &midi, &Ok(Vec::new()));
         assert!(text.contains("no hosts"));
         assert!(text.contains("unavailable: no sequencer"));
         let mut d = dev("x", false);

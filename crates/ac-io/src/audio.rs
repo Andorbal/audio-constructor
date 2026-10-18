@@ -31,7 +31,7 @@ use rtrb::{Producer, RingBuffer};
 
 use crate::convert::interleave;
 use crate::latency::{Latency, LatencyError};
-use crate::midi::MidiReceiver;
+use crate::runtime::MidiPorts;
 use crate::runtime::{
     AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, InputRing,
     StartError, Stopped, StreamCounters, StreamInfo, StreamStats, error_code, input_ring_frames,
@@ -590,10 +590,10 @@ impl AudioHost for CpalAudio {
         &self.info
     }
 
-    fn start(
+    fn start_with(
         self: Box<Self>,
         processor: Processor,
-        midi: Option<MidiReceiver>,
+        midi: MidiPorts,
     ) -> Result<Box<dyn AudioStream>, StartError> {
         let me = *self;
         let mut info = me.info;
@@ -603,7 +603,11 @@ impl AudioHost for CpalAudio {
         if me.buffer_unknown && me.out_config.buffer_size != BufferSize::Default {
             attempts.push(BufferSize::Default);
         }
-        let mut back = Stopped { processor, midi };
+        let mut back = Stopped {
+            processor,
+            midi: midi.input,
+            midi_out: midi.output,
+        };
         let mut last_err = None;
         for buffer in attempts {
             let mut input_stream = None;
@@ -644,7 +648,10 @@ impl AudioHost for CpalAudio {
                 in_channels,
                 out_channels: info.out_channels,
                 input_ring,
-                midi: back.midi,
+                midi: MidiPorts {
+                    input: back.midi,
+                    output: back.midi_out,
+                },
                 promote: crate::priority::host_needs_promotion(&info.host),
             });
             let channels = info.out_channels;

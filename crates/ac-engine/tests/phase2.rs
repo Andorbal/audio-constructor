@@ -369,6 +369,7 @@ fn run(engine: &mut Engine, block: usize, blocks: usize, input: Option<&[f32]>) 
             output: &mut out,
             out_channels: 2,
             midi: &[],
+            midi_out: None,
         };
         engine.process(&mut io);
         all.extend_from_slice(&out[..block]);
@@ -1010,6 +1011,7 @@ fn a_polyphonic_synth_sounds_and_is_identical_on_many_cores() {
                 output: &mut out,
                 out_channels: 2,
                 midi: &events,
+                midi_out: None,
             };
             e.process(&mut io);
             all.extend_from_slice(&out[..block]);

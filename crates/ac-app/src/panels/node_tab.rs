@@ -134,6 +134,18 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: 2,
             },
         )],
+        "file_out" => vec![
+            f("path", "File (offline renders)", Kind::Text { multiline: false }),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
         "split_channels" | "merge_channels" => vec![f(
             "channels",
             "Channels",

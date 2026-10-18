@@ -9,7 +9,8 @@ use std::time::{Duration, Instant};
 use ac_engine::{Engine, EngineHandle, EngineOptions, Severity, required_output_channels};
 use ac_io::{
     AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, DiskRecorder, FileResources,
-    InputChoice, MidiInputs, MidiSelect, NullAudio, StreamInfo, Take, worker_pool,
+    InputChoice, MidiInputs, MidiOutputs, MidiPorts, MidiSelect, NullAudio, StreamInfo, Take,
+    worker_pool,
 };
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
@@ -78,6 +79,10 @@ pub struct RunArgs {
     /// MIDI inputs to open: `all`, `none`, or part of a port name.
     #[arg(long, value_name = "NAME", default_value = "all")]
     midi: String,
+    /// MIDI outputs that MIDI Out nodes send to: `all`, `none`, or part of
+    /// a port name.
+    #[arg(long, value_name = "NAME", default_value = "none")]
+    midi_out: String,
     /// Stop after this long (seconds or m:ss); otherwise run until Ctrl+C.
     #[arg(long, value_name = "TIME")]
     duration: Option<String>,
@@ -100,6 +105,7 @@ pub struct RunArgs {
 pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     let registry = Arc::new(ac_nodes::registry());
     let (project, assets) = load_with_assets(&args.project, &registry)?;
+    let sends_midi = uses_kind(&project, "midi_out");
     let dir = project_dir(&args.project).to_path_buf();
     let duration = args
         .duration
@@ -167,8 +173,27 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
         }
     }
 
+    let out_select = MidiSelect::parse(&args.midi_out);
+    let (mut midi_out, midi_out_queue) = MidiOutputs::new();
+    if out_select != MidiSelect::None {
+        let ports = midi_out.connect(out_select.clone());
+        match (ports.is_empty(), midi_out.last_error()) {
+            (false, _) => println!("midi out: {}", ports.join(", ")),
+            (true, Some(e)) => println!("midi out: {e}"),
+            (true, None) => println!("midi out: no matching outputs"),
+        }
+    } else if sends_midi {
+        println!("note: MIDI Out nodes send nowhere; choose ports with --midi-out");
+    }
+
     let mut stream = host
-        .start(processor, Some(midi_rx))
+        .start_with(
+            processor,
+            MidiPorts {
+                input: Some(midi_rx),
+                output: Some(midi_out_queue),
+            },
+        )
         .map_err(|e| anyhow!("{e}\nhint: try another `--buffer-size`, or `--null`"))?;
     if stream.info().notes.len() > info.notes.len() {
         for n in &stream.info().notes[info.notes.len()..] {
@@ -183,16 +208,24 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     }
 
     let rescan_midi = select_any && midi.system_available();
+    let rescan_out = out_select != MidiSelect::None && midi_out.system_available();
     let outcome = control_loop(
         &mut handle,
         stream.as_mut(),
-        &mut midi,
+        Midi {
+            inputs: &mut midi,
+            outputs: &mut midi_out,
+            rescan_inputs: rescan_midi,
+            rescan_outputs: rescan_out,
+        },
         &recorder,
         stop,
         duration,
-        rescan_midi,
     );
     shut_down(&mut handle, stream, &recorder);
+    // After the stream, so the notes ended at stop still go out.
+    std::thread::sleep(Duration::from_millis(20));
+    drop(midi_out);
     drop(handle);
     recorder.shutdown();
     for t in recorder.finished_takes() {
@@ -206,15 +239,35 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     })
 }
 
+/// Whether a node of `kind` is anywhere in the project.
+fn uses_kind(project: &ac_core::Project, kind: &str) -> bool {
+    std::iter::once(&project.graph)
+        .chain(project.group_defs.values().map(|d| &d.graph))
+        .any(|g| g.nodes.iter().any(|n| n.kind == kind))
+}
+
+/// The MIDI ports the control loop looks after.
+struct Midi<'a> {
+    inputs: &'a mut MidiInputs,
+    outputs: &'a mut MidiOutputs,
+    rescan_inputs: bool,
+    rescan_outputs: bool,
+}
+
 fn control_loop(
     handle: &mut EngineHandle,
     stream: &mut dyn AudioStream,
-    midi: &mut MidiInputs,
+    midi: Midi<'_>,
     recorder: &DiskRecorder,
     stop: &AtomicBool,
     duration: Option<Duration>,
-    rescan_midi: bool,
 ) -> Result<()> {
+    let Midi {
+        inputs: midi,
+        outputs: midi_out,
+        rescan_inputs: rescan_midi,
+        rescan_outputs,
+    } = midi;
     let t0 = Instant::now();
     let mut next_status = t0 + STATUS_EVERY;
     let mut next_rescan = t0 + MIDI_RESCAN_EVERY;
@@ -263,11 +316,19 @@ fn control_loop(
         }
         if rescan_midi && now >= next_rescan {
             // Hot-plug: pick up controllers plugged in after start.
-            next_rescan += MIDI_RESCAN_EVERY;
             let added = midi.rescan();
             if !added.is_empty() {
                 println!("midi: connected {}", added.join(", "));
             }
+        }
+        if rescan_outputs && now >= next_rescan {
+            let added = midi_out.rescan();
+            if !added.is_empty() {
+                println!("midi out: connected {}", added.join(", "));
+            }
+        }
+        if (rescan_midi || rescan_outputs) && now >= next_rescan {
+            next_rescan += MIDI_RESCAN_EVERY;
         }
         if stop.load(Ordering::Relaxed) || duration.is_some_and(|d| now - t0 >= d) {
             return Ok(());

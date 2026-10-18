@@ -26,7 +26,9 @@ pub use engine::{ClockFn, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo
 pub use graph::CompiledGraph;
 pub use null_host::NullHost;
 pub use pool::{Job, MAX_WORKERS, RtPool};
-pub use render::{RenderOptions, Rendered, apply_overrides, render, required_output_channels};
+pub use render::{
+    RenderOptions, Rendered, RenderedFile, apply_overrides, render, required_output_channels,
+};
 pub use report::{CompileReport, CompileStats, Diagnostic, Severity};
 pub use telemetry::{
     EngineStatus, NodeTelemetry, TelemetryLayout, TelemetryReader, TelemetryStore,

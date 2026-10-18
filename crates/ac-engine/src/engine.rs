@@ -72,6 +72,11 @@ pub struct HostIo<'a> {
     pub out_channels: usize,
     /// MIDI received during this block, offsets relative to its first frame.
     pub midi: &'a [MidiEvent],
+    /// Where `MidiOut` nodes put MIDI for the devices, offsets relative to
+    /// this block's first frame, in order. The host clears it and gives it
+    /// capacity; messages beyond its capacity are dropped. `None`: no MIDI
+    /// output.
+    pub midi_out: Option<&'a mut Vec<MidiEvent>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -695,6 +700,7 @@ impl Processor {
                 offset: done,
                 frames: n,
                 midi: &self.midi_scratch,
+                midi_out: io.midi_out.as_deref_mut(),
             };
             let engine = EngineInfo {
                 load: self.status.load_fraction(),
