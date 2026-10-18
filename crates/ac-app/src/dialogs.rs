@@ -18,6 +18,10 @@ pub enum FilePurpose {
     Export,
     ChooseClip(ac_core::NodeId),
     Locate(String),
+    /// Where to write a pack of the saved project.
+    ExportPack,
+    /// A block file to add to the library.
+    ImportBlock,
 }
 
 impl FilePurpose {
@@ -28,11 +32,16 @@ impl FilePurpose {
             FilePurpose::Export => "Export WAV",
             FilePurpose::ChooseClip(_) => "Choose an audio file",
             FilePurpose::Locate(_) => "Locate missing file",
+            FilePurpose::ExportPack => "Export pack",
+            FilePurpose::ImportBlock => "Import block file",
         }
     }
 
     fn saving(&self) -> bool {
-        matches!(self, FilePurpose::SaveAs | FilePurpose::Export)
+        matches!(
+            self,
+            FilePurpose::SaveAs | FilePurpose::Export | FilePurpose::ExportPack
+        )
     }
 }
 
@@ -49,9 +58,18 @@ pub fn native(
 ) -> Result<Option<PathBuf>, NoDialog> {
     let mut d = rfd::FileDialog::new().set_title(purpose.title());
     d = match purpose {
-        FilePurpose::Open => d.add_filter("Audio Constructor project", &["acproj"]),
+        FilePurpose::Open => d
+            .add_filter(
+                "Projects, packs, and blocks",
+                &["acproj", "acpack", "acblock"],
+            )
+            .add_filter("Audio Constructor project", &["acproj"])
+            .add_filter("Audio Constructor pack", &["acpack"])
+            .add_filter("Audio Constructor block", &["acblock"]),
         FilePurpose::SaveAs => d.add_filter("Audio Constructor project", &["acproj"]),
         FilePurpose::Export => d.add_filter("WAV audio", &["wav"]),
+        FilePurpose::ExportPack => d.add_filter("Audio Constructor pack", &["acpack"]),
+        FilePurpose::ImportBlock => d.add_filter("Audio Constructor block", &["acblock"]),
         FilePurpose::ChooseClip(_) | FilePurpose::Locate(_) => {
             d.add_filter("WAV audio", &["wav", "wave"])
         }

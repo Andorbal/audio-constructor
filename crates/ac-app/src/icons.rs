@@ -18,6 +18,11 @@ pub const CLOCK_COUNTER_CLOCKWISE: &str = "\u{E1A0}";
 pub const FILE_AUDIO: &str = "\u{EA20}";
 pub const FILE_X: &str = "\u{E23C}";
 pub const SIGN_OUT: &str = "\u{E42A}";
+pub const PACKAGE: &str = "\u{E390}";
+pub const DOWNLOAD_SIMPLE: &str = "\u{E20C}";
+pub const TRAY_ARROW_DOWN: &str = "\u{E010}";
+pub const ARROWS_CLOCKWISE: &str = "\u{E094}";
+pub const TAG: &str = "\u{E478}";
 
 pub const UNDO: &str = "\u{E08A}";
 pub const REDO: &str = "\u{E08C}";
