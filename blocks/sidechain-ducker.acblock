@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "name": "Sidechain Ducker",
+  "description": "Turns `in` down while another signal, the `sidechain`, is loud: music that dips under a voice-over, or a pad that pumps with the kick drum. Both inputs take mono or stereo.\n\n- `in` (audio): the signal that gets turned down.\n- `sidechain` (audio): the signal that does the turning down. It is only listened to, never heard; mix it in separately if you want to hear it.\n- `threshold` (dB): how loud the sidechain must get to duck `in`. The ducking lets go once the sidechain falls 6 dB below it.\n- `amount` (dB): how far `in` drops while the sidechain is loud.\n- `attack` (seconds): how quickly `in` dips when the sidechain gets loud (about 63 % of the dip in this time).\n- `release` (seconds): how quickly `in` comes back afterwards, measured the same way; longer releases make a slower swell, short ones a tight pump.\n\nInside: an Envelope Follower (instant attack, 10 ms release) measures the sidechain's peak level in decibels, and a Compare with 6 dB of hysteresis decides whether it counts as loud. A Switch picks 0 dB or minus `amount`, and a Smooth glides between them, falling with the attack time and rising with the release time, into the Gain on `in`.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "dynamics",
+    "sidechain",
+    "ducking",
+    "mixing"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "6:in"
+      ]
+    },
+    {
+      "name": "sidechain",
+      "type": "audio",
+      "targets": [
+        "1:in"
+      ]
+    },
+    {
+      "name": "threshold",
+      "type": "float",
+      "unit": "db",
+      "default": -30.0,
+      "range": [
+        -60.0,
+        0.0
+      ],
+      "targets": [
+        "2:b"
+      ]
+    },
+    {
+      "name": "amount",
+      "type": "float",
+      "unit": "db",
+      "default": 12.0,
+      "range": [
+        0.0,
+        48.0
+      ],
+      "targets": [
+        "3:in"
+      ]
+    },
+    {
+      "name": "attack",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.01,
+      "range": [
+        0.0,
+        0.5
+      ],
+      "targets": [
+        "5:fall"
+      ]
+    },
+    {
+      "name": "release",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.3,
+      "range": [
+        0.0,
+        2.0
+      ],
+      "targets": [
+        "5:rise"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "6:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "envelope_follower",
+        "params": {
+          "attack": 0.0,
+          "mode": "peak",
+          "release": 0.01
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Sidechain level"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "compare",
+        "params": {
+          "hysteresis": 6.0,
+          "op": "greater"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            0.0
+          ],
+          "label": "Loud?"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "unary",
+        "params": {
+          "op": "negate"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "switch",
+        "config": {
+          "type": "float"
+        },
+        "params": {
+          "a": 0.0
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "smooth",
+        "params": {
+          "mode": "exponential"
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            880.0,
+            160.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:level_db",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "4:select"
+      },
+      {
+        "from": "3:out",
+        "to": "4:b"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:gain"
+      }
+    ]
+  }
+}

@@ -1,0 +1,515 @@
+{
+  "schema_version": 1,
+  "name": "Block: Track",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 440.0,
+          "shape": "sine",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "oscillator",
+        "params": {
+          "freq": 660.0,
+          "shape": "sine",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "pan": -1.0,
+          "volume": -6.0
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ],
+          "label": "Track A"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "pan": 1.0,
+          "volume": -12.0
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            160.0
+          ],
+          "label": "Track B"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "logic",
+        "params": {
+          "op": "or"
+        },
+        "ui": {
+          "pos": [
+            880.0,
+            320.0
+          ],
+          "label": "Any solo"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            880.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1100.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "20",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            480.0
+          ]
+        }
+      },
+      {
+        "id": "21",
+        "kind": "compare",
+        "params": {
+          "b": 0.5,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            480.0
+          ]
+        }
+      },
+      {
+        "id": "22",
+        "kind": "compare",
+        "params": {
+          "b": 1.0,
+          "op": "less"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            640.0
+          ]
+        }
+      },
+      {
+        "id": "23",
+        "kind": "logic",
+        "params": {
+          "op": "and"
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            480.0
+          ]
+        }
+      },
+      {
+        "id": "30",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            800.0
+          ]
+        }
+      },
+      {
+        "id": "31",
+        "kind": "compare",
+        "params": {
+          "b": 1.5,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            800.0
+          ]
+        }
+      },
+      {
+        "id": "32",
+        "kind": "compare",
+        "params": {
+          "b": 2.0,
+          "op": "less"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            960.0
+          ]
+        }
+      },
+      {
+        "id": "33",
+        "kind": "logic",
+        "params": {
+          "op": "and"
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            800.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "3:in"
+      },
+      {
+        "from": "2:out",
+        "to": "4:in"
+      },
+      {
+        "from": "23:out",
+        "to": "3:mute"
+      },
+      {
+        "from": "33:out",
+        "to": "4:solo"
+      },
+      {
+        "from": "3:soloed",
+        "to": "5:a"
+      },
+      {
+        "from": "4:soloed",
+        "to": "5:b"
+      },
+      {
+        "from": "5:out",
+        "to": "3:any_solo"
+      },
+      {
+        "from": "5:out",
+        "to": "4:any_solo"
+      },
+      {
+        "from": "3:out",
+        "to": "6:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "6:in_1"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "20:time",
+        "to": "21:a"
+      },
+      {
+        "from": "20:time",
+        "to": "22:a"
+      },
+      {
+        "from": "21:out",
+        "to": "23:a"
+      },
+      {
+        "from": "22:out",
+        "to": "23:b"
+      },
+      {
+        "from": "30:time",
+        "to": "31:a"
+      },
+      {
+        "from": "30:time",
+        "to": "32:a"
+      },
+      {
+        "from": "31:out",
+        "to": "33:a"
+      },
+      {
+        "from": "32:out",
+        "to": "33:b"
+      }
+    ]
+  },
+  "group_defs": {
+    "track": {
+      "name": "Track",
+      "description": "One channel of a mixer: a volume fader, a pan knob, and mute and solo switches for whatever you wire into `in`. Put one Track after each sound and add them up with a Mix.\n\n- `in` (audio): the track's sound, mono or stereo. Usually a Clip playing your file: wire the Clip into `in`. The Clip stays outside because every instance of a block shares the same inside, so a Clip inside would make every Track play the same file.\n- `volume` (dB): the track's level.\n- `pan`: −1 is left, 0 center, 1 right. A mono track keeps the same loudness as it moves (−3 dB per side at the center); a stereo track is balanced.\n- `mute`: silences the track (with a 5 ms fade, so it doesn't click).\n- `solo` and `soloed`: solo comes back out of `soloed` for the rest of the mix to see; on its own it doesn't change this track's sound. To make solo work across a mix, combine the `soloed` outputs of every track with Logic `or` nodes and wire the result into every track's `any_solo`.\n- `any_solo`: on while any track in the mix is soloed. A track that isn't soloed itself goes silent while it's on, so only the soloed tracks play. Mute wins over solo.\n- `out` (audio): always stereo.\n\nInside: a Gain sets the volume and a Pan places the sound. Three Logic nodes work out whether the track should be silent (muted, or another track soloed and not this one), and a Switch in audio mode fades between the track and silence. A Logic `or` with nothing on its second input passes `solo` to the `soloed` output.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "mixing",
+        "utility",
+        "channel"
+      ],
+      "source": "shipped:track",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "1:gain"
+          ]
+        },
+        {
+          "name": "pan",
+          "type": "float",
+          "default": 0.0,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "targets": [
+            "2:pan"
+          ]
+        },
+        {
+          "name": "mute",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "6:a"
+          ]
+        },
+        {
+          "name": "solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "any_solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "5:a"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "soloed",
+          "type": "bool",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pan",
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Soloed"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "logic",
+            "params": {
+              "op": "not"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not soloed"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "logic",
+            "params": {
+              "op": "and"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Another track soloed"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                160.0
+              ],
+              "label": "Silent"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ],
+              "label": "Mute"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "7:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:a"
+          },
+          {
+            "from": "4:out",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "6:out",
+            "to": "7:select"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

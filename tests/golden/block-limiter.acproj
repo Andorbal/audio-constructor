@@ -1,0 +1,357 @@
+{
+  "schema_version": 1,
+  "name": "Block: Limiter",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 110.0,
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            220.0,
+            0.0
+          ],
+          "label": "Test level"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "group",
+        "config": {
+          "def": "limiter"
+        },
+        "params": {
+          "ceiling": -1.0,
+          "release": 0.1
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            0.0
+          ],
+          "label": "Limiter"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "freq": 2.0,
+          "phase": 0.0,
+          "shape": "square",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ],
+          "label": "Loud/quiet"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 9.0,
+          "out_min": -12.0
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            160.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "11:out",
+        "to": "2:gain"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "limiter": {
+      "name": "Limiter",
+      "description": "Keeps peaks at or below `ceiling`, whatever comes in: the last stage before an output or a render, or a way to make a track louder without clipping. Mono or stereo.\n\n- `ceiling` (dB): the highest level that gets out.\n- `release` (seconds): how quickly the limiter lets go after a peak. Short releases are louder but can pump or distort low notes; longer ones are smoother.\n- `gain_reduction` (output, dB): how far the signal is being turned down right now (0 or negative).\n\nThe limiter looks 5 ms ahead, so it can start turning down before a peak arrives instead of letting its first few milliseconds through. That 5 ms is reported as latency, so the engine delays parallel paths to stay in step.\n\nInside: a Lookahead splits the input into `early` (as it comes in) and `out` (5 ms later). A peak Envelope Follower on `early` with an instant attack finds each peak 5 ms before it is heard, and a Smooth spreads the rise of that level over about a millisecond so the gain ramps down instead of jumping. By the time a peak is heard, the first level has already begun to release and sags a little, so a second instant follower on `out` catches whatever is left over, and a Math node keeps the louder of the two levels. A Gain Computer with a ratio of 1000:1 and a hard knee, its threshold set 0.05 dB under the ceiling so that even a signal 50 dB too hot stays under, turns any level over the ceiling into the gain change for the Gain on `out`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "dynamics",
+        "limiter",
+        "mastering",
+        "mixing"
+      ],
+      "source": "shipped:limiter",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "ceiling",
+          "type": "float",
+          "unit": "db",
+          "default": -1.0,
+          "range": [
+            -24.0,
+            0.0
+          ],
+          "targets": [
+            "8:a"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.1,
+          "range": [
+            0.01,
+            1.0
+          ],
+          "targets": [
+            "2:release",
+            "4:release"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "gain_reduction",
+          "type": "float",
+          "source": "6:gain_reduction"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "lookahead",
+            "config": {
+              "time": 0.005
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ],
+              "label": "Early detector"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "smooth",
+            "params": {
+              "fall": 0.0,
+              "mode": "exponential",
+              "rise": 0.0007
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Ramp"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                160.0
+              ],
+              "label": "Catch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "max"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ],
+              "label": "Louder"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "gain_computer",
+            "params": {
+              "knee": 0.0,
+              "mode": "compress",
+              "ratio": 1000.0
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1100.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "8",
+            "kind": "math",
+            "params": {
+              "b": 0.05,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                -160.0
+              ],
+              "label": "Margin"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "8:out",
+            "to": "6:threshold"
+          },
+          {
+            "from": "1:early",
+            "to": "2:in"
+          },
+          {
+            "from": "1:out",
+            "to": "4:in"
+          },
+          {
+            "from": "1:out",
+            "to": "7:in"
+          },
+          {
+            "from": "2:level_db",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "5:a"
+          },
+          {
+            "from": "4:level_db",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:level"
+          },
+          {
+            "from": "6:gain_reduction",
+            "to": "7:gain"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
