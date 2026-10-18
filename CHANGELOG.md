@@ -56,6 +56,9 @@ fixes and smaller changes.
 
 ### Changed
 
+- **Sample & Hold**, **Random Walk**, and **Step Sequencer** are now named
+  in words like every other node (they showed as SampleHold, RandomWalk,
+  and StepSequencer). Projects that use them are unaffected.
 - The **Reverse Delay** example is the real thing now, not a placeholder:
   a melody whose echoes play backwards, built once on a Clip, where
   Reverse bakes and plays, and once on Audio In, where it switches itself
