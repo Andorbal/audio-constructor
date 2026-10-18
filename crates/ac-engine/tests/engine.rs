@@ -521,6 +521,56 @@ fn stop_and_seek() {
 }
 
 #[test]
+fn an_external_transport_is_followed() {
+    let (e, _) = engine(chain(), 32);
+    let mut host = NullHost::new(e, 0, 2);
+    // A host starts at bar 3: the engine moves there and plays.
+    host.processor().follow_transport(true, Some(4800), 16);
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 4800.0);
+    assert!(host.handle().is_playing());
+    // In step, or off by its rounding: no jump.
+    host.processor().follow_transport(true, Some(4832 + 3), 16);
+    let out = host.run(32, 32);
+    assert_eq!(
+        out[0][0], 4832.0,
+        "a few samples of host rounding are ignored"
+    );
+    // A loop back is a jump.
+    host.processor().follow_transport(true, Some(0), 16);
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 0.0);
+    // Stopping freezes the position; a stopped transport follows exactly.
+    host.processor().follow_transport(false, Some(32), 16);
+    host.run(32, 32);
+    assert!(!host.handle().is_playing());
+    host.processor().follow_transport(false, Some(35), 16);
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 35.0);
+    // No position: only play and stop follow.
+    host.processor().follow_transport(true, None, 16);
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 35.0);
+    assert!(host.handle().is_playing());
+}
+
+#[test]
+fn a_pending_graph_can_be_installed_before_the_block() {
+    let (e, _) = engine(chain(), 32);
+    let mut host = NullHost::new(e, 0, 2);
+    assert_eq!(host.processor().install_pending(), 0);
+    let p = host.handle().project().clone();
+    host.handle().edit(GraphEdit::Replace(Box::new(p)));
+    assert_eq!(host.processor().install_pending(), 1);
+    assert_eq!(
+        host.processor().install_pending(),
+        1,
+        "nothing more waiting"
+    );
+    host.run(32, 32);
+}
+
+#[test]
 fn stopping_ends_recording() {
     use std::sync::atomic::Ordering;
     let (e, _) = engine(chain(), 32);

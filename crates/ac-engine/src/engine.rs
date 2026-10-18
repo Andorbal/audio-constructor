@@ -701,6 +701,43 @@ impl Processor {
         &self.status
     }
 
+    /// Swap in the newest graph the handle sent, as [`Processor::process`]
+    /// does at the start of every block, and return the running graph's
+    /// generation. A host that feeds a graph's bindings their current
+    /// values (a plugin's host parameters) calls it first, so a new graph
+    /// gets them in the block it starts. Real-time safe.
+    pub fn install_pending(&mut self) -> u64 {
+        self.install_graphs();
+        self.graph.generation
+    }
+
+    /// Follow an external transport (a plugin host's): start or stop to
+    /// match `playing`, and move to `position` (samples at the engine
+    /// rate) when it is more than `tolerance` samples from where the
+    /// engine is, or exactly when the engine is stopped or starting. Moves
+    /// smaller than the tolerance while playing are taken as the host's
+    /// rounding, not a jump, so they don't restart generators. Call it
+    /// before [`Processor::process`]; real-time safe.
+    pub fn follow_transport(&mut self, playing: bool, position: Option<u64>, tolerance: u64) {
+        let t = &mut self.transport;
+        if let Some(p) = position {
+            let keep_playing = t.playing && playing;
+            if p != t.position && (!keep_playing || p.abs_diff(t.position) > tolerance) {
+                command(t, Command::Seek(p));
+            }
+        }
+        if playing != t.playing {
+            command(
+                t,
+                if playing {
+                    Command::Play
+                } else {
+                    Command::Stop
+                },
+            );
+        }
+    }
+
     /// Process one host block. Real-time safe: no allocation (asserted in
     /// debug builds), no locks, no blocking.
     pub fn process(&mut self, io: &mut HostIo) {
