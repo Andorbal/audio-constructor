@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "name": "MIDI Out and File Out",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "clock",
+        "params": {
+          "interval": 0.25
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "arpeggiator",
+        "params": {
+          "gate": 0.5,
+          "mode": "up_down",
+          "octaves": 2
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "midi_out",
+        "params": {
+          "channel": 2
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            -150.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "midi_note",
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "oscillator",
+        "params": {
+          "shape": "triangle"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.005,
+          "decay": 0.1,
+          "release": 0.05,
+          "sustain": 0.5
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "audio_out",
+        "config": {
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "file_out",
+        "config": {
+          "path": "arp-dry",
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            200.0
+          ],
+          "label": "Dry arp"
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "3:midi"
+      },
+      {
+        "from": "2:trigger",
+        "to": "3:clock"
+      },
+      {
+        "from": "3:midi",
+        "to": "4:midi"
+      },
+      {
+        "from": "3:midi",
+        "to": "5:midi"
+      },
+      {
+        "from": "5:freq",
+        "to": "6:freq"
+      },
+      {
+        "from": "5:gate",
+        "to": "7:gate"
+      },
+      {
+        "from": "6:out",
+        "to": "8:a"
+      },
+      {
+        "from": "7:out",
+        "to": "8:b"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "6:out",
+        "to": "10:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true,
+    "midi": [
+      [
+        0,
+        [
+          144,
+          60,
+          100
+        ]
+      ],
+      [
+        0,
+        [
+          144,
+          64,
+          90
+        ]
+      ],
+      [
+        0,
+        [
+          144,
+          67,
+          80
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          60,
+          0
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          64,
+          0
+        ]
+      ],
+      [
+        72000,
+        [
+          128,
+          67,
+          0
+        ]
+      ]
+    ]
+  }
+}

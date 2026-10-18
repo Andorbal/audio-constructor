@@ -1,0 +1,32 @@
+{
+  "sample_rate": 48000,
+  "frames": 96000,
+  "hash": "fnv1a64:7abae1aae221e53d",
+  "channels": [
+    {
+      "peak": 0.9818540811538696,
+      "rms": 0.2222626954317093
+    },
+    {
+      "peak": 0.9818540811538696,
+      "rms": 0.2222626954317093
+    }
+  ],
+  "files": {
+    "arp-dry": {
+      "sample_rate": 48000,
+      "frames": 96000,
+      "hash": "fnv1a64:f0b8397803c09fe6",
+      "channels": [
+        {
+          "peak": 0.9927318096160889,
+          "rms": 0.577199399471283
+        }
+      ]
+    }
+  },
+  "midi": {
+    "messages": 24,
+    "hash": "fnv1a64:6fda103a71b86938"
+  }
+}

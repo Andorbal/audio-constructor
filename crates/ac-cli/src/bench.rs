@@ -381,7 +381,83 @@ pub fn stress_projects() -> Vec<(String, Project, Vec<MidiMsg>)> {
             Vec::new(),
         ),
         ("poly-synth-16".into(), poly_synth(16), chord),
+        (
+            "fft-chains-16".into(),
+            stage_chains(
+                "16 × (FFT → SpectralGate → IFFT)",
+                16,
+                &[
+                    Stage::new("fft", "in", "spectrum"),
+                    Stage::new("spectral_gate", "spectrum", "spectrum").param("threshold", -40.0),
+                    Stage::new("ifft", "spectrum", "out"),
+                ],
+            ),
+            Vec::new(),
+        ),
     ]
+}
+
+/// One node in a [`stage_chains`] chain: its kind, the socket the chain
+/// enters and leaves by, and parameter values.
+struct Stage {
+    kind: &'static str,
+    input: &'static str,
+    output: &'static str,
+    params: Vec<(&'static str, ac_core::Value)>,
+}
+
+impl Stage {
+    fn new(kind: &'static str, input: &'static str, output: &'static str) -> Stage {
+        Stage {
+            kind,
+            input,
+            output,
+            params: Vec::new(),
+        }
+    }
+
+    fn param(mut self, socket: &'static str, value: impl Into<ac_core::Value>) -> Stage {
+        self.params.push((socket, value.into()));
+        self
+    }
+}
+
+/// `chains` saw oscillators, each through `stages` in order, mixed: one
+/// expensive node kind measured in parallel copies.
+fn stage_chains(name: &str, chains: u64, stages: &[Stage]) -> Project {
+    let mut p = Project {
+        name: name.into(),
+        ..Project::default()
+    };
+    let mix = 1u64;
+    p.graph
+        .nodes
+        .push(node(mix, "mix").with_config(json!({ "inputs": chains })));
+    let mut id = 2u64;
+    for c in 0..chains {
+        p.graph.nodes.push(
+            node(id, "oscillator")
+                .with_param("freq", 110.0 + c as f64 * 23.0)
+                .with_param("shape", "saw")
+                .with_param("start", "load"),
+        );
+        let (mut prev, mut out) = (id, "out");
+        id += 1;
+        for s in stages {
+            let mut n = node(id, s.kind);
+            for (k, v) in &s.params {
+                n = n.with_param(k, v.clone());
+            }
+            p.graph.nodes.push(n);
+            wire(&mut p, prev, out, id, s.input);
+            (prev, out) = (id, s.output);
+            id += 1;
+        }
+        wire(&mut p, prev, out, mix, &format!("in_{c}"));
+    }
+    p.graph.nodes.push(node(id, "audio_out"));
+    wire(&mut p, mix, "out", id, "in");
+    p
 }
 
 /// `chains` independent effect chains of `stages` stages each, mixed: the

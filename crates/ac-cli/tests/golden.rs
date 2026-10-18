@@ -120,6 +120,33 @@ fn summary(channels: &[Vec<f32>], rate: u32) -> Value {
     })
 }
 
+/// The render's summary, plus its File Out files and MIDI Out messages
+/// when it has any.
+fn render_summary(out: &ac_engine::Rendered) -> Value {
+    let mut v = summary(&out.channels, out.sample_rate);
+    if !out.files.is_empty() {
+        v["files"] = out
+            .files
+            .iter()
+            .map(|f| (f.path.clone(), summary(&f.channels, f.sample_rate)))
+            .collect::<serde_json::Map<_, _>>()
+            .into();
+    }
+    if !out.midi.is_empty() {
+        let mut h = Fnv64::new();
+        for (at, msg) in &out.midi {
+            let (bytes, len) = msg.to_bytes();
+            h.write(&at.to_le_bytes());
+            h.write(&bytes[..len]);
+        }
+        v["midi"] = json!({
+            "messages": out.midi.len(),
+            "hash": format!("fnv1a64:{:016x}", h.finish()),
+        });
+    }
+    v
+}
+
 fn render_with(
     path: &Path,
     block: Option<usize>,
@@ -164,7 +191,7 @@ fn golden_renders_match() {
             path.display(),
             out.report
         );
-        let got = summary(&out.channels, out.sample_rate);
+        let got = render_summary(&out);
         let expected_path = path.with_extension("expected.json");
         if update {
             let text = serde_json::to_string_pretty(&got).expect("json") + "\n";
@@ -183,6 +210,34 @@ fn golden_renders_match() {
         if got["frames"] != want["frames"] || got["sample_rate"] != want["sample_rate"] {
             failures.push(format!("{}: length or rate differs", path.display()));
             continue;
+        }
+        // MIDI is exact everywhere; files are compared like the main mix.
+        if got["midi"] != want["midi"] {
+            failures.push(format!(
+                "{}: MIDI Out sent {} != expected {}",
+                path.display(),
+                got["midi"],
+                want["midi"]
+            ));
+        }
+        let file_names = |v: &Value| -> Vec<String> {
+            v["files"]
+                .as_object()
+                .map(|o| o.keys().cloned().collect())
+                .unwrap_or_default()
+        };
+        if file_names(&got) != file_names(&want) {
+            failures.push(format!("{}: File Out files differ", path.display()));
+        } else if file_names(&got).iter().any(|f| {
+            let (g, w) = (&got["files"][f], &want["files"][f]);
+            g["frames"] != w["frames"] || (reference && g["hash"] != w["hash"])
+        }) {
+            failures.push(format!(
+                "{}: File Out renders differ\n  got {}\n  want {}",
+                path.display(),
+                got["files"],
+                want["files"]
+            ));
         }
         if reference {
             if got["hash"] != want["hash"] {
@@ -278,6 +333,12 @@ fn golden_renders_are_deterministic_live_and_offline() {
             assert!(
                 off.channels == live,
                 "{}: offline and live renders differ at block {block}",
+                path.display()
+            );
+            assert_eq!(
+                off.midi,
+                host.take_sent_midi(),
+                "{}: offline and live MIDI Out differ at block {block}",
                 path.display()
             );
             by_block.push(off.channels);
