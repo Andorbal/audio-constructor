@@ -23,8 +23,8 @@ node! {
     ///   above). Edges are sorted and kept within 20 Hz to 20 kHz; at most
     ///   15 are used (16 bands), and entries that aren't numbers are
     ///   ignored. An empty list gives one band. Outputs are `band_0` (the
-    ///   lowest) up to `band_N`. Edges above 0.49 × the sample rate act
-    ///   as if they were there, leaving the bands above them empty.
+    ///   lowest) up to `band_N`. At low sample rates, edges near or above
+    ///   half the sample rate leave the bands above them (almost) empty.
     /// - `mode`: how to split.
     ///   - `"crossover"` (default): Linkwitz-Riley 4th-order crossovers
     ///     (24 dB per octave, −6 dB at each edge) arranged in a tree, with
