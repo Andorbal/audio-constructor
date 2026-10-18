@@ -266,6 +266,9 @@ impl Canvas {
                     io.events.push(CanvasEvent::ChooseClipFile(*node));
                     return true;
                 }
+                if pin_items(ui, io, n) {
+                    return true;
+                }
                 ui.separator();
                 for (icon, a) in [
                     (icons::TRASH, Action::Delete),
@@ -596,6 +599,78 @@ impl Canvas {
             }
         });
     }
+}
+
+/// The Pin to Panel entries of a node's menu: pin the selection to each
+/// panel it isn't on, or to a new one, and unpin it from the ones it is.
+/// Returns true when one was chosen.
+fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -> bool {
+    if n.body.is_none() {
+        return false;
+    }
+    ui.separator();
+    if !io.doc.scope.is_empty() {
+        ui.label(
+            RichText::new(format!(
+                "{}  Pin to Panel: top-level nodes only",
+                icons::PUSH_PIN
+            ))
+            .small()
+            .color(theme::TEXT_FAINT),
+        );
+        return false;
+    }
+    // The right-clicked node is in the selection; pin all of it.
+    let nodes: Vec<NodeId> = if io.doc.selection.contains(&n.id) {
+        io.doc
+            .selection
+            .iter()
+            .copied()
+            .filter(|id| !edit::is_virtual(*id))
+            .collect()
+    } else {
+        vec![n.id]
+    };
+    let panels: Vec<(usize, String, bool)> = io
+        .doc
+        .project
+        .panels
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (i, p.name.clone(), p.contains(n.id)))
+        .collect();
+    let pin = |panel| crate::perform::PinRequest::Pin {
+        nodes: nodes.clone(),
+        panel,
+    };
+    for (i, name, on) in &panels {
+        if !on && item(ui, icons::PUSH_PIN, &format!("Pin to {name}"), None) {
+            io.events.push(CanvasEvent::Pin(pin(Some(*i))));
+            return true;
+        }
+    }
+    if item(ui, icons::PUSH_PIN, "Pin to New Panel", None) {
+        io.events.push(CanvasEvent::Pin(pin(None)));
+        return true;
+    }
+    for (i, name, on) in &panels {
+        if *on
+            && item(
+                ui,
+                icons::PUSH_PIN_SLASH,
+                &format!("Unpin from {name}"),
+                None,
+            )
+        {
+            io.events
+                .push(CanvasEvent::Pin(crate::perform::PinRequest::Unpin {
+                    nodes: nodes.clone(),
+                    panel: Some(*i),
+                }));
+            return true;
+        }
+    }
+    false
 }
 
 fn tooltip(ui: &egui::Ui, p: Pos2, add: impl FnOnce(&mut egui::Ui)) {

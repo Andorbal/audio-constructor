@@ -923,6 +923,19 @@ impl Canvas {
                 ),
             });
         }
+        if io.doc.scope.is_empty() {
+            let on = crate::edit::pins::panels_of(&io.doc.project.panels, n.id);
+            if !on.is_empty() {
+                out.push(Badge {
+                    icon: icons::PUSH_PIN,
+                    color: theme::ACCENT,
+                    tip: format!(
+                        "Pinned to {}. Ctrl+Tab shows the panels; right-click to unpin.",
+                        on.join(", ")
+                    ),
+                });
+            }
+        }
         if n.muted {
             out.push(Badge {
                 icon: icons::SPEAKER_SLASH,

@@ -60,6 +60,8 @@ pub enum CanvasEvent {
     Status(String),
     /// Run an editor command (from a right-click menu).
     Run(crate::actions::Action),
+    /// Pin nodes to a performance panel, or unpin them.
+    Pin(crate::perform::PinRequest),
 }
 
 /// What the canvas needs from the app each frame.
