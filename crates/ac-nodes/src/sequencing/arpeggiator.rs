@@ -352,11 +352,19 @@ impl Node for Arpeggiator {
         let gate = io.inputs.float(GATE);
         let latch = io.inputs.boolean(LATCH);
         let t = ctx.transport;
-        let beat = t.tempo.samples_per_beat_at(t.position);
-        let fallback = if beat.is_finite() {
-            beat.round().max(1.0) as u64
-        } else {
-            1
+        // A beat at the tempo playing at frame `i`.
+        let beat_at = |i: usize| {
+            let song = if t.playing {
+                t.position.saturating_add(i as u64)
+            } else {
+                t.position
+            };
+            let beat = t.tempo.samples_per_beat_at(song);
+            if beat.is_finite() {
+                beat.round().max(1.0) as u64
+            } else {
+                1
+            }
         };
         let last = frames.saturating_sub(1);
         let end = self.now + frames as u64;
@@ -402,7 +410,7 @@ impl Node for Arpeggiator {
                     mode,
                     octaves,
                     gate: gate.at(i),
-                    fallback,
+                    fallback: beat_at(i),
                 };
                 self.tick(&mut tx, at, self.now + i as u64, step);
             }

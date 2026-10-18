@@ -33,16 +33,16 @@ node! {
     ///
     /// Generator contract: `start` (on transport play by default) goes
     /// back to the beginning and plays, so the next clock, or one on the
-    /// same sample, plays the first step. `stop` closes the gates, ignores
-    /// the clock, and fires `end`; `reset` goes back to the beginning
-    /// without stopping. After the last step the pattern wraps around while
-    /// `loop` is on (the default). With `loop` off, the clock after the
-    /// last step stops it and fires `end` instead, so the last step gets
-    /// its full length and a second Pattern started by `end` plays its
-    /// first step on that same clock. `reverse` flips the direction: the
-    /// pattern steps backwards, and its beginning becomes the last step.
-    /// Events on the same sample apply in the order reverse, stop, start,
-    /// reset, clock.
+    /// same sample, plays the first step (the gates close until then).
+    /// `stop` closes the gates, ignores the clock, and fires `end`; `reset`
+    /// goes back to the beginning without stopping. After the last step the
+    /// pattern wraps around while `loop` is on (the default). With `loop`
+    /// off, the clock after the last step stops it and fires `end` instead,
+    /// so the last step gets its full length and a second Pattern started
+    /// by `end` plays its first step on that same clock. `reverse` flips
+    /// the direction: the pattern steps backwards, and its beginning
+    /// becomes the last step. Events on the same sample apply in the order
+    /// reverse, stop, start, reset, clock.
     ///
     /// **Try this:** wire a `Clock` (`interval` 0.25) into `clock`, then
     /// `trigger_0` into the `on` of an `ADSR` (sustain 0) on a low

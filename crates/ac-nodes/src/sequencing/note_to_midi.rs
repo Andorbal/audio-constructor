@@ -8,7 +8,9 @@ node! {
     kind: "note_to_midi",
     name: "Note To MIDI",
     category: Sequencing,
-    keywords: ["gate to midi", "trigger to midi", "keyboard", "button", "note", "cv to midi", "notes"],
+    keywords: [
+        "gate to midi", "trigger to midi", "keyboard", "button", "note", "cv to midi", "notes"
+    ],
     /// Builds MIDI notes from signals: a gate or a trigger, a note number, and a velocity.
     ///
     /// With `gate` wired, a note starts when the gate rises and ends when
