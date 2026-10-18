@@ -31,7 +31,9 @@ dependencies = [
  "directories",
  "eframe",
  "egui",
+ "egui-baseview",
  "egui_kittest",
+ "raw-window-handle",
  "rfd",
  "serde",
  "serde_json",
@@ -644,6 +646,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "baseview"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4179c1b5e41cec78a6b000eaa8317ddbc2556124dabc7344ff1df89d566cc517"
+dependencies = [
+ "block2 0.6.2",
+ "bytemuck",
+ "calloop 0.14.4",
+ "dispatch2",
+ "dpi",
+ "keyboard-types",
+ "libloading 0.8.9",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-foundation 0.3.2",
+ "objc2-quartz-core 0.3.2",
+ "percent-encoding",
+ "raw-window-handle",
+ "windows",
+ "windows-core",
+ "windows-sys 0.61.2",
+ "x11-dl",
+ "x11rb",
+ "xkbcommon-dl",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -781,13 +811,14 @@ dependencies = [
 
 [[package]]
 name = "calloop"
-version = "0.14.5"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43b32313e937c8721c9d17ee9bf60699a6402b4b7c2cb6ac1bee0ffcaa4b4e5e"
+checksum = "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7"
 dependencies = [
  "bitflags 2.13.2",
  "polling",
  "rustix 1.1.5",
+ "slab",
  "tracing",
 ]
 
@@ -809,7 +840,7 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "138efcf0940a02ebf0cc8d1eff41a1682a46b431630f4c52450d6265876021fa"
 dependencies = [
- "calloop 0.14.5",
+ "calloop 0.14.4",
  "rustix 1.1.5",
  "wayland-backend",
  "wayland-client",
@@ -966,6 +997,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "copypasta"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e6811e17f81fe246ef2bc553f76b6ee6ab41a694845df1d37e52a92b7bbd38a"
+dependencies = [
+ "clipboard-win",
+ "objc2 0.5.3",
+ "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
+ "x11-clipboard",
 ]
 
 [[package]]
@@ -1286,6 +1330,23 @@ dependencies = [
  "smallvec",
  "unicode-segmentation",
  "web-sys",
+]
+
+[[package]]
+name = "egui-baseview"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de6df8bd2f1c6b481ab6c029f741980d1a7b409053178fb9459053ae457828fe"
+dependencies = [
+ "baseview",
+ "copypasta",
+ "egui",
+ "egui_glow",
+ "keyboard-types",
+ "log",
+ "open",
+ "raw-window-handle",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2118,6 +2179,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "is-docker"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "928bae27f42bc99b60d9ac7334e3a21d10ad8f1835a4e12ec3ec0464765ed1b3"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
+name = "is-wsl"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "173609498df190136aa7dea1a91db051746d339e18476eed5ca40521f02d7aa5"
+dependencies = [
+ "is-docker",
+ "once_cell",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2293,6 +2373,16 @@ dependencies = [
  "cfg-if",
  "futures-util",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "keyboard-types"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d"
+dependencies = [
+ "bitflags 2.13.2",
+ "serde",
 ]
 
 [[package]]
@@ -2754,6 +2844,8 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
  "objc2-foundation 0.3.2",
+ "objc2-open-gl",
+ "objc2-quartz-core 0.3.2",
 ]
 
 [[package]]
@@ -2992,6 +3084,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-open-gl"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ecc7fd7519a189d9ba9ed9de51af81e41d096aea1d08cca59fd9d8c65d8f585"
+dependencies = [
+ "objc2 0.6.5",
+]
+
+[[package]]
 name = "objc2-quartz-core"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3096,6 +3197,16 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "open"
+version = "5.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa576c76302b7b808eecc68061e67336c47833ef9d22caa74dda10fa9675eebc"
+dependencies = [
+ "is-wsl",
+ "libc",
+]
 
 [[package]]
 name = "option-ext"
@@ -3956,7 +4067,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0512da38f5e2b31201a93524adb8d3136276fa4fe4aafab4e1f727a82b534cc0"
 dependencies = [
  "bitflags 2.13.2",
- "calloop 0.14.5",
+ "calloop 0.14.4",
  "calloop-wayland-source 0.4.1",
  "cursor-icon",
  "libc",
@@ -5270,6 +5381,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
+name = "x11-clipboard"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "662d74b3d77e396b8e5beb00b9cad6a9eccf40b2ef68cc858784b14c41d535a3"
+dependencies = [
+ "libc",
+ "x11rb",
+]
+
+[[package]]
 name = "x11-dl"
 version = "2.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5293,6 +5414,7 @@ dependencies = [
  "once_cell",
  "rustix 1.1.5",
  "x11rb-protocol",
+ "xcursor",
 ]
 
 [[package]]

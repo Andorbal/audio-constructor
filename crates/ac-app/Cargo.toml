@@ -29,6 +29,9 @@ default = ["desktop"]
 desktop = ["dep:eframe", "native-dialogs"]
 # The system's file dialogs. Without them the editor asks for a typed path.
 native-dialogs = ["dep:rfd"]
+# Opening the editor in a window a plugin host provides (`ac_app::embed`:
+# egui-baseview, drawn with OpenGL).
+embed = ["dep:egui-baseview", "dep:raw-window-handle"]
 # Audio backends that need extra system pieces at build time (see ac-io).
 jack = ["ac-io/jack"]
 asio = ["ac-io/asio"]
@@ -40,12 +43,24 @@ ac-nodes.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true
 eframe = { workspace = true, optional = true }
-egui.workspace = true
+# egui's own fonts back up the bundled ones (symbols Inter lacks); eframe
+# turns them on for the desktop, and a plugin window needs them too.
+egui = { workspace = true, features = ["default_fonts"] }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rfd = { version = "0.17", optional = true }
 directories = "6.0"
+# The plugin window: egui on baseview (MIT OR Apache-2.0), with the OpenGL
+# renderer (DECISIONS D121). It needs a logging facade to build; `log` is
+# the one plugin frameworks route to the host's log.
+egui-baseview = { version = "0.9", default-features = false, features = ["opengl", "log"], optional = true }
+raw-window-handle = { version = "0.6", optional = true }
 
 [dev-dependencies]
 egui_kittest.workspace = true
+
+# Opens the plugin window adapter in a window of its own, with no host.
+[[example]]
+name = "embedded"
+required-features = ["embed"]
