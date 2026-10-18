@@ -95,14 +95,14 @@ const ACTIVE: usize = 1;
 const END: usize = 2;
 
 /// Attack 10 ms, hold 50 ms, decay 200 ms to 0.6, sustain, release 300 ms.
-const DEFAULT_POINTS: &[(f64, f64)] = &[
+pub const DEFAULT_POINTS: &[(f64, f64)] = &[
     (0.0, 0.0),
     (0.01, 1.0),
     (0.06, 1.0),
     (0.26, 0.6),
     (0.56, 0.0),
 ];
-const DEFAULT_SUSTAIN: i64 = 3;
+pub const DEFAULT_SUSTAIN: i64 = 3;
 
 const MIN_SCALE: f64 = 0.001;
 const MAX_SCALE: f64 = 1000.0;

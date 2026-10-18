@@ -19,7 +19,7 @@ losing performance or clarity, it should be a *block* (a saved group) in
   otherwise. No hidden parameters. Config (things that change the socket
   list, like a mixer's input count) is the only exception.
 - **Generators share a contract.** Anything that produces a signal over time
-  (Oscillator, Clip, Graph, Sampler, Pattern, LFO, envelopes) has:
+  (Oscillator, Clip, Graph, Sampler, Pattern, MidiPattern) has:
   - `start: Trigger` — starts or restarts. Unwired, it shows a dropdown:
     *On transport play* (default) / *Never* (only via wire).
   - `stop: Trigger`, `reset: Trigger`.
@@ -27,6 +27,9 @@ losing performance or clarity, it should be a *block* (a saved group) in
   - `reverse: Trigger` toggles direction where that makes sense (Clip, Graph,
     Sampler, Pattern), and `rate: Float(Ratio)` scales speed.
   - `playing: Bool` and `end: Trigger` outputs so generators can chain.
+  Modulators that follow a gate or a clock instead (ADSR, Envelope, LFO,
+  StepSequencer) restart from their own inputs (`gate`/`trigger`,
+  `retrigger`, `reset`) and don't take the full contract (DECISIONS D64).
 - **Stateful nodes implement `reset()`** and are reset when the transport
   restarts from zero.
 - **Sample-rate independent.** Never hard-code 44.1/48 kHz.
@@ -132,17 +135,17 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Compare` | P1 | `a`, `b`, op → `Bool`. `hysteresis` input to avoid chatter. |
 | `Map` | P1 | Linear/exponential/log remap from one range to another, with clamp option. |
 | `Clamp` | P2 | `min`, `max`. |
-| `Logic` | P2 | and, or, xor, not, nand. |
+| `Logic` | P2 | and, or, xor, not, nand, nor. |
 | `Convert` | P2 | Unit conversions: dB↔gain, Hz↔MIDI note, semitones↔ratio, seconds↔beats, samples↔seconds. |
 | `Smooth` | P2 | Slew limiter / one-pole smoother; `rise`, `fall` times. |
-| `Integrate` / `Differentiate` | P2 | With leak/reset. |
+| `Integrate` / `Differentiate` | P2 | Integrate over seconds with `leak`, `reset`, and optional bounds that don't wind up; differentiate per second. |
 | `Random` | P2 | Seeded random on `trigger`; uniform or normal; `min`, `max`. |
 | `SampleHold` | P2 | Sample `in` on `trigger`. |
-| `Quantize` | P2 | Round `in` to `step`. |
+| `Quantize` | P2 | Round `in` to `offset + k·step`. |
 | `Counter` | P2 | Increments on `trigger`, wraps at `max`, `reset`. Out: `Int`. |
-| `Accumulate` | P2 | Adds `in` on `trigger`. |
-| `Select` | P2 | N inputs (config), `index: Int` picks one. Works for any type. |
-| `Switch` | P2 | `a`/`b` by `Bool`. |
+| `Accumulate` | P2 | Adds `in` on `trigger`, from `initial`; `reset`. |
+| `Select` | P2 | N inputs (config), `index: Int` picks one (wrapping). Works for any type; audio crossfades over 5 ms, MIDI releases held notes when the route changes. |
+| `Switch` | P2 | `a`/`b` by `Bool`, any type, with the same crossfade and note release as `Select`. |
 
 ## Modulation and envelopes
 
@@ -150,8 +153,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | --- | --- | --- |
 | `ADSR` | P1 | `gate: Bool` (or `on`/`off` triggers), attack/decay/sustain/release, curve shape (linear or exponential). Out: `out: Float` (sample rate), `active: Bool` (sample rate), `end: Trigger`. |
 | `LFO` | P2 | Block-rate oscillator with shapes, `rate` in Hz or beats, `phase`, `retrigger`, `unipolar/bipolar`, `smooth` for random shapes. Lighter than `Oscillator` for hundreds of modulators. |
-| `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints) with loop points. |
-| `StepSequencer` | P2 | N steps of `Float` values; advances on `clock`; `direction`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
+| `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints drawn in the editor) with a sustain point and loop points; `gate`, `trigger`, `time_scale`. |
+| `StepSequencer` | P2 | N steps of `Float` values (drawn in the editor); advances on `clock`; `direction`, `length`, `glide`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
 | `RandomWalk` | P2 | Smooth random modulation; `rate`, `range`, `seed`. |
 | `Chaos` | P3 | Lorenz/Rössler attractor outputs. |
 

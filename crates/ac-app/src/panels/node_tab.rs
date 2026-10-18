@@ -37,12 +37,21 @@ enum Kind {
     },
     /// An array of strings, edited one per line.
     Lines,
+    /// A whole number that may be negative (an index, where −1 means none).
+    Index {
+        min: i64,
+        max: i64,
+        default: i64,
+    },
     /// A number that may be absent (no limit); a checkbox adds or removes it.
     Optional {
         default: f64,
     },
     File,
 }
+
+/// Signal types `Select` and `Switch` route.
+const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi"];
 
 const UNITS: &[&str] = &[
     "generic",
@@ -140,6 +149,88 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             f("max", "Maximum", Kind::Optional { default: 1.0 }),
         ],
         "dropdown" => vec![f("choices", "Choices (one per line)", Kind::Lines)],
+        "select" => vec![
+            f(
+                "inputs",
+                "Inputs",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 4,
+                },
+            ),
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: ROUTE_TYPES,
+                    default: "float",
+                },
+            ),
+        ],
+        "switch" => vec![f(
+            "type",
+            "Type",
+            Kind::Choice {
+                choices: ROUTE_TYPES,
+                default: "float",
+            },
+        )],
+        "lfo" => vec![f(
+            "unit",
+            "Rate in",
+            Kind::Choice {
+                choices: &["hz", "beats"],
+                default: "hz",
+            },
+        )],
+        "envelope" => vec![
+            f(
+                "sustain",
+                "Sustain point (−1 none)",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: ac_nodes::modulation::envelope::DEFAULT_SUSTAIN,
+                },
+            ),
+            f(
+                "loop_start",
+                "Loop from point",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: -1,
+                },
+            ),
+            f(
+                "loop_end",
+                "Loop to point",
+                Kind::Index {
+                    min: -1,
+                    max: 63,
+                    default: -1,
+                },
+            ),
+        ],
+        "step_sequencer" => vec![f(
+            "steps",
+            "Steps",
+            Kind::Count {
+                min: 1,
+                max: 64,
+                default: 8,
+            },
+        )],
+        "random_walk" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
         "trigger_delay" | "trigger_to_gate" => vec![f(
             "unit",
             "Time in",
@@ -848,6 +939,19 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         };
                         if r.lost_focus() && t != node.config.get_str_or(f.key, "") {
                             set_config(io, id, f.key, t.into());
+                        }
+                    }
+                    Kind::Index { min, max, default } => {
+                        let mut v = node
+                            .config
+                            .get(f.key)
+                            .and_then(serde_json::Value::as_i64)
+                            .unwrap_or(*default);
+                        if ui
+                            .add(egui::DragValue::new(&mut v).range(*min..=*max).speed(0.05))
+                            .changed()
+                        {
+                            set_config(io, id, f.key, v.into());
                         }
                     }
                     Kind::Lines => {

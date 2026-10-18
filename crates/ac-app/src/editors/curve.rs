@@ -14,7 +14,7 @@ use super::{Edit, area, grid, load, store};
 use crate::theme;
 
 const GRAPH_DEFAULT: &[(f64, f64)] = &[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)];
-const ENVELOPE_DEFAULT: &[(f64, f64)] = &[(0.0, 0.0), (0.01, 1.0), (0.2, 0.7), (0.5, 0.0)];
+const ENVELOPE_DEFAULT: &[(f64, f64)] = ac_nodes::modulation::envelope::DEFAULT_POINTS;
 const SHAPER_DEFAULT: &[(f64, f64)] = &[(-1.0, -1.0), (1.0, 1.0)];
 /// Pixels within which the pointer grabs a point.
 const GRAB: f32 = 8.0;
@@ -29,6 +29,8 @@ pub struct Space {
     pub y: Option<(f64, f64)>,
     pub default: &'static [(f64, f64)],
     pub x_label: &'static str,
+    /// The point held while a gate stays high (envelopes).
+    pub sustain: Option<usize>,
 }
 
 impl Space {
@@ -38,6 +40,7 @@ impl Space {
             y: None,
             default: GRAPH_DEFAULT,
             x_label: "time",
+            sustain: None,
         }
     }
 
@@ -55,6 +58,14 @@ impl Space {
             y: Some((0.0, 1.0)),
             default: ENVELOPE_DEFAULT,
             x_label: "seconds",
+            // Negative: no sustain point.
+            sustain: usize::try_from(
+                config
+                    .get("sustain")
+                    .and_then(serde_json::Value::as_i64)
+                    .unwrap_or(ac_nodes::modulation::envelope::DEFAULT_SUSTAIN),
+            )
+            .ok(),
         }
     }
 
@@ -64,6 +75,7 @@ impl Space {
             y: Some((-1.0, 1.0)),
             default: SHAPER_DEFAULT,
             x_label: "input",
+            sustain: None,
         }
     }
 
@@ -293,6 +305,20 @@ pub(super) fn ui(
         })
         .collect();
     painter.add(Paint::line(line, Stroke::new(2.0, theme::ACCENT)));
+    if let Some(p) = space
+        .sustain
+        .and_then(|i| points.get(i.min(points.len() - 1)))
+    {
+        let at = to_screen(p.x, p.y);
+        painter.circle_stroke(at, 8.0, Stroke::new(1.5, theme::WARNING));
+        painter.text(
+            at + egui::vec2(0.0, -10.0),
+            Align2::CENTER_BOTTOM,
+            "sustain",
+            egui::FontId::proportional(theme::FONT_SMALL),
+            theme::WARNING,
+        );
+    }
     for (i, p) in points.iter().enumerate() {
         let hot = hovered == Some(i);
         painter.circle(
