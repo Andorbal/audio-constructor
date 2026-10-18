@@ -12,7 +12,9 @@ use ac_io::{AssetStore, FileResources, Library};
 use egui::{Event, Key, RichText, vec2};
 
 use crate::actions::{self, Action};
-use crate::audio::{AudioMode, EngineHost};
+use ac_engine::{EngineHandle, Processor};
+
+use crate::audio::{AudioMode, EngineHost, HostAudio};
 use crate::canvas::{Canvas, CanvasEvent, CanvasIo, PendingWire};
 use crate::dialogs::{self, Confirm, FilePurpose, PathPrompt};
 use crate::document::Document;
@@ -66,6 +68,31 @@ impl AppOptions {
             settings: AppSettings::in_memory(),
         }
     }
+
+    /// For a plugin: the host runs the audio (`audio` until it says
+    /// otherwise), and the editor keeps the person's recent list, settings,
+    /// and block library where the desktop editor keeps them. It starts on
+    /// the default patch; the host restores its own project with
+    /// [`EditorApp::load_project`].
+    pub fn hosted(audio: HostAudio) -> AppOptions {
+        AppOptions {
+            audio: AudioMode::Hosted(audio),
+            project: None,
+            start_example: false,
+            recent: Recent::load_default(),
+            native_dialogs: cfg!(feature = "native-dialogs"),
+            seed: clock_seed(),
+            library: files::default_library_dir(),
+            settings: AppSettings::load_default(),
+        }
+    }
+}
+
+/// A seed for node ids that differs from run to run.
+pub fn clock_seed() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |d| d.as_nanos() as u64)
 }
 
 /// Something waiting for the user to confirm discarding changes.
@@ -137,11 +164,63 @@ pub struct EditorApp {
     palette_feed: Vec<NodeId>,
     /// Theme and UI scale (View menu), saved as they change.
     settings: AppSettings,
+    /// The editor's time, kept from going backwards when it moves to
+    /// another context (a reopened plugin window's clock starts at zero).
+    clock: Clock,
+    /// Bumped when the document is replaced or saved (changes the
+    /// revisions can't tell apart).
+    epoch: u64,
+    /// The document's state when the embedding host last heard of it
+    /// ([`EditorApp::take_changes`]).
+    host_seen: ChangeStamp,
 }
 
+/// Where the document is in its history: equal stamps, same project.
+type ChangeStamp = (u64, u64, u64);
+
+/// A monotonic clock over egui's input time.
+#[derive(Clone, Copy, Debug, Default)]
+struct Clock {
+    offset: f64,
+    last: f64,
+}
+
+impl Clock {
+    fn now(&mut self, input_time: f64) -> f64 {
+        let t = input_time + self.offset;
+        if t < self.last {
+            // A new context started its clock over: carry on from here.
+            self.offset += self.last - t;
+        } else {
+            self.last = t;
+        }
+        self.last
+    }
+}
+
+// The embedding host shares the editor between its own thread and the
+// window's (egui-baseview runs a window on its own thread on X11), so the
+// editor must stay `Send`; this fails to compile if a field stops being.
+const _: () = {
+    const fn sendable<T: Send>() {}
+    sendable::<EditorApp>();
+};
+
 impl EditorApp {
+    /// The desktop editor, styling `ctx` (the window's context) now.
     pub fn new(ctx: &egui::Context, opts: AppOptions) -> EditorApp {
         theme::apply(ctx);
+        let app = EditorApp::embedded(opts);
+        app.apply_settings(ctx);
+        app
+    }
+
+    /// An editor made before anything shows it: a plugin's, which lives as
+    /// long as the plugin while its window opens and closes. Each context
+    /// that shows it ([`EditorApp::ui`]) gets the editor's look on its
+    /// first frame. With `AudioMode::Hosted` the host runs the processor
+    /// ([`EditorApp::take_processor`]) and the editor opens no devices.
+    pub fn embedded(opts: AppOptions) -> EditorApp {
         let registry = Arc::new(ac_nodes::registry());
         let mut library = match &opts.library {
             Some(dir) => Library::open(dir),
@@ -249,13 +328,19 @@ impl EditorApp {
             selection_order: SelectionOrder::default(),
             palette_feed: Vec::new(),
             settings: opts.settings,
+            clock: Clock::default(),
+            epoch: 0,
+            host_seen: (0, 0, 0),
         };
-        app.apply_settings(ctx);
+        // A plugin window can't go full screen: performance mode fills
+        // the window instead.
+        app.perform.fills_window = app.is_hosted();
         app.canvas.reset_for(&app.doc, &app.registry);
         if let Some(p) = later {
             app.open(&p, 0.0);
         }
         app.report_library_issues();
+        app.host_seen = app.change_stamp();
         app
     }
 
@@ -282,6 +367,119 @@ impl EditorApp {
 
     pub fn document(&self) -> &Document {
         &self.doc
+    }
+
+    // ------------------------------------------------------------ hosting
+
+    /// Whether a host runs the audio (a plugin): the editor opens no
+    /// devices, has no Quit, and leaves the window's title and size to the
+    /// host.
+    pub fn is_hosted(&self) -> bool {
+        self.engine.hosted().is_some()
+    }
+
+    /// The engine's audio-thread half, for the host to run
+    /// (`AudioMode::Hosted`). `None` once taken; after the host's rate or
+    /// block size changes, [`EditorApp::restart_engine`] hands out the next.
+    pub fn take_processor(&mut self) -> Option<Processor> {
+        self.engine.take_processor()
+    }
+
+    /// Play keys' control events, for the host's audio thread to drain
+    /// into each block's `HostIo::controls`. `None` once taken.
+    pub fn take_control_receiver(&mut self) -> Option<ac_io::ControlReceiver> {
+        self.engine.take_control_receiver()
+    }
+
+    /// The host now runs at `audio` (a plugin activated, or reactivated at
+    /// another rate or block size): build the engine for the document there
+    /// and return the processor for the host's audio thread. The transport
+    /// and node state start over. `None` unless hosted.
+    pub fn restart_engine(&mut self, audio: HostAudio) -> Option<Processor> {
+        let resources = self.resources();
+        let processor = self.engine.restart_hosted(
+            audio,
+            &self.doc.project,
+            self.registry.clone(),
+            resources,
+        )?;
+        self.engine.synced_revision = self.doc.engine_revision;
+        self.loop_sent = None;
+        Some(processor)
+    }
+
+    /// Run an engine the host built, whose processor the host already runs
+    /// at `audio`'s rate. The editor sends it the document and its audio
+    /// files at once, so the host can build it from any project (usually
+    /// [`EditorApp::project`]).
+    pub fn attach_engine(&mut self, handle: EngineHandle, audio: HostAudio) {
+        self.engine.attach_hosted(handle, audio);
+        self.perform.fills_window = true;
+        let resources = self.resources();
+        self.engine.set_resources(&self.doc.project, resources);
+        self.engine.synced_revision = self.doc.engine_revision;
+        self.loop_sent = None;
+    }
+
+    /// The project as it stands, with the canvas's view, for the host to
+    /// keep (a plugin's saved state).
+    pub fn project(&self) -> Project {
+        let mut project = self.doc.project.clone();
+        project.view = Some(ac_core::View {
+            center: [self.canvas.view.center.x, self.canvas.view.center.y],
+            zoom: self.canvas.view.zoom,
+        });
+        project
+    }
+
+    /// Where the project's file is, if it has one. A host keeping the
+    /// project in its own state keeps this too, so audio files the project
+    /// refers to by relative path resolve when it's restored.
+    pub fn project_path(&self) -> Option<&Path> {
+        self.doc.path.as_deref()
+    }
+
+    /// The project, if it changed since the host last asked or last loaded
+    /// one: an edit, an undo or redo, New, Open, or Save. A plugin marks its
+    /// state dirty on `Some`. Moving the view alone isn't a change, though
+    /// [`EditorApp::project`] carries it.
+    pub fn take_changes(&mut self) -> Option<Project> {
+        let stamp = self.change_stamp();
+        if stamp == self.host_seen {
+            return None;
+        }
+        self.host_seen = stamp;
+        Some(self.project())
+    }
+
+    /// Replace the document with `project` (a host restoring its state):
+    /// no unsaved-changes question, a fresh undo history, the transport at
+    /// zero, the engine rebuilt. `path` is the project's file, if it has
+    /// one, so relative audio file paths resolve beside it; without one the
+    /// document is untitled. Unknown nodes and missing files load as
+    /// placeholders and problems, as opening a file does. The host isn't
+    /// told about this change by [`EditorApp::take_changes`].
+    pub fn load_project(&mut self, project: Project, path: Option<&Path>) {
+        let base = path.map_or_else(cwd, files::project_dir);
+        let assets = AssetStore::load_for(&project, &base, &self.registry);
+        // Questions about the document being replaced no longer apply.
+        self.confirm = None;
+        self.prompt = None;
+        self.replace_document(project, path.map(Path::to_path_buf), base, assets);
+        self.host_seen = self.change_stamp();
+    }
+
+    /// Engine upkeep while nothing shows the editor (a plugin whose window
+    /// is closed): edits reach the engine, retired graphs are freed,
+    /// whole-input nodes bake, and recorded takes are picked up. Every
+    /// frame shown does this too; a host calls it now and then otherwise.
+    pub fn upkeep(&mut self) {
+        let now = self.clock.last;
+        self.sync_engine(now);
+    }
+
+    fn change_stamp(&self) -> ChangeStamp {
+        (self.epoch, self.doc.revision, self.doc.engine_revision)
     }
 
     /// Whether the editor is in full-screen performance mode (a panel and a
@@ -367,10 +565,12 @@ impl EditorApp {
 
     // ------------------------------------------------------------ frame
 
-    /// Draw the whole editor into `ui` (the window's root, or a test harness).
+    /// Draw the whole editor into `ui`, the root of a frame: the desktop
+    /// window's (eframe), a plugin window's (`embed`), or a test harness's.
+    /// Every host calls this once a frame.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        let now = ctx.input(|i| i.time);
+        let now = self.clock.now(ctx.input(|i| i.time));
         // The app may be drawn into a context other than the one it was
         // created with (a test harness); give that one the look too.
         let themed = egui::Id::unique("audio-constructor-theme");
@@ -488,6 +688,7 @@ impl EditorApp {
                     recent: &self.recent,
                     examples,
                     registry: &self.registry,
+                    can_quit: self.engine.hosted().is_none(),
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -724,8 +925,8 @@ impl EditorApp {
         });
     }
 
-    fn finish_frame(&mut self, ctx: &egui::Context, now: f64) {
-        // The engine always runs what the document says.
+    /// The engine runs what the document says, and its upkeep is done.
+    fn sync_engine(&mut self, now: f64) {
         if self.doc.engine_revision != self.engine.synced_revision {
             self.engine
                 .replace(&self.doc.project, self.doc.engine_revision);
@@ -737,6 +938,10 @@ impl EditorApp {
         self.engine.tick();
         self.poll_takes(now);
         self.sync_loop();
+    }
+
+    fn finish_frame(&mut self, ctx: &egui::Context, now: f64) {
+        self.sync_engine(now);
 
         if let Some((path, rx)) = &self.export_job
             && let Ok(r) = rx.try_recv()
@@ -764,6 +969,14 @@ impl EditorApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
 
+        if self.engine.handle.is_playing() {
+            ctx.request_repaint();
+        }
+        // The plugin host owns its window: its title, and when it closes.
+        // The document lives on with the plugin, so closing asks nothing.
+        if self.is_hosted() {
+            return;
+        }
         let title = format!(
             "{}{} — Audio Constructor",
             if self.doc.is_dirty() { "● " } else { "" },
@@ -772,9 +985,6 @@ impl EditorApp {
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.title = title;
-        }
-        if self.engine.handle.is_playing() {
-            ctx.request_repaint();
         }
         if self.close_now {
             self.close_now = false;
@@ -1517,6 +1727,8 @@ impl EditorApp {
             Action::SaveAs => self.save(true, now),
             Action::ExportWav => self.file_dialog(FilePurpose::Export, now),
             Action::ExportPack => self.export_pack(now),
+            // A plugin's editor closes with the host's window.
+            Action::Quit if self.is_hosted() => {}
             Action::Quit => self.request(AfterConfirm::Quit, now),
             Action::Undo => {
                 if self.doc.undo() {
@@ -2102,6 +2314,7 @@ impl EditorApp {
         base: PathBuf,
         assets: AssetStore,
     ) {
+        self.epoch += 1;
         let seed = self.doc.ids.clone().fresh(|_| false).0;
         self.doc = Document::new(project, path, base, seed);
         self.missing = missing_of(&assets);
@@ -2164,6 +2377,8 @@ impl EditorApp {
                 self.doc.path = Some(path.clone());
                 self.doc.base_dir = files::project_dir(&path);
                 self.doc.mark_saved();
+                // Saving moved the project, relinked its files, or kept its view.
+                self.epoch += 1;
                 self.recent.add(&path);
                 if assets_changed {
                     self.reload_assets();
@@ -2436,4 +2651,20 @@ fn slug(s: &str) -> String {
         })
         .collect();
     if s.is_empty() { "untitled".into() } else { s }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Clock;
+
+    #[test]
+    fn the_clock_carries_on_when_a_new_context_starts_over() {
+        let mut c = Clock::default();
+        assert_eq!(c.now(1.0), 1.0);
+        assert_eq!(c.now(5.0), 5.0);
+        // A reopened window's input time starts at zero again.
+        assert_eq!(c.now(0.0), 5.0);
+        assert!((c.now(0.5) - 5.5).abs() < 1e-12);
+        assert!((c.now(2.0) - 7.0).abs() < 1e-12);
+    }
 }

@@ -12,7 +12,114 @@ use crate::audio::LatencyState;
 use crate::icons;
 use crate::theme;
 
+/// The rows every host shows: the rate, the buffer, the channels, and how
+/// hard the engine works.
+fn engine_rows(ui: &mut egui::Ui, info: &ac_io::StreamInfo, status: &ac_engine::EngineStatus) {
+    ui.label("Sample rate");
+    ui.label(format!("{} Hz", info.sample_rate));
+    ui.end_row();
+    ui.label("Buffer");
+    ui.label(format!(
+        "{} frames ({:.1} ms)",
+        info.buffer_size,
+        f64::from(info.buffer_size) * 1000.0 / f64::from(info.sample_rate.max(1))
+    ));
+    ui.end_row();
+    ui.label("Channels");
+    ui.label(format!(
+        "{} in · {} out",
+        info.in_channels, info.out_channels
+    ));
+    ui.end_row();
+    ui.label("Load");
+    let load = status.load_fraction();
+    ui.add(
+        egui::ProgressBar::new(load.clamp(0.0, 1.0))
+            .text(format!("{:.0} %", load * 100.0))
+            .desired_width(160.0),
+    );
+    ui.end_row();
+    let cores = status.core_loads();
+    if cores.len() > 1 {
+        ui.label("Per core");
+        ui.vertical(|ui| {
+            for (k, c) in cores.iter().enumerate() {
+                let name = if k == 0 {
+                    "audio".to_string()
+                } else {
+                    format!("worker {k}")
+                };
+                ui.add(
+                    egui::ProgressBar::new(c.clamp(0.0, 1.0))
+                        .text(format!("{name} {:.0} %", c * 100.0))
+                        .desired_width(160.0),
+                );
+            }
+        });
+        ui.end_row();
+    }
+    ui.label("Xruns");
+    let x = status.total_xruns();
+    ui.colored_label(
+        if x > 0 {
+            theme::warning()
+        } else {
+            theme::text()
+        },
+        x.to_string(),
+    )
+    .on_hover_text("Engine blocks over budget plus device underruns/overruns");
+    ui.end_row();
+}
+
+/// The Devices tab in a plugin: the host owns the audio and MIDI, so there
+/// is nothing to pick, only what the engine runs at.
+fn hosted_devices(
+    ui: &mut egui::Ui,
+    io: &mut PanelIo,
+    state: &mut DevicesState,
+    host: &crate::audio::HostAudio,
+) {
+    let status = io.engine.handle.status().clone();
+    let info = io.engine.info.clone();
+    section(ui, "Running");
+    egui::Grid::new("devices-now")
+        .num_columns(2)
+        .spacing(egui::vec2(12.0, 6.0))
+        .show(ui, |ui| {
+            ui.label("Audio");
+            ui.label(RichText::new(&host.host).color(theme::text_strong()));
+            ui.end_row();
+            engine_rows(ui, &info, &status);
+        });
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(format!(
+            "{}  The host provides audio and MIDI. Set the sample rate, the buffer size, \
+             and MIDI routing in the host.",
+            icons::INFO
+        ))
+        .color(theme::text_muted()),
+    );
+    section(ui, "Computer keys");
+    ui.label(
+        RichText::new(
+            "Turn on Play keys (the keyboard button in the transport bar) to send key \
+             presses to the patch instead of running shortcuts.",
+        )
+        .color(theme::text_muted()),
+    );
+    let choice = state
+        .transport_choice
+        .get_or_insert(ac_core::TransportAction::PlayStop);
+    super::bindings_ui::transport_section(ui, io, choice);
+}
+
 pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
+    if let Some(host) = io.engine.hosted().cloned() {
+        hosted_devices(ui, io, state, &host);
+        return;
+    }
     let status = io.engine.handle.status().clone();
     let info = io.engine.info.clone();
     section(ui, "Running");
@@ -37,61 +144,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 ui.label(info.input_device.as_deref().unwrap_or("none"));
                 ui.end_row();
             }
-            ui.label("Sample rate");
-            ui.label(format!("{} Hz", info.sample_rate));
-            ui.end_row();
-            ui.label("Buffer");
-            ui.label(format!(
-                "{} frames ({:.1} ms)",
-                info.buffer_size,
-                f64::from(info.buffer_size) * 1000.0 / f64::from(info.sample_rate.max(1))
-            ));
-            ui.end_row();
-            ui.label("Channels");
-            ui.label(format!(
-                "{} in · {} out",
-                info.in_channels, info.out_channels
-            ));
-            ui.end_row();
-            ui.label("Load");
-            let load = status.load_fraction();
-            ui.add(
-                egui::ProgressBar::new(load.clamp(0.0, 1.0))
-                    .text(format!("{:.0} %", load * 100.0))
-                    .desired_width(160.0),
-            );
-            ui.end_row();
-            let cores = status.core_loads();
-            if cores.len() > 1 {
-                ui.label("Per core");
-                ui.vertical(|ui| {
-                    for (k, c) in cores.iter().enumerate() {
-                        let name = if k == 0 {
-                            "audio".to_string()
-                        } else {
-                            format!("worker {k}")
-                        };
-                        ui.add(
-                            egui::ProgressBar::new(c.clamp(0.0, 1.0))
-                                .text(format!("{name} {:.0} %", c * 100.0))
-                                .desired_width(160.0),
-                        );
-                    }
-                });
-                ui.end_row();
-            }
-            ui.label("Xruns");
-            let x = status.total_xruns();
-            ui.colored_label(
-                if x > 0 {
-                    theme::warning()
-                } else {
-                    theme::text()
-                },
-                x.to_string(),
-            )
-            .on_hover_text("Engine blocks over budget plus device underruns/overruns");
-            ui.end_row();
+            engine_rows(ui, &info, &status);
             if let Some(st) = io.engine.stats() {
                 if st.input_underruns + st.input_overruns + st.device_errors > 0 {
                     ui.label("Device");

@@ -122,6 +122,9 @@ pub struct PerformView {
     pub fullscreen: bool,
     /// The window has reported being full screen since we asked.
     seen_fullscreen: bool,
+    /// Performance mode fills the window instead of asking it to go full
+    /// screen (a plugin window, whose host owns its size).
+    pub fills_window: bool,
     /// Widgets being played.
     pub controls: Controls,
     live: LiveState,
@@ -187,13 +190,15 @@ impl PerformView {
         if on {
             self.shown = true;
         }
-        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
+        if !self.fills_window {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
+        }
     }
 
     /// Follow the window: leaving full screen some other way (the window's
     /// own controls) ends performance mode.
     pub fn follow_window(&mut self, ctx: &egui::Context) {
-        if !self.fullscreen {
+        if !self.fullscreen || self.fills_window {
             return;
         }
         match ctx.input(|i| i.viewport().fullscreen) {

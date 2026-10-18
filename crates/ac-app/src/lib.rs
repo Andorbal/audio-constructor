@@ -26,4 +26,5 @@ pub mod timing;
 pub mod transport;
 pub mod undo;
 
-pub use app::{AppOptions, EditorApp};
+pub use app::{AppOptions, EditorApp, clock_seed};
+pub use audio::HostAudio;
