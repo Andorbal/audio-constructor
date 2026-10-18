@@ -1,12 +1,13 @@
 //! Every shipped example opens, is in canonical form, compiles without
 //! errors, carries the shipped blocks as they ship, and makes sound when it
-//! doesn't depend on a live input.
+//! doesn't depend on a live input. The Reverse Delay example also checks
+//! its Phase 2 acceptance criterion (docs/ROADMAP.md).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use ac_core::{Block, BlockSource, Origin, Project};
-use ac_engine::{RenderOptions, render};
+use ac_core::{Block, BlockSource, Endpoint, NodeId, NodePath, Origin, Project, Wire};
+use ac_engine::{Engine, EngineOptions, HostIo, RenderOptions, WholeState, render};
 use ac_io::{AssetStore, FileResources, Library};
 
 /// The examples that must ship (the M2.6 list in docs/ROADMAP.md, plus the
@@ -18,6 +19,7 @@ const EXPECTED: &[&str] = &[
     "four-tracks",
     "sidechain-pump",
     "drum-machine",
+    "reverse-delay",
 ];
 
 /// Examples that only make sound from a live input.
@@ -89,6 +91,17 @@ fn peak(channels: &[Vec<f32>]) -> f32 {
         .iter()
         .map(|c| ac_core::testing::peak(c))
         .fold(0.0, f32::max)
+}
+
+/// The node with this label.
+fn labeled(project: &Project, label: &str) -> NodeId {
+    project
+        .graph
+        .nodes
+        .iter()
+        .find(|n| n.ui.label.as_deref() == Some(label))
+        .unwrap_or_else(|| panic!("no node labeled {label:?}"))
+        .id
 }
 
 #[test]
@@ -185,4 +198,143 @@ fn subtractive_synth_cli_render_is_bit_identical() {
     let lib = render_example(&path, 4.0);
     assert_eq!(cli.channels, lib.channels);
     std::fs::remove_file(wav).ok();
+}
+
+/// `project` with Audio Out fed from `from` instead.
+fn listening_to(project: &Project, from: Endpoint) -> Project {
+    let mut p = project.clone();
+    let out = p
+        .graph
+        .nodes
+        .iter()
+        .find(|n| n.kind == "audio_out")
+        .expect("an Audio Out")
+        .id;
+    p.graph.wires.retain(|w| w.to.node != out);
+    p.graph
+        .wires
+        .push(Wire::new(from, Endpoint::new(out, "in")));
+    p
+}
+
+/// Phase 2 acceptance: "The Reverse Delay example shows the Reverse node
+/// disabled when fed from AudioIn and baked when fed from a Clip, and
+/// renders correctly offline."
+#[test]
+fn reverse_delay_bakes_from_a_clip_and_is_disabled_from_audio_in() {
+    let path = example("reverse-delay");
+    let project = ac_io::load_project(&path).expect("loads");
+    let registry = Arc::new(ac_nodes::registry());
+    let from_clip = NodePath::root(labeled(&project, "Reverse (from Clip)"));
+    let from_in = NodePath::root(labeled(&project, "Reverse (from Audio In)"));
+    let block = project.settings.block_size as usize;
+    let rate = project.settings.sample_rate;
+
+    // Live: the Clip path bakes, the Audio In path is disabled and says why.
+    let (mut engine, report) = Engine::new(
+        project.clone(),
+        registry.clone(),
+        resources(&project, &path, &registry),
+        EngineOptions {
+            sample_rate: f64::from(rate),
+            max_block: block,
+            socket_telemetry: false,
+            offline: false,
+        },
+    );
+    let state = |e: &Engine, p: &NodePath| {
+        e.handle
+            .bakes()
+            .iter()
+            .find(|b| &b.path == p)
+            .map(|b| b.state.clone())
+    };
+    assert_eq!(state(&engine, &from_clip), Some(WholeState::Pending));
+    assert_eq!(
+        state(&engine, &from_in),
+        Some(WholeState::Disabled {
+            sources: vec!["Guitar or mic".to_string()]
+        })
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.node.as_ref() == Some(&from_in) && d.message.contains("disabled while live")),
+        "{report}"
+    );
+    engine.handle.bake_all();
+    assert_eq!(state(&engine, &from_clip), Some(WholeState::Baked));
+    assert!(matches!(
+        state(&engine, &from_in),
+        Some(WholeState::Disabled { .. })
+    ));
+
+    // Once baked, live playback is the offline render, sample for sample.
+    let seconds = 3.0;
+    let offline = render_example(&path, seconds);
+    let frames = offline.channels[0].len();
+    engine.handle.play_from_start();
+    let silence = vec![0.0f32; block];
+    let mut out = vec![0.0f32; 2 * block];
+    let mut live = Vec::with_capacity(frames);
+    while live.len() < frames {
+        let mut io = HostIo {
+            frames: block,
+            input: &silence,
+            in_channels: 1,
+            output: &mut out,
+            out_channels: 2,
+            midi: &[],
+            midi_out: None,
+            controls: &[],
+            osc_out: None,
+        };
+        engine.process(&mut io);
+        live.extend_from_slice(&out[..block]);
+    }
+    live.truncate(frames);
+    assert!(live == offline.channels[0], "live and offline differ");
+    let level = peak(&offline.channels);
+    assert!(level > 0.05 && level <= 1.0, "peak {level}");
+
+    // Offline nothing is live, so both paths bake.
+    assert!(
+        offline
+            .report
+            .stats
+            .whole_input
+            .iter()
+            .all(|(_, s)| *s == WholeState::Baked),
+        "{:?}",
+        offline.report.stats.whole_input
+    );
+
+    // And the Clip path really plays backwards, half a second at a time.
+    let clip = labeled(&project, "Melody");
+    let forward = render_project(
+        &listening_to(&project, Endpoint::new(clip, "out")),
+        &path,
+        seconds,
+    );
+    let reversed = render_project(
+        &listening_to(
+            &project,
+            Endpoint::new(from_clip.leaf().expect("leaf"), "out"),
+        ),
+        &path,
+        seconds,
+    );
+    let (fwd, rev) = (&forward.channels[0], &reversed.channels[0]);
+    assert!(peak(&forward.channels) > 0.05);
+    let slice = (0.5 * f64::from(rate)) as usize;
+    for k in 0..frames / slice {
+        for t in 0..slice {
+            assert_eq!(
+                rev[k * slice + t],
+                fwd[k * slice + slice - 1 - t],
+                "slice {k}, frame {t}"
+            );
+        }
+    }
 }
