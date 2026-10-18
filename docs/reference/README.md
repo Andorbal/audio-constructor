@@ -20,12 +20,29 @@ node. Edit the node's source, not these files.
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Reverse](time.md#reverse) | Time | Plays its input backwards. |
+| [Accumulate](math.md#accumulate) | Math & Logic | Adds `in` to a running total on every `trigger`. |
+| [Clamp](math.md#clamp) | Math & Logic | Keeps `in` between `min` and `max`. |
 | [Compare](math.md#compare) | Math & Logic | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
 | [Constant](math.md#constant) | Math & Logic | A fixed `Float`, `Int`, or `Bool` value, set with its inline widget. |
+| [Convert](math.md#convert) | Math & Logic | Converts `in` from one unit to another. |
+| [Counter](math.md#counter) | Math & Logic | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
+| [Differentiate](math.md#differentiate) | Math & Logic | How fast `in` is changing, in units per second. |
+| [Integrate](math.md#integrate) | Math & Logic | Adds up `in` over time: the running integral, per second. |
+| [Logic](math.md#logic) | Math & Logic | Combines two gates, `a` and `b`, with a logic operation. |
 | [Map](math.md#map) | Math & Logic | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Math & Logic | Combines two values, `a` and `b`, with an arithmetic operation. |
+| [Quantize](math.md#quantize) | Math & Logic | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
+| [Random](math.md#random) | Math & Logic | A new random value on every `trigger`, held until the next. |
+| [SampleHold](math.md#sample-hold) | Math & Logic | Samples `in` at each `trigger` and holds that value until the next. |
+| [Select](math.md#select) | Math & Logic | Passes on one of several inputs, picked by `index`. |
+| [Smooth](math.md#smooth) | Math & Logic | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
+| [Switch](math.md#switch) | Math & Logic | Passes on `a` while `select` is false and `b` while it is true. |
 | [Unary](math.md#unary) | Math & Logic | Applies a one-input function to `in`: trigonometry, exponentials, rounding, and the like. |
 | [ADSR](modulation.md#adsr) | Modulation | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
+| [Envelope](modulation.md#envelope) | Modulation | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |
+| [LFO](modulation.md#lfo) | Modulation | A low-frequency oscillator for modulation: a cheap, block-rate wave to move other parameters. |
+| [RandomWalk](modulation.md#random-walk) | Modulation | Smooth random modulation that wanders around `center`, never further than `range` from it. |
+| [StepSequencer](modulation.md#step-sequencer) | Modulation | A row of step values played one after another, moving on with each `clock` trigger. |
 | [Burst](triggers.md#burst) | Triggers & Gates | Fires a quick run of triggers after each trigger. |
 | [Clock](triggers.md#clock) | Triggers & Gates | Fires a trigger every `interval`, locked to the transport. |
 | [Clock Divide](triggers.md#clock-divide) | Triggers & Gates | Passes every Nth trigger. |

@@ -2,6 +2,80 @@
 
 [← All nodes](README.md)
 
+<a id="accumulate"></a>
+## Accumulate
+
+Kind: `accumulate` · Also found by: add, sum, total, increment, counter, running total
+
+Adds `in` to a running total on every `trigger`.
+
+`out` is `initial` plus every value of `in` added since the start or
+the last `reset`. `in` is read on the trigger's exact sample, and the
+total changes there (the output is a sample-rate signal). Since
+`initial` is added live, changing it shifts the whole total.
+
+`reset` clears the total, so `out` returns to `initial`. When `reset`
+and `trigger` land on the same sample the reset happens first, and
+the trigger's value starts the new total. A transport restart clears
+the total too.
+
+NaN or infinite inputs count as 0, and the total stays finite.
+
+**Try this:** add 0.1 on every `Clock` tick and `reset` every bar
+for a pitch that climbs in steps, or add a `Random` value (−1..1) on
+each tick for a melody that wanders as a random walk.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 1 | -1 … 1 | Added on each trigger. |
+| `initial` | Float | 0 |  | Where the total starts. |
+| `trigger` | Trigger | — |  | Add `in` to the total. |
+| `reset` | Trigger | — |  | Back to `initial`. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | `initial` plus the total. |
+
+<a id="clamp"></a>
+## Clamp
+
+Kind: `clamp` · Also found by: limit, bound, constrain, range, clip, saturate
+
+Keeps `in` between `min` and `max`.
+
+Values below `min` come out as `min`, values above `max` come out as
+`max`, and anything in between passes unchanged. If `min` is above
+`max` the two are swapped, so the range always works whichever way
+round it is set.
+
+The output runs at the fastest rate among the inputs: block rate when
+all three are controls, sample rate when any carries audio-rate
+modulation. Audio wired into an input arrives as its first channel.
+A NaN or infinite input counts as 0, so the output is always finite.
+
+**Try this:** add an `Oscillator` to a `Slider` with `Math` and clamp
+the sum to 200..5000 before a `Biquad` cutoff, so deep modulation can
+never push the filter out of its useful range. With `min` −0.5 and
+`max` 0.5 on an audio-rate signal it is a hard clipper.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The value to limit. |
+| `min` | Float | 0 |  | Lowest value let through. |
+| `max` | Float | 1 |  | Highest value let through. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | `in`, kept within the range. |
+
 <a id="compare"></a>
 ## Compare
 
@@ -82,6 +156,225 @@ to flip at once.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `out` | Float | The value, once per block. |
+
+<a id="convert"></a>
+## Convert
+
+Kind: `convert` · Also found by: db, gain, midi, note, pitch, hz, semitones, ratio, beats, seconds, samples, units
+
+Converts `in` from one unit to another.
+
+| `op` | `out` |
+| --- | --- |
+| `db_to_gain` | decibels → linear gain, 10^(dB/20): 0 dB is 1, −6 dB about 0.5 |
+| `gain_to_db` | linear gain → decibels, 20·log10(\|gain\|), never below −120 dB |
+| `hz_to_note` | frequency → MIDI note number (A4 = 440 Hz = 69), with fractions |
+| `note_to_hz` | MIDI note number → frequency, equal temperament |
+| `semitones_to_ratio` | semitones → frequency ratio: 12 is 2, −12 is 0.5 |
+| `ratio_to_semitones` | frequency ratio → semitones |
+| `seconds_to_beats` | seconds → beats at the current tempo |
+| `beats_to_seconds` | beats → seconds at the current tempo |
+| `samples_to_seconds` | samples → seconds at the engine's sample rate |
+| `seconds_to_samples` | seconds → samples at the engine's sample rate |
+
+The beat conversions use the tempo at the song position where the
+block starts, so they follow tempo changes. `db_to_gain` has no
+floor: −60 dB is 0.001, not silence (the `Gain` node is the one that
+treats −60 dB as off). The output socket is labeled as a gain (×),
+the unit of the default op; whatever op is chosen, the number is in
+that op's output unit.
+
+The output runs at the rate of `in` and is always finite: a NaN or
+infinite input counts as 0, `hz_to_note` and `ratio_to_semitones` of
+0 or less give 0, and a result too large to represent is 0.
+
+**Try this:** wire a `MidiNote` note (or a `Slider` from 36 to 84)
+through `note_to_hz` into an `Oscillator` freq to play it in tune,
+or put `semitones_to_ratio` between an `LFO` (amount 0.2) and a
+`Math` multiply on the frequency for a vibrato measured in
+semitones.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The value to convert. |
+| `op` | Int | `db_to_gain` | `db_to_gain`, `gain_to_db`, `hz_to_note`, `note_to_hz`, `semitones_to_ratio`, `ratio_to_semitones`, `seconds_to_beats`, `beats_to_seconds`, `samples_to_seconds`, `seconds_to_samples` | From which unit to which. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float (×) | The converted value, in the op's output unit. |
+
+<a id="counter"></a>
+## Counter
+
+Kind: `counter` · Also found by: count, increment, step, index, wrap, modulo, tally
+
+Counts triggers: each `trigger` adds `step` to `count`, wrapping
+around at `max`.
+
+With `max` above 0 the count runs from 0 to `max` − 1 and wraps (8
+becomes 0 when `max` is 8), and `wrapped` fires on the sample where
+it wraps. A negative `step` counts down and wraps from 0 to
+`max` − 1, which also fires `wrapped`. With `max` at 0 or below the
+count never wraps (it stops at the largest `Int`). Lowering `max`
+below the current count takes effect at the next trigger.
+
+`reset` sets the count back to 0. When `reset` and `trigger` land on
+the same sample, the reset happens first, so the count comes out as
+`step`: a `Clock` wired into both starts each bar from the top.
+
+`count` is an `Int` that changes once per block (it shows the count
+after the block's triggers); `wrapped` is sample-accurate. A
+transport restart sets the count back to 0.
+
+**Try this:** count `Clock` ticks with `max` 4 and wire `count` into
+a `Select`'s `index` to step through four values; wire `wrapped`
+into a second Counter to count bars.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `trigger` | Trigger | — |  | Add `step` to the count. |
+| `reset` | Trigger | — |  | Back to 0 (before a trigger on the same sample). |
+| `step` | Int | 1 | -16 … 16 | Added on each trigger; negative counts down. |
+| `max` | Int | 0 | 0 … 64 | Wraps at this count (0 = never). |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `count` | Int | The count, once per block. |
+| `wrapped` | Trigger | Fires when the count wraps. |
+
+<a id="differentiate"></a>
+## Differentiate
+
+Kind: `differentiate` · Also found by: derivative, slope, rate of change, velocity, difference, delta
+
+How fast `in` is changing, in units per second.
+
+A ramp rising by 2 every second gives 2; a steady value gives 0; a
+falling value gives a negative rate. At sample rate it is the
+difference between this sample and the last, times the sample rate.
+
+The output runs at the rate of `in`. When `in` changes once per
+block, the rate is the change since the previous block divided by
+that block's length, so it reads correctly at any block size (but
+stays one block behind the change). The first value after loading or
+a transport restart has nothing to compare with and gives 0.
+
+A NaN or infinite input counts as 0, and a rate too large to
+represent is 0. Steps in the input give spikes in the output: a jump
+of 1 in one sample reads as 48 000 per second at 48 kHz.
+
+**Try this:** differentiate a `Slider` and take `Unary` (`abs`) of
+the result to get how fast it is being moved, then `Compare` it with
+a threshold to fire on quick gestures. Differentiating an `ADSR`
+gives a positive bump on each attack and a negative one on each
+release.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The changing value. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | Rate of change per second. |
+
+<a id="integrate"></a>
+## Integrate
+
+Kind: `integrate` · Also found by: integral, accumulate, sum, ramp, leaky, area
+
+Adds up `in` over time: the running integral, per second.
+
+A constant `in` of 1 rises by 1 every second, so Integrate turns a
+rate into a position: a speed into a distance, a constant into a
+ramp. `out` is the integral up to (not including) the current
+sample: it starts at 0, and integrating 1 gives exactly the seconds
+since the start or the last `reset`.
+
+- `leak` is the fraction of the stored value that drains away each
+  second: 0 keeps it forever, 0.5 halves it every second, 1 forgets
+  immediately. A leaky integrator settles instead of drifting.
+- `reset` sets the integral back to 0 on its exact sample (the
+  output reads 0 there).
+- With `clamp` on, the integral stays between `min` and `max`
+  (swapped if reversed), and it stops at the bound rather than
+  winding up beyond it, so it leaves the bound as soon as `in` turns
+  around.
+
+The output is a sample-rate signal. NaN or infinite inputs count as
+0, `leak` is limited to 0..1, and the integral stays finite. A
+transport restart clears it.
+
+**Try this:** integrate a `Slider` (−1..1) with `clamp` on and `min`
+0, `max` 1 for a fader that moves at the slider's speed; wire a
+`Clock` trigger into `reset` and a constant `in` of 2 for a ramp that
+restarts on every beat.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 | -1 … 1 | The rate to add up, per second. |
+| `leak` | Float | 0 | 0 … 1 | Fraction of the value lost each second. |
+| `reset` | Trigger | — |  | Back to 0. |
+| `clamp` | Bool | false |  | Keep the value between min and max. |
+| `min` | Float | 0 |  | Lower bound when clamped. |
+| `max` | Float | 1 |  | Upper bound when clamped. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The integral. |
+
+<a id="logic"></a>
+## Logic
+
+Kind: `logic` · Also found by: and, or, xor, not, nand, nor, boolean, gate
+
+Combines two gates, `a` and `b`, with a logic operation.
+
+| `op` | `out` is true when |
+| --- | --- |
+| `and` | both are true |
+| `or` | either is true |
+| `xor` | exactly one is true |
+| `not` | `a` is false (`b` is ignored) |
+| `nand` | not both are true |
+| `nor` | neither is true |
+
+A `Float` wired into `a` or `b` counts as true above 0.5. The output
+runs at the fastest rate of the inputs, so two sample-rate gates
+combine sample by sample.
+
+**Try this:** `and` a `Clock` gate with a `Toggle` to mute a rhythm
+without stopping the clock, or `xor` two clocks at different
+intervals for a syncopated gate to drive an `ADSR`.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `a` | Bool | false |  | First gate. |
+| `b` | Bool | false |  | Second gate (ignored by `not`). |
+| `op` | Int | `and` | `and`, `or`, `xor`, `not`, `nand`, `nor` | The operation. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Bool | The result. |
 
 <a id="map"></a>
 ## Map
@@ -179,6 +472,249 @@ ramp (such as `Transport.time`) into a repeating 0..1 sawtooth.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `out` | Float | The result. |
+
+<a id="quantize"></a>
+## Quantize
+
+Kind: `quantize` · Also found by: round, snap, step, grid, bitcrush, staircase
+
+Rounds `in` to the nearest step of a grid: multiples of `step`,
+shifted by `offset`.
+
+The grid is `offset + k × step` for every whole number k, and `out`
+is the grid point nearest to `in`; a value exactly halfway between two
+points rounds up. A negative `step` counts as positive, and a `step`
+of 0 passes `in` through unchanged.
+
+The output runs at the fastest rate among the inputs and is always
+finite: a NaN or infinite input counts as 0.
+
+**Try this:** quantize a `Slider` (or an `LFO` scaled to 48..72) with
+`step` 1 and feed it through `Convert` (`note_to_hz`) into an
+`Oscillator`: it now plays only semitones. On audio, a `step` of 0.1
+is a crude bit-crusher.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The value to round. |
+| `step` | Float | 1 | 0 … 12 | Grid spacing (0 passes through). |
+| `offset` | Float | 0 | -1 … 1 | Shifts the grid. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The nearest grid point. |
+
+<a id="random"></a>
+## Random
+
+Kind: `random` · Also found by: noise, dice, chance, sample and hold, s&h, randomize, gaussian
+
+A new random value on every `trigger`, held until the next.
+
+Each trigger picks a random position within the range and holds it;
+`out` is that position placed between `min` and `max`. Because the
+position is what is held, moving `min` or `max` moves the output
+with them (wire them from a `Slider` to open up the range live).
+Before the first trigger the position is the middle of the range.
+
+- `uniform`: every value in the range is equally likely.
+- `normal`: values cluster around the middle of the range in a bell
+  curve, with the range spanning ±3 standard deviations; the rare
+  values beyond are clamped to the range.
+
+The value changes on the trigger's exact sample (the output is a
+sample-rate signal). The sequence of values comes from the project's
+seed and this node's place in the patch, so a render repeats exactly,
+and a transport restart starts the sequence over. NaN or infinite
+`min`/`max` count as 0.
+
+**Try this:** trigger it from a `Clock`, set the range to 48..72, and
+wire it through `Quantize` (`step` 1) and `Convert` (`note_to_hz`)
+into an `Oscillator` for a random melody that repeats on every
+render.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `trigger` | Trigger | — |  | Pick a new value. |
+| `distribution` | Int | `uniform` | `uniform`, `normal` | Flat, or clustered around the middle. |
+| `min` | Float | 0 |  | Bottom of the range. |
+| `max` | Float | 1 |  | Top of the range. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The held random value. |
+
+<a id="sample-hold"></a>
+## SampleHold
+
+Kind: `sample_hold` · Also found by: sample and hold, s&h, latch, freeze, snapshot, track
+
+Samples `in` at each `trigger` and holds that value until the next.
+
+The value is read on the trigger's exact sample, so an audio-rate
+`in` is caught precisely; the output is a sample-rate signal that
+only changes at triggers. Before the first trigger (and after a
+transport restart) it holds 0. A NaN or infinite sample is held
+as 0.
+
+**Try this:** sample a slow `Oscillator` (or `RandomWalk`) on every
+`Clock` tick and wire the result into a `Biquad` cutoff for a
+stepped filter pattern, or sample `Transport.time` on a `Button`
+press to remember when it was pressed.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The signal to sample. |
+| `trigger` | Trigger | — |  | Take a sample. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The last sample taken. |
+
+<a id="select"></a>
+## Select
+
+Kind: `select` · Also found by: switch, choose, pick, router, multiplexer, mux, index
+
+Passes on one of several inputs, picked by `index`.
+
+The `inputs` config sets how many inputs there are (1 to 64, default
+4), named `in_0`, `in_1`, …, and the `type` config sets what they
+carry: `float` (the default), `audio`, `int`, `bool`, `trigger`, or
+`midi`. `out` has the same type.
+
+`index` picks the input, counting from 0. It wraps around: with four
+inputs, 4 picks `in_0` again and −1 picks `in_3`, so a `Counter`
+without a `max` steps through the inputs over and over. `index` is
+an `Int`, so the choice changes at block boundaries.
+
+- `float` and `bool`: `out` runs at the fastest rate among the
+  inputs; NaN or infinite values come out as 0.
+- `audio`: changing `index` crossfades from the old input to the new
+  one over 5 ms so the switch doesn't click. `out` has as many
+  channels as the widest input.
+- `trigger`: passes on the picked input's triggers.
+- `midi`: passes on the picked input's events. Changing `index`
+  releases any notes (and sustain pedals) still held from the old
+  input, so nothing hangs.
+
+**Try this:** set four `Constant`s to note numbers, wire them into
+`in_0`..`in_3`, and drive `index` from a `Counter` counting `Clock`
+ticks: a four-step arpeggio for `Convert` (`note_to_hz`) and an
+`Oscillator`. With `type` `audio`, Select switches between sound
+sources.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in_0` | Float | 0 |  | An input to pick from. |
+| `in_1` | Float | 0 |  | An input to pick from. |
+| `in_2` | Float | 0 |  | An input to pick from. |
+| `in_3` | Float | 0 |  | An input to pick from. |
+| `index` | Int | 0 | 0 … 3 | Which input to pass on (wraps around). |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The picked input. |
+
+<a id="smooth"></a>
+## Smooth
+
+Kind: `smooth` · Also found by: slew, lag, glide, portamento, filter, ease, dezipper
+
+Smooths a changing value: a slew limiter or a one-pole smoother, with
+separate times for rising and falling.
+
+- `linear`: a slew limiter. The output moves toward `in` at a fixed
+  speed: at most 1 unit per `rise` seconds going up and 1 unit per
+  `fall` seconds going down, so a jump of 0.5 takes half the time.
+- `exponential` (default): a one-pole smoother. `rise` and `fall` are
+  time constants: the output covers about 63% of the remaining
+  distance in that time (99% in about 4.6 times as long), quickly at
+  first and then easing in.
+
+A time of 0 (or less) follows `in` immediately in that direction.
+The first value after loading or a transport restart is taken as-is,
+so the output never glides up from 0 at the start. The output is a
+sample-rate signal even when `in` changes once per block, which is
+what turns a stepped control into a smooth one. A NaN or infinite
+input counts as 0.
+
+**Try this:** put Smooth (`exponential`, rise and fall 0.05) between a
+`MidiNote` note and `Convert` (`note_to_hz`) for portamento, or set
+`rise` short and `fall` long on a level signal for a quick-attack,
+slow-release envelope.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 |  | The value to smooth. |
+| `rise` | Float (s) | 0.1 | 0 … 10 | Time for rising changes. |
+| `fall` | Float (s) | 0.1 | 0 … 10 | Time for falling changes. |
+| `mode` | Int | `exponential` | `linear`, `exponential` | Slew or one-pole. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The smoothed value. |
+
+<a id="switch"></a>
+## Switch
+
+Kind: `switch` · Also found by: toggle, choose, either, if, router, bypass, ab
+
+Passes on `a` while `select` is false and `b` while it is true.
+
+The `type` config sets what `a`, `b`, and `out` carry: `float` (the
+default), `audio`, `int`, `bool`, `trigger`, or `midi`. `select` is
+a gate read per sample, so a sample-rate gate switches on its exact
+sample.
+
+- `float` and `bool`: `out` runs at the fastest rate among the
+  inputs; NaN or infinite values come out as 0.
+- `audio`: flipping `select` crossfades over 5 ms so the switch
+  doesn't click. `out` has as many channels as the wider input.
+- `int`: reads `select` once per block.
+- `trigger`: each trigger passes if it arrives from the input
+  `select` picks at that sample.
+- `midi`: events pass the same way, and flipping `select` releases
+  any notes (and sustain pedals) still held from the other input.
+
+**Try this:** wire a `Toggle` into `select` with `type` `audio` for a
+click-free A/B comparison of a dry and an effected signal, or switch
+an `Oscillator` frequency between two `Constant`s with a `Clock` gate
+for a two-note trill.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `a` | Float | 0 |  | Passed on while `select` is false. |
+| `b` | Float | 0 |  | Passed on while `select` is true. |
+| `select` | Bool | false |  | False picks `a`, true picks `b`. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float | The picked input. |
 
 <a id="unary"></a>
 ## Unary
