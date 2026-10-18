@@ -32,6 +32,25 @@ fixes and smaller changes.
   with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
   built with both, with the JACK build playing a project through a JACK
   server.
+- **Gamepad** node: a game controller in the patch. Every button is a gate
+  and a press trigger (release triggers too, if you ask), and the sticks
+  and analog triggers are numbers with an adjustable dead zone and
+  response curve. Each change lands on the exact sample it arrived on,
+  and a button held through a transport restart stays held.
+- **Keyboard In** node: the computer keyboard in the patch. Keys you list
+  become gates and press triggers, and the middle row of letters plays
+  notes like a piano (`A` to `'` for the white keys, the row above for
+  the black ones, `Z` and `X` to change octave), so you can play a synth
+  without a MIDI keyboard. A key always releases the note it started,
+  even after an octave change.
+- **OSC In** node: Open Sound Control messages to one address (a fader or
+  button on a phone or tablet control surface, say) come in as up to four
+  numbers that hold their last value, plus a trigger for each message.
+- **OSC Out** node: sends up to four numbers from the patch as Open Sound
+  Control messages to an address, host, and port, on a trigger or
+  whenever they change. Changes are sent at most once per `interval`
+  (20 ms by default), so a moving signal can't flood the network, and the
+  latest values always arrive in the end.
 - **Gamepads**: plug in a game controller and the editor and `audioc run`
   hear its buttons, sticks, and triggers. Controllers can come and go while
   you play; each keeps its number while it's connected, and unplugging one

@@ -10,7 +10,7 @@ pub mod midi_note;
 pub mod midi_pattern;
 pub mod midi_transpose;
 pub mod note_to_midi;
-mod notes;
+pub(crate) mod notes;
 pub mod pattern;
 pub mod scale_quantize;
 pub mod voice;

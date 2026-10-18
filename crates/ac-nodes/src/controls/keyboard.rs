@@ -74,7 +74,7 @@ fn layout(config: &Config) -> (u8, usize, u8) {
 }
 
 /// A velocity input as a MIDI velocity, 1–127.
-fn midi_velocity(v: f32) -> u8 {
+pub(crate) fn midi_velocity(v: f32) -> u8 {
     let v = if v.is_nan() { DEFAULT_VELOCITY } else { v };
     (v.clamp(0.0, 1.0) * 127.0).round().max(1.0) as u8
 }

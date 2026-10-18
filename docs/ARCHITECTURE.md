@@ -512,6 +512,9 @@ without either feature.
   what was held. Dead zones and curves beyond gilrs's own are the node's.
   Linux builds link libudev. No gamepad system is reported, never fatal
   (D86).
+  The Gamepad node gives buttons as `Bool` gates and `Trigger` presses
+  and axes as `Float`s, with a radial dead zone for the sticks and a
+  response curve (D89).
 - OSC via rosc: a UDP listener on a chosen port (off until asked for) turns
   every argument of every message into a control event, stamped on arrival
   (bundles flattened, time tags ignored); OSC out sends from a sender
