@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::graph::Graph;
 use crate::group::GroupDef;
 use crate::id::GroupId;
+use crate::panel::Panel;
 
 /// The current project file format version. Bumping it requires a migration
 /// in [`migrate`] and a fixture of the old format in the tests.
@@ -26,6 +27,9 @@ pub struct Project {
     pub graph: Graph,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub group_defs: BTreeMap<GroupId, GroupDef>,
+    /// Performance panels: grids of pinned control and display nodes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub panels: Vec<Panel>,
     /// Editor view state (pan/zoom), kept so a project reopens where it was.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<View>,
@@ -42,6 +46,7 @@ impl Default for Project {
             settings: Settings::default(),
             graph: Graph::default(),
             group_defs: BTreeMap::new(),
+            panels: Vec::new(),
             view: None,
             extra: serde_json::Map::new(),
         }
@@ -162,6 +167,12 @@ impl Project {
     /// order, trailing newline.
     pub fn to_json(&self) -> String {
         to_canonical_json(self)
+    }
+
+    /// Drop panel pins to nodes that aren't in the root graph. Returns how
+    /// many were dropped.
+    pub fn prune_panels(&mut self) -> usize {
+        crate::panel::prune(&mut self.panels, &self.graph)
     }
 }
 
@@ -293,5 +304,71 @@ mod tests {
         let p = Project::from_json(r#"{"schema_version": 1}"#).unwrap();
         assert_eq!(p.settings.sample_rate, 48_000);
         assert_eq!(p.settings.tempo[0].bpm, 120.0);
+        assert!(p.panels.is_empty());
+    }
+
+    #[test]
+    fn panels_round_trip() {
+        use crate::panel::{Panel, PanelItem};
+        let mut p = sample();
+        let mut live = Panel::new("Live");
+        live.items.push(PanelItem::new(NodeId(1)));
+        live.items.push(PanelItem {
+            node: NodeId(2),
+            size: Some([3, 2]),
+        });
+        p.panels = vec![live, Panel::new("Mixer")];
+        let text = p.to_json();
+        assert!(text.contains("\"panels\""), "{text}");
+        let loaded = Project::from_json(&text).unwrap();
+        assert_eq!(loaded, p);
+        assert_eq!(loaded.to_json(), text);
+        assert_eq!(loaded.panels[1].name, "Mixer");
+        assert!(loaded.panels[1].items.is_empty());
+        // A project without panels writes none.
+        assert!(!sample().to_json().contains("panels"));
+    }
+
+    #[test]
+    fn projects_from_before_panels_load() {
+        let text = r#"{
+  "schema_version": 1,
+  "name": "old",
+  "graph": {
+    "nodes": [{"id": "1", "kind": "slider", "ui": {"pos": [0.0, 0.0]}}],
+    "wires": []
+  },
+  "view": {"center": [0.0, 0.0], "zoom": 1.0}
+}"#;
+        let p = Project::from_json(text).unwrap();
+        assert!(p.panels.is_empty());
+        assert_eq!(p.graph.nodes.len(), 1);
+    }
+
+    #[test]
+    fn pins_to_missing_nodes_are_ignored_and_pruned() {
+        let text = r#"{
+  "schema_version": 1,
+  "graph": {
+    "nodes": [{"id": "1", "kind": "slider", "ui": {"pos": [0.0, 0.0]}}],
+    "wires": []
+  },
+  "panels": [
+    {"name": "Live", "items": [{"node": "99"}, {"node": "1", "size": [0, 400]}]},
+    {"name": "Empty", "future": true}
+  ]
+}"#;
+        let mut p = Project::from_json(text).unwrap();
+        let live = &p.panels[0];
+        let shown: Vec<NodeId> = live.pinned(&p.graph).map(|(_, n)| n.id).collect();
+        assert_eq!(shown, vec![NodeId(1)], "the dangling pin is skipped");
+        // Sizes out of range are kept in range when read.
+        assert_eq!(live.items[1].span([2, 1]), [1, crate::panel::MAX_SPAN]);
+        assert_eq!(live.items[0].span([2, 1]), [2, 1]);
+        // Unknown fields survive.
+        assert_eq!(p.panels[1].extra.get("future"), Some(&true.into()));
+        assert_eq!(p.prune_panels(), 1);
+        assert_eq!(p.panels[0].items.len(), 1);
+        assert_eq!(p.prune_panels(), 0);
     }
 }
