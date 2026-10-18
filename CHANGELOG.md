@@ -25,10 +25,11 @@ fixes and smaller changes.
     and its per-drum triggers playing a second kit of Samplers cut from
     one audio file; a switch flips between the two kits.
   - **Build a Keyboard**: the Subtractive Synth Voice block made
-    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) or
-    an on-screen Keyboard, with velocity, octave, and timbre knobs, all on
-    a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo phrase plays
-    until you pick a keyboard in its Play with menu.
+    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) and
+    an on-screen Keyboard at once, with velocity, octave, and timbre
+    knobs, all on a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo
+    phrase plays along through a Merge node; turn Demo off to play on your
+    own.
   - **Gamepad Jam**: drums on a game controller's face buttons, strummed
     chords stepped by the D-pad, a filter on the left stick, and strum
     strength and echo on the analog triggers, with bindings for play/stop

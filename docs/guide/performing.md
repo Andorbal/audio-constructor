@@ -125,6 +125,10 @@ Every connected MIDI input reaches the patch through **MIDI In** nodes
 - **MIDI Filter** keeps one channel, a range of notes, or chosen kinds of
   message; **MIDI Transpose** moves notes up or down and can snap them to
   a scale; **Chord** and **Arpeggiator** turn single notes into more.
+- **Merge** joins several MIDI streams into one, since an input takes
+  one wire: a MIDI keyboard, the computer keys, and a MIDI Pattern can
+  play one synth together. A note held from two of them sounds once and
+  ends when the last lets go. Set to triggers, it joins rhythms.
 - **MIDI Out** plays external hardware. Choose its port in the Devices
   tab under **MIDI outputs**. It ends every note it started when the
   transport stops, and its `panic` input silences everything.
