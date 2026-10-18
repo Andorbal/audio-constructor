@@ -73,7 +73,7 @@
         "id": "4",
         "kind": "comment",
         "config": {
-          "text": "Tab into the Drum Machine (or double-click it) to see the Pattern and the four synthesized drums. Click the Pattern's cells in the side panel to change the beat. Step 0.5 plays it at half speed."
+          "text": "Tab into the Drum Machine (or double-click it) to see the Pattern and the four synthesized drums. Select the Pattern and click its cells in the Node tab to change the beat. Step 0.5 plays it at half speed."
         },
         "ui": {
           "pos": [
@@ -190,7 +190,7 @@
         "id": "a",
         "kind": "comment",
         "config": {
-          "text": "Every Sampler plays a slice of assets/drums.wav: start_point and end_point are fractions of the file. The snare and open hat are the hi-hat slice played lower (note below the root of 60 plays slower and deeper). Assign your own file in the side panel to swap a sound."
+          "text": "Every Sampler plays a slice of assets/drums.wav: start_point and end_point are fractions of the file. The snare and open hat are the hi-hat slice played lower (note below the root of 60 plays slower and deeper). Assign your own file in the Node tab to swap a sound."
         },
         "ui": {
           "pos": [

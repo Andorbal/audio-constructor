@@ -512,7 +512,7 @@
         "id": "17",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Shorten the Vocoder's release to 0.01 s for crisper words, or lengthen it to 0.3 s for a smeared choir.\n• Set the carrier's Hiss gain to −60 and hear the consonants vanish.\n• Raise Syllables' interval to 1 beat for a slow, singing robot.\n• With Use Audio In on, wire the Microphone into a Meter first to check your level: quiet voices need more of the Vocoder's level."
+          "text": "Try this:\n• Shorten the Vocoder's release to 0.01 s for crisper words, or lengthen it to 0.3 s for a smeared choir.\n• With a real voice, set Hiss's gain to −60 and hear the s and t sounds vanish: only noise carries them.\n• Raise Syllables' interval to 1 beat for a slow, singing robot.\n• With Use Audio In on, wire the Microphone into a Meter first to check your level: quiet voices need more of the Vocoder's level."
         },
         "ui": {
           "pos": [
@@ -521,7 +521,7 @@
           ],
           "size": [
             540.0,
-            144.0
+            160.0
           ]
         }
       }

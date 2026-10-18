@@ -180,7 +180,7 @@
         "id": "4",
         "kind": "comment",
         "config": {
-          "text": "Am, F, C, G, one bar each, played by eight voices of the Subtractive Synth Voice block. Open Chords' piano roll in the side panel to change them."
+          "text": "Am, F, C, G, one bar each, played by eight voices of the Subtractive Synth Voice block. Select Chords and edit its piano roll in the Node tab to change them."
         },
         "ui": {
           "pos": [
@@ -412,7 +412,7 @@
         "id": "12",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Click Pump to switch the ducking off and on and hear the difference.\n• Turn Release down to 0.125 beats for a tight, choppy pump, or up to 0.75 for a slow swell that never quite lets go.\n• Raise the ducker's amount for a deeper dip, or its attack for a softer one.\n• Wire Hats and snare's out into the sidechain instead and hear every hit duck the pad."
+          "text": "Try this:\n• Click Pump to switch the ducking off and on and hear the difference.\n• Turn Release down to 0.125 beats for a tight, choppy pump, or up to 0.75 for a slow swell that never quite lets go.\n• Raise the ducker's amount for a deeper dip, or its attack for a softer one.\n• Wire Hats and snare's out into the sidechain instead: now the snare ducks the pad on 2 and 4, and the kick doesn't."
         },
         "ui": {
           "pos": [

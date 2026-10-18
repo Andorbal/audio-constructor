@@ -365,7 +365,7 @@
         "id": "17",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Raise Feedback amount towards −4 dB for a loop that lasts much longer (and saturates).\n• Set Loop length to 3 s, out of step with the phrases, so each new phrase lands somewhere else in the loop and the layers build up.\n• Turn Wow's Map up to ±10 ms for a seasick tape, or the Flutter rate up to 12 Hz.\n• Swap the Phrase's file for assets/lead.wav, or wire an Audio In into the Record head's free input to loop yourself."
+          "text": "Try this:\n• Raise Feedback amount towards −4 dB for a loop that lasts much longer (and saturates).\n• Set Loop length to 3 s, out of step with the phrases, so each new phrase lands somewhere else in the loop and the layers build up.\n• Widen the ±3 ms Map to ±10 ms (out_min −0.01, out_max 0.01) for a seasick tape, or raise Flutter's rate to 12 Hz.\n• Swap the Phrase's file for assets/lead.wav, or give the Record head a third input (Node tab) and wire an Audio In into it to loop yourself."
         },
         "ui": {
           "pos": [
@@ -374,7 +374,7 @@
           ],
           "size": [
             560.0,
-            160.0
+            176.0
           ]
         }
       }

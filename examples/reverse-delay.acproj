@@ -257,7 +257,7 @@
         "id": "10",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Set segment (Reverse, Node tab) and the Delay's time to 1 s together for longer reversed phrases. Keep them equal: the delay has to wait out a whole slice.\n• Raise feedback for reversed echoes that repeat.\n• Swap the Melody for assets/drums.wav for reverse-cymbal swells into every beat.\n• Turn on Use Audio In, play, and watch the lower Reverse stay disabled."
+          "text": "Try this:\n• Set segment (Reverse, Node tab) and the Delay's time to 1 s together for longer reversed phrases. Keep them equal: the delay has to wait out a whole slice.\n• Raise feedback for reversed echoes that repeat.\n• Swap the Melody's file for assets/drums.wav: reversed kicks swell up into every beat.\n• Turn on Use Audio In, play, and watch the lower Reverse stay disabled."
         },
         "ui": {
           "pos": [
