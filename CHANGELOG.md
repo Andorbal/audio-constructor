@@ -46,6 +46,10 @@ fixes and smaller changes.
   filter with an envelope sweep), and **FM Operator Pair**. Rhythm and
   voice blocks: **Drum Machine** (a 16-step pattern playing synthesized
   kick, snare, and hats), **Euclidean Drummer**, and **Vocoder** (12 bands).
+- Space and modulation blocks: **Plate Reverb** (a figure-eight tank),
+  **Hall Reverb** (parallel damped combs into allpasses), **Chorus**,
+  **Flanger**, **Phaser** (2–4 notches), **Vibrato** (depth in semitones),
+  **Auto-Wah**, and **Stutter** (repeats a beat-sized slice).
 
 ### Changed
 
