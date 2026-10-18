@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "name": "Threshold and timer",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "freq": 1.5,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "threshold_trigger",
+        "params": {
+          "hold": 0.05,
+          "hysteresis": 0.1,
+          "threshold": 0.7
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "timer",
+        "params": {
+          "duration": 0.2
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "trigger_to_gate",
+        "params": {
+          "length": 0.01
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "trigger_to_gate",
+        "params": {
+          "length": 0.02
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "30",
+        "kind": "math",
+        "params": {
+          "b": 0.2,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "31",
+        "kind": "math",
+        "params": {
+          "b": 0.1,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            150.0
+          ]
+        }
+      },
+      {
+        "id": "32",
+        "kind": "math",
+        "params": {
+          "b": 0.3,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "33",
+        "kind": "math",
+        "params": {
+          "b": 0.5,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            450.0
+          ]
+        }
+      },
+      {
+        "id": "34",
+        "kind": "math",
+        "params": {
+          "b": 0.15,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            600.0
+          ]
+        }
+      },
+      {
+        "id": "35",
+        "kind": "math",
+        "params": {
+          "b": 0.12,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            750.0
+          ]
+        }
+      },
+      {
+        "id": "50",
+        "kind": "mix",
+        "config": {
+          "inputs": 6
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "51",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:trigger",
+        "to": "4:start"
+      },
+      {
+        "from": "3:release",
+        "to": "4:stop"
+      },
+      {
+        "from": "4:done",
+        "to": "5:in"
+      },
+      {
+        "from": "3:release",
+        "to": "6:in"
+      },
+      {
+        "from": "3:gate",
+        "to": "30:a"
+      },
+      {
+        "from": "4:running",
+        "to": "31:a"
+      },
+      {
+        "from": "4:progress",
+        "to": "32:a"
+      },
+      {
+        "from": "4:elapsed",
+        "to": "33:a"
+      },
+      {
+        "from": "5:gate",
+        "to": "34:a"
+      },
+      {
+        "from": "6:gate",
+        "to": "35:a"
+      },
+      {
+        "from": "30:out",
+        "to": "50:in_0"
+      },
+      {
+        "from": "31:out",
+        "to": "50:in_1"
+      },
+      {
+        "from": "32:out",
+        "to": "50:in_2"
+      },
+      {
+        "from": "33:out",
+        "to": "50:in_3"
+      },
+      {
+        "from": "34:out",
+        "to": "50:in_4"
+      },
+      {
+        "from": "35:out",
+        "to": "50:in_5"
+      },
+      {
+        "from": "50:out",
+        "to": "51:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
