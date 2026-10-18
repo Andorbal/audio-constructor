@@ -121,6 +121,8 @@ pub(crate) struct Step {
     /// (stash → output slot) and after (slot → stash).
     pub acquire: Range,
     pub release: Range,
+    /// Reads something an earlier step of its chain wrote.
+    pub reads_chain: bool,
     pub tele_values: Range,
     pub tele_scope: Range,
     pub tele_scope_pos: Option<u32>,
@@ -389,30 +391,64 @@ impl<'w> WorkMut<'w> {
         }
     }
 
-    /// Read access to what this part holds from `from` on, as chain values.
-    fn local(self, from: At) -> Local<'w> {
-        fn tail<T>(v: &[T], from: usize) -> &[T] {
-            v.get(from..).unwrap_or(&[])
+    /// One step's part, `at..end`, and, when `chain`, what the steps from
+    /// `from` up to it wrote, read-only (all relative to this view).
+    fn step(&mut self, from: At, at: At, end: At, chain: bool) -> (WorkMut<'_>, Local<'_>) {
+        /// `v[at..end]`, and `v[from..at]` when `chain`.
+        fn cut<T>(
+            v: &mut [T],
+            from: usize,
+            at: usize,
+            end: usize,
+            chain: bool,
+        ) -> (&[T], &mut [T]) {
+            let (before, rest) = split(v, at);
+            let (mine, _) = split(rest, end.saturating_sub(at));
+            let before = if chain {
+                before.get(from..).unwrap_or(&[])
+            } else {
+                &[]
+            };
+            (before, mine)
         }
-        let WorkMut {
-            samples,
-            scalars,
-            ints,
-            triggers,
-            midi,
-            spectra,
-            buffers,
-            ..
-        } = self;
-        Local {
-            scalars: tail(scalars, from.scalars),
-            ints: tail(ints, from.ints),
-            samples: tail(samples, from.samples),
-            triggers: tail(triggers, from.triggers),
-            midi: tail(midi, from.midi),
-            spectra: tail(spectra, from.spectra),
-            buffers: tail(buffers, from.buffers),
-        }
+        let (_, nodes) = cut(self.nodes, 0, at.step, end.step, false);
+        let (_, load) = cut(self.load, 0, at.step, end.step, false);
+        let (l_samples, samples) = cut(self.samples, from.samples, at.samples, end.samples, chain);
+        let (l_scalars, scalars) = cut(self.scalars, from.scalars, at.scalars, end.scalars, chain);
+        let (l_ints, ints) = cut(self.ints, from.ints, at.ints, end.ints, chain);
+        let (l_triggers, triggers) = cut(
+            self.triggers,
+            from.triggers,
+            at.triggers,
+            end.triggers,
+            chain,
+        );
+        let (l_midi, midi) = cut(self.midi, from.midi, at.midi, end.midi, chain);
+        let (l_spectra, spectra) = cut(self.spectra, from.spectra, at.spectra, end.spectra, chain);
+        let (l_buffers, buffers) = cut(self.buffers, from.buffers, at.buffers, end.buffers, chain);
+        (
+            WorkMut {
+                nodes,
+                load,
+                samples,
+                scalars,
+                ints,
+                triggers,
+                midi,
+                spectra,
+                buffers,
+                stash: &mut [],
+            },
+            Local {
+                scalars: l_scalars,
+                ints: l_ints,
+                samples: l_samples,
+                triggers: l_triggers,
+                midi: l_midi,
+                spectra: l_spectra,
+                buffers: l_buffers,
+            },
+        )
     }
 }
 
@@ -516,13 +552,16 @@ fn run_chain(shared: &Shared<'_>, chain: Range, mut work: WorkMut<'_>, base: At)
             return;
         };
         let frames = shared.frames;
-        work.recycle(range(shared.recycle, step.acquire), first, frames, true);
-        let start = At::start(steps, k).minus(base);
-        let size = At::end(steps, k + 1).minus(At::start(steps, k));
-        let (before, rest) = work.reborrow().split_at(start);
-        let (mine, _) = rest.split_at(size);
-        run_step(shared, step, mine, before.local(first), &mut [], None, None);
-        work.recycle(range(shared.recycle, step.release), first, frames, false);
+        if step.acquire.0 < step.acquire.1 {
+            work.recycle(range(shared.recycle, step.acquire), first, frames, true);
+        }
+        let at = At::start(steps, k).minus(base);
+        let end = At::end(steps, k + 1).minus(base);
+        let (mine, local) = work.step(first, at, end, step.reads_chain);
+        run_step(shared, step, mine, local, &mut [], None, None);
+        if step.release.0 < step.release.1 {
+            work.recycle(range(shared.recycle, step.release), first, frames, false);
+        }
     }
 }
 
@@ -709,9 +748,8 @@ impl CompiledGraph {
                         break;
                     };
                     let at = At::start(steps, k).minus(serial_base);
-                    let size = At::end(steps, k + 1).minus(At::start(steps, k));
-                    let (_, rest) = serial_work.reborrow().split_at(at);
-                    let (mine, _) = rest.split_at(size);
+                    let end = At::end(steps, k + 1).minus(serial_base);
+                    let (mine, _) = serial_work.step(at, at, end, false);
                     run_step(
                         &shared,
                         step,

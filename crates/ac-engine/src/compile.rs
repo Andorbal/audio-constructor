@@ -12,9 +12,11 @@
 //! 7. Latency compensation: where paths of different latency merge, delay
 //!    the early inputs so they line up with the slowest.
 //! 8. Build steps with virtual buffers, inserting implicit conversions.
-//! 9. Group steps into waves of mutually independent steps (what the
-//!    multi-core scheduler runs in parallel) and assign physical buffers by
-//!    wave so they're reused.
+//! 9. Group steps into chains (runs one thread works through in order) and
+//!    chains into waves of mutually independent chains, what the multi-core
+//!    scheduler runs in parallel (`chains.rs`); assign physical buffers by
+//!    wave so they're reused, and let chains recycle the buffers only they
+//!    read.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
@@ -246,6 +248,7 @@ impl Builder {
             o_stash: (0, 0),
             acquire: (0, 0),
             release: (0, 0),
+            reads_chain: false,
             tele_values: (0, 0),
             tele_scope: (0, 0),
             tele_scope_pos: None,
@@ -1004,6 +1007,7 @@ pub(crate) fn compile_with(
         let base = chain_base.get(chain).copied().unwrap_or_default();
         // Value `v`, written by step `def` and laid out by `pos`, as a LOCAL
         // index when `def` is in this chain.
+        let reads_chain = std::cell::Cell::new(false);
         let local = |v: &mut u32, def: Option<usize>, pos: &[u32], base: usize| {
             if def.is_some_and(|d| plan.chain_of.get(d) == Some(&chain))
                 && let Some(&p) = pos.get(*v as usize)
@@ -1011,6 +1015,7 @@ pub(crate) fn compile_with(
                 && p as usize >= base
             {
                 *v = LOCAL | (p - base as u32);
+                reads_chain.set(true);
             }
         };
         let sample_def = |v: u32| b.vsamples.get(v as usize).map(|l| l.def);
@@ -1059,10 +1064,12 @@ pub(crate) fn compile_with(
                 _ => {}
             }
         }
-        if let Some(StepKind::FillFromScalar { scalar }) = steps.get_mut(run).map(|st| &mut st.kind)
-        {
-            let def = b.scalar_def.get(*scalar as usize).copied();
-            local(scalar, def, &lay.pos_scalars, base.scalars);
+        if let Some(st) = steps.get_mut(run) {
+            if let StepKind::FillFromScalar { scalar } = &mut st.kind {
+                let def = b.scalar_def.get(*scalar as usize).copied();
+                local(scalar, def, &lay.pos_scalars, base.scalars);
+            }
+            st.reads_chain = reads_chain.get();
         }
     }
     let map_s = |v: u32| {
