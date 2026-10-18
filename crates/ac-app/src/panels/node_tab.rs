@@ -7,6 +7,7 @@ use egui::RichText;
 use super::{PanelIo, PanelRequest, markdown, section};
 use crate::canvas::widgets;
 use crate::edit::{self, GROUP_IN, GROUP_OUT, NodeClass};
+use crate::editors;
 use crate::icons;
 use crate::params;
 use crate::theme;
@@ -135,7 +136,11 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             },
         )],
         "file_out" => vec![
-            f("path", "File (offline renders)", Kind::Text { multiline: false }),
+            f(
+                "path",
+                "File (offline renders)",
+                Kind::Text { multiline: false },
+            ),
             f(
                 "channels",
                 "Channels",
@@ -436,6 +441,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     }
 
     config_fields(ui, io, id, &node);
+    node_editor(ui, io, id, &node);
 
     if let NodeClass::Group(d) = &class
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()
@@ -607,6 +613,84 @@ fn param_widget(
         }
         widgets::Field::Label => {
             ui.label(RichText::new("unwired").color(theme::TEXT_FAINT));
+        }
+    }
+}
+
+/// The node's own editor (curve, grid, piano roll, bands, steps), and a
+/// larger copy in a window.
+fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
+    let Some(editor) = editors::editor_for(&node.kind, &node.config) else {
+        return;
+    };
+    section(ui, "Editor");
+    if node.kind == "shaper" {
+        ui.label(
+            RichText::new("The curve shapes the signal when `shape` is custom.")
+                .small()
+                .color(theme::TEXT_MUTED),
+        );
+    }
+    let width = ui.available_width().max(120.0);
+    let edit = editors::show(
+        ui,
+        editor,
+        &node.config,
+        ("panel", id),
+        width,
+        editor.height(width),
+    );
+    apply_editor(io, id, editor, edit);
+    let open_id = egui::Id::unique(("node-editor-window", id));
+    let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
+    ui.horizontal(|ui| {
+        if ui
+            .button(format!("{}  Larger editor", icons::ARROW_SQUARE_OUT))
+            .clicked()
+        {
+            open = !open;
+        }
+        ui.label(
+            RichText::new("Double-click to add, right-click to change or remove.")
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+    });
+    if open {
+        let title = node
+            .ui
+            .label
+            .clone()
+            .or_else(|| io.registry.get(&node.kind).map(|e| e.meta.name.to_string()))
+            .unwrap_or_else(|| node.kind.clone());
+        let mut edit = None;
+        egui::Window::new(title)
+            .id(egui::Id::unique(("node-editor-window-frame", id)))
+            .open(&mut open)
+            .default_size(egui::vec2(720.0, 420.0))
+            .resizable(true)
+            .collapsible(false)
+            .show(ui.ctx(), |ui| {
+                let size = ui.available_size();
+                let w = size.x.max(200.0);
+                let h = (size.y - 30.0).max(editor.height(w).min(200.0));
+                edit = editors::show(ui, editor, &node.config, ("window", id), w, h);
+            });
+        apply_editor(io, id, editor, edit);
+    }
+    ui.data_mut(|d| d.insert_temp(open_id, open));
+}
+
+fn apply_editor(
+    io: &mut PanelIo,
+    id: NodeId,
+    editor: editors::Editor,
+    edit: Option<editors::Edit>,
+) {
+    if let Some(e) = edit {
+        io.doc.set_config(id, editor.key(), e.value, io.now);
+        if e.done {
+            io.doc.end_coalescing();
         }
     }
 }
