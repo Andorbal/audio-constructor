@@ -11,6 +11,7 @@ pub mod edit;
 pub mod editors;
 pub mod export;
 pub mod files;
+pub mod help;
 pub mod icons;
 pub mod menubar;
 pub mod palette;

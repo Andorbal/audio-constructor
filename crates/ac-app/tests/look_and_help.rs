@@ -6,10 +6,12 @@
 use std::path::PathBuf;
 
 use ac_app::audio::AudioMode;
+use ac_app::icons;
+use ac_app::panels::Tab;
 use ac_app::settings::AppSettings;
 use ac_app::theme::{self, ThemeChoice};
 use ac_app::{AppOptions, EditorApp};
-use ac_core::Project;
+use ac_core::{GROUP_KIND, NodeId, NodeInstance, Project};
 use egui::{Key, Modifiers};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
@@ -152,4 +154,150 @@ fn ui_scale_steps_change_the_zoom_factor_and_are_remembered() {
     let h2 = harness_with(AppSettings::load_from(Some(file.clone())), None);
     assert_eq!(h2.ctx.zoom_factor(), 1.5, "the next start reads it back");
     std::fs::remove_dir_all(file.parent().unwrap()).ok();
+}
+
+/// One node of `kind`, selected.
+fn one_node(kind: &str) -> Harness<'static, EditorApp> {
+    let mut p = Project::default();
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(1), kind).at(0.0, 0.0));
+    let mut h = harness_with(AppSettings::in_memory(), Some(p));
+    h.state_mut().doc.selection = [NodeId(1)].into();
+    steps(&mut h, 2);
+    h
+}
+
+/// Scroll a label into view and click it.
+fn click_exact(h: &mut Harness<'static, EditorApp>, label: &str) {
+    h.get_by_label(label).scroll_to_me();
+    steps(h, 3);
+    h.get_by_label(label).click();
+    steps(h, 3);
+}
+
+fn block_link(name: &str) -> String {
+    format!("{}  {name}", icons::STACK)
+}
+
+fn example_link(name: &str) -> String {
+    format!("{}  {name}", icons::FOLDER_OPEN)
+}
+
+#[test]
+fn f1_on_a_gain_computer_lists_the_blocks_that_use_it() {
+    let mut h = one_node("gain_computer");
+    press(&mut h, Modifiers::NONE, Key::F1);
+    assert!(h.state().side.open);
+    assert_eq!(h.state().side.tab, Tab::Help);
+    assert_eq!(h.state().side.help.kind.as_deref(), Some("gain_computer"));
+    // Name, the highlighted tip, the sockets with their units, Used in.
+    let _ = h.get_by_label("Gain Computer");
+    let _ = h.get_by_label_contains("Try this");
+    let _ = h.get_by_label("threshold");
+    assert!(
+        h.query_all_by_label("Float (dB)").count() >= 2,
+        "threshold and knee are in decibels"
+    );
+    let _ = h.get_by_label("USED IN");
+    for name in ["Compressor", "Multiband Compressor", "Limiter"] {
+        let _ = h.get_by_label(&block_link(name));
+    }
+    assert!(
+        h.query_by_label(&block_link("Tremolo")).is_none(),
+        "only blocks that hold it"
+    );
+
+    // Clicking a block adds it to the canvas.
+    let before = h.state().document().graph().nodes.len();
+    click_exact(&mut h, &block_link("Compressor"));
+    let doc = h.state().document();
+    assert_eq!(doc.graph().nodes.len(), before + 1);
+    let added = doc.graph().nodes.last().unwrap();
+    assert_eq!(added.kind, GROUP_KIND);
+    let def = &doc.project.group_defs[&added.group_def().unwrap()];
+    assert_eq!(def.name, "Compressor");
+    assert_eq!(def.source.as_deref(), Some("shipped:compressor"));
+}
+
+#[test]
+fn the_node_tab_and_the_menu_open_the_same_help() {
+    let mut h = one_node("oscillator");
+    assert_eq!(h.state().side.tab, Tab::Node);
+    // The Node tab shows the tip and a button to the full reference.
+    let _ = h.get_by_label_contains("Try this");
+    click_exact(&mut h, &format!("{}  Help", icons::BOOK_OPEN));
+    assert_eq!(h.state().side.tab, Tab::Help);
+    assert_eq!(h.state().side.help.kind.as_deref(), Some("oscillator"));
+    // Help ▸ Node Help with nothing selected lists every node.
+    h.state_mut().doc.selection.clear();
+    click_exact(&mut h, "Help");
+    click(&mut h, "Node Help");
+    assert_eq!(h.state().side.tab, Tab::Help);
+    assert_eq!(h.state().side.help.kind, None);
+    let _ = h.get_by_label_contains("Press F1 on a node");
+}
+
+#[test]
+fn help_search_finds_nodes_by_their_synonyms() {
+    let mut h = one_node("gain");
+    h.state_mut().side.show_help(None);
+    steps(&mut h, 2);
+    let field = h
+        .get_by_role(egui::accesskit::Role::TextInput)
+        .rect()
+        .center();
+    h.hover_at(field);
+    h.drag_at(field);
+    h.drop_at(field);
+    steps(&mut h, 2);
+    h.event(egui::Event::Text("compressor".into()));
+    steps(&mut h, 3);
+    assert_eq!(h.state().side.help.query, "compressor");
+    click_exact(&mut h, "Gain Computer");
+    assert_eq!(h.state().side.help.kind.as_deref(), Some("gain_computer"));
+    assert!(h.state().side.help.query.is_empty());
+    let _ = h.get_by_label(&block_link("Compressor"));
+}
+
+#[test]
+fn an_example_link_opens_the_example_after_asking_about_changes() {
+    let mut h = one_node("oscillator");
+    // An unsaved change.
+    let ctx = h.ctx.clone();
+    h.state_mut().run(&ctx, ac_app::actions::Action::Mute, 0.0);
+    steps(&mut h, 2);
+    assert!(h.state().document().is_dirty());
+    let nodes = h.state().document().graph().nodes.len();
+
+    press(&mut h, Modifiers::NONE, Key::F1);
+    let _ = h.get_by_label("Examples");
+    click_exact(&mut h, &example_link("Start"));
+    // Cancel keeps everything as it was.
+    h.get_by_label("Cancel").click();
+    steps(&mut h, 3);
+    assert_eq!(h.state().document().graph().nodes.len(), nodes);
+    assert!(h.state().document().is_dirty());
+
+    click_exact(&mut h, &example_link("Start"));
+    h.get_by_label("Don't Save").click();
+    steps(&mut h, 3);
+    let doc = h.state().document();
+    assert_eq!(doc.project.name, "Start");
+    assert!(
+        doc.path.is_none(),
+        "an untitled copy, so saving can't overwrite it"
+    );
+    assert!(!doc.is_dirty());
+    assert!(
+        doc.graph().nodes.iter().any(|n| n.kind == "oscillator"),
+        "the example's patch"
+    );
+    assert!(
+        h.state()
+            .status()
+            .is_some_and(|s| s.contains("Opened the example “Start”")),
+        "{:?}",
+        h.state().status()
+    );
 }

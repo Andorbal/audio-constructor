@@ -71,6 +71,8 @@ impl AppOptions {
 enum AfterConfirm {
     New,
     Open(PathBuf),
+    /// A shipped example, opened as an untitled copy.
+    OpenExample(PathBuf),
     Quit,
 }
 
@@ -1026,8 +1028,8 @@ impl EditorApp {
             }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
+                self.side.show_help(kind.as_deref());
             }
             CanvasEvent::Status(s) => self.warn(s, now),
             CanvasEvent::Run(a) => self.run(ctx, a, now),
@@ -1138,6 +1140,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
+            PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1465,8 +1469,17 @@ impl EditorApp {
                 }
             }),
             Action::NodeHelp => {
-                self.side.open = true;
-                self.side.tab = Tab::Node;
+                // One node: its reference. Otherwise the list of every node.
+                let sel = self.selected_real();
+                let kind = sel
+                    .first()
+                    .filter(|_| sel.len() == 1)
+                    .and_then(|id| self.doc.graph().node(*id))
+                    .map(|n| n.kind.clone());
+                if kind.is_none() {
+                    self.side.help.kind = None;
+                }
+                self.side.show_help(kind.as_deref());
             }
             Action::FitAll => self.canvas.fit_all(&self.doc, &reg),
             Action::FitSelection => self.canvas.fit_selection(&self.doc, &reg),
@@ -1727,6 +1740,7 @@ impl EditorApp {
                 self.say("New project", now);
             }
             AfterConfirm::Open(path) => self.open(&path, now),
+            AfterConfirm::OpenExample(path) => self.open_example(&path, now),
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -1805,6 +1819,31 @@ impl EditorApp {
             self.say(text, now);
         }
         Ok(())
+    }
+
+    /// Open a shipped example the way the Start project opens: as an
+    /// untitled copy, so saving never overwrites the shipped file. Its
+    /// audio files still load from beside it.
+    pub fn open_example(&mut self, path: &Path, now: f64) {
+        match files::open_project(path, &self.registry) {
+            Ok((mut project, assets)) => {
+                // Its stored view was set on someone else's window.
+                project.view = None;
+                let name = if project.name.trim().is_empty() {
+                    file_name(path)
+                } else {
+                    project.name.clone()
+                };
+                self.replace_document(project, None, files::project_dir(path), assets);
+                self.say(
+                    format!(
+                        "Opened the example “{name}” as a new project: Save As keeps your changes"
+                    ),
+                    now,
+                );
+            }
+            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+        }
     }
 
     /// Show `project` as a new, unsaved document (examples, tests).

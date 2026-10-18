@@ -26,6 +26,15 @@ fixes and smaller changes.
   `Ctrl+-` step through the sizes and `Ctrl+0` goes back to 100 % (the
   canvas keeps its own zoom on `+`, `-`, and the wheel). The editor
   remembers the size too.
+- **Node help**: `F1` on a node (or Node Help in its right-click menu, or
+  the Help button in the Node tab) opens its reference in the side
+  panel's new Help tab: what it does, its "Try this" tip highlighted,
+  every socket with its unit, default, and range, and **Used in**: the
+  blocks in your library and the example projects built with it. Click a
+  block to add it to the canvas, or an example to open it as a new
+  project (after asking about unsaved changes). With nothing selected,
+  the Help tab lists every node and finds them by name or synonym, like
+  the palette. The Node tab shows the tip too.
 
 ### Changed
 

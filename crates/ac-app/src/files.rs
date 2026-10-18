@@ -50,6 +50,11 @@ pub fn find_start_example() -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
+/// The shipped examples folder: the one holding the Start example.
+pub fn find_examples_dir() -> Option<PathBuf> {
+    find_start_example().and_then(|p| p.parent().map(Path::to_path_buf))
+}
+
 /// The project shown when there is nothing else: an Oscillator into an
 /// Audio Out (or just the output, if this build has no oscillator).
 pub fn default_project(registry: &Registry) -> Project {
