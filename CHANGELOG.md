@@ -11,6 +11,17 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.5.1] - 2026-10-18
+
+### Changed
+
+- The Devices tab's OSC section and the OSC In node's help now say what to
+  check when no messages arrive: the surface's host and port, and the
+  phone or tablet's local-network permission for its app, which silently
+  stops every packet when refused. The node's help also notes that most
+  surfaces name controls by page and name (`/1/fader1`) and that the
+  address match is exact.
+
 ## [0.5.0] - 2026-10-18
 
 Control surfaces: gamepads, the computer keyboard, and Open Sound Control
@@ -308,6 +319,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.5.1]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0

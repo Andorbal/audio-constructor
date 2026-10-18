@@ -520,6 +520,19 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             line.push_str(&format!(" · {} dropped", st.dropped));
         }
         ui.label(RichText::new(line).small().color(theme::TEXT_MUTED));
+        if st.packets == 0 {
+            // The usual silent failure: a phone or tablet refused the app's
+            // local-network permission, so nothing ever leaves the device.
+            ui.label(
+                RichText::new(
+                    "Nothing yet? Check the surface's host and port, and that the \
+                     device lets its app use the local network (a phone or tablet \
+                     asks once; if refused, the app sends nothing and shows no error).",
+                )
+                .small()
+                .color(theme::TEXT_MUTED),
+            );
+        }
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(250));
     }
