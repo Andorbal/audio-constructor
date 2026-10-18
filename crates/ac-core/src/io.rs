@@ -39,7 +39,7 @@ const TRIGGER_AT_ZERO: &[u32] = &[0];
 /// Set on a value index (in an [`InputSlot`] or the channel table) that
 /// reads from [`Inputs::local`] instead of the shared pool: an output of a
 /// step that ran earlier in the same chain of the schedule, still in that
-/// chain's work space (ARCHITECTURE §7, DECISIONS D113).
+/// chain's work space (ARCHITECTURE §7, DECISIONS D114).
 pub const LOCAL: u32 = 1 << 31;
 
 /// Outputs of the steps that ran before this one in its chain, indexed by

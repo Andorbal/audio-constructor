@@ -8,7 +8,7 @@
 //! targets. Wires are resolved to socket indices; anything that doesn't
 //! resolve is reported and dropped.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 use ac_core::{
     Config, ConfigExt, Endpoint, GROUP_KIND, Graph, GroupDef, GroupId, Node, NodeId, NodeMeta,
@@ -136,14 +136,18 @@ pub(crate) fn flatten(project: &Project, registry: &Registry, report: &mut Compi
 
 /// The voice copy each node sits in, numbered from 0: a copy of the
 /// outermost Voices node around it (paths `<voices>/<voice>/…`, including
-/// nodes the compiler adds under them later). Allocators, sums, and nodes
-/// outside every Voices node have none. The scheduler runs each copy's body
-/// as one chain (DECISIONS D113).
+/// nodes the compiler adds under them later), when that node has more than
+/// one voice. Allocators, sums, and nodes outside every Voices node have
+/// none. The scheduler runs each copy's body as one chain (DECISIONS D114);
+/// a single voice keeps whatever parallelism its body has.
 pub(crate) fn voice_copies(nodes: &[FlatNode]) -> Vec<Option<u32>> {
-    let allocs: HashSet<&[NodeId]> = nodes
+    let allocs: HashMap<&[NodeId], u64> = nodes
         .iter()
         .filter(|f| f.kind == VOICES_KIND)
-        .map(|f| f.path.0.as_slice())
+        .map(|f| {
+            let voices = f.config.get_u64_or("voices", 8).clamp(1, MAX_VOICES);
+            (f.path.0.as_slice(), voices)
+        })
         .collect();
     let mut ids: HashMap<&[NodeId], u32> = HashMap::new();
     nodes
@@ -152,7 +156,7 @@ pub(crate) fn voice_copies(nodes: &[FlatNode]) -> Vec<Option<u32>> {
             let p = f.path.0.as_slice();
             // `p[..k]` is the Voices node, `p[k]` the voice, then the body.
             let k = (1..p.len().saturating_sub(1))
-                .find(|&k| p[k].0 < MAX_VOICES && allocs.contains(&p[..k]))?;
+                .find(|&k| p[k].0 < MAX_VOICES && allocs.get(&p[..k]).is_some_and(|&n| n > 1))?;
             let next = ids.len() as u32;
             Some(*ids.entry(&p[..=k]).or_insert(next))
         })

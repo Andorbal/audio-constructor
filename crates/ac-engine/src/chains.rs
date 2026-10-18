@@ -1,5 +1,5 @@
 //! Chain fusion: grouping the schedule's steps into chains and waves
-//! (ARCHITECTURE §7 step 8, DECISIONS D113).
+//! (ARCHITECTURE §7 step 8, DECISIONS D114).
 //!
 //! A chain is a run of steps one thread works through in order, reading
 //! what earlier steps of the chain wrote straight from the chain's work

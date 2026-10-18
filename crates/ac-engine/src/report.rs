@@ -62,7 +62,7 @@ pub struct CompileStats {
     /// Waves in the schedule (chains in a wave can run on different cores).
     pub waves: usize,
     /// Chains in the schedule: runs of steps one thread works through in
-    /// order (DECISIONS D113), not counting device-output steps.
+    /// order (DECISIONS D114), not counting device-output steps.
     pub chains: usize,
     /// Nodes that add latency, and how much (samples).
     pub node_latency: Vec<(NodePath, u32)>,
