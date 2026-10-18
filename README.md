@@ -69,6 +69,9 @@ parts those tools are made of and lets you wire them up however you like.
 
 ## Getting started
 
+New to it? The [user guide](docs/guide/README.md) takes you from installing
+to building, playing, and rendering your own patches, step by step.
+
 ### Download
 
 Every release on the
@@ -122,8 +125,9 @@ cargo run --release -p ac-app -- examples/guitar-pedalboard.acproj
 ```
 
 Press `Space` to play, `Shift+A` to add a node, drag between sockets to
-wire, `Ctrl+Z` to undo. Pick your audio interface and MIDI keyboard in the
-side panel's **Devices** tab (`N` toggles the panel). `F1` on a node opens
+wire, `Ctrl+Z` to undo. Pick your audio interface in the side panel's
+**Devices** tab (`N` toggles the panel); MIDI inputs are opened on their own
+and listed there. `F1` on a node opens
 its help, with a "Try this" tip and the blocks and examples that use it.
 View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
 interface from 75 % to 200 %.
@@ -192,12 +196,13 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 
 | Document | What it covers |
 | --- | --- |
+| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, and troubleshooting |
+| [docs/reference](docs/reference/README.md) | Every node, by category: what it does, a tip, and each socket (generated from the nodes' own documentation) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases, milestones, and acceptance criteria |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Engine, signal model, scheduling, real-time rules, persistence |
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
-| [docs/reference](docs/reference/README.md) | Generated reference for every node |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 

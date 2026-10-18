@@ -521,6 +521,25 @@ fn stop_and_seek() {
 }
 
 #[test]
+fn stopping_ends_recording() {
+    use std::sync::atomic::Ordering;
+    let (e, _) = engine(chain(), 32);
+    let mut host = NullHost::new(e, 0, 2);
+    host.handle().set_recording(true);
+    host.handle().play();
+    host.run(64, 32);
+    let recording = |h: &mut NullHost| h.handle().status().recording.load(Ordering::Relaxed);
+    assert!(recording(&mut host));
+    host.handle().stop();
+    host.run(32, 32);
+    assert!(!recording(&mut host), "a stop ends the take");
+    // Playing again doesn't resume it: recording has to be turned on again.
+    host.handle().play();
+    host.run(32, 32);
+    assert!(!recording(&mut host));
+}
+
+#[test]
 fn telemetry_reports_socket_levels() {
     let (e, _) = engine(chain(), 32);
     let mut host = NullHost::new(e, 0, 2);

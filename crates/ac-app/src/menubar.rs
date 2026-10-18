@@ -8,6 +8,7 @@ use egui::RichText;
 
 use crate::actions::Action;
 use crate::files::Recent;
+use crate::help::Example;
 use crate::icons;
 use crate::palette::Candidate;
 use crate::settings::UI_SCALES;
@@ -19,6 +20,8 @@ pub enum MenuCommand {
     OpenRecent(PathBuf),
     ForgetRecent(PathBuf),
     ClearRecent,
+    /// File ▸ Examples: open a shipped example as an untitled copy.
+    OpenExample(PathBuf),
     Add(Candidate),
     /// View ▸ Theme.
     SetTheme(ThemeChoice),
@@ -42,6 +45,8 @@ pub struct MenuState<'a> {
     pub theme: ThemeChoice,
     pub ui_scale: f32,
     pub recent: &'a Recent,
+    /// The shipped examples, by name.
+    pub examples: &'a [Example],
     pub registry: &'a Registry,
 }
 
@@ -125,6 +130,20 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                     }
                 },
             );
+            ui.menu_button(format!("{}  Examples", icons::BOOK_OPEN), |ui| {
+                if s.examples.is_empty() {
+                    ui.label(RichText::new("No examples found").color(theme::text_muted()));
+                }
+                for ex in s.examples {
+                    let r = ui
+                        .button(&ex.name)
+                        .on_hover_text("Opens a copy: saving asks where to put it");
+                    if r.clicked() {
+                        out.push(MenuCommand::OpenExample(ex.path.clone()));
+                        ui.close();
+                    }
+                }
+            });
             ui.separator();
             entry(ui, &mut out, Action::Save, icons::FLOPPY_DISK, true);
             entry(ui, &mut out, Action::SaveAs, icons::FLOPPY_DISK, true);

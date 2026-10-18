@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates.
+
 <a id="accumulate"></a>
 ## Accumulate
 
@@ -553,7 +555,7 @@ render.
 | `out` | Float | The held random value. |
 
 <a id="sample-hold"></a>
-## SampleHold
+## Sample & Hold
 
 Kind: `sample_hold` · Also found by: sample and hold, s&h, latch, freeze, snapshot, track
 

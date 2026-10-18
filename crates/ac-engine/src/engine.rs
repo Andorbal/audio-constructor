@@ -606,7 +606,8 @@ impl EngineHandle {
         self.command(Command::Play);
     }
 
-    /// Stop playback, keeping the position.
+    /// Stop playback, keeping the position. Stopping ends recording too, as
+    /// a recorder's stop button ends the take.
     pub fn stop(&mut self) {
         self.command(Command::Stop);
     }
@@ -964,6 +965,7 @@ fn command(t: &mut Transport, c: Command) {
                 t.stop_flag = true;
                 t.start_flag = false;
             }
+            t.recording = false;
         }
         Command::Seek(p) => {
             t.position = p;
@@ -981,15 +983,11 @@ fn command(t: &mut Transport, c: Command) {
 }
 
 /// A bound control pressed a transport action. These do what the editor's
-/// transport buttons do, except that Stop also ends recording (a stop
-/// button on a recorder ends the take).
+/// transport buttons do.
 fn press(t: &mut Transport, action: TransportAction) {
     match action {
         TransportAction::Play => command(t, Command::Play),
-        TransportAction::Stop => {
-            command(t, Command::Stop);
-            t.recording = false;
-        }
+        TransportAction::Stop => command(t, Command::Stop),
         TransportAction::PlayStop => {
             let c = if t.playing {
                 Command::Stop

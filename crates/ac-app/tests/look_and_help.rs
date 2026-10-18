@@ -318,3 +318,18 @@ fn an_example_link_opens_the_example_after_asking_about_changes() {
         h.state().status()
     );
 }
+
+#[test]
+fn file_examples_opens_an_untitled_copy() {
+    let mut h = one_node("oscillator");
+    click(&mut h, "File");
+    click(&mut h, "Examples");
+    click_exact(&mut h, "Drum Machine");
+    let doc = h.state().document();
+    assert_eq!(doc.project.name, "Drum Machine");
+    assert!(doc.path.is_none(), "a copy: saving asks where to put it");
+    assert!(
+        doc.graph().nodes.len() > 1,
+        "the example's patch, not the one node from before"
+    );
+}
