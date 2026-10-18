@@ -20,7 +20,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ac_core::{Control, GamepadAxis, GamepadButton};
 use gilrs::{Axis, Button, EventType, Gilrs};
@@ -419,7 +419,13 @@ fn run(mut sender: ControlSender, shared: &Shared, ready: &mpsc::SyncSender<()>)
     shared.publish(table.list());
     let _ = ready.try_send(());
     while !shared.stop.load(Ordering::Relaxed) {
+        let asked = Instant::now();
         let Some(ev) = gilrs.next_event_blocking(Some(WAIT)) else {
+            // Nothing within the wait. If the wait returned at once, the
+            // backend has failed (its event source closed): don't spin.
+            if asked.elapsed() < WAIT / 4 {
+                std::thread::sleep(WAIT);
+            }
             continue;
         };
         let t = clock::now_ns();

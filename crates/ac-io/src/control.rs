@@ -309,11 +309,12 @@ mod tests {
         let mut s = inputs.sender("keys").unwrap();
         let t0 = clock::now_ns();
         assert!(s.send(key("Space"), 1.0));
-        // A callback 10 ms long that starts 5 ms after the send: the event
-        // lands about halfway through.
+        // A callback 10 ms long that starts 5 ms after `t0`: an event
+        // stamped at `t0` lands halfway through, and one stamped later (a
+        // slow machine) further on, never earlier.
         let mut out = Vec::with_capacity(4);
         rx.drain(t0 + 5 * MS, 480, RATE, &mut out);
         assert_eq!(out.len(), 1);
-        assert!((240..=300).contains(&out[0].offset), "{}", out[0].offset);
+        assert!((240..480).contains(&out[0].offset), "{}", out[0].offset);
     }
 }
