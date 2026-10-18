@@ -83,9 +83,10 @@ You need a Rust toolchain from [rustup](https://rustup.rs); the repository
 pins the exact version in `rust-toolchain.toml`, and rustup installs it on
 first build.
 
-- **Linux:** `pkg-config` and the ALSA development headers, e.g.
-  `sudo apt install pkg-config libasound2-dev` (Debian/Ubuntu) or
-  `sudo dnf install pkgconf alsa-lib-devel` (Fedora). The editor needs a
+- **Linux:** `pkg-config` and the ALSA and udev development headers
+  (udev finds gamepads), e.g.
+  `sudo apt install pkg-config libasound2-dev libudev-dev` (Debian/Ubuntu) or
+  `sudo dnf install pkgconf alsa-lib-devel systemd-devel` (Fedora). The editor needs a
   desktop session (X11 or Wayland) and a GPU driver with Vulkan or OpenGL.
   For JACK, build with `--features jack` (needs the JACK development
   files); PipeWire works through its ALSA and JACK shims.
