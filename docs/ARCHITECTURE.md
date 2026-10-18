@@ -539,7 +539,9 @@ without either feature.
 - OSC via rosc: a UDP listener on a chosen port (off until asked for) turns
   every argument of every message into a control event, stamped on arrival
   (bundles flattened, time tags ignored); OSC out sends from a sender
-  thread (D87).
+  thread (D87). The listener and each MIDI port also keep the newest
+  messages, with addresses and port names as text, in a mutex-guarded log
+  for the editor's Devices tab (D101); the engine never reads it.
 - The computer keyboard is a control source like any other: with Play keys
   on, the editor sends key presses and releases into its own ring instead
   of running shortcuts (D88).

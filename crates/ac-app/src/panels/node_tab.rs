@@ -6,7 +6,7 @@ use ac_core::{
 };
 use egui::RichText;
 
-use super::{PanelIo, PanelRequest, markdown, section};
+use super::{PanelIo, PanelRequest, markdown, section, set_config};
 use crate::canvas::widgets;
 use crate::edit::{self, GROUP_IN, GROUP_OUT, NodeClass};
 use crate::editors;
@@ -1260,20 +1260,6 @@ fn draft_text(
         ui.data_mut(|d| d.insert_temp(field_id, text));
     }
     None
-}
-
-fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
-    let key = key.to_string();
-    io.doc.edit(io.registry, "Change setting", |g, _| {
-        if let Some(n) = g.node_mut(id) {
-            if !n.config.is_object() {
-                n.config = ac_core::empty_config();
-            }
-            if let Some(obj) = n.config.as_object_mut() {
-                obj.insert(key, value);
-            }
-        }
-    });
 }
 
 fn remove_config(io: &mut PanelIo, id: NodeId, key: &str) {

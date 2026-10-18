@@ -11,7 +11,22 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
-## [0.5.1] - 2026-10-18
+## [0.6.0] - 2026-10-18
+
+Matching a control surface no longer means guessing: the Devices tab shows
+what your devices actually send, and OSC nodes finally have their settings
+in the Node tab.
+
+### Added
+
+- **Last messages** in the Devices tab. Under MIDI inputs, the newest
+  messages from each port ("CC 74 = 127 · ch 1", "Note on C4 · vel 100 ·
+  ch 1"); under OSC, the newest messages with their address exactly as the
+  sender wrote it and their arguments. Both lists show each message's age,
+  newest first, and clear with a button. Click an OSC address to copy it,
+  or select an OSC In and press **Use** beside a message to set the node's
+  address to it. A surface whose layout you'd rather not edit can be
+  matched from what it already sends.
 
 ### Fixed
 
@@ -333,7 +348,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
-[0.5.1]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.5.1
+[0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0

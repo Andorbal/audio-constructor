@@ -11,6 +11,11 @@
 //!
 //! Bad packets are counted and ignored; nothing a sender does can panic the
 //! listener or block the audio thread.
+//!
+//! The listener also keeps the newest messages, with their addresses as
+//! text, for the editor's Devices tab ([`OscInput::recent`]): the engine
+//! only ever sees hashes, and someone matching a control surface needs to
+//! see what it really sends.
 
 use std::fmt;
 use std::io;
@@ -25,6 +30,7 @@ use rosc::{OscPacket, OscType};
 
 use crate::clock;
 use crate::control::ControlSender;
+use crate::monitor::Recent;
 
 /// The port the editor suggests for OSC input.
 pub const DEFAULT_OSC_PORT: u16 = 9000;
@@ -58,11 +64,24 @@ pub struct OscStats {
     pub malformed: u64,
 }
 
+/// A message as it arrived, for the Devices tab.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OscSeen {
+    /// When it arrived ([`clock::now_ns`]).
+    pub time_ns: u64,
+    /// The address exactly as the sender wrote it.
+    pub address: String,
+    /// Each argument as text: numbers as written, strings quoted, other
+    /// types by name.
+    pub args: Vec<String>,
+}
+
 /// A running OSC listener. Dropping it stops the thread and closes the port.
 pub struct OscInput {
     addr: SocketAddr,
     stop: Arc<AtomicBool>,
     counters: Arc<Counters>,
+    recent: Recent<OscSeen>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -92,7 +111,8 @@ impl OscInput {
         let local = socket.local_addr()?;
         let stop = Arc::new(AtomicBool::new(false));
         let counters = Arc::new(Counters::default());
-        let (flag, count) = (stop.clone(), counters.clone());
+        let recent = Recent::default();
+        let (flag, count, seen) = (stop.clone(), counters.clone(), recent.clone());
         let thread = std::thread::Builder::new()
             .name("ac-osc-in".into())
             .spawn(move || {
@@ -102,7 +122,7 @@ impl OscInput {
                         Ok((n, _from)) => {
                             let t = clock::now_ns();
                             let packet = buf.get(..n).unwrap_or(&[]);
-                            receive(packet, t, &mut sender, &count);
+                            receive(packet, t, &mut sender, &count, &seen);
                         }
                         Err(e)
                             if matches!(
@@ -119,6 +139,7 @@ impl OscInput {
             addr: local,
             stop,
             counters,
+            recent,
             thread: Some(thread),
         })
     }
@@ -143,6 +164,16 @@ impl OscInput {
         }
     }
 
+    /// The newest messages (up to [`crate::monitor::RECENT_MESSAGES`]),
+    /// oldest first.
+    pub fn recent(&self) -> Vec<OscSeen> {
+        self.recent.snapshot()
+    }
+
+    pub fn clear_recent(&self) {
+        self.recent.clear();
+    }
+
     /// Whether the listening thread is still running.
     pub fn is_running(&self) -> bool {
         self.thread.as_ref().is_some_and(|t| !t.is_finished())
@@ -159,13 +190,29 @@ impl Drop for OscInput {
 }
 
 /// Handle one packet received at `t`.
-fn receive(packet: &[u8], t: u64, sender: &mut ControlSender, counters: &Counters) {
+fn receive(
+    packet: &[u8],
+    t: u64,
+    sender: &mut ControlSender,
+    counters: &Counters,
+    recent: &Recent<OscSeen>,
+) {
     counters.packets.fetch_add(1, Ordering::Relaxed);
-    let result = decode(packet, |control, value| {
-        if !sender.send_at(t, control, value) {
-            counters.dropped.fetch_add(1, Ordering::Relaxed);
-        }
-    });
+    let result = decode_with(
+        packet,
+        |control, value| {
+            if !sender.send_at(t, control, value) {
+                counters.dropped.fetch_add(1, Ordering::Relaxed);
+            }
+        },
+        |address, args| {
+            recent.push(OscSeen {
+                time_ns: t,
+                address: address.to_string(),
+                args: args.iter().map(arg_text).collect(),
+            });
+        },
+    );
     match result {
         Ok(messages) => {
             counters
@@ -192,7 +239,17 @@ impl std::error::Error for OscDecodeError {}
 
 /// Decode one UDP packet and hand each control event to `emit`, in order.
 /// Returns how many messages it held.
-pub fn decode(packet: &[u8], mut emit: impl FnMut(Control, f32)) -> Result<usize, OscDecodeError> {
+pub fn decode(packet: &[u8], emit: impl FnMut(Control, f32)) -> Result<usize, OscDecodeError> {
+    decode_with(packet, emit, |_, _| {})
+}
+
+/// [`decode`], also handing each whole message (address and arguments) to
+/// `seen` before its controls are emitted.
+pub fn decode_with(
+    packet: &[u8],
+    mut emit: impl FnMut(Control, f32),
+    mut seen: impl FnMut(&str, &[OscType]),
+) -> Result<usize, OscDecodeError> {
     if !nesting_ok(packet, 0) {
         return Err(OscDecodeError("bundles nested too deeply".into()));
     }
@@ -205,6 +262,7 @@ pub fn decode(packet: &[u8], mut emit: impl FnMut(Control, f32)) -> Result<usize
         match p {
             OscPacket::Message(m) => {
                 messages += 1;
+                seen(&m.addr, &m.args);
                 let address = osc_address_hash(&m.addr);
                 if m.args.is_empty() {
                     emit(Control::Osc { address, arg: 0 }, 1.0);
@@ -238,6 +296,40 @@ fn arg_value(a: &OscType) -> Option<f32> {
         _ => return None,
     };
     v.is_finite().then_some(v)
+}
+
+/// An argument as the Devices tab shows it.
+fn arg_text(a: &OscType) -> String {
+    match a {
+        OscType::Int(v) => v.to_string(),
+        OscType::Long(v) => v.to_string(),
+        OscType::Float(v) => float_text(f64::from(*v)),
+        OscType::Double(v) => float_text(*v),
+        OscType::Bool(b) => b.to_string(),
+        OscType::String(s) => format!("{s:?}"),
+        OscType::Char(c) => format!("{c:?}"),
+        OscType::Blob(b) => format!("blob ({} bytes)", b.len()),
+        OscType::Time(_) => "time".to_string(),
+        OscType::Midi(_) => "midi".to_string(),
+        OscType::Color(_) => "color".to_string(),
+        OscType::Array(a) => format!("array ({})", a.content.len()),
+        OscType::Nil => "nil".to_string(),
+        OscType::Inf => "inf".to_string(),
+    }
+}
+
+/// A number with up to four decimals and no trailing zeros, so a fader
+/// reads `0.25`, not `0.25000003`.
+fn float_text(v: f64) -> String {
+    if !v.is_finite() {
+        return v.to_string();
+    }
+    let s = format!("{v:.4}");
+    let s = s.trim_end_matches('0').trim_end_matches('.');
+    match s {
+        "" | "-" | "-0" => "0".to_string(),
+        s => s.to_string(),
+    }
 }
 
 /// Whether bundles in `packet` nest no deeper than [`MAX_BUNDLE_DEPTH`].
@@ -342,6 +434,44 @@ mod tests {
                 (osc("/mix/fader", 4), 1.0),
                 (osc("/mix/fader", 5), -2.0),
                 // NaN never reaches the engine.
+            ]
+        );
+    }
+
+    #[test]
+    fn arguments_read_as_people_write_them() {
+        let texts: Vec<String> = [
+            OscType::Int(3),
+            OscType::Long(-2),
+            OscType::Float(0.25),
+            OscType::Float(0.333_333_34),
+            OscType::Double(1.0),
+            OscType::Float(-0.000_01),
+            OscType::Bool(true),
+            OscType::String("label".into()),
+            OscType::Char('x'),
+            OscType::Blob(vec![1, 2, 3]),
+            OscType::Nil,
+            OscType::Inf,
+        ]
+        .iter()
+        .map(arg_text)
+        .collect();
+        assert_eq!(
+            texts,
+            [
+                "3",
+                "-2",
+                "0.25",
+                "0.3333",
+                "1",
+                "0",
+                "true",
+                "\"label\"",
+                "'x'",
+                "blob (3 bytes)",
+                "nil",
+                "inf",
             ]
         );
     }
@@ -493,6 +623,28 @@ mod tests {
             }
         );
         assert!(listener.is_running());
+        // The editor's log has every message as the sender wrote it.
+        let seen = listener.recent();
+        let shown: Vec<(&str, Vec<&str>)> = seen
+            .iter()
+            .map(|m| {
+                (
+                    m.address.as_str(),
+                    m.args.iter().map(String::as_str).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            shown,
+            vec![
+                ("/fader/1", vec!["0.75"]),
+                ("/xy", vec!["0.1", "0.9"]),
+                ("/button", vec![]),
+            ]
+        );
+        assert!(seen.iter().all(|m| m.time_ns > 0));
+        listener.clear_recent();
+        assert!(listener.recent().is_empty());
         let t0 = Instant::now();
         drop(listener);
         assert!(t0.elapsed() < Duration::from_secs(1), "stops promptly");
