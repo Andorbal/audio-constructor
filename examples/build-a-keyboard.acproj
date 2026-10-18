@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Build a keyboard: one polyphonic synth, three ways to play it. Press Space and a demo phrase plays.\n\nTo play it yourself, pick Computer keys in Play with and press Ctrl+K (or the keyboard button in the transport bar) to turn on Play keys. The middle row of letters, A S D F G H J K L, plays the white keys up from middle C and W E T Y U O P the black keys; Z and X shift an octave down and up. Or pick On-screen keyboard and click its keys. Hold several keys for chords.\n\nCtrl+Tab shows the Play panel, the keyboard and knobs without the wires; F11 plays it full screen, with Play keys on."
+          "text": "Build a keyboard: one polyphonic synth and three ways to play it, all at once. Press Space and a demo phrase plays.\n\nPlay along: press Ctrl+K (or the keyboard button in the transport bar) to turn on Play keys. The middle row of letters, A S D F G H J K L, plays the white keys up from middle C and W E T Y U O P the black keys; Z and X shift an octave down and up. Or click the on-screen keyboard's keys. Hold several keys for chords, and turn Demo off to play on your own.\n\nCtrl+Tab shows the Play panel, the keyboard and knobs without the wires; F11 plays it full screen, with Play keys on."
         },
         "ui": {
           "pos": [
@@ -292,28 +292,35 @@
       },
       {
         "id": "7",
-        "kind": "dropdown",
-        "config": {
-          "choices": [
-            "Demo phrase",
-            "Computer keys",
-            "On-screen keyboard"
-          ]
-        },
+        "kind": "toggle",
         "params": {
-          "value": 0
+          "value": true
         },
         "ui": {
           "pos": [
             540.0,
             0.0
           ],
-          "label": "Play with"
+          "label": "Demo"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "switch",
+        "config": {
+          "type": "midi"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            150.0
+          ],
+          "label": "Demo gate"
         }
       },
       {
         "id": "8",
-        "kind": "select",
+        "kind": "merge",
         "config": {
           "type": "midi",
           "inputs": 3
@@ -321,7 +328,7 @@
         "ui": {
           "pos": [
             540.0,
-            150.0
+            290.0
           ],
           "label": "Notes"
         }
@@ -330,7 +337,7 @@
         "id": "9",
         "kind": "comment",
         "config": {
-          "text": "Keyboard In turns the computer keys into MIDI notes, and Keyboard is a piano you click; Velocity sets how hard both of them play, and Octave shifts the on-screen keys. The Demo phrase is a MIDI Pattern: select it to see its notes in the Node tab's piano roll.\n\nAn input takes one wire, so a Select (set to carry MIDI) passes on the source Play with picks. Switching lets go of any notes still held, so nothing hangs."
+          "text": "Keyboard In turns the computer keys into MIDI notes, and Keyboard is a piano you click; Velocity sets how hard both of them play, and Octave shifts the on-screen keys. The Demo phrase is a MIDI Pattern: select it to see its notes in the Node tab's piano roll. The Demo gate, a Switch set to carry MIDI, passes it while Demo is on.\n\nAn input takes one wire, so a Merge joins all three into Notes. A note played from two of them at once sounds once and ends when both let go, and turning Demo off lets go of the demo's notes, so nothing hangs."
         },
         "ui": {
           "pos": [
@@ -503,7 +510,7 @@
         "id": "13",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Add Karplus-Strong String from the Library tab (it arrives as a Voices node) and wire Notes into it instead, for a keyboard of plucked strings.\n• Put a Chord node between Notes and Synth: every key plays a whole chord.\n• Set the Synth's voices to 1 and hold two keys: the newest note steals the voice.\n• Draw your own phrase in the Demo phrase's piano roll.\n• Add an Arpeggiator after Notes, with a Clock (interval 0.25) on its clock."
+          "text": "Try this:\n• Add Karplus-Strong String from the Library tab (it arrives as a Voices node) and wire Notes into it instead, for a keyboard of plucked strings.\n• Put a Chord node between Notes and Synth: every key plays a whole chord.\n• Set the Synth's voices to 1 and hold two keys: the newest note steals the voice.\n• Draw your own phrase in the Demo phrase's piano roll.\n• Add an Arpeggiator after Notes, with a Clock (interval 0.25) on its clock.\n• Add a MIDI In, set Notes' Inputs to 4 in the Node tab, and wire it into in_3: a MIDI keyboard plays along too."
         },
         "ui": {
           "pos": [
@@ -512,7 +519,7 @@
           ],
           "size": [
             560.0,
-            152.0
+            184.0
           ]
         }
       }
@@ -532,6 +539,14 @@
       },
       {
         "from": "4:midi",
+        "to": "14:b"
+      },
+      {
+        "from": "7:out",
+        "to": "14:select"
+      },
+      {
+        "from": "14:out",
         "to": "8:in_0"
       },
       {
@@ -541,10 +556,6 @@
       {
         "from": "6:midi",
         "to": "8:in_2"
-      },
-      {
-        "from": "7:out",
-        "to": "8:index"
       },
       {
         "from": "8:out",
@@ -581,7 +592,7 @@
     ],
     "frames": [
       {
-        "label": "Notes: a demo, your computer keys, or the on-screen keys",
+        "label": "Notes: a demo, your computer keys, and the on-screen keys",
         "rect": [
           -24.0,
           -52.0,

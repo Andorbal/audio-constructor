@@ -507,8 +507,54 @@ Needs manual verification (in the PR):
 - the minimap's placement.
 
 ### M2.6 Examples and docs
-- [ ] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).
-- [ ] Generated node reference published with the repo; user guide in `docs/guide/`.
+- [x] Examples: Sidechain Pump, Drum Machine, Build a Keyboard, Reverse Delay, Gamepad Jam, Multiband Compressor, Vocoder, Generative Patch (Euclidean + Random + ScaleQuantize), Tape Loop, Guitar-to-Synth (PitchDetect).
+- [x] Generated node reference published with the repo; user guide in `docs/guide/`.
+
+*Verified:* `examples/` holds 14 projects: the 10 above, plus Start,
+Guitar Pedalboard, Subtractive Synth, and Four Tracks. Each one:
+- has notes on the canvas saying what each part does and what to try;
+- opens from File ▸ Examples as an untitled copy;
+- plays without hardware. Examples that need a live input default to a
+  stand-in (DECISIONS D111).
+
+`cargo test -p ac-cli --test examples` checks every example:
+- the expected examples ship;
+- each is canonical and compiles cleanly;
+- its block copies are exactly the shipped versions;
+- panels and bindings point at real controls;
+- examples without live inputs make sound and don't clip.
+
+It also checks single examples:
+- Generative Patch follows its seed;
+- Reverse Delay bakes from a Clip and is disabled on Audio In;
+- Guitar-to-Synth follows its riff and a guitar on Audio In within 2 %;
+- Build a Keyboard plays from the demo, the computer keys, and the
+  on-screen keys;
+- Gamepad Jam plays its demo and follows a controller (buttons, D-pad
+  chords, sticks, and its six bindings).
+
+`cargo test -p ac-app --test examples_layout` lays every example out as
+the editor draws it: no overlapping cards, and frames hold whole cards.
+
+Docs:
+- The user guide is `docs/guide/`, 11 chapters: getting started, the
+  editor, building sounds, live and baked, blocks, performing, recording
+  and rendering, the command line, an examples tour, and
+  troubleshooting.
+- The generated node reference (`audioc nodes --docs docs/reference`)
+  opens with an index of categories and nodes. A test keeps it in step
+  with the code.
+- The README links both.
+- `cargo test -p ac-cli --test docs_links` fails on a broken relative
+  link or anchor, a guide chapter missing from the index, or an example
+  missing from the tour.
+
+Needs manual verification (in the PR):
+- listen to every example;
+- play Build a Keyboard and Gamepad Jam with the real keyboard and a
+  gamepad;
+- read the guide for accuracy, clicking through its first-synth
+  walkthrough in a real window.
 
 **Phase 2 acceptance**
 - A 16-voice subtractive synth with per-voice filter and envelope runs at 128-frame buffers on a 4-core laptop under 30 % CPU.

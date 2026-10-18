@@ -18,7 +18,7 @@ A good order for a first tour is the order below.
 | [Guitar Pedalboard](#guitar-pedalboard) | `guitar-pedalboard.acproj` | Live input through effects |
 | [Subtractive Synth](#subtractive-synth) | `subtractive-synth.acproj` | A synth from oscillator, filter, and envelope |
 | [Four Tracks](#four-tracks) | `four-tracks.acproj` | Clips, a shared Track group, and mixing |
-| [Build a Keyboard](#build-a-keyboard) | `build-a-keyboard.acproj` | Playing a polyphonic synth from the computer keys or the screen |
+| [Build a Keyboard](#build-a-keyboard) | `build-a-keyboard.acproj` | Playing a polyphonic synth from the computer keys and the screen, along with a demo |
 | [Sidechain Pump](#sidechain-pump) | `sidechain-pump.acproj` | Sidechain ducking in time with the tempo |
 | [Drum Machine](#drum-machine) | `drum-machine.acproj` | Patterns, synthesized drums, and Samplers |
 | [Gamepad Jam](#gamepad-jam) | `gamepad-jam.acproj` | Playing drums and chords from a game controller |
@@ -87,18 +87,21 @@ swap a clip's file in the Node tab.
 `examples/build-a-keyboard.acproj`
 
 One polyphonic synth, eight voices of the Subtractive Synth Voice block in
-a Voices node, with three ways to play it, picked in its **Play with**
-menu: a demo phrase from a MIDI Pattern (what plays until you pick
-another), the computer keys through a Keyboard In node, or the on-screen
-Keyboard. A Select set to carry MIDI passes on the one you pick, since an
-input takes one wire. Velocity, Octave (for the on-screen keys), and four
+a Voices node, with three ways to play it, all at once: a demo phrase from
+a MIDI Pattern, the computer keys through a Keyboard In node, and the
+on-screen Keyboard. An input takes one wire, so a Merge joins the three
+into one stream for the synth; a note held from two of them sounds once
+and ends when both let go. The **Demo** toggle passes the phrase through a
+Switch set to carry MIDI, so turning it off silences the demo and leaves
+the keys to you. Demo, Velocity, Octave (for the on-screen keys), and four
 timbre knobs are pinned with a meter to a **Play** panel, for playing
 without the wires in view.
 
-**Try:** pick **Computer keys** in Play with, turn on Play keys with
-`Ctrl+K`, and hold several letter keys for chords (`A S D F G H J K L` are
-the white keys up from middle C, `Z` and `X` shift an octave); then press
-`Ctrl+Tab` for the Play panel and `F11` to play it full screen.
+**Try:** turn on Play keys with `Ctrl+K` and play along with the demo,
+holding several letter keys for chords (`A S D F G H J K L` are the white
+keys up from middle C, `Z` and `X` shift an octave); turn **Demo** off to
+play on your own, then press `Ctrl+Tab` for the Play panel and `F11` to
+play it full screen.
 
 ## Sidechain Pump
 

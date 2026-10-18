@@ -15,6 +15,7 @@ pub mod differentiate;
 pub mod integrate;
 pub mod logic;
 pub mod map;
+pub mod merge;
 // Node files are named after their kind, and this kind is `math`.
 #[allow(clippy::module_inception)]
 pub mod math;
@@ -47,6 +48,7 @@ pub fn register(r: &mut Registry) {
     r.register::<accumulate::Accumulate>();
     r.register::<select::Select>();
     r.register::<switch::Switch>();
+    r.register::<merge::Merge>();
 }
 
 /// `x` if it is finite, else 0. Math nodes promise finite outputs, so NaN and

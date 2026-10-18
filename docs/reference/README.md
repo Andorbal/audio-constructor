@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-114 nodes in 13 categories.
+115 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ together, read the [user guide](../guide/README.md).
 | [Filters](#filters) | 6 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
 | [Spectral](#spectral) | 6 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
-| [Math & Logic](#math) | 18 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
+| [Math & Logic](#math) | 19 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 5 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
@@ -138,6 +138,7 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Logic](math.md#logic) | Combines two gates, `a` and `b`, with a logic operation. |
 | [Map](math.md#map) | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Combines two values, `a` and `b`, with an arithmetic operation. |
+| [Merge](math.md#merge) | Combines several MIDI or trigger streams into one, so two sources can play one instrument at once. |
 | [Quantize](math.md#quantize) | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
 | [Random](math.md#random) | A new random value on every `trigger`, held until the next. |
 | [Sample & Hold](math.md#sample-hold) | Samples `in` at each `trigger` and holds that value until the next. |

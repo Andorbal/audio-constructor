@@ -534,25 +534,37 @@ fn between(x: &[f32], rate: f64, from: f64, to: f64) -> &[f32] {
     &x[(from * rate) as usize..(to * rate) as usize]
 }
 
-/// Build a Keyboard plays its demo phrase by default; picking Computer keys
-/// plays the piano row of Keyboard In, and On-screen keyboard the Keyboard,
-/// shifted by Octave.
+/// Build a Keyboard plays its demo phrase, the piano row of Keyboard In,
+/// and the on-screen Keyboard (shifted by Octave) all at once, through a
+/// Merge: a note two of them hold sounds once and ends when the last lets
+/// go. The Demo toggle mutes the phrase.
 #[test]
-fn build_a_keyboard_plays_the_demo_the_computer_keys_and_the_on_screen_keys() {
+fn build_a_keyboard_plays_the_demo_the_computer_keys_and_the_on_screen_keys_at_once() {
     let path = example("build-a-keyboard");
     let project = ac_io::load_project(&path).expect("loads");
     let rate = f64::from(project.settings.sample_rate);
     let synth = listening_to(&project, Endpoint::new(labeled(&project, "Synth"), "out"));
     let demo = render_project(&synth, &path, 2.0);
     assert!(peak(&demo.channels) > 0.05, "the demo plays");
-
-    // Computer keys: silent until A and G, which play middle C and the G
-    // above it at the Velocity knob's 0.8.
-    let keys = tapping_midi(
-        &set(&synth, "Play with", "value", Value::Int(1)),
-        "Notes",
-        "out",
+    let notes = |played: &[Strum]| -> Vec<(f64, Vec<u8>)> {
+        played.iter().map(|(t, n, _)| (*t, n.clone())).collect()
+    };
+    let tapped = tapping_midi(&synth, "Notes", "out");
+    let out = render_project(&tapped, &path, 1.0);
+    assert_eq!(
+        notes(&chords(&out.midi, rate)),
+        vec![
+            (0.0, vec![57, 60, 64, 76]),
+            (0.6, vec![74]),
+            (0.9, vec![72])
+        ],
+        "the demo's first bar (100 bpm)"
     );
+
+    // With Demo off, the computer keys alone: silent until A and G, which
+    // play middle C and the G above it at the Velocity knob's 0.8.
+    let solo = set(&synth, "Demo", "value", Value::Bool(false));
+    let keys = tapping_midi(&solo, "Notes", "out");
     let key = |name| Control::Key(Key::from_name(name).expect("key"));
     let presses = [
         (0.5, key("A"), 1.0),
@@ -566,22 +578,45 @@ fn build_a_keyboard_plays_the_demo_the_computer_keys_and_the_on_screen_keys() {
     assert!(ac_core::testing::peak(between(ch, rate, 0.6, 1.4)) > 0.05);
     assert_eq!(chords(&out.midi, rate), vec![(0.5, vec![60, 67], 102)]);
     let silent = render_controls(&keys, &path, 1.0, &[]);
-    assert_eq!(peak(&silent.channels), 0.0, "no keys, no notes");
+    assert_eq!(peak(&silent.channels), 0.0, "no demo and no keys, no notes");
     assert!(silent.midi.is_empty());
 
-    // On-screen keyboard: key 12 is C4 from the lowest C3, an octave up C5.
-    let board = set(&synth, "Play with", "value", Value::Int(2));
-    let board = set(&board, "On-screen keyboard", "key_12", Value::Bool(true));
-    let board = tapping_midi(
-        &set(&board, "Octave", "value", Value::Int(1)),
-        "Notes",
-        "out",
-    );
-    let out = render_project(&board, &path, 1.0);
+    // The on-screen keyboard alone: key 12 is C4 from the lowest C3, an
+    // octave up C5.
+    let board = set(&solo, "On-screen keyboard", "key_12", Value::Bool(true));
+    let board = set(&board, "Octave", "value", Value::Int(1));
+    let out = render_project(&tapping_midi(&board, "Notes", "out"), &path, 1.0);
     assert!(ac_core::testing::peak(between(&out.channels[0], rate, 0.1, 0.9)) > 0.05);
     assert_eq!(chords(&out.midi, rate), vec![(0.0, vec![72], 102)]);
 
-    // The Play panel holds the keyboard and the source menu.
+    // All three at once. The demo's chord holds middle C until beat 3.8
+    // (2.28 s), so pressing A adds nothing and releasing it ends nothing;
+    // the on-screen C5 is held throughout, so the demo's C5 at 0.9 s
+    // neither strikes it again nor ends it.
+    let all = set(&synth, "On-screen keyboard", "key_12", Value::Bool(true));
+    let all = tapping_midi(&set(&all, "Octave", "value", Value::Int(1)), "Notes", "out");
+    let out = render_controls(&all, &path, 2.35, &presses);
+    assert_eq!(
+        notes(&chords(&out.midi, rate)),
+        vec![
+            (0.0, vec![57, 60, 64, 72, 76]),
+            (0.5, vec![67]),
+            (0.6, vec![74]),
+            (1.2, vec![74]),
+        ]
+    );
+    let offs = |note: u8| -> Vec<f64> {
+        out.midi
+            .iter()
+            .filter(|(_, m)| matches!(m, MidiMsg::NoteOff { note: n, .. } if *n == note))
+            .map(|(t, _)| (*t as f64 / rate * 100.0).round() / 100.0)
+            .collect()
+    };
+    assert_eq!(offs(60), vec![2.28], "middle C ends with the demo's chord");
+    assert_eq!(offs(67), vec![1.5], "G ends with its key");
+    assert!(offs(72).is_empty(), "C5 rings while its key is held");
+
+    // The Play panel holds the keyboard and the Demo toggle.
     let panel = project
         .panels
         .iter()
@@ -589,7 +624,7 @@ fn build_a_keyboard_plays_the_demo_the_computer_keys_and_the_on_screen_keys() {
         .expect("a Play panel");
     for label in [
         "On-screen keyboard",
-        "Play with",
+        "Demo",
         "Octave",
         "Velocity",
         "Cutoff (Hz)",
