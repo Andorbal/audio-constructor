@@ -29,7 +29,7 @@ impl Canvas {
     ) {
         let t = self.transform();
         let z = self.view.zoom;
-        painter.rect_filled(self.screen, 0.0, theme::CANVAS_BG);
+        painter.rect_filled(self.screen, 0.0, theme::canvas_bg());
         // One copy of the graph (with interface wires) for this frame's lookups.
         self.graph_cache = io.doc.display_graph();
         paint_grid(painter, &t);
@@ -44,16 +44,20 @@ impl Canvas {
         for (i, f) in io.doc.graph().frames.iter().enumerate() {
             let r = t.rect_to_screen(frame_rect(f));
             let hovered = matches!(hover, Hit::FrameHeader(h) | Hit::FrameResize(h) if h == i);
-            painter.rect_filled(r, theme::radius(theme::FRAME_RADIUS * z), theme::FRAME_FILL);
+            painter.rect_filled(
+                r,
+                theme::radius(theme::FRAME_RADIUS * z),
+                theme::frame_fill(),
+            );
             painter.rect_stroke(
                 r,
                 theme::radius(theme::FRAME_RADIUS * z),
                 Stroke::new(
                     1.0,
                     if hovered {
-                        theme::NODE_HOVER
+                        theme::node_hover()
                     } else {
-                        theme::FRAME_BORDER
+                        theme::frame_border()
                     },
                 ),
                 StrokeKind::Inside,
@@ -65,14 +69,14 @@ impl Canvas {
                     Align2::LEFT_CENTER,
                     format!("{}  {}", icons::FRAME_CORNERS, f.label),
                     theme::canvas_font(theme::FONT_HEADING, z, false),
-                    theme::FRAME_LABEL,
+                    theme::frame_label(),
                 );
             }
             super::bodies::grip(
                 painter,
                 r.max - vec2(4.0, 4.0),
                 1.0,
-                theme::fade(theme::FRAME_LABEL, 0.6),
+                theme::fade(theme::frame_label(), 0.6),
             );
         }
 
@@ -141,7 +145,7 @@ impl Canvas {
             painter.rect_filled(
                 r,
                 theme::radius(theme::NODE_RADIUS * z),
-                theme::fade(theme::NODE_BG, 1.0 - k),
+                theme::fade(theme::node_bg(), 1.0 - k),
             );
             painter.rect_filled(
                 Rect::from_min_size(
@@ -223,18 +227,18 @@ impl Canvas {
             Gesture::BoxSelect { origin, .. } => {
                 if let Some(p) = self.pointer {
                     let r = Rect::from_two_pos(t.to_screen(*origin), p);
-                    painter.rect_filled(r, 3.0, theme::SELECT_FILL);
+                    painter.rect_filled(r, 3.0, theme::select_fill());
                     painter.rect_stroke(
                         r,
                         3.0,
-                        Stroke::new(1.0, theme::SELECT_STROKE),
+                        Stroke::new(1.0, theme::select_stroke()),
                         StrokeKind::Inside,
                     );
                 }
             }
-            Gesture::Cut { points } => paint_stroke(painter, points, theme::CUT_LINE, true),
+            Gesture::Cut { points } => paint_stroke(painter, points, theme::cut_line(), true),
             Gesture::Reroute { points } => {
-                paint_stroke(painter, points, theme::REROUTE_LINE, false)
+                paint_stroke(painter, points, theme::reroute_line(), false)
             }
             _ => {}
         }
@@ -250,7 +254,8 @@ impl Canvas {
                 .breadcrumb()
                 .join(&format!("  {}  ", icons::CARET_RIGHT));
             let text = format!("{}  {crumbs}", icons::STACK);
-            let galley = painter.layout_no_wrap(text, theme::ui_font(theme::FONT_UI), theme::TEXT);
+            let galley =
+                painter.layout_no_wrap(text, theme::ui_font(theme::FONT_UI), theme::text());
             let pill =
                 Rect::from_min_size(r.min + vec2(12.0, 10.0), galley.size() + vec2(20.0, 10.0));
             painter.rect_filled(
@@ -258,18 +263,18 @@ impl Canvas {
                 theme::radius(pill.height() / 2.0),
                 Color32::from_rgba_premultiplied(0x2A, 0x3A, 0x36, 0xE8),
             );
-            painter.galley(pill.min + vec2(10.0, 5.0), galley, theme::TEXT);
+            painter.galley(pill.min + vec2(10.0, 5.0), galley, theme::text());
             painter.text(
                 pill.right_center() + vec2(10.0, 0.0),
                 Align2::LEFT_CENTER,
                 "Tab to leave",
                 theme::ui_font(theme::FONT_SMALL),
-                theme::TEXT_FAINT,
+                theme::text_faint(),
             );
         }
         if let Some(h) = &self.hint {
             let galley =
-                painter.layout_no_wrap(h.clone(), theme::ui_font(theme::FONT_SMALL), theme::TEXT);
+                painter.layout_no_wrap(h.clone(), theme::ui_font(theme::FONT_SMALL), theme::text());
             let pill = Rect::from_center_size(
                 pos2(r.center().x, r.max.y - 24.0),
                 galley.size() + vec2(24.0, 10.0),
@@ -279,14 +284,14 @@ impl Canvas {
                 theme::radius(pill.height() / 2.0),
                 Color32::from_rgba_premultiplied(0x10, 0x11, 0x14, 0xD8),
             );
-            painter.galley(pill.min + vec2(12.0, 5.0), galley, theme::TEXT);
+            painter.galley(pill.min + vec2(12.0, 5.0), galley, theme::text());
         }
         painter.text(
             r.max - vec2(12.0, 10.0),
             Align2::RIGHT_BOTTOM,
             format!("{:.0} %", self.view.zoom * 100.0),
             theme::mono_font(theme::FONT_SMALL),
-            theme::TEXT_FAINT,
+            theme::text_faint(),
         );
     }
 
@@ -319,7 +324,7 @@ impl Canvas {
             let ty = n.outputs.first().map_or(SignalType::Any, |s| s.ty);
             let r = theme::REROUTE_RADIUS * z.max(0.5);
             if n.selected {
-                painter.circle_stroke(c, r + 3.0, Stroke::new(1.5, theme::NODE_SELECTED));
+                painter.circle_stroke(c, r + 3.0, Stroke::new(1.5, theme::node_selected()));
             }
             widgets::paint_socket(&mut sockets, c, r, ty, true, alpha, None);
             if hovered_node
@@ -352,7 +357,7 @@ impl Canvas {
                 painter,
                 card.max - vec2(3.0, 3.0),
                 z.max(0.6),
-                theme::fade(theme::NOTE_TEXT, 0.4),
+                theme::fade(theme::note_text(), 0.4),
             );
             return;
         }
@@ -360,7 +365,7 @@ impl Canvas {
         // The card: shadow, body, header with its category strip, outline.
         let radius = theme::radius(theme::NODE_RADIUS * z);
         painter.add(theme::node_shadow().as_shape(card, radius));
-        painter.rect_filled(card, radius, theme::fade(theme::NODE_BG, alpha));
+        painter.rect_filled(card, radius, theme::fade(theme::node_bg(), alpha));
         let header = t.rect_to_screen(n.header);
         let top = if n.collapsed {
             radius
@@ -385,17 +390,17 @@ impl Canvas {
             painter.rect_filled(strip, top, theme::fade(n.accent, alpha));
         }
         let outline = if n.selected {
-            Stroke::new(1.6, theme::fade(theme::NODE_SELECTED, alpha))
+            Stroke::new(1.6, theme::fade(theme::node_selected(), alpha))
         } else if hovered_node {
-            Stroke::new(1.0, theme::fade(theme::NODE_HOVER, alpha))
+            Stroke::new(1.0, theme::fade(theme::node_hover(), alpha))
         } else {
-            Stroke::new(1.0, theme::fade(theme::NODE_OUTLINE, alpha))
+            Stroke::new(1.0, theme::fade(theme::node_outline(), alpha))
         };
         if n.selected {
             painter.rect_stroke(
                 card.expand(2.5),
                 radius,
-                Stroke::new(3.0, theme::fade(theme::NODE_SELECTED, 0.12 * alpha)),
+                Stroke::new(3.0, theme::fade(theme::node_selected(), 0.12 * alpha)),
                 StrokeKind::Outside,
             );
         }
@@ -424,7 +429,7 @@ impl Canvas {
             {
                 let ms = f64::from(ns) / 1e6;
                 let heat = (ms / 0.2).clamp(0.0, 1.0) as f32;
-                let color = theme::mix(theme::TEXT_FAINT, theme::WARNING, heat);
+                let color = theme::mix(theme::text_faint(), theme::warning(), heat);
                 let g = painter.layout_no_wrap(
                     format!("{ms:.2} ms"),
                     theme::canvas_font(theme::FONT_SMALL, z, true),
@@ -456,9 +461,9 @@ impl Canvas {
                     theme::canvas_font(theme::FONT_SMALL, z, false),
                     theme::fade(
                         if caret_hover {
-                            theme::TEXT_STRONG
+                            theme::text_strong()
                         } else {
-                            theme::TEXT_MUTED
+                            theme::text_muted()
                         },
                         alpha,
                     ),
@@ -483,7 +488,7 @@ impl Canvas {
                     format!("{prefix}{}", n.title),
                     egui::TextFormat::simple(
                         theme::canvas_font(theme::FONT_NODE_TITLE, z, false),
-                        theme::fade(theme::TEXT_STRONG, alpha),
+                        theme::fade(theme::text_strong(), alpha),
                     ),
                 );
                 job.wrap = egui::text::TextWrapping::truncate_at_width(max_w);
@@ -495,7 +500,7 @@ impl Canvas {
                         theme::HEADER_STRIP * z * 0.5
                     }
                     - galley.size().y / 2.0;
-                painter.galley(pos2(x0, y), galley, theme::TEXT_STRONG);
+                painter.galley(pos2(x0, y), galley, theme::text_strong());
             }
         }
 
@@ -511,9 +516,9 @@ impl Canvas {
                     pretty(&s.name)
                 };
                 let color = if s.is_new_slot() {
-                    theme::TEXT_FAINT
+                    theme::text_faint()
                 } else {
-                    theme::TEXT
+                    theme::text()
                 };
                 // Audio outputs carry a small level bar between the label
                 // and the socket.
@@ -595,7 +600,11 @@ impl Canvas {
         alpha: f32,
     ) {
         let z = self.view.zoom;
-        let color = if wired { theme::WARNING } else { theme::ACCENT };
+        let color = if wired {
+            theme::warning()
+        } else {
+            theme::accent()
+        };
         let galley = painter.layout_no_wrap(
             icons::LINK.to_string(),
             theme::canvas_font(theme::FONT_SMALL, z, false),
@@ -649,7 +658,7 @@ impl Canvas {
                     (alpha * 0.25, None)
                 }
             }
-            None => (alpha, hovered.then_some(theme::TEXT_STRONG)),
+            None => (alpha, hovered.then_some(theme::text_strong())),
         };
         // Every socket is a solid dot of its type; the interface's "add"
         // slot is hollow.
@@ -699,7 +708,7 @@ impl Canvas {
                 Align2::LEFT_CENTER,
                 &label,
                 font,
-                theme::fade(theme::TEXT, alpha),
+                theme::fade(theme::text(), alpha),
             );
             // The live value arriving on the wire, muted.
             let src = self
@@ -733,7 +742,7 @@ impl Canvas {
                     Align2::RIGHT_CENTER,
                     text,
                     theme::canvas_font(theme::FONT_VALUE, z, true),
-                    theme::fade(theme::TEXT_MUTED, alpha),
+                    theme::fade(theme::text_muted(), alpha),
                 );
                 // A tick on the socket's range.
                 if let Some(spec) = &s.spec
@@ -744,7 +753,7 @@ impl Canvas {
                     let b = right;
                     painter.line_segment(
                         [pos2(a, y), pos2(b, y)],
-                        Stroke::new(1.0, theme::fade(theme::WIDGET_BG, alpha)),
+                        Stroke::new(1.0, theme::fade(theme::widget_bg(), alpha)),
                     );
                     let x = a + (b - a) * tpos;
                     painter.line_segment(
@@ -760,9 +769,9 @@ impl Canvas {
         }
         let Some(spec) = s.spec.as_ref().filter(|_| !controlled) else {
             let color = if s.is_new_slot() {
-                theme::TEXT_FAINT
+                theme::text_faint()
             } else {
-                theme::TEXT_MUTED
+                theme::text_muted()
             };
             painter.text(
                 pos2(x0, row.center().y),
@@ -826,7 +835,7 @@ impl Canvas {
                     Align2::LEFT_CENTER,
                     label,
                     font,
-                    theme::fade(theme::TEXT_MUTED, alpha),
+                    theme::fade(theme::text_muted(), alpha),
                 );
             }
         }
@@ -894,7 +903,7 @@ impl Canvas {
         if let Class::Missing(m) = &n.class {
             out.push(Badge {
                 icon: icons::QUESTION,
-                color: theme::WARNING,
+                color: theme::warning(),
                 tip: format!(
                     "Missing node: {m}. It's kept in the project and its wires are preserved."
                 ),
@@ -904,14 +913,14 @@ impl Canvas {
         if !errors.is_empty() {
             out.push(Badge {
                 icon: icons::WARNING_CIRCLE,
-                color: theme::ERROR,
+                color: theme::error(),
                 tip: errors.join("\n"),
             });
         }
         if !warnings.is_empty() {
             out.push(Badge {
                 icon: icons::WARNING,
-                color: theme::WARNING,
+                color: theme::warning(),
                 tip: warnings.join("\n"),
             });
         }
@@ -925,7 +934,7 @@ impl Canvas {
             {
                 out.push(Badge {
                     icon: icons::FILE_X,
-                    color: theme::ERROR,
+                    color: theme::error(),
                     tip: format!("File not found: {file}\nLocate it from the Project tab."),
                 });
             }
@@ -936,7 +945,7 @@ impl Canvas {
             let voices = node.config.get_u64_or("voices", 8).clamp(1, 64);
             out.push(Badge {
                 icon: icons::STACK,
-                color: theme::TEXT_MUTED,
+                color: theme::text_muted(),
                 tip: format!(
                     "Polyphonic: the inside runs once per voice ({voices} voices), and notes \
                      from `midi` are shared out among them."
@@ -956,7 +965,7 @@ impl Canvas {
             let ms = f64::from(*samples) * 1000.0 / io.engine.options().sample_rate.max(1.0);
             out.push(Badge {
                 icon: icons::TIMER,
-                color: theme::TEXT_MUTED,
+                color: theme::text_muted(),
                 tip: format!(
                     "Adds {samples} samples ({ms:.1} ms) of latency; parallel paths are delayed to match."
                 ),
@@ -967,7 +976,7 @@ impl Canvas {
             if !on.is_empty() {
                 out.push(Badge {
                     icon: icons::PUSH_PIN,
-                    color: theme::ACCENT,
+                    color: theme::accent(),
                     tip: format!(
                         "Pinned to {}. Ctrl+Tab shows the panels; right-click to unpin.",
                         on.join(", ")
@@ -978,7 +987,7 @@ impl Canvas {
         if n.muted {
             out.push(Badge {
                 icon: icons::SPEAKER_SLASH,
-                color: theme::TEXT_MUTED,
+                color: theme::text_muted(),
                 tip: "Muted: passes its input through where the types match (M to unmute)".into(),
             });
         }
@@ -997,7 +1006,7 @@ fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
     match state {
         WholeState::Disabled { sources } => Badge {
             icon: icons::X_CIRCLE,
-            color: theme::TEXT_MUTED,
+            color: theme::text_muted(),
             tip: format!(
                 "Disabled: needs a known input, and {} is live. It plays silence while \
                  live; offline renders still work.",
@@ -1006,7 +1015,7 @@ fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
         },
         WholeState::Pending | WholeState::Stale => Badge {
             icon: icons::CLOCK_COUNTER_CLOCKWISE,
-            color: theme::WARNING,
+            color: theme::warning(),
             tip: match (state, running) {
                 (WholeState::Stale, _) => {
                     "Baking: something upstream changed; the previous bake plays until \
@@ -1019,7 +1028,7 @@ fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
         },
         WholeState::Baked => Badge {
             icon: icons::CHECK_CIRCLE,
-            color: theme::OK,
+            color: theme::ok(),
             tip: "Baked: plays a render of its whole input, in time with the transport.".into(),
         },
     }
@@ -1035,7 +1044,7 @@ fn level_bar(painter: &Painter, c: Pos2, z: f32, level: f32, alpha: f32) {
     let h = 12.0 * z;
     let w = (2.5 * z).max(1.5);
     let bg = Rect::from_center_size(c, vec2(w, h));
-    painter.rect_filled(bg, 1.0, theme::fade(theme::METER_BG, alpha));
+    painter.rect_filled(bg, 1.0, theme::fade(theme::meter_bg(), alpha));
     let db = 20.0 * level.max(1e-6).log10();
     let k = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
     if k > 0.0 {
@@ -1069,9 +1078,9 @@ fn paint_grid(painter: &Painter, t: &Transform) {
             let major = gx % major_every == 0 && gy % major_every == 0;
             let p = t.to_screen(pos2(gx as f32 * step, gy as f32 * step));
             let c = if major {
-                theme::GRID_DOT_MAJOR
+                theme::grid_dot_major()
             } else {
-                theme::GRID_DOT
+                theme::grid_dot()
             };
             shapes.push(Shape::circle_filled(p, if major { r * 1.35 } else { r }, c));
         }

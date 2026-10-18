@@ -345,7 +345,7 @@ impl EditorApp {
             self.chrome(ui, &ctx, now);
         }
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(theme::CANVAS_BG))
+            .frame(egui::Frame::new().fill(theme::canvas_bg()))
             .show(ui, |ui| {
                 if self.perform.shown {
                     self.show_panels(ui, &ctx, now);
@@ -393,7 +393,7 @@ impl EditorApp {
         egui::Panel::top("menu-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
@@ -418,9 +418,9 @@ impl EditorApp {
         egui::Panel::top("transport")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(10, 5))
-                    .stroke(egui::Stroke::new(1.0, theme::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, theme::border())),
             )
             .exact_size(44.0)
             .show(ui, |ui| {
@@ -436,7 +436,7 @@ impl EditorApp {
         egui::Panel::bottom("status-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(10, 3)),
             )
             .exact_size(24.0)
@@ -448,7 +448,7 @@ impl EditorApp {
                 .size_range(240.0..=640.0)
                 .frame(
                     egui::Frame::new()
-                        .fill(theme::PANEL_BG)
+                        .fill(theme::panel_bg())
                         .inner_margin(egui::Margin::symmetric(10, 4)),
                 )
                 .show(ui, |ui| {
@@ -476,9 +476,9 @@ impl EditorApp {
         egui::Panel::top("performance-bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme::PANEL_BG)
+                    .fill(theme::panel_bg())
                     .inner_margin(egui::Margin::symmetric(12, 6))
-                    .stroke(egui::Stroke::new(1.0, theme::BORDER)),
+                    .stroke(egui::Stroke::new(1.0, theme::border())),
             )
             .exact_size(52.0)
             .show(ui, |ui| {
@@ -535,7 +535,7 @@ impl EditorApp {
                         icons::LINK
                     ))
                     .small()
-                    .color(theme::ACCENT),
+                    .color(theme::accent()),
                 );
                 if ui.small_button("Cancel").clicked() {
                     self.cancel_learn(now);
@@ -549,7 +549,7 @@ impl EditorApp {
                         take.relative_path
                     ))
                     .small()
-                    .color(theme::TEXT),
+                    .color(theme::text()),
                 );
                 if ui.small_button("Create Clip from take").clicked() {
                     self.clip_from_take(&take, now);
@@ -563,12 +563,12 @@ impl EditorApp {
                     ui.label(
                         RichText::new(format!("+{} more", self.takes.len() - 1))
                             .small()
-                            .color(theme::TEXT_MUTED),
+                            .color(theme::text_muted()),
                     );
                 }
             } else if let Some((text, t, warn)) = &self.status {
                 if now - t < 8.0 || *t == 0.0 {
-                    let color = if *warn { theme::WARNING } else { theme::TEXT };
+                    let color = if *warn { theme::warning() } else { theme::text() };
                     let icon = if *warn { icons::WARNING } else { icons::INFO };
                     ui.label(
                         RichText::new(format!("{icon}  {text}"))
@@ -593,7 +593,7 @@ impl EditorApp {
                         icons::KEYBOARD
                     ))
                     .small()
-                    .color(theme::ACCENT),
+                    .color(theme::accent()),
                 );
             } else {
                 let hint = if self.perform.shown {
@@ -604,7 +604,7 @@ impl EditorApp {
                 } else {
                     "G move · Shift+D duplicate · X delete · Ctrl+G group · M mute · H collapse"
                 };
-                ui.label(RichText::new(hint).small().color(theme::TEXT_FAINT));
+                ui.label(RichText::new(hint).small().color(theme::text_faint()));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let icon = if self.engine.is_running() {
@@ -614,7 +614,7 @@ impl EditorApp {
                 };
                 let text = format!("{icon} {}", self.engine.describe());
                 let r = ui.add(
-                    egui::Button::new(RichText::new(text).small().color(theme::TEXT_MUTED))
+                    egui::Button::new(RichText::new(text).small().color(theme::text_muted()))
                         .frame(false),
                 );
                 if r.on_hover_text("Audio device settings").clicked() {
@@ -628,7 +628,7 @@ impl EditorApp {
                         egui::Button::new(
                             RichText::new(format!("{} {n}", icons::WARNING))
                                 .small()
-                                .color(if errors { theme::ERROR } else { theme::WARNING }),
+                                .color(if errors { theme::error() } else { theme::warning() }),
                         )
                         .frame(false),
                     );
@@ -2023,7 +2023,7 @@ impl eframe::App for EditorApp {
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        theme::CANVAS_BG.to_normalized_gamma_f32()
+        theme::canvas_bg().to_normalized_gamma_f32()
     }
 }
 

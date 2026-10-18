@@ -132,7 +132,7 @@ impl Canvas {
                 let iface = edit::is_virtual(*node);
                 ui.label(
                     RichText::new(super::paint::pretty(name))
-                        .color(theme::TEXT_MUTED)
+                        .color(theme::text_muted())
                         .small(),
                 );
                 if wired && item(ui, icons::LINK_BREAK, "Disconnect", None) {
@@ -246,13 +246,13 @@ impl Canvas {
                 if matches!(n.class, Class::Interface { .. }) {
                     ui.label(
                         RichText::new("Group interface")
-                            .color(theme::TEXT_MUTED)
+                            .color(theme::text_muted())
                             .small(),
                     );
                     ui.label(RichText::new("Drag to its empty socket to add one;\nright-click a socket to rename or remove it.").small());
                     return false;
                 }
-                ui.label(RichText::new(&n.title).color(theme::TEXT_MUTED).small());
+                ui.label(RichText::new(&n.title).color(theme::text_muted()).small());
                 if let Class::Group(_) = n.class
                     && item(
                         ui,
@@ -538,13 +538,13 @@ impl Canvas {
                         super::paint::pretty(&s.name)
                     })
                     .strong()
-                    .color(theme::TEXT_STRONG),
+                    .color(theme::text_strong()),
                 );
                 ui.label(RichText::new(s.ty.name()).color(theme::type_color(s.ty)));
                 if let Some(spec) = &s.spec
                     && !spec.unit.suffix().is_empty()
                 {
-                    ui.label(RichText::new(spec.unit.suffix()).color(theme::TEXT_MUTED));
+                    ui.label(RichText::new(spec.unit.suffix()).color(theme::text_muted()));
                 }
             });
             let mut facts = Vec::new();
@@ -582,7 +582,7 @@ impl Canvas {
                 ui.label(
                     RichText::new(facts.join(" · "))
                         .small()
-                        .color(theme::TEXT_MUTED),
+                        .color(theme::text_muted()),
                 );
             }
             if let Some((path, sock)) = &reading {
@@ -605,7 +605,7 @@ impl Canvas {
                     ui.label(
                         RichText::new(t)
                             .font(theme::mono_font(18.0))
-                            .color(theme::TEXT_STRONG),
+                            .color(theme::text_strong()),
                     );
                 }
             } else if input
@@ -630,12 +630,12 @@ impl Canvas {
                     ui.label(
                         RichText::new(text)
                             .font(theme::mono_font(18.0))
-                            .color(theme::TEXT_STRONG),
+                            .color(theme::text_strong()),
                     );
                 }
             }
             if let Some(doc) = s.spec.as_ref().map(|s| s.doc).filter(|d| !d.is_empty()) {
-                ui.label(RichText::new(doc).color(theme::TEXT));
+                ui.label(RichText::new(doc).color(theme::text()));
             }
             if s.is_new_slot() {
                 ui.label("Drop a wire here to add a socket to the group's interface.");
@@ -659,7 +659,7 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
                 icons::PUSH_PIN
             ))
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
         );
         return false;
     }

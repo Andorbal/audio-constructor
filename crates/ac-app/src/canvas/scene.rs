@@ -263,7 +263,7 @@ fn build_with(
                     class: Class::Interface { input_side },
                     title: title.into(),
                     category: None,
-                    accent: theme::GROUP_HEADER,
+                    accent: theme::group_header(),
                     pos: pos[i],
                     width: theme::NODE_WIDTH - 30.0,
                     size: None,
@@ -296,17 +296,17 @@ fn build_with(
                 n.ui.label
                     .clone()
                     .unwrap_or_else(|| defs.get(d).map_or("Group".into(), |d| d.name.clone())),
-                theme::GROUP_HEADER,
+                theme::group_header(),
             ),
             Class::Missing(_) => (
                 n.ui.label.clone().unwrap_or_else(|| n.kind.clone()),
-                theme::MISSING_HEADER,
+                theme::missing_header(),
             ),
             _ => (
                 n.ui.label
                     .clone()
                     .unwrap_or_else(|| entry.map_or(n.kind.clone(), |e| e.meta.name.to_string())),
-                category.map_or(theme::MISSING_HEADER, theme::category_color),
+                category.map_or(theme::missing_header(), theme::category_color),
             ),
         };
         let sockets = edit::sockets_of(&graph, n.id, registry, defs, iface.as_ref());

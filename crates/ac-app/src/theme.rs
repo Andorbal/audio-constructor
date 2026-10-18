@@ -1,82 +1,300 @@
 //! The look, in one place (docs/UX.md "Look"): every color, radius, spacing
 //! value, and font size the editor draws with. Tune the look here.
 
+use std::cell::Cell;
+
 use ac_core::{Category, SignalType};
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Shadow, Stroke};
 
 // ---------------------------------------------------------------- palette
 
+/// Every color the editor draws with, for one theme. Read the current one
+/// through the accessor functions below (`theme::canvas_bg()`, ...).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Palette {
+    /// Canvas background.
+    pub canvas_bg: Color32,
+    /// Dots of the canvas grid.
+    pub grid_dot: Color32,
+    /// Every fifth dot, slightly stronger, so the grid reads at a glance.
+    pub grid_dot_major: Color32,
+    /// Side panel, menu bar, transport bar.
+    pub panel_bg: Color32,
+    /// Recessed areas inside panels (text fields, meter wells).
+    pub well_bg: Color32,
+    /// Separators and subtle borders.
+    pub border: Color32,
+    /// Node card body. Slightly translucent so wires behind it read as dimmed.
+    pub node_bg: Color32,
+    /// Node outline.
+    pub node_outline: Color32,
+    /// Outline of a selected node.
+    pub node_selected: Color32,
+    /// Outline of a hovered node.
+    pub node_hover: Color32,
+    /// Inline widget wells inside nodes.
+    pub widget_bg: Color32,
+    pub widget_bg_hover: Color32,
+    /// Value fill of drag sliders.
+    pub widget_fill: Color32,
+    pub widget_fill_hover: Color32,
+    pub text: Color32,
+    pub text_strong: Color32,
+    pub text_muted: Color32,
+    pub text_faint: Color32,
+    /// Interface accent (focus, selection, active tab).
+    pub accent: Color32,
+    pub accent_dim: Color32,
+    pub error: Color32,
+    pub warning: Color32,
+    pub ok: Color32,
+    pub record: Color32,
+    pub play: Color32,
+    /// Box selection.
+    pub select_fill: Color32,
+    pub select_stroke: Color32,
+    /// Knife line for cutting wires.
+    pub cut_line: Color32,
+    /// Line drawn while Shift+right-dragging to add reroutes.
+    pub reroute_line: Color32,
+    /// Frames: translucent fill, label color.
+    pub frame_fill: Color32,
+    pub frame_border: Color32,
+    pub frame_label: Color32,
+    /// Comment sticky notes.
+    pub note_bg: Color32,
+    pub note_header: Color32,
+    pub note_text: Color32,
+    /// Meters: green → yellow → red as the level approaches full scale.
+    pub meter_low: Color32,
+    pub meter_mid: Color32,
+    pub meter_high: Color32,
+    pub meter_bg: Color32,
+    /// Scope trace and its background.
+    pub scope_bg: Color32,
+    pub scope_grid: Color32,
+    /// Header color for nodes whose kind is unknown (missing node).
+    pub missing_header: Color32,
+    /// Header color for group instances and the group interface nodes.
+    pub group_header: Color32,
+}
+
+/// The dark theme, the default.
+pub const DARK: Palette = Palette {
+    canvas_bg: Color32::from_rgb(0x18, 0x1A, 0x1F),
+    grid_dot: Color32::from_rgb(0x30, 0x34, 0x3C),
+    grid_dot_major: Color32::from_rgb(0x3C, 0x41, 0x4A),
+    panel_bg: Color32::from_rgb(0x20, 0x22, 0x28),
+    well_bg: Color32::from_rgb(0x15, 0x16, 0x1A),
+    border: Color32::from_rgb(0x30, 0x33, 0x3A),
+    node_bg: Color32::from_rgba_premultiplied(0x25, 0x28, 0x2E, 0xEA),
+    node_outline: Color32::from_rgb(0x38, 0x3C, 0x45),
+    node_selected: Color32::from_rgb(0xE6, 0xEA, 0xF0),
+    node_hover: Color32::from_rgb(0x5A, 0x60, 0x6B),
+    widget_bg: Color32::from_rgb(0x1C, 0x1E, 0x23),
+    widget_bg_hover: Color32::from_rgb(0x22, 0x25, 0x2B),
+    widget_fill: Color32::from_rgb(0x34, 0x4A, 0x66),
+    widget_fill_hover: Color32::from_rgb(0x3D, 0x57, 0x78),
+    text: Color32::from_rgb(0xD4, 0xD8, 0xDF),
+    text_strong: Color32::from_rgb(0xF2, 0xF4, 0xF7),
+    text_muted: Color32::from_rgb(0x8E, 0x95, 0xA0),
+    text_faint: Color32::from_rgb(0x5E, 0x65, 0x70),
+    accent: Color32::from_rgb(0x7C, 0xA7, 0xF5),
+    accent_dim: Color32::from_rgb(0x2E, 0x3D, 0x59),
+    error: Color32::from_rgb(0xF0, 0x6A, 0x6A),
+    warning: Color32::from_rgb(0xE8, 0xB0, 0x4A),
+    ok: Color32::from_rgb(0x5F, 0xC8, 0x8F),
+    record: Color32::from_rgb(0xE8, 0x4A, 0x4A),
+    play: Color32::from_rgb(0x5F, 0xC8, 0x8F),
+    select_fill: Color32::from_rgba_premultiplied(0x18, 0x22, 0x33, 0x40),
+    select_stroke: Color32::from_rgb(0x7C, 0xA7, 0xF5),
+    cut_line: Color32::from_rgb(0xF0, 0x6A, 0x6A),
+    reroute_line: Color32::from_rgb(0xA9, 0xB4, 0xC2),
+    frame_fill: Color32::from_rgba_premultiplied(0x2A, 0x2E, 0x36, 0x70),
+    frame_border: Color32::from_rgb(0x3A, 0x3F, 0x48),
+    frame_label: Color32::from_rgb(0xA8, 0xAF, 0xBA),
+    note_bg: Color32::from_rgb(0x3B, 0x37, 0x26),
+    note_header: Color32::from_rgb(0x4A, 0x44, 0x2A),
+    note_text: Color32::from_rgb(0xEC, 0xE4, 0xC4),
+    meter_low: Color32::from_rgb(0x5F, 0xC8, 0x8F),
+    meter_mid: Color32::from_rgb(0xE8, 0xC2, 0x4A),
+    meter_high: Color32::from_rgb(0xF0, 0x6A, 0x6A),
+    meter_bg: Color32::from_rgb(0x14, 0x15, 0x19),
+    scope_bg: Color32::from_rgb(0x12, 0x14, 0x17),
+    scope_grid: Color32::from_rgb(0x24, 0x28, 0x2F),
+    missing_header: Color32::from_rgb(0x6A, 0x3A, 0x3A),
+    group_header: Color32::from_rgb(0x4C, 0x8C, 0x7A),
+};
+
+thread_local! {
+    /// The palette the UI thread draws with. Per thread, so headless tests
+    /// running side by side can't change each other's colors.
+    static CURRENT: Cell<&'static Palette> = const { Cell::new(&DARK) };
+}
+
+/// The palette in use on this thread.
+pub fn palette() -> &'static Palette {
+    CURRENT.with(Cell::get)
+}
+
+/// Draw with `p` from now on (on this thread).
+pub fn set_palette(p: &'static Palette) {
+    CURRENT.with(|c| c.set(p));
+}
+
 /// Canvas background.
-pub const CANVAS_BG: Color32 = Color32::from_rgb(0x18, 0x1A, 0x1F);
+pub fn canvas_bg() -> Color32 {
+    palette().canvas_bg
+}
 /// Dots of the canvas grid.
-pub const GRID_DOT: Color32 = Color32::from_rgb(0x30, 0x34, 0x3C);
+pub fn grid_dot() -> Color32 {
+    palette().grid_dot
+}
 /// Every fifth dot, slightly stronger, so the grid reads at a glance.
-pub const GRID_DOT_MAJOR: Color32 = Color32::from_rgb(0x3C, 0x41, 0x4A);
+pub fn grid_dot_major() -> Color32 {
+    palette().grid_dot_major
+}
 
 /// Side panel, menu bar, transport bar.
-pub const PANEL_BG: Color32 = Color32::from_rgb(0x20, 0x22, 0x28);
+pub fn panel_bg() -> Color32 {
+    palette().panel_bg
+}
 /// Recessed areas inside panels (text fields, meter wells).
-pub const WELL_BG: Color32 = Color32::from_rgb(0x15, 0x16, 0x1A);
+pub fn well_bg() -> Color32 {
+    palette().well_bg
+}
 /// Separators and subtle borders.
-pub const BORDER: Color32 = Color32::from_rgb(0x30, 0x33, 0x3A);
+pub fn border() -> Color32 {
+    palette().border
+}
 
 /// Node card body. Slightly translucent so wires behind it read as dimmed.
-pub const NODE_BG: Color32 = Color32::from_rgba_premultiplied(0x25, 0x28, 0x2E, 0xEA);
+pub fn node_bg() -> Color32 {
+    palette().node_bg
+}
 /// Node outline.
-pub const NODE_OUTLINE: Color32 = Color32::from_rgb(0x38, 0x3C, 0x45);
+pub fn node_outline() -> Color32 {
+    palette().node_outline
+}
 /// Outline of a selected node.
-pub const NODE_SELECTED: Color32 = Color32::from_rgb(0xE6, 0xEA, 0xF0);
+pub fn node_selected() -> Color32 {
+    palette().node_selected
+}
 /// Outline of a hovered node.
-pub const NODE_HOVER: Color32 = Color32::from_rgb(0x5A, 0x60, 0x6B);
+pub fn node_hover() -> Color32 {
+    palette().node_hover
+}
 /// Inline widget wells inside nodes.
-pub const WIDGET_BG: Color32 = Color32::from_rgb(0x1C, 0x1E, 0x23);
-pub const WIDGET_BG_HOVER: Color32 = Color32::from_rgb(0x22, 0x25, 0x2B);
+pub fn widget_bg() -> Color32 {
+    palette().widget_bg
+}
+pub fn widget_bg_hover() -> Color32 {
+    palette().widget_bg_hover
+}
 /// Value fill of drag sliders.
-pub const WIDGET_FILL: Color32 = Color32::from_rgb(0x34, 0x4A, 0x66);
-pub const WIDGET_FILL_HOVER: Color32 = Color32::from_rgb(0x3D, 0x57, 0x78);
+pub fn widget_fill() -> Color32 {
+    palette().widget_fill
+}
+pub fn widget_fill_hover() -> Color32 {
+    palette().widget_fill_hover
+}
 
-pub const TEXT: Color32 = Color32::from_rgb(0xD4, 0xD8, 0xDF);
-pub const TEXT_STRONG: Color32 = Color32::from_rgb(0xF2, 0xF4, 0xF7);
-pub const TEXT_MUTED: Color32 = Color32::from_rgb(0x8E, 0x95, 0xA0);
-pub const TEXT_FAINT: Color32 = Color32::from_rgb(0x5E, 0x65, 0x70);
+pub fn text() -> Color32 {
+    palette().text
+}
+pub fn text_strong() -> Color32 {
+    palette().text_strong
+}
+pub fn text_muted() -> Color32 {
+    palette().text_muted
+}
+pub fn text_faint() -> Color32 {
+    palette().text_faint
+}
 
 /// Interface accent (focus, selection, active tab).
-pub const ACCENT: Color32 = Color32::from_rgb(0x7C, 0xA7, 0xF5);
-pub const ACCENT_DIM: Color32 = Color32::from_rgb(0x2E, 0x3D, 0x59);
+pub fn accent() -> Color32 {
+    palette().accent
+}
+pub fn accent_dim() -> Color32 {
+    palette().accent_dim
+}
 
-pub const ERROR: Color32 = Color32::from_rgb(0xF0, 0x6A, 0x6A);
-pub const WARNING: Color32 = Color32::from_rgb(0xE8, 0xB0, 0x4A);
-pub const OK: Color32 = Color32::from_rgb(0x5F, 0xC8, 0x8F);
-pub const RECORD: Color32 = Color32::from_rgb(0xE8, 0x4A, 0x4A);
-pub const PLAY: Color32 = Color32::from_rgb(0x5F, 0xC8, 0x8F);
+pub fn error() -> Color32 {
+    palette().error
+}
+pub fn warning() -> Color32 {
+    palette().warning
+}
+pub fn ok() -> Color32 {
+    palette().ok
+}
+pub fn record() -> Color32 {
+    palette().record
+}
+pub fn play() -> Color32 {
+    palette().play
+}
 
 /// Box selection.
-pub const SELECT_FILL: Color32 = Color32::from_rgba_premultiplied(0x18, 0x22, 0x33, 0x40);
-pub const SELECT_STROKE: Color32 = Color32::from_rgb(0x7C, 0xA7, 0xF5);
+pub fn select_fill() -> Color32 {
+    palette().select_fill
+}
+pub fn select_stroke() -> Color32 {
+    palette().select_stroke
+}
 /// Knife line for cutting wires.
-pub const CUT_LINE: Color32 = Color32::from_rgb(0xF0, 0x6A, 0x6A);
+pub fn cut_line() -> Color32 {
+    palette().cut_line
+}
 /// Line drawn while Shift+right-dragging to add reroutes.
-pub const REROUTE_LINE: Color32 = Color32::from_rgb(0xA9, 0xB4, 0xC2);
+pub fn reroute_line() -> Color32 {
+    palette().reroute_line
+}
 
 /// Frames: translucent fill, label color.
-pub const FRAME_FILL: Color32 = Color32::from_rgba_premultiplied(0x2A, 0x2E, 0x36, 0x70);
-pub const FRAME_BORDER: Color32 = Color32::from_rgb(0x3A, 0x3F, 0x48);
-pub const FRAME_LABEL: Color32 = Color32::from_rgb(0xA8, 0xAF, 0xBA);
+pub fn frame_fill() -> Color32 {
+    palette().frame_fill
+}
+pub fn frame_border() -> Color32 {
+    palette().frame_border
+}
+pub fn frame_label() -> Color32 {
+    palette().frame_label
+}
 
 /// Comment sticky notes.
-pub const NOTE_BG: Color32 = Color32::from_rgb(0x3B, 0x37, 0x26);
-pub const NOTE_HEADER: Color32 = Color32::from_rgb(0x4A, 0x44, 0x2A);
-pub const NOTE_TEXT: Color32 = Color32::from_rgb(0xEC, 0xE4, 0xC4);
+pub fn note_bg() -> Color32 {
+    palette().note_bg
+}
+pub fn note_header() -> Color32 {
+    palette().note_header
+}
+pub fn note_text() -> Color32 {
+    palette().note_text
+}
 
 /// Meters: green → yellow → red as the level approaches full scale.
-pub const METER_LOW: Color32 = Color32::from_rgb(0x5F, 0xC8, 0x8F);
-pub const METER_MID: Color32 = Color32::from_rgb(0xE8, 0xC2, 0x4A);
-pub const METER_HIGH: Color32 = Color32::from_rgb(0xF0, 0x6A, 0x6A);
-pub const METER_BG: Color32 = Color32::from_rgb(0x14, 0x15, 0x19);
+pub fn meter_low() -> Color32 {
+    palette().meter_low
+}
+pub fn meter_mid() -> Color32 {
+    palette().meter_mid
+}
+pub fn meter_high() -> Color32 {
+    palette().meter_high
+}
+pub fn meter_bg() -> Color32 {
+    palette().meter_bg
+}
 
 /// Scope trace and its background.
-pub const SCOPE_BG: Color32 = Color32::from_rgb(0x12, 0x14, 0x17);
-pub const SCOPE_GRID: Color32 = Color32::from_rgb(0x24, 0x28, 0x2F);
+pub fn scope_bg() -> Color32 {
+    palette().scope_bg
+}
+pub fn scope_grid() -> Color32 {
+    palette().scope_grid
+}
 
 /// Signal type colors (UX.md socket table). `Any` (reroutes before they
 /// connect) is a neutral grey.
@@ -133,9 +351,13 @@ pub fn category_color(cat: Category) -> Color32 {
 }
 
 /// Header color for nodes whose kind is unknown (missing node).
-pub const MISSING_HEADER: Color32 = Color32::from_rgb(0x6A, 0x3A, 0x3A);
+pub fn missing_header() -> Color32 {
+    palette().missing_header
+}
 /// Header color for group instances and the group interface nodes.
-pub const GROUP_HEADER: Color32 = Color32::from_rgb(0x4C, 0x8C, 0x7A);
+pub fn group_header() -> Color32 {
+    palette().group_header
+}
 
 /// The header fill: the category color mixed into the card so white text
 /// stays readable on every hue.
@@ -163,11 +385,11 @@ pub fn fade(c: Color32, alpha: f32) -> Color32 {
 /// Meter color for a level in dBFS.
 pub fn meter_color(db: f32) -> Color32 {
     if db > -3.0 {
-        METER_HIGH
+        meter_high()
     } else if db > -12.0 {
-        METER_MID
+        meter_mid()
     } else {
-        METER_LOW
+        meter_low()
     }
 }
 
@@ -358,56 +580,56 @@ fn style(style: &mut egui::Style) {
     let v = &mut style.visuals;
     v.dark_mode = true;
     v.override_text_color = None;
-    v.panel_fill = PANEL_BG;
+    v.panel_fill = panel_bg();
     v.window_fill = Color32::from_rgb(0x25, 0x28, 0x2F);
-    v.window_stroke = Stroke::new(1.0, BORDER);
+    v.window_stroke = Stroke::new(1.0, border());
     v.window_corner_radius = radius(10.0);
     v.menu_corner_radius = radius(8.0);
     v.window_shadow = popup_shadow();
     v.popup_shadow = popup_shadow();
-    v.extreme_bg_color = WELL_BG;
+    v.extreme_bg_color = well_bg();
     v.faint_bg_color = Color32::from_rgb(0x24, 0x27, 0x2D);
     v.code_bg_color = Color32::from_rgb(0x2C, 0x30, 0x38);
-    v.hyperlink_color = ACCENT;
-    v.warn_fg_color = WARNING;
-    v.error_fg_color = ERROR;
-    v.selection.bg_fill = ACCENT_DIM;
-    v.selection.stroke = Stroke::new(1.0, ACCENT);
+    v.hyperlink_color = accent();
+    v.warn_fg_color = warning();
+    v.error_fg_color = error();
+    v.selection.bg_fill = accent_dim();
+    v.selection.stroke = Stroke::new(1.0, accent());
     v.slider_trailing_fill = true;
     v.striped = false;
     v.indent_has_left_vline = false;
 
     let w = &mut v.widgets;
-    w.noninteractive.bg_fill = PANEL_BG;
-    w.noninteractive.weak_bg_fill = PANEL_BG;
-    w.noninteractive.bg_stroke = Stroke::new(1.0, BORDER);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, TEXT);
+    w.noninteractive.bg_fill = panel_bg();
+    w.noninteractive.weak_bg_fill = panel_bg();
+    w.noninteractive.bg_stroke = Stroke::new(1.0, border());
+    w.noninteractive.fg_stroke = Stroke::new(1.0, text());
     w.noninteractive.corner_radius = radius(WIDGET_RADIUS + 1.0);
 
     w.inactive.bg_fill = Color32::from_rgb(0x2E, 0x32, 0x3A);
     w.inactive.weak_bg_fill = Color32::from_rgb(0x2B, 0x2E, 0x35);
     w.inactive.bg_stroke = Stroke::NONE;
-    w.inactive.fg_stroke = Stroke::new(1.0, TEXT);
+    w.inactive.fg_stroke = Stroke::new(1.0, text());
     w.inactive.corner_radius = radius(WIDGET_RADIUS + 1.0);
 
     w.hovered.bg_fill = Color32::from_rgb(0x38, 0x3D, 0x47);
     w.hovered.weak_bg_fill = Color32::from_rgb(0x35, 0x39, 0x42);
     w.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(0x4A, 0x50, 0x5B));
-    w.hovered.fg_stroke = Stroke::new(1.5, TEXT_STRONG);
+    w.hovered.fg_stroke = Stroke::new(1.5, text_strong());
     w.hovered.corner_radius = radius(WIDGET_RADIUS + 1.0);
     w.hovered.expansion = 0.0;
 
     w.active.bg_fill = Color32::from_rgb(0x3F, 0x46, 0x53);
     w.active.weak_bg_fill = Color32::from_rgb(0x3F, 0x46, 0x53);
-    w.active.bg_stroke = Stroke::new(1.0, ACCENT);
-    w.active.fg_stroke = Stroke::new(1.5, TEXT_STRONG);
+    w.active.bg_stroke = Stroke::new(1.0, accent());
+    w.active.fg_stroke = Stroke::new(1.5, text_strong());
     w.active.corner_radius = radius(WIDGET_RADIUS + 1.0);
     w.active.expansion = 0.0;
 
     w.open.bg_fill = Color32::from_rgb(0x33, 0x37, 0x40);
     w.open.weak_bg_fill = Color32::from_rgb(0x33, 0x37, 0x40);
-    w.open.bg_stroke = Stroke::new(1.0, BORDER);
-    w.open.fg_stroke = Stroke::new(1.0, TEXT_STRONG);
+    w.open.bg_stroke = Stroke::new(1.0, border());
+    w.open.fg_stroke = Stroke::new(1.0, text_strong());
     w.open.corner_radius = radius(WIDGET_RADIUS + 1.0);
 }
 

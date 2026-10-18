@@ -181,7 +181,7 @@ pub(super) fn ui(
                 Align2::CENTER_TOP,
                 format!("{k}"),
                 small.clone(),
-                theme::TEXT_MUTED,
+                theme::text_muted(),
             );
         }
     }
@@ -200,7 +200,7 @@ pub(super) fn ui(
                 format!("{hz}")
             },
             small.clone(),
-            theme::TEXT_FAINT,
+            theme::text_faint(),
         );
     }
     for (i, &e) in edges.iter().enumerate() {
@@ -210,7 +210,11 @@ pub(super) fn ui(
             [pos2(x, plot.top()), pos2(x, plot.bottom())],
             Stroke::new(
                 if hot { 3.0 } else { 2.0 },
-                if hot { theme::TEXT_STRONG } else { theme::TEXT },
+                if hot {
+                    theme::text_strong()
+                } else {
+                    theme::text()
+                },
             ),
         );
         if hot {
@@ -223,7 +227,7 @@ pub(super) fn ui(
                     format!("{e:.0} Hz")
                 },
                 small.clone(),
-                theme::TEXT_STRONG,
+                theme::text_strong(),
             );
         }
     }

@@ -277,16 +277,16 @@ pub(super) fn ui(
             Rect::from_min_size(pos2(rect.left(), y), vec2(KEYS_W - 2.0, row_h)),
             0.0,
             if black {
-                theme::METER_BG
+                theme::meter_bg()
             } else {
-                theme::TEXT_MUTED
+                theme::text_muted()
             },
         );
         if black {
             painter.rect_filled(
                 Rect::from_min_size(pos2(roll.left(), y), vec2(roll.width(), row_h)),
                 0.0,
-                theme::PANEL_BG,
+                theme::panel_bg(),
             );
         }
         if pitch.rem_euclid(12) == 0 {
@@ -300,7 +300,7 @@ pub(super) fn ui(
                     Align2::LEFT_CENTER,
                     format!("C{}", pitch / 12 - 1),
                     small.clone(),
-                    theme::WELL_BG,
+                    theme::well_bg(),
                 );
             }
         }
@@ -338,7 +338,7 @@ pub(super) fn ui(
         painter.rect_stroke(
             r.shrink2(vec2(0.5, 1.0)),
             theme::radius(2.0),
-            Stroke::new(1.0, theme::fade(theme::TEXT_STRONG, 0.4)),
+            Stroke::new(1.0, theme::fade(theme::text_strong(), 0.4)),
             egui::StrokeKind::Inside,
         );
     }

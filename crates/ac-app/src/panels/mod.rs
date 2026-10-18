@@ -143,11 +143,11 @@ impl SidePanel {
                 let selected = self.tab == tab;
                 let mut rt = RichText::new(text).size(theme::FONT_SMALL + 0.5);
                 if selected {
-                    rt = rt.color(theme::TEXT_STRONG);
+                    rt = rt.color(theme::text_strong());
                 } else if count > 0 && io.engine.report.has_errors() {
-                    rt = rt.color(theme::ERROR);
+                    rt = rt.color(theme::error());
                 } else {
-                    rt = rt.color(theme::TEXT_MUTED);
+                    rt = rt.color(theme::text_muted());
                 }
                 let b = egui::Button::new(rt)
                     .selected(selected)
@@ -183,7 +183,7 @@ pub(crate) fn section(ui: &mut egui::Ui, text: &str) {
     ui.label(
         RichText::new(text.to_uppercase())
             .size(theme::FONT_SMALL - 0.5)
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
     ui.add_space(2.0);
 }

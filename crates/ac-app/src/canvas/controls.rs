@@ -1025,7 +1025,7 @@ pub fn paint(
                         Align2::CENTER_CENTER,
                         "save the project to record",
                         theme::canvas_font(theme::FONT_SMALL, z, false),
-                        theme::fade(theme::TEXT_MUTED, alpha),
+                        theme::fade(theme::text_muted(), alpha),
                     );
                 }
             }

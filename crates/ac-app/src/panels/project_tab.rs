@@ -26,7 +26,7 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
         } else {
             "The library blocks this project uses are up to date."
         };
-        ui.label(RichText::new(text).color(theme::TEXT_MUTED));
+        ui.label(RichText::new(text).color(theme::text_muted()));
         return;
     }
     egui::Grid::new("project-block-updates")
@@ -40,11 +40,11 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
                     .group_defs
                     .get(&u.def)
                     .map_or_else(|| u.def.0.clone(), |d| d.name.clone());
-                ui.label(RichText::new(name).color(theme::TEXT));
+                ui.label(RichText::new(name).color(theme::text()));
                 ui.label(
                     RichText::new(format!("v{} → v{}", u.from, u.to))
                         .font(theme::mono_font(theme::FONT_VALUE))
-                        .color(theme::TEXT_MUTED),
+                        .color(theme::text_muted()),
                 );
                 if ui
                     .small_button(format!("{}  Update", icons::ARROWS_CLOCKWISE))
@@ -143,7 +143,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
     ui.label(
         RichText::new("Offline renders use the sample rate and block size; the live engine runs at the device's rate.")
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
 
     section(ui, "Tempo map");
@@ -154,9 +154,9 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         .num_columns(4)
         .spacing(egui::vec2(8.0, 4.0))
         .show(ui, |ui| {
-            ui.label(RichText::new("at beat").small().color(theme::TEXT_MUTED));
-            ui.label(RichText::new("BPM").small().color(theme::TEXT_MUTED));
-            ui.label(RichText::new("time sig").small().color(theme::TEXT_MUTED));
+            ui.label(RichText::new("at beat").small().color(theme::text_muted()));
+            ui.label(RichText::new("BPM").small().color(theme::text_muted()));
+            ui.label(RichText::new("time sig").small().color(theme::text_muted()));
             ui.label("");
             ui.end_row();
             for (i, seg) in tempo.iter_mut().enumerate() {
@@ -304,7 +304,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
     section(ui, "Audio files");
     let refs = referenced_assets(&io.doc.project, io.registry);
     if refs.is_empty() {
-        ui.label(RichText::new("No audio files. Clip nodes add them.").color(theme::TEXT_MUTED));
+        ui.label(RichText::new("No audio files. Clip nodes add them.").color(theme::text_muted()));
     }
     for (path, _) in refs {
         let issue = io.assets.issues.iter().find(|i| match i {
@@ -313,17 +313,17 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.horizontal(|ui| {
             match issue {
                 Some(AssetIssue::Missing { reason, .. }) => {
-                    ui.colored_label(theme::ERROR, icons::FILE_X)
+                    ui.colored_label(theme::error(), icons::FILE_X)
                         .on_hover_text(reason);
                 }
                 Some(AssetIssue::Changed { .. }) => {
-                    ui.colored_label(theme::WARNING, icons::WARNING)
+                    ui.colored_label(theme::warning(), icons::WARNING)
                         .on_hover_text(
                             "The file changed since it was added (its content hash differs).",
                         );
                 }
                 None => {
-                    ui.colored_label(theme::OK, icons::FILE_AUDIO);
+                    ui.colored_label(theme::ok(), icons::FILE_AUDIO);
                 }
             }
             ui.add(
@@ -339,13 +339,13 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.label(
             RichText::new(format!("Relative paths resolve against {}", dir.display()))
                 .small()
-                .color(theme::TEXT_FAINT),
+                .color(theme::text_faint()),
         );
     } else {
         ui.label(
             RichText::new("Save the project to copy its audio files into its assets folder.")
                 .small()
-                .color(theme::TEXT_FAINT),
+                .color(theme::text_faint()),
         );
     }
 }

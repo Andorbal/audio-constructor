@@ -626,7 +626,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             empty_state(ui, io);
         } else {
             ui.label(
-                RichText::new(format!("{} nodes selected", sel.len())).color(theme::TEXT_MUTED),
+                RichText::new(format!("{} nodes selected", sel.len())).color(theme::text_muted()),
             );
         }
         return;
@@ -648,12 +648,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 .group_defs
                 .get(d)
                 .map_or("Group".into(), |d| d.name.clone()),
-            theme::GROUP_HEADER,
+            theme::group_header(),
         ),
-        NodeClass::Missing(_) => (node.kind.clone(), theme::MISSING_HEADER),
+        NodeClass::Missing(_) => (node.kind.clone(), theme::missing_header()),
         _ => (
             entry.map_or(node.kind.clone(), |e| e.meta.name.to_string()),
-            entry.map_or(theme::MISSING_HEADER, |e| {
+            entry.map_or(theme::missing_header(), |e| {
                 theme::category_color(e.meta.category)
             }),
         ),
@@ -666,23 +666,23 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         ui.label(
             RichText::new(&name)
                 .size(theme::FONT_HEADING)
-                .color(theme::TEXT_STRONG),
+                .color(theme::text_strong()),
         );
         if let Some(e) = entry {
             ui.label(
                 RichText::new(e.meta.category.name())
                     .small()
-                    .color(theme::TEXT_MUTED),
+                    .color(theme::text_muted()),
             );
         }
     });
     ui.label(
         RichText::new(format!("{} · id {}", node.kind, node.id))
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
     if let NodeClass::Missing(m) = &class {
-        ui.colored_label(theme::WARNING, format!("{} {m}", icons::WARNING));
+        ui.colored_label(theme::warning(), format!("{} {m}", icons::WARNING));
         ui.label("The node is kept in the project with its settings and wires, but does nothing.");
     }
 
@@ -782,12 +782,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                         };
                         ui.label(
                             RichText::new(format!("← {from}.{}", w.from.socket))
-                                .color(theme::TEXT_MUTED),
+                                .color(theme::text_muted()),
                         );
                     } else if let Some(spec) = &s.spec {
                         param_widget(ui, io, id, &node, spec);
                     } else {
-                        ui.label(RichText::new("—").color(theme::TEXT_FAINT));
+                        ui.label(RichText::new("—").color(theme::text_faint()));
                     }
                     ui.end_row();
                 }
@@ -835,7 +835,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                         ui.label(
                             RichText::new(r)
                                 .font(theme::mono_font(theme::FONT_VALUE))
-                                .color(theme::TEXT_MUTED),
+                                .color(theme::text_muted()),
                         );
                     });
                 }
@@ -875,7 +875,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 if instances == 1 { "" } else { "s" }
             ))
             .small()
-            .color(theme::TEXT_MUTED),
+            .color(theme::text_muted()),
         );
         let mut poly = node.kind == ac_core::VOICES_KIND;
         if ui
@@ -928,7 +928,7 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         ui.label(
             RichText::new(format!("{}  {text}", icons::BOOKS))
                 .small()
-                .color(theme::TEXT_MUTED),
+                .color(theme::text_muted()),
         );
     }
     let update = io
@@ -972,16 +972,16 @@ fn empty_state(ui: &mut egui::Ui, io: &PanelIo) {
         ui.label(
             RichText::new(icons::CUBE)
                 .size(34.0)
-                .color(theme::TEXT_FAINT),
+                .color(theme::text_faint()),
         );
-        ui.label(RichText::new("Nothing selected").color(theme::TEXT_MUTED));
+        ui.label(RichText::new("Nothing selected").color(theme::text_muted()));
         ui.add_space(6.0);
         let hint = if io.doc.graph().nodes.is_empty() {
             "Press Shift+A or double-click the canvas to add a node."
         } else {
             "Click a node to see its settings and help."
         };
-        ui.label(RichText::new(hint).small().color(theme::TEXT_FAINT));
+        ui.label(RichText::new(hint).small().color(theme::text_faint()));
     });
 }
 
@@ -1078,7 +1078,7 @@ fn param_widget(
             }
         }
         widgets::Field::Label => {
-            ui.label(RichText::new("unwired").color(theme::TEXT_FAINT));
+            ui.label(RichText::new("unwired").color(theme::text_faint()));
         }
     }
 }
@@ -1094,7 +1094,7 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
         ui.label(
             RichText::new("The curve shapes the signal when `shape` is custom.")
                 .small()
-                .color(theme::TEXT_MUTED),
+                .color(theme::text_muted()),
         );
     }
     let width = ui.available_width().max(120.0);
@@ -1120,7 +1120,7 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
             egui::Label::new(
                 RichText::new(editor.hint())
                     .small()
-                    .color(theme::TEXT_FAINT),
+                    .color(theme::text_faint()),
             )
             .wrap(),
         );
@@ -1378,7 +1378,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                                     }
                                 }
                                 None => {
-                                    ui.label(RichText::new("none").color(theme::TEXT_FAINT));
+                                    ui.label(RichText::new("none").color(theme::text_faint()));
                                 }
                             }
                         });
@@ -1388,10 +1388,10 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         ui.vertical(|ui| {
                             let missing = !file.is_empty() && io.missing.contains(&file);
                             if file.is_empty() {
-                                ui.label(RichText::new("no file").color(theme::TEXT_FAINT));
+                                ui.label(RichText::new("no file").color(theme::text_faint()));
                             } else if missing {
                                 ui.colored_label(
-                                    theme::ERROR,
+                                    theme::error(),
                                     format!("{} {file} (missing)", icons::FILE_X),
                                 );
                             } else {
@@ -1413,7 +1413,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                                         if ch == 1 { "" } else { "s" }
                                     ))
                                     .small()
-                                    .color(theme::TEXT_MUTED),
+                                    .color(theme::text_muted()),
                                 );
                             }
                         });
@@ -1456,7 +1456,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         ui.label(
                             RichText::new(other.to_string())
                                 .font(theme::mono_font(theme::FONT_SMALL))
-                                .color(theme::TEXT_MUTED),
+                                .color(theme::text_muted()),
                         );
                     }
                 }
@@ -1477,9 +1477,9 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
             "Group Output"
         })
         .size(theme::FONT_HEADING)
-        .color(theme::TEXT_STRONG),
+        .color(theme::text_strong()),
     );
-    ui.label(RichText::new(format!("Interface of “{}”", def.name)).color(theme::TEXT_MUTED));
+    ui.label(RichText::new(format!("Interface of “{}”", def.name)).color(theme::text_muted()));
     section(ui, if input_side { "Inputs" } else { "Outputs" });
     let names: Vec<(String, SignalType)> = if input_side {
         def.inputs.iter().map(|i| (i.name.clone(), i.ty)).collect()
@@ -1487,7 +1487,7 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
         def.outputs.iter().map(|o| (o.name.clone(), o.ty)).collect()
     };
     if names.is_empty() {
-        ui.label(RichText::new("None yet. Drag a wire to the empty socket, or right-click an inner socket and choose Expose.").color(theme::TEXT_MUTED));
+        ui.label(RichText::new("None yet. Drag a wire to the empty socket, or right-click an inner socket and choose Expose.").color(theme::text_muted()));
     }
     for (name, ty) in names {
         ui.horizontal(|ui| {

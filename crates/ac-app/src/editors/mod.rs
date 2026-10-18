@@ -116,11 +116,11 @@ pub fn show(
 fn area(ui: &mut egui::Ui, width: f32, height: f32) -> (egui::Response, Rect) {
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, height), Sense::click_and_drag());
     let p = ui.painter();
-    p.rect_filled(rect, theme::radius(4.0), theme::WELL_BG);
+    p.rect_filled(rect, theme::radius(4.0), theme::well_bg());
     p.rect_stroke(
         rect,
         theme::radius(4.0),
-        Stroke::new(1.0, theme::BORDER),
+        Stroke::new(1.0, theme::border()),
         StrokeKind::Inside,
     );
     (resp, rect)
@@ -129,9 +129,9 @@ fn area(ui: &mut egui::Ui, width: f32, height: f32) -> (egui::Response, Rect) {
 /// Thin grid line color; `major` lines are brighter.
 fn grid(major: bool) -> Color32 {
     if major {
-        theme::GRID_DOT_MAJOR
+        theme::grid_dot_major()
     } else {
-        theme::SCOPE_GRID
+        theme::scope_grid()
     }
 }
 

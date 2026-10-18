@@ -51,7 +51,8 @@ fn entry_labeled(
 ) {
     let mut b = egui::Button::new(format!("{icon}  {label}"));
     if let Some(sc) = action.shortcut() {
-        b = b.shortcut_text(RichText::new(ui.ctx().format_shortcut(&sc)).color(theme::TEXT_MUTED));
+        b = b
+            .shortcut_text(RichText::new(ui.ctx().format_shortcut(&sc)).color(theme::text_muted()));
     }
     if ui.add_enabled(enabled, b).clicked() {
         out.push(MenuCommand::Run(action));
@@ -79,7 +80,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 format!("{}  Open Recent", icons::CLOCK_COUNTER_CLOCKWISE),
                 |ui| {
                     if s.recent.entries.is_empty() {
-                        ui.label(RichText::new("No recent projects").color(theme::TEXT_MUTED));
+                        ui.label(RichText::new("No recent projects").color(theme::text_muted()));
                     }
                     for p in &s.recent.entries {
                         let exists = p.is_file();
@@ -233,7 +234,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             ui.label(
                 RichText::new("Reroute: Shift+right-drag across a wire")
                     .small()
-                    .color(theme::TEXT_FAINT),
+                    .color(theme::text_faint()),
             );
         });
         ui.menu_button("Transport", |ui| {
