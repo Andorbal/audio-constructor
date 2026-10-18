@@ -8,7 +8,10 @@
 //! wire, grouping a selection that touches the interface); [`edit_scope`]
 //! converts the virtual wires back into the definition's interface after.
 
+pub mod align;
+pub mod connect;
 pub mod group;
+pub mod layout;
 pub mod pins;
 
 use std::collections::{BTreeMap, BTreeSet};
