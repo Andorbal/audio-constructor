@@ -15,6 +15,7 @@ pub mod menubar;
 pub mod palette;
 pub mod panels;
 pub mod params;
+pub mod perform;
 pub mod theme;
 pub mod transport;
 pub mod undo;

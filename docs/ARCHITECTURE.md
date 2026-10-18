@@ -101,7 +101,8 @@ Defined in `ac-core`.
 Project
   ├── settings: sample_rate, length, seed, tempo_map, ...
   ├── graph: Graph                      # the root graph
-  └── group_defs: Map<GroupId, GroupDef> # embedded group definitions
+  ├── group_defs: Map<GroupId, GroupDef> # embedded group definitions
+  └── panels: Vec<Panel>                # performance panels: pins to root-graph nodes (views only)
 
 Graph
   ├── nodes: Map<NodeId, NodeInstance>

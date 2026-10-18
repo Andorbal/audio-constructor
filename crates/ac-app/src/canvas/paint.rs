@@ -7,7 +7,8 @@ use egui::{
     Align2, Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2,
 };
 
-use super::live::{Live, MeterChannel, source_path};
+use super::controls;
+use super::live::{Live, source_path};
 use super::scene::{Body, Class, NodeView, Scene, SocketView};
 use super::view::Transform;
 use super::wires::{self, WireLook};
@@ -736,7 +737,7 @@ impl Canvas {
         let Some(node) = node else { return };
         let f = t.rect_to_screen(field_rect(s));
         let field_hovered = matches!(hover, Hit::Field { node, socket } | Hit::Fire { node, socket } if *node == n.id && *socket == s.name);
-        let active = matches!(&self.gesture, Gesture::DragValue { node, socket, .. } if *node == n.id && *socket == s.name)
+        let active = self.controls.dragging(n.id, Some(&s.name))
             || matches!(&self.edit, Some(e) if matches!(&e.target, super::EditTarget::Param { node, socket, .. } if *node == n.id && *socket == s.name));
         let state = widgets::State {
             hovered: field_hovered,
@@ -792,6 +793,7 @@ impl Canvas {
         }
     }
 
+    /// A widget body, drawn by the code the panels share.
     #[allow(clippy::too_many_arguments)]
     fn paint_body(
         &mut self,
@@ -806,295 +808,29 @@ impl Canvas {
         now: f64,
         dt: f32,
     ) {
-        let z = self.view.zoom;
-        let hovered = matches!(hover, Hit::Body { node } if *node == n.id);
-        let path = live.path(n.id);
-        match body {
-            Body::Button => {
-                let down = self.held_inputs(n.id).iter().any(|s| s == "pressed")
-                    || live
-                        .tele
-                        .socket_value(&path, "gate")
-                        .is_some_and(|v| v > 0.5);
-                super::bodies::button(painter, rect, z, down, hovered, alpha);
-            }
-            Body::Toggle => {
-                let on = live
-                    .tele
-                    .socket_value(&path, "out")
-                    .map(|v| v > 0.5)
-                    .or_else(|| {
-                        io.doc
-                            .graph()
-                            .node(n.id)
-                            .and_then(|x| x.params.get("value"))
-                            .and_then(|v| v.as_bool())
-                    })
-                    .unwrap_or(false);
-                super::bodies::toggle(painter, rect, z, on, hovered, alpha);
-            }
-            Body::Slider => {
-                let spec = n.socket("value", true).and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
-                if let (Some(spec), Some(node)) = (spec, node) {
-                    let wired = n.socket("value", true).is_some_and(|s| s.wired);
-                    let v = if wired {
-                        live.tele.socket_value(&path, "out").map_or(0.0, f64::from)
-                    } else {
-                        widgets::number(node, &spec)
-                    };
-                    let active =
-                        matches!(&self.gesture, Gesture::DragValue { node, .. } if *node == n.id);
-                    super::bodies::slider(
-                        painter,
-                        rect,
-                        z,
-                        widgets::normalized(v, &spec).unwrap_or(0.0),
-                        &widgets::format(v, &spec),
-                        hovered,
-                        active,
-                        alpha,
-                    );
-                }
-            }
-            Body::Knob => {
-                let input = n.socket("value", true);
-                let spec = input.and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
-                if let (Some(spec), Some(node)) = (spec, node) {
-                    let wired = input.is_some_and(|s| s.wired);
-                    let v = if wired {
-                        live.tele.socket_value(&path, "out").map_or(0.0, f64::from)
-                    } else {
-                        widgets::number(node, &spec)
-                    };
-                    let active =
-                        matches!(&self.gesture, Gesture::DragValue { node, .. } if *node == n.id);
-                    super::bodies::knob(
-                        painter,
-                        rect,
-                        z,
-                        widgets::normalized(v, &spec).unwrap_or(0.0),
-                        widgets::zero_point(&spec),
-                        &widgets::format(v, &spec),
-                        hovered,
-                        active,
-                        alpha,
-                    );
-                }
-            }
-            Body::XyPad => {
-                let node = io.doc.graph().node(n.id);
-                // Each axis from its input, or the live output when wired.
-                let axis = |name: &str| -> f32 {
-                    let Some(s) = n.socket(name, true) else {
-                        return 0.5;
-                    };
-                    let Some(spec) = &s.spec else { return 0.5 };
-                    let v = if s.wired {
-                        live.tele.socket_value(&path, name).map(f64::from)
-                    } else {
-                        node.map(|x| widgets::number(x, spec))
-                    };
-                    v.and_then(|v| widgets::normalized(v, spec)).unwrap_or(0.5)
-                };
-                let pos = (axis("x"), axis("y"));
-                let touched = self.held_inputs(n.id).iter().any(|s| s == "touched")
-                    || live
-                        .tele
-                        .socket_value(&path, "gate")
-                        .is_some_and(|v| v > 0.5);
-                super::bodies::xy_pad(painter, rect, z, pos, touched, hovered, alpha);
-            }
-            Body::Keyboard => {
-                if let Some(node) = io.doc.graph().node(n.id) {
-                    let (low, count) = super::piano::layout(io.registry, node);
-                    let keys = super::piano::keys(low, count, rect);
-                    // Keys played here, and keys a project holds down.
-                    let latched = node
-                        .params
-                        .iter()
-                        .filter(|(_, v)| v.as_bool() == Some(true))
-                        .map(|(s, _)| s.clone());
-                    let held: Vec<usize> = self
-                        .held_inputs(n.id)
-                        .into_iter()
-                        .chain(latched)
-                        .filter_map(|s| super::piano::key_index(&s))
-                        .collect();
-                    let over = match (hovered, self.pointer) {
-                        (true, Some(p)) => super::piano::key_at(&keys, p),
-                        _ => None,
-                    };
-                    // Name the keys for the octave they play in.
-                    let octave = n
-                        .socket("octave", true)
-                        .filter(|s| !s.wired)
-                        .and_then(|s| s.spec.as_ref())
-                        .map_or(0, |spec| widgets::number(node, spec).round() as i32)
-                        .clamp(-3, 3);
-                    super::bodies::keyboard(painter, z, &keys, &held, over, 12 * octave, alpha);
-                }
-            }
-            Body::Number => {
-                let input = n.socket("value", true);
-                let spec = input.and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
-                if let (Some(spec), Some(node)) = (spec, node) {
-                    let wired = input.is_some_and(|s| s.wired);
-                    let editing = matches!(&self.edit, Some(e) if matches!(&e.target, super::EditTarget::Param { node, socket, .. } if *node == n.id && socket == "value"));
-                    let active = editing
-                        || matches!(&self.gesture, Gesture::DragValue { node, .. } if *node == n.id);
-                    let text = if editing {
-                        String::new()
-                    } else if wired {
-                        live.tele
-                            .socket_value(&path, "out")
-                            .map_or("–".into(), |v| {
-                                widgets::live_text(v, spec.ty, Some(&spec))
-                            })
-                    } else {
-                        widgets::format(widgets::bounded_number(node, &spec), &spec)
-                    };
-                    super::bodies::number(
-                        painter,
-                        rect,
-                        z,
-                        &text,
-                        hovered && !wired,
-                        active,
-                        alpha,
-                    );
-                }
-            }
-            Body::Dropdown => {
-                if let Some(node) = io.doc.graph().node(n.id) {
-                    let labels = ac_nodes::controls::dropdown::choices(&node.config);
-                    let input = n.socket("value", true);
-                    let wired = input.is_some_and(|s| s.wired);
-                    let index = if wired {
-                        live.tele
-                            .socket_value(&path, "out")
-                            .map_or(0, |v| v.round() as i64)
-                    } else {
-                        input
-                            .and_then(|s| s.spec.as_ref())
-                            .map_or(0.0, |spec| widgets::number(node, spec))
-                            .round() as i64
-                    };
-                    let label = labels
-                        .get(index.min(labels.len() as i64 - 1).max(0) as usize)
-                        .map_or("", |s| s.as_str());
-                    let open = matches!(&self.choice, Some((node, socket, _)) if *node == n.id && socket == "value");
-                    super::bodies::dropdown(
-                        painter,
-                        rect,
-                        z,
-                        label,
-                        hovered && !wired,
-                        open,
-                        alpha,
-                    );
-                }
-            }
-            Body::Meter => {
-                let r = |k| live.node_value(n.id, k).unwrap_or(0.0);
-                let ch = self
-                    .live
-                    .meter(&path, [(r(0), r(1)), (r(2), r(3))], now, dt);
-                super::bodies::meter(painter, rect, z, ch, alpha);
-            }
-            Body::Scope => {
-                let ring = live.scope(n.id);
-                let trig = live.node_value(n.id, 0).filter(|v| *v >= 0.0);
-                let start = match (trig, live.tele.scope_position(&path), ring.as_ref()) {
-                    (Some(tp), Some(wp), Some(r)) if !r.is_empty() => {
-                        let len = r.len();
-                        Some((tp as usize + len - wp % len) % len)
-                    }
-                    _ => None,
-                };
-                if super::bodies::scope(painter, rect, z, ring.as_deref(), start, alpha) {
-                    self.live.active = true;
-                }
-            }
-            Body::Analyzer => {
-                let bands: Vec<f32> = (0..ac_nodes::display::analyzer::TELEMETRY_BANDS)
-                    .map(|k| live.node_value(n.id, k).unwrap_or(f32::NEG_INFINITY))
-                    .collect();
-                let rate = io.engine.options().sample_rate;
-                if super::bodies::analyzer(painter, rect, z, &bands, rate, alpha) {
-                    self.live.active = true;
-                }
-            }
-            Body::Readout => {
-                let text = match live.node_value(n.id, 0) {
-                    Some(v) if v.is_nan() => "NaN".to_string(),
-                    Some(v) if v.is_infinite() => {
-                        if v > 0.0 {
-                            "∞".into()
-                        } else {
-                            "-∞".into()
-                        }
-                    }
-                    Some(v) => {
-                        let s = format!("{v:.4}");
-                        let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-                        if s == "-0" { "0".into() } else { s }
-                    }
-                    None => "–".into(),
-                };
-                super::bodies::readout(painter, rect, z, &text, alpha);
-            }
-            Body::Clip => {
-                let file = io
-                    .doc
-                    .graph()
-                    .node(n.id)
-                    .map(|x| x.config.get_str_or("file", "").to_string())
-                    .unwrap_or_default();
-                let missing = !file.is_empty()
-                    && (io.missing_assets.contains(&file)
-                        || live.node_value(n.id, 0).is_some_and(|v| v >= 0.5));
-                super::bodies::clip(painter, rect, z, &file, missing, hovered, alpha);
-            }
-            Body::Record => {
-                let rec = live.node_value(n.id, 0).unwrap_or(0.0) > 0.5;
-                if rec {
-                    self.live.active = true;
-                }
-                if io.can_record {
-                    super::bodies::record(
-                        painter,
-                        rect,
-                        z,
-                        rec,
-                        live.node_value(n.id, 1).unwrap_or(0.0),
-                        live.node_value(n.id, 2).unwrap_or(0.0),
-                        now,
-                        alpha,
-                    );
-                } else {
-                    super::bodies::readout(painter, rect, z, "", alpha);
-                    if z >= 0.4 {
-                        painter.text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            "save the project to record",
-                            theme::canvas_font(theme::FONT_SMALL, z, false),
-                            theme::fade(theme::TEXT_MUTED, alpha),
-                        );
-                    }
-                }
-            }
-            Body::AudioOut => {
-                let r = |k| live.node_value(n.id, k).unwrap_or(0.0);
-                let ch: [MeterChannel; 2] =
-                    self.live
-                        .meter(&path, [(r(0), r(0)), (r(1), r(1))], now, dt);
-                super::bodies::audio_out(painter, rect, z, ch, alpha);
-            }
-        }
+        let editing = matches!(&self.edit, Some(e) if matches!(&e.target, super::EditTarget::Param { node, socket, .. } if *node == n.id && socket == "value"));
+        let look = controls::Look {
+            zoom: self.view.zoom,
+            alpha,
+            hovered: matches!(hover, Hit::Body { node } if *node == n.id),
+            pointer: self.pointer,
+            held: self.held_inputs(n.id),
+            dragging: self.controls.dragging(n.id, None),
+            editing,
+            choice_open: matches!(&self.choice, Some((node, socket, _)) if *node == n.id && socket == "value"),
+        };
+        controls::paint(
+            painter,
+            io,
+            live,
+            &mut self.live,
+            n,
+            body,
+            rect,
+            &look,
+            now,
+            dt,
+        );
     }
 
     /// Header badges for a node: errors, warnings, muted, missing, files.
@@ -1186,6 +922,19 @@ impl Canvas {
                     "Adds {samples} samples ({ms:.1} ms) of latency; parallel paths are delayed to match."
                 ),
             });
+        }
+        if io.doc.scope.is_empty() {
+            let on = crate::edit::pins::panels_of(&io.doc.project.panels, n.id);
+            if !on.is_empty() {
+                out.push(Badge {
+                    icon: icons::PUSH_PIN,
+                    color: theme::ACCENT,
+                    tip: format!(
+                        "Pinned to {}. Ctrl+Tab shows the panels; right-click to unpin.",
+                        on.join(", ")
+                    ),
+                });
+            }
         }
         if n.muted {
             out.push(Badge {
