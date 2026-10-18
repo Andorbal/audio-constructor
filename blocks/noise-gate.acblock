@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "name": "Noise Gate",
+  "description": "Silences the signal between notes: while the level stays under `threshold` the gate is closed and turns the signal down by `range`; when it rises above, the gate opens and lets it through untouched. Cleans up hiss, hum, and spill from other instruments between phrases. Mono or stereo.\n\n- `threshold` (dB): the level that opens the gate. It closes again 6 dB lower, so a level hovering at the threshold doesn't make it chatter.\n- `range` (dB): how far a closed gate turns down; 60 is silence, smaller values just push the noise back.\n- `attack` (seconds): how quickly the gate opens. Keep it short so the start of each note isn't lost.\n- `release` (seconds): how quickly it closes once the level falls. Longer releases let notes ring out naturally.\n\nInside: an Envelope Follower (instant attack, 10 ms release) measures the peak level in decibels, and a Compare with 6 dB of hysteresis decides whether the gate is open. A Switch picks the gain, 1 when open or the `range` turned into a linear gain when closed, and a Smooth glides between the two with the attack and release times. Smoothing the linear gain, not the decibels, makes the gate close with a natural exponential fade. A Convert turns the gain back into decibels for the Gain.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "dynamics",
+    "gate",
+    "cleanup",
+    "mixing"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "1:in",
+        "8:in"
+      ]
+    },
+    {
+      "name": "threshold",
+      "type": "float",
+      "unit": "db",
+      "default": -40.0,
+      "range": [
+        -80.0,
+        0.0
+      ],
+      "targets": [
+        "2:b"
+      ]
+    },
+    {
+      "name": "range",
+      "type": "float",
+      "unit": "db",
+      "default": 60.0,
+      "range": [
+        0.0,
+        60.0
+      ],
+      "targets": [
+        "3:in"
+      ]
+    },
+    {
+      "name": "attack",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.001,
+      "range": [
+        0.0,
+        0.1
+      ],
+      "targets": [
+        "6:rise"
+      ]
+    },
+    {
+      "name": "release",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.1,
+      "range": [
+        0.0,
+        2.0
+      ],
+      "targets": [
+        "6:fall"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "8:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "envelope_follower",
+        "params": {
+          "attack": 0.0,
+          "mode": "peak",
+          "release": 0.01
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Detector"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "compare",
+        "params": {
+          "hysteresis": 6.0,
+          "op": "greater"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            0.0
+          ],
+          "label": "Open?"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "unary",
+        "params": {
+          "op": "negate"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "convert",
+        "params": {
+          "op": "db_to_gain"
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            160.0
+          ],
+          "label": "Closed gain"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "switch",
+        "config": {
+          "type": "float"
+        },
+        "params": {
+          "b": 1.0
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "smooth",
+        "params": {
+          "mode": "exponential"
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "convert",
+        "params": {
+          "op": "gain_to_db"
+        },
+        "ui": {
+          "pos": [
+            880.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            1100.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:level_db",
+        "to": "2:a"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "2:out",
+        "to": "5:select"
+      },
+      {
+        "from": "4:out",
+        "to": "5:a"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "8:gain"
+      }
+    ]
+  }
+}
