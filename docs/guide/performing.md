@@ -97,10 +97,13 @@ A **Keyboard In** node brings the keys into the patch:
 - Its `midi` output plays the middle row of letters like a piano: `A S D
   F G H J K L ; '` are the white keys from C up, and `W E T Y U O P` the
   black keys between them. `Z` and `X` shift down and up an octave (up to
-  three each way). The lowest key plays the `low` setting, middle C (60)
-  by default, at the `velocity` input.
-- Its `keys` setting lists other keys to bring in by name (default `1, 2,
-  3, 4`). Each gets a gate output (`key_1`, high while held) and a press
+  three each way). The `A` key plays the note set in the Node tab's
+  **Settings** (**Note of the A key**: middle C, 60, by default), at the
+  `velocity` input.
+- **Keys** in its Settings lists other keys to bring in by name,
+  separated by commas (default `1, 2, 3, 4`; names such as `Space`,
+  `Enter`, `Up`, and `F1` work too). Each gets a gate output (`key_1`,
+  high while held) and a press
   trigger (`key_1_press`): fire samples, toggle effects, or step through a
   pattern.
 
@@ -132,8 +135,8 @@ Plug a game controller in at any time. The Devices tab's **Gamepads**
 section lists the connected ones by number: each takes the lowest free
 number (from 1) when it connects, and keeps it while it stays connected.
 
-A **Gamepad** node brings one in. Its `pad` setting picks which (1 is the
-first). Every button is a gate (`south`, `east`, `west`, `north` for the
+A **Gamepad** node brings one in. Its **Gamepad** setting (Node tab,
+Settings) picks which: 1 is the first. Every button is a gate (`south`, `east`, `west`, `north` for the
 four face buttons, then the bumpers, triggers, `select`, `start`, the
 stick presses, and the D-pad) plus a `_press` trigger. The sticks
 (`left_x`, `left_y`, `right_x`, `right_y`) run from −1 to 1, and the analog
@@ -159,15 +162,16 @@ the network from faders, buttons, and pads you lay out yourself.
    send to. The phone and the computer must be on the same network.
 3. Move a control on the phone. The Devices tab counts the messages that
    arrive.
-4. Add an **OSC In** node and set its `address` to the address the
-   control sends, exactly as the app writes it (for example `/fader/1`).
-   `value` holds the last number received and `received` fires on each
-   message. A control that sends several numbers (an XY pad) needs `args`
-   set to 2 or more, for `value_2` and so on.
+4. Add an **OSC In** node and, in its Settings, set **Address** to the
+   address the control sends, exactly as the app writes it (for example
+   `/fader/1`). `value` holds the last number received and `received`
+   fires on each message. A control that sends several numbers (an XY
+   pad) needs **Numbers per message** set to 2 or more, for `value_2` and
+   so on.
 
 **OSC Out** sends values the other way, to move faders on the phone or
-drive other software. Set its `host` (the phone's address), `port`, and
-`address` in its Settings.
+drive other software. In its Settings, set **Send to** (the phone's IP
+address), **Port**, and **Address**.
 
 OSC listening is off each time the editor starts, until you turn it on;
 it isn't saved with the project. From the command line,
@@ -225,7 +229,7 @@ them too. Inside a group, a binding belongs to the one copy of the group
 you went into, not to every copy.
 
 To learn an OSC address, the project must already mention it, in an OSC
-In node's `address` or another OSC binding. Add the OSC In node first,
+In node's **Address** or another OSC binding. Add the OSC In node first,
 then learn.
 
 ### Transport buttons

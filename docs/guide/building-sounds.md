@@ -247,8 +247,8 @@ Spectral nodes work on a sound's frequencies instead of its samples.
   or down for metallic and shimmering sounds. Give the IFFT the same
   `window` setting as the FFT.
 - **Band Split** splits a sound into frequency bands that add back up to
-  the original, one output per band, for multiband processing. Set the
-  band edges in its Settings or its band editor in the Node tab.
+  the original, one output per band, for multiband processing. Drag,
+  split, and merge the bands in its band editor in the Node tab.
 - **Pitch Detect** follows the pitch of a single note (a voice, a guitar)
   and puts it out as a frequency, a note number, how confident it is, and
   a trigger on each new note. The **Guitar-to-Synth** example uses it.

@@ -13,8 +13,9 @@ look there first.
    device in use. "no device (null)" means none could be opened; the
    Devices tab says why. Pick a device there and click **Apply**.
 3. **Is it the right output?** Check **Output** in the Devices tab. An
-   Audio Out node's `channel` setting picks the first output it plays on;
-   outputs your device doesn't have are skipped.
+   Audio Out node's **First output** setting (Node tab, counting from 0)
+   picks the output it starts on; outputs your device doesn't have are
+   skipped.
 4. **Does anything reach Audio Out?** Its meter, and the master meter in
    the transport bar, show the level. Follow the chain back with Meter
    nodes, or hover the sockets: an audio socket's tooltip says "silent" or
@@ -104,8 +105,7 @@ Gamepads are read from the system's input devices
 - `audioc run` listens to gamepads too (unless `--no-gamepad`) and prints
   when one connects.
 
-Remember that a Gamepad node's `pad` setting counts from 1, the number the
-Devices tab shows.
+A Gamepad node's **Gamepad** setting counts from 1, like the Devices tab.
 
 ## OSC messages don't arrive
 
@@ -116,7 +116,7 @@ Devices tab shows.
   computer may block the port.
 - The Devices tab counts messages that arrive ("12 messages"), and how
   many weren't OSC at all. If the count goes up but nothing happens, the
-  OSC In node's `address` doesn't match exactly: addresses are compared
+  OSC In node's **Address** doesn't match exactly: addresses are compared
   letter for letter, with no wildcards.
 
 ## A node says "disabled"
