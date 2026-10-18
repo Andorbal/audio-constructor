@@ -1,0 +1,579 @@
+{
+  "schema_version": 1,
+  "name": "Block: FM Operator Pair",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_in",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "voices",
+        "config": {
+          "def": "fm-operator-pair",
+          "voices": 4,
+          "steal": "oldest"
+        },
+        "params": {
+          "index": 4.0,
+          "mod_decay": 0.3,
+          "mod_sustain": 0.1,
+          "ratio": 3.5
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            0.0
+          ],
+          "label": "FM Operator Pair"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "gain",
+        "params": {
+          "gain": -3.0
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            750.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "fm-operator-pair": {
+      "name": "FM Operator Pair",
+      "description": "Two-operator FM synthesis: a modulator sine bends the phase of a carrier sine, adding sidebands that brighten the tone the harder it pushes, from a pure sine through mellow and brassy to bell-like and clangorous. It is a Voices body: tick **Polyphonic** in its node's side panel (or add it as a polyphonic block) and wire MIDI into `midi` to play it.\n\n- `ratio` is the modulator's frequency as a multiple of the note's. Whole numbers (1, 2, 3) give harmonic tones; others (1.41, 3.5) give metallic, bell-like ones.\n- `index` is how hard the modulator pushes, in radians of phase: 0 is a pure sine, 1 to 3 warm to bright, 5 and up harsh. Each sideband's level follows the Bessel functions of the index, as in any FM synth.\n- `mod_attack`, `mod_decay`, and `mod_release` (seconds) and `mod_sustain` (0 to 1) shape the index over each note: the modulator's envelope. A fast decay to a low sustain makes notes start bright and mellow out, like a struck or plucked sound; a slow attack makes them bloom.\n- `attack`, `decay`, `release`, and `sustain` shape the volume: the carrier's envelope.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. The modulator Oscillator runs at the frequency times `ratio`. `index` divided by 2π (radians to cycles), times the modulator's ADSR, sets how far its output swings, and that goes into the carrier Oscillator's `phase` input. This is phase modulation, which gives the same spectrum as frequency modulation but keeps the pitch steady however deep it goes. The carrier, at the note's frequency, passes through a VCA (a Math multiply) driven by its own ADSR times velocity, then a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "fm",
+        "polyphonic",
+        "bell"
+      ],
+      "source": "shipped:fm-operator-pair",
+      "inputs": [
+        {
+          "name": "ratio",
+          "type": "float",
+          "unit": "ratio",
+          "default": 1.0,
+          "range": [
+            0.25,
+            16.0
+          ],
+          "targets": [
+            "2:b"
+          ]
+        },
+        {
+          "name": "index",
+          "type": "float",
+          "default": 2.5,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "9:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 1.0,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "9:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.6,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "9:release"
+          ]
+        },
+        {
+          "name": "mod_attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "5:attack"
+          ]
+        },
+        {
+          "name": "mod_decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.5,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "5:decay"
+          ]
+        },
+        {
+          "name": "mod_sustain",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "5:sustain"
+          ]
+        },
+        {
+          "name": "mod_release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "5:release"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "c:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "c:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Modulator pitch"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "math",
+            "params": {
+              "b": 0.15915494309189537,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                160.0
+              ],
+              "label": "Index in cycles"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Modulator"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                340.0
+              ],
+              "label": "Modulator envelope"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                340.0
+              ],
+              "label": "Depth"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Phase modulation"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ],
+              "label": "Carrier"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                340.0
+              ],
+              "label": "Carrier envelope"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                340.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:freq",
+            "to": "2:a"
+          },
+          {
+            "from": "2:out",
+            "to": "4:freq"
+          },
+          {
+            "from": "1:gate",
+            "to": "5:gate"
+          },
+          {
+            "from": "3:out",
+            "to": "6:a"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "4:out",
+            "to": "7:a"
+          },
+          {
+            "from": "6:out",
+            "to": "7:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "8:freq"
+          },
+          {
+            "from": "7:out",
+            "to": "8:phase"
+          },
+          {
+            "from": "1:gate",
+            "to": "9:gate"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "a:b"
+          },
+          {
+            "from": "8:out",
+            "to": "b:a"
+          },
+          {
+            "from": "a:out",
+            "to": "b:b"
+          },
+          {
+            "from": "b:out",
+            "to": "c:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Modulator",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              678.0
+            ]
+          },
+          {
+            "label": "Carrier",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              678.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true,
+    "midi": [
+      [
+        0,
+        [
+          144,
+          60,
+          70
+        ]
+      ],
+      [
+        14400,
+        [
+          144,
+          64,
+          85
+        ]
+      ],
+      [
+        28800,
+        [
+          144,
+          67,
+          100
+        ]
+      ],
+      [
+        43200,
+        [
+          144,
+          72,
+          115
+        ]
+      ],
+      [
+        57600,
+        [
+          128,
+          60,
+          0
+        ]
+      ],
+      [
+        57600,
+        [
+          128,
+          64,
+          0
+        ]
+      ],
+      [
+        57600,
+        [
+          128,
+          67,
+          0
+        ]
+      ],
+      [
+        57600,
+        [
+          128,
+          72,
+          0
+        ]
+      ]
+    ]
+  }
+}

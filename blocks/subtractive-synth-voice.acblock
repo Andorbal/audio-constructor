@@ -1,0 +1,476 @@
+{
+  "schema_version": 1,
+  "name": "Subtractive Synth Voice",
+  "description": "One voice of a classic subtractive synth: two detuned sawtooth oscillators, a resonant ladder filter swept by an envelope, and the same envelope on the volume. It is a Voices body: tick **Polyphonic** in its node's side panel (or add it as a polyphonic block) and wire MIDI into `midi` for a polyphonic synth that plays chords, pads, leads, and basses.\n\n- `cutoff` (Hz) is where the filter sits while the envelope is at rest; `resonance` (0 to 1) adds a peak there, and near 1 the filter starts to whistle.\n- `env_amount` (octaves) is how far the envelope opens the filter above `cutoff` at its peak: 3 means three octaves (eight times the frequency). Negative values close the filter instead.\n- `attack`, `decay`, and `release` (seconds) and `sustain` (0 to 1) shape the envelope. It sweeps the filter and sets the volume at once, so a short decay with a low sustain makes a pluck, and a slow attack makes a pad.\n- `detune` (cents) pulls the two oscillators apart, one up and one down by half of it, for a thicker, beating sound; 0 makes them one.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. Half of `detune`, in semitones, becomes a frequency ratio (Convert) that divides one Oscillator's frequency and multiplies the other's. A Mix adds the two saws at −9 dB each, and a 24 dB per octave Ladder filters them. An ADSR follows the gate: multiplied by `env_amount` it is an offset in octaves, 2 raised to it multiplies `cutoff`, and the envelope times velocity drives the VCA, a Math multiply on the filtered sound, followed by a Gain for `level`.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "synth",
+    "instrument",
+    "subtractive",
+    "polyphonic",
+    "filter"
+  ],
+  "inputs": [
+    {
+      "name": "cutoff",
+      "type": "float",
+      "unit": "hz",
+      "default": 500.0,
+      "range": [
+        20.0,
+        20000.0
+      ],
+      "targets": [
+        "f:a"
+      ]
+    },
+    {
+      "name": "resonance",
+      "type": "float",
+      "default": 0.3,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "9:resonance"
+      ]
+    },
+    {
+      "name": "env_amount",
+      "type": "float",
+      "default": 3.0,
+      "range": [
+        -4.0,
+        8.0
+      ],
+      "targets": [
+        "d:b"
+      ]
+    },
+    {
+      "name": "attack",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.005,
+      "range": [
+        0.0,
+        10.0
+      ],
+      "targets": [
+        "c:attack"
+      ]
+    },
+    {
+      "name": "decay",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.4,
+      "range": [
+        0.0,
+        10.0
+      ],
+      "targets": [
+        "c:decay"
+      ]
+    },
+    {
+      "name": "sustain",
+      "type": "float",
+      "default": 0.5,
+      "range": [
+        0.0,
+        1.0
+      ],
+      "targets": [
+        "c:sustain"
+      ]
+    },
+    {
+      "name": "release",
+      "type": "float",
+      "unit": "seconds",
+      "default": 0.3,
+      "range": [
+        0.0,
+        20.0
+      ],
+      "targets": [
+        "c:release"
+      ]
+    },
+    {
+      "name": "detune",
+      "type": "float",
+      "default": 12.0,
+      "range": [
+        0.0,
+        100.0
+      ],
+      "targets": [
+        "2:a"
+      ]
+    },
+    {
+      "name": "level",
+      "type": "float",
+      "unit": "db",
+      "default": 0.0,
+      "range": [
+        -60.0,
+        12.0
+      ],
+      "targets": [
+        "b:gain"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "b:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "voice",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 0.005,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            0.0
+          ],
+          "label": "Half the detune (st)"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "convert",
+        "params": {
+          "op": "semitones_to_ratio"
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            140.0
+          ],
+          "label": "Detune ratio"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "op": "divide"
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            0.0
+          ],
+          "label": "Lower pitch"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            140.0
+          ],
+          "label": "Upper pitch"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load",
+          "stop": "never"
+        },
+        "ui": {
+          "pos": [
+            750.0,
+            0.0
+          ],
+          "label": "Saw A"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load",
+          "stop": "never"
+        },
+        "ui": {
+          "pos": [
+            750.0,
+            320.0
+          ],
+          "label": "Saw B"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -9.0,
+          "gain_1": -9.0
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "ladder",
+        "params": {
+          "drive": 0.0,
+          "mode": "lp24"
+        },
+        "ui": {
+          "pos": [
+            1250.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            0.0
+          ],
+          "label": "VCA"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            1750.0,
+            0.0
+          ],
+          "label": "Level"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "adsr",
+        "params": {
+          "curve": "exponential"
+        },
+        "ui": {
+          "pos": [
+            250.0,
+            680.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            500.0,
+            680.0
+          ],
+          "label": "Octaves above cutoff"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "math",
+        "params": {
+          "a": 2.0,
+          "op": "power"
+        },
+        "ui": {
+          "pos": [
+            750.0,
+            680.0
+          ],
+          "label": "2^octaves"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            680.0
+          ],
+          "label": "Filter cutoff"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1250.0,
+            840.0
+          ],
+          "label": "Volume"
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "1:freq",
+        "to": "4:a"
+      },
+      {
+        "from": "3:out",
+        "to": "4:b"
+      },
+      {
+        "from": "1:freq",
+        "to": "5:a"
+      },
+      {
+        "from": "3:out",
+        "to": "5:b"
+      },
+      {
+        "from": "4:out",
+        "to": "6:freq"
+      },
+      {
+        "from": "5:out",
+        "to": "7:freq"
+      },
+      {
+        "from": "6:out",
+        "to": "8:in_0"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in_1"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:out",
+        "to": "a:a"
+      },
+      {
+        "from": "1:gate",
+        "to": "c:gate"
+      },
+      {
+        "from": "c:out",
+        "to": "d:a"
+      },
+      {
+        "from": "d:out",
+        "to": "e:b"
+      },
+      {
+        "from": "e:out",
+        "to": "f:b"
+      },
+      {
+        "from": "f:out",
+        "to": "9:cutoff"
+      },
+      {
+        "from": "c:out",
+        "to": "10:a"
+      },
+      {
+        "from": "1:velocity",
+        "to": "10:b"
+      },
+      {
+        "from": "10:out",
+        "to": "a:b"
+      },
+      {
+        "from": "a:out",
+        "to": "b:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Two detuned saws",
+        "rect": [
+          226.0,
+          -40.0,
+          994.0,
+          680.0
+        ]
+      },
+      {
+        "label": "Filter and VCA",
+        "rect": [
+          1226.0,
+          -40.0,
+          744.0,
+          228.0
+        ]
+      },
+      {
+        "label": "Envelope: filter sweep and volume",
+        "rect": [
+          226.0,
+          640.0,
+          1244.0,
+          344.0
+        ]
+      }
+    ]
+  }
+}
