@@ -484,7 +484,8 @@ like the computer keyboard, pushes into the same per-source rings, and one
 - Device callback threads ask the OS for real-time priority; a refusal is
   reported, not fatal.
 - MIDI via midir, hot-plug aware. Gamepads via gilrs (buttons as `Bool`/
-  `Trigger`, axes as `Float`, with per-axis dead zone and curve in the node).
+  `Trigger`, axes as `Float`, with a dead zone (radial for sticks) and
+  curve in the node).
 - The computer keyboard is a control source like any other: the host feeds
   key events into the same ring as MIDI.
 - A **null host** (no devices, silent, clocked by the caller) exists for

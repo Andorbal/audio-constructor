@@ -83,6 +83,103 @@ that line up sample for sample with the full mix.
 | --- | --- | --- | --- | --- |
 | `in` | Audio | — |  | Signal to write. |
 
+<a id="gamepad"></a>
+## Gamepad
+
+Kind: `gamepad` · live source · Also found by: controller, joystick, joypad, game, stick, buttons, device, input
+
+Brings a game controller into the patch: every button as a gate and
+a press trigger, the sticks and analog triggers as numbers.
+
+The `pad` config picks the controller: 1 is the first one connected,
+2 the second, and so on up to 16. A controller that isn't connected
+reads as at rest: buttons up, sticks centered, triggers released.
+
+Buttons are named by their place on the standard layout: `south`,
+`east`, `west`, and `north` are the four face buttons (bottom, right,
+left, top), then come the bumpers, the triggers pulled past halfway,
+`select`, `start`, `mode` (the center button), the stick presses,
+and the D-pad. Each has a gate that is high while it's held and a
+`_press` trigger; turn on the `releases` config to add a `_release`
+trigger for each as well. An analog button counts as held from
+halfway down until it's back under 40 %, so one resting near the
+middle doesn't chatter.
+
+The sticks (`left_x`, `left_y`, `right_x`, `right_y`) run from −1
+to 1, right and up positive; the analog triggers
+(`left_trigger_axis`, `right_trigger_axis`) from 0 to 1.
+`dead_zone` ignores small movements around rest and rescales the
+rest of the travel, so a stick pushed all the way still reaches 1.
+For a stick it's measured from the center with both axes together,
+so a diagonal push behaves like a straight one. `curve` bends the
+response: 1 is straight, 2 gives finer control near rest, 0.5 makes
+small movements count for more.
+
+Every change lands on the sample it arrived on, and values hold
+until the controller moves again. Restarting the transport doesn't
+forget what the controller is doing: a button held through a
+restart stays held.
+
+Gamepad is a live source: nodes that need their whole input before
+they can play are disabled downstream of it.
+
+**Try this:** wire `left_x` through a `Map` into a filter's `cutoff`
+and `south` into an `ADSR`'s `gate` for a synth you play from the
+couch, or wire `right_trigger_axis` into a `Crossfade`'s `mix` to
+pull in an effect.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `dead_zone` | Float | 0.1 | 0 … 1 | Movement around rest to ignore, 0–1; full travel still reaches 1. |
+| `curve` | Float | 1 | 0.25 … 4 | Response curve: 1 straight, above 1 finer near rest, below 1 touchier. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `left_x` | Float | Left stick, −1 (left) to 1 (right). |
+| `left_y` | Float | Left stick, −1 (down) to 1 (up). |
+| `right_x` | Float | Right stick, −1 (left) to 1 (right). |
+| `right_y` | Float | Right stick, −1 (down) to 1 (up). |
+| `left_trigger_axis` | Float | Left analog trigger, 0 (released) to 1 (pulled). |
+| `right_trigger_axis` | Float | Right analog trigger, 0 (released) to 1 (pulled). |
+| `south` | Bool | Bottom face button (often A), high while held. |
+| `south_press` | Trigger | Fires when the button goes down. |
+| `east` | Bool | Right face button (often B), high while held. |
+| `east_press` | Trigger | Fires when the button goes down. |
+| `west` | Bool | Left face button (often X), high while held. |
+| `west_press` | Trigger | Fires when the button goes down. |
+| `north` | Bool | Top face button (often Y), high while held. |
+| `north_press` | Trigger | Fires when the button goes down. |
+| `left_bumper` | Bool | Left bumper, high while held. |
+| `left_bumper_press` | Trigger | Fires when the button goes down. |
+| `right_bumper` | Bool | Right bumper, high while held. |
+| `right_bumper_press` | Trigger | Fires when the button goes down. |
+| `left_trigger` | Bool | Left trigger, high while pulled past halfway. |
+| `left_trigger_press` | Trigger | Fires when the button goes down. |
+| `right_trigger` | Bool | Right trigger, high while pulled past halfway. |
+| `right_trigger_press` | Trigger | Fires when the button goes down. |
+| `select` | Bool | Select (back), high while held. |
+| `select_press` | Trigger | Fires when the button goes down. |
+| `start` | Bool | Start, high while held. |
+| `start_press` | Trigger | Fires when the button goes down. |
+| `mode` | Bool | The center button, high while held. |
+| `mode_press` | Trigger | Fires when the button goes down. |
+| `left_stick` | Bool | Left stick pressed in, high while held. |
+| `left_stick_press` | Trigger | Fires when the button goes down. |
+| `right_stick` | Bool | Right stick pressed in, high while held. |
+| `right_stick_press` | Trigger | Fires when the button goes down. |
+| `dpad_up` | Bool | D-pad up, high while held. |
+| `dpad_up_press` | Trigger | Fires when the button goes down. |
+| `dpad_down` | Bool | D-pad down, high while held. |
+| `dpad_down_press` | Trigger | Fires when the button goes down. |
+| `dpad_left` | Bool | D-pad left, high while held. |
+| `dpad_left_press` | Trigger | Fires when the button goes down. |
+| `dpad_right` | Bool | D-pad right, high while held. |
+| `dpad_right_press` | Trigger | Fires when the button goes down. |
+
 <a id="midi-in"></a>
 ## MIDI In
 

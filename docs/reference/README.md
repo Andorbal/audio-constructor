@@ -8,6 +8,7 @@ node. Edit the node's source, not these files.
 | [Audio In](io.md#audio-in) | Input / Output | Brings a device input channel, or a pair of them, into the patch. |
 | [Audio Out](io.md#audio-out) | Input / Output | Sends audio to the device outputs. |
 | [File Out](io.md#file-out) | Input / Output | Renders its input to a file of its own when the project is rendered offline. |
+| [Gamepad](io.md#gamepad) | Input / Output | Brings a game controller into the patch: every button as a gate and a press trigger, the sticks and analog triggers as numbers. |
 | [MIDI In](io.md#midi-in) | Input / Output | Brings MIDI from the connected devices into the patch. |
 | [MIDI Out](io.md#midi-out) | Input / Output | Sends MIDI to the connected devices. |
 | [Record](io.md#record) | Input / Output | Writes audio to a file, one take at a time. |

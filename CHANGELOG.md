@@ -13,6 +13,14 @@ fixes and smaller changes.
 
 ## [0.5.0] - 2026-10-18
 
+### Added
+
+- **Gamepad** node: a game controller in the patch. Every button is a gate
+  and a press trigger (release triggers too, if you ask), and the sticks
+  and analog triggers are numbers with an adjustable dead zone and
+  response curve. Each change lands on the exact sample it arrived on,
+  and a button held through a transport restart stays held.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
