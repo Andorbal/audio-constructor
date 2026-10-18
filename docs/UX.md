@@ -24,9 +24,19 @@ patterns; the look is our own.
 
 ## Look
 
-- Own look on every platform, like Blender. Dark theme by default; light
-  theme later. All colors, radii, spacing, and type scale live in one theme
-  module (`ac-app/src/theme.rs`) so the look can be tuned in one place.
+- Own look on every platform, like Blender. Dark theme by default, and a
+  light theme: View ▸ Theme picks **Dark**, **Light**, or **Follow
+  System** (the operating system's light or dark mode, followed while the
+  editor runs), switching at once and remembered in the editor's settings
+  (D107, D109). All colors, radii, spacing, and type scale live in one theme
+  module (`ac-app/src/theme.rs`) so the look can be tuned in one place:
+  each theme is a `Palette` of every color the editor draws with.
+- Readable in both themes: body text has at least 4.5:1 contrast on every
+  panel and card (the WCAG AA level), and signal colors at least 3:1 on the
+  canvas and on cards; tests check both. The light theme keeps the dark
+  theme's hues but deepens them (amber audio becomes a burnt orange, the
+  yellow trigger an olive), and node headers mix the category color into
+  white with dark titles instead of into the card with light ones.
 - Typeface: Inter for UI, JetBrains Mono for values. Icons from a single
   consistent set (Phosphor).
 - Nodes: rounded cards with a category-colored header strip, a subtle shadow,
@@ -43,16 +53,16 @@ patterns; the look is our own.
 
 Shape distinguishes stream from event (and is the colorblind-safe channel).
 
-| Type | Color | Shape |
-| --- | --- | --- |
-| Audio | amber `#F0A030` | circle |
-| Float | sky `#6FB1E6` | circle |
-| Int | green `#5FC88F` | circle |
-| Bool | pink `#E06C9F` | circle |
-| Trigger | yellow `#F2D15C` | diamond |
-| Midi | violet `#A98BF0` | diamond |
-| Spectrum | cyan `#4FD1D9` | square |
-| Buffer | sand `#C8A878` | square |
+| Type | Color (dark) | Light theme | Shape |
+| --- | --- | --- | --- |
+| Audio | amber `#F0A030` | `#C46F00` | circle |
+| Float | sky `#6FB1E6` | `#2B7BC0` | circle |
+| Int | green `#5FC88F` | `#1F8A55` | circle |
+| Bool | pink `#E06C9F` | `#C2407D` | circle |
+| Trigger | yellow `#F2D15C` | `#977C00` | diamond |
+| Midi | violet `#A98BF0` | `#7A55D6` | diamond |
+| Spectrum | cyan `#4FD1D9` | `#138A94` | square |
+| Buffer | sand `#C8A878` | `#9A7444` | square |
 
 Category header colors: I/O red, Generators orange, Level/Dynamics gold,
 Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
@@ -89,7 +99,7 @@ slate.
 | Action | Gesture |
 | --- | --- |
 | Pan | middle-drag, space+drag, two-finger scroll |
-| Zoom | wheel, pinch, `Home` to fit all, `.` to fit selection |
+| Zoom | wheel, pinch, `+`/`-`, `Home` to fit all, `.` to fit selection (`Ctrl+=`/`Ctrl+-` scale the whole interface instead; see "Accessibility and scaling") |
 | Select | click, shift-click, box-drag, `A` all, `Alt+A` none, `L` linked |
 | Move | drag selected; `G` grab (Blender style); snaps to grid with Ctrl |
 | Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad) |
@@ -109,7 +119,7 @@ slate.
 | Align / distribute | `Alt+A` menu; **auto-layout selection** `Ctrl+L` (layered, left-to-right) |
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
 | Find | `Ctrl+F` finds nodes by name/type and jumps to them |
-| Help | `F1` on a node opens its reference in the side panel |
+| Help | `F1` on a node opens its reference in the side panel's Help tab (also Node Help in its right-click menu, and the Help button in the Node tab); with nothing selected, the list of every node |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
 
@@ -122,8 +132,8 @@ spaghetti.
 
 A resizable panel (`N` toggles) with tabs:
 
-- **Node**: everything about the selected node: full parameter list, docs,
-  bindings, timing, latency.
+- **Node**: everything about the selected node: full parameter list, docs
+  (with its "Try this" tip highlighted), bindings, timing, latency.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette.
 - **Project**: sample rate, length, tempo map, seed, bindings, assets,
@@ -133,6 +143,21 @@ A resizable panel (`N` toggles) with tabs:
   unless changed and off until turned on; the address to send to; what has
   arrived and what OSC Out nodes sent), and transport buttons.
 - **Problems**: compile errors and disabled nodes, click to jump.
+- **Help**: a node's reference (`F1`, D110): its name and category, what
+  it does, its "Try this" tip in a highlighted box, every socket with its
+  type, unit, default, and range or choices (as the node has them with
+  its default settings), and **Used in**: the blocks in the library
+  (shipped, the person's own, imported) and the shipped example projects
+  that hold the node, inside nested groups too. Clicking a block adds it
+  at the center of the view, like the Library tab; clicking an example
+  opens it as a new, untitled project (after asking about unsaved
+  changes), the way the Start project opens, so saving never overwrites
+  the shipped file. "All nodes" goes back to the list of every node by
+  category; the search field finds nodes by name or synonym, like the
+  palette.
+
+When the panel is too narrow for every tab's name, the tabs not shown keep
+only their icons, named on hover.
 
 ## Transport bar
 
@@ -263,11 +288,22 @@ all honor them (DECISIONS D92).
   working patch and a lesson: "Guitar Pedalboard", "Subtractive Synth",
   "Four Tracks", "Sidechain Pump", "Drum Machine", "Build a Keyboard",
   "Reverse Delay", "Gamepad Jam".
-- Every node's help has "try this" tips and links to blocks that use it.
+- Every node's help has "try this" tips and links to blocks that use it:
+  the Help tab (`F1`) shows the tip highlighted and lists, under **Used
+  in**, the blocks and examples built with the node. Every node's doc
+  comment has its tip as a paragraph starting with `**Try this:**` (a test
+  fails for a node without one).
 
 ## Accessibility and scaling
 
-- UI scale from 75 % to 200 %; everything is vector.
+- UI scale from 75 % to 200 %; everything is vector. View ▸ UI Scale has
+  the steps 75, 90, 100, 110, 125, 150, 175, and 200 %; `Ctrl+=` and
+  `Ctrl+-` go a step up or down and `Ctrl+0` back to 100 %, even while
+  typing or with the panels shown. It is egui's zoom factor, so everything
+  scales, canvas text included; the canvas's own zoom is separate. The
+  scale is remembered in the editor's settings (D108, D109).
+- A light theme (View ▸ Theme) with the same contrast rules as the dark
+  one (see "Look").
 - Socket shapes carry type information in addition to color.
 - All canvas actions have keyboard equivalents; the palette is fully
   keyboard driven.
