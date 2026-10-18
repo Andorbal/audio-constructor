@@ -1,0 +1,753 @@
+{
+  "schema_version": 1,
+  "name": "Gamepad and Keyboard In",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "keyboard_in",
+        "config": {
+          "keys": "Space, 1"
+        },
+        "params": {
+          "velocity": 0.9
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "midi_note",
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.005,
+          "decay": 0.1,
+          "release": 0.08,
+          "sustain": 0.8
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "svf",
+        "params": {
+          "resonance": 0.4
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "gamepad",
+        "params": {
+          "curve": 1.5,
+          "dead_zone": 0.1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 6000.0,
+          "out_min": 300.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "map",
+        "params": {
+          "out_max": 1.0,
+          "out_min": 0.25
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "b",
+        "kind": "oscillator",
+        "params": {
+          "freq": 880.0,
+          "shape": "triangle"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "oscillator",
+        "params": {
+          "freq": 220.0,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "e",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "f",
+        "kind": "trigger_to_gate",
+        "params": {
+          "length": 0.04
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "oscillator",
+        "params": {
+          "freq": 1320.0,
+          "shape": "square"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "mix",
+        "config": {
+          "inputs": 4
+        },
+        "params": {
+          "gain_0": -9.0,
+          "gain_1": -14.0,
+          "gain_2": -14.0,
+          "gain_3": -22.0
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            0.0,
+            600.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:freq",
+        "to": "3:freq"
+      },
+      {
+        "from": "2:gate",
+        "to": "4:gate"
+      },
+      {
+        "from": "3:out",
+        "to": "5:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:b"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "7:left_x",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "6:cutoff"
+      },
+      {
+        "from": "7:right_trigger_axis",
+        "to": "9:in"
+      },
+      {
+        "from": "6:lowpass",
+        "to": "a:a"
+      },
+      {
+        "from": "9:out",
+        "to": "a:b"
+      },
+      {
+        "from": "b:out",
+        "to": "c:a"
+      },
+      {
+        "from": "7:south",
+        "to": "c:b"
+      },
+      {
+        "from": "d:out",
+        "to": "e:a"
+      },
+      {
+        "from": "1:key_space",
+        "to": "e:b"
+      },
+      {
+        "from": "1:key_1_press",
+        "to": "f:in"
+      },
+      {
+        "from": "f:gate",
+        "to": "11:b"
+      },
+      {
+        "from": "10:out",
+        "to": "11:a"
+      },
+      {
+        "from": "a:out",
+        "to": "12:in_0"
+      },
+      {
+        "from": "c:out",
+        "to": "12:in_1"
+      },
+      {
+        "from": "e:out",
+        "to": "12:in_2"
+      },
+      {
+        "from": "11:out",
+        "to": "12:in_3"
+      },
+      {
+        "from": "12:out",
+        "to": "13:in"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 2.0,
+    "block_independent": true,
+    "controls": [
+      [
+        4800,
+        {
+          "key": "A"
+        },
+        1
+      ],
+      [
+        19200,
+        {
+          "key": "A"
+        },
+        0
+      ],
+      [
+        21600,
+        {
+          "key": "X"
+        },
+        1
+      ],
+      [
+        22080,
+        {
+          "key": "X"
+        },
+        0
+      ],
+      [
+        24000,
+        {
+          "key": "H"
+        },
+        1
+      ],
+      [
+        38400,
+        {
+          "key": "H"
+        },
+        0
+      ],
+      [
+        40800,
+        {
+          "key": "W"
+        },
+        1
+      ],
+      [
+        43200,
+        {
+          "key": "D"
+        },
+        1
+      ],
+      [
+        48000,
+        {
+          "key": "W"
+        },
+        0
+      ],
+      [
+        52800,
+        {
+          "key": "D"
+        },
+        0
+      ],
+      [
+        55200,
+        {
+          "key": "Z"
+        },
+        1
+      ],
+      [
+        55680,
+        {
+          "key": "Z"
+        },
+        0
+      ],
+      [
+        57600,
+        {
+          "key": "J"
+        },
+        1
+      ],
+      [
+        62400,
+        {
+          "key": "Z"
+        },
+        1
+      ],
+      [
+        62880,
+        {
+          "key": "Z"
+        },
+        0
+      ],
+      [
+        72000,
+        {
+          "key": "J"
+        },
+        0
+      ],
+      [
+        74400,
+        {
+          "key": "Quote"
+        },
+        1
+      ],
+      [
+        91200,
+        {
+          "key": "Quote"
+        },
+        0
+      ],
+      [
+        14400,
+        {
+          "key": "Space"
+        },
+        1
+      ],
+      [
+        28800,
+        {
+          "key": "Space"
+        },
+        0
+      ],
+      [
+        33600,
+        {
+          "key": "1"
+        },
+        1
+      ],
+      [
+        34560,
+        {
+          "key": "1"
+        },
+        1
+      ],
+      [
+        36000,
+        {
+          "key": "1"
+        },
+        0
+      ],
+      [
+        64800,
+        {
+          "key": "1"
+        },
+        1
+      ],
+      [
+        67200,
+        {
+          "key": "1"
+        },
+        0
+      ],
+      [
+        0,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -1.0
+      ],
+      [
+        4800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.875
+      ],
+      [
+        9600,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.75
+      ],
+      [
+        14400,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.625
+      ],
+      [
+        19200,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.5
+      ],
+      [
+        24000,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.375
+      ],
+      [
+        28800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.25
+      ],
+      [
+        33600,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        -0.125
+      ],
+      [
+        38400,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.0
+      ],
+      [
+        43200,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.125
+      ],
+      [
+        48000,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.25
+      ],
+      [
+        52800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.375
+      ],
+      [
+        57600,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.5
+      ],
+      [
+        62400,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.625
+      ],
+      [
+        67200,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.75
+      ],
+      [
+        72000,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.875
+      ],
+      [
+        76800,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        1.0
+      ],
+      [
+        84000,
+        {
+          "gamepad": 0,
+          "axis": "left_x"
+        },
+        0.05
+      ],
+      [
+        28800,
+        {
+          "gamepad": 0,
+          "axis": "right_trigger_axis"
+        },
+        0.5
+      ],
+      [
+        48000,
+        {
+          "gamepad": 0,
+          "axis": "right_trigger_axis"
+        },
+        1.0
+      ],
+      [
+        57600,
+        {
+          "gamepad": 0,
+          "button": "south"
+        },
+        1
+      ],
+      [
+        76800,
+        {
+          "gamepad": 0,
+          "button": "south"
+        },
+        0
+      ],
+      [
+        9600,
+        {
+          "gamepad": 1,
+          "button": "south"
+        },
+        1
+      ],
+      [
+        9600,
+        {
+          "gamepad": 1,
+          "axis": "left_x"
+        },
+        1.0
+      ]
+    ]
+  }
+}
