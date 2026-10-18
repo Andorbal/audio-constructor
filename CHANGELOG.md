@@ -11,6 +11,99 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.5.0] - 2026-10-18
+
+Control surfaces: gamepads, the computer keyboard, and Open Sound Control
+reach the patch as nodes and as bindings on any input, and performance
+panels turn a patch into a playable surface.
+
+### Added
+
+- **Gamepads**: plug in a game controller and the editor and `audioc run`
+  hear its buttons, sticks, and triggers. Controllers can come and go while
+  you play; each keeps its number while it's connected, and unplugging one
+  lets go of anything it was holding. The Devices tab and `audioc devices`
+  list them; `audioc run --no-gamepad` ignores them.
+- **OSC**: receive Open Sound Control from phone and tablet control apps or
+  other programs. Turn on listening in the Devices tab (port 9000 unless
+  you change it), which shows the address to send to and counts what
+  arrives, or run `audioc run --osc-in 9000`. Every argument of a message
+  is its own control, and a message without arguments works as a trigger.
+  Patches can send OSC too, each message to the address in its settings.
+- **Play keys**: the keyboard button in the transport bar (also
+  Transport ▸ Play Keys, `Ctrl+K`) sends your computer keys to the patch
+  instead of running canvas shortcuts. Escape and shortcuts with Ctrl, Cmd,
+  or Alt still work, text fields still get your typing, holding a key
+  doesn't repeat it, and keys never stick when you turn it off or switch
+  windows. Performance mode turns it on for you and puts it back when you
+  leave.
+- **Gamepad** node: a game controller in the patch. Every button is a gate
+  and a press trigger (release triggers too, if you ask), and the sticks
+  and analog triggers are numbers with an adjustable dead zone and
+  response curve. Each change lands on the exact sample it arrived on,
+  and a button held through a transport restart stays held.
+- **Keyboard In** node: the computer keyboard in the patch. Keys you list
+  become gates and press triggers, and the middle row of letters plays
+  notes like a piano (`A` to `'` for the white keys, the row above for
+  the black ones, `Z` and `X` to change octave), so you can play a synth
+  without a MIDI keyboard. A key always releases the note it started,
+  even after an octave change.
+- **OSC In** node: Open Sound Control messages to one address (a fader or
+  button on a phone or tablet control surface, say) come in as up to four
+  numbers that hold their last value, plus a trigger for each message.
+- **OSC Out** node: sends up to four numbers from the patch as Open Sound
+  Control messages to an address, host, and port, on a trigger or
+  whenever they change. Changes are sent at most once per `interval`
+  (20 ms by default), so a moving signal can't flood the network, and the
+  latest values always arrive in the end.
+- **Bindings**: drive any unwired number, switch, or trigger input from a
+  MIDI controller or note, a computer key, a gamepad button or stick, or
+  an OSC address. Right-click the input (or a control node's title) and
+  choose **Bind…**, then move the control: the first one that really
+  moves is bound, as one undo step (Esc cancels). Controllers and sticks
+  sweep the input's range (on a log scale for frequencies, like its
+  slider), notes and keys press it, and triggers fire once per press.
+- Bound inputs show a small link on the canvas, and their widgets, on the
+  canvas and on performance panels, follow the control while the patch
+  plays without marking the project changed.
+  The Project tab lists every binding (range, invert, momentary or toggle,
+  jump to the node, remove); the Node tab lists the selected node's.
+  Deleting a node removes its bindings in the same undo step, and grouping
+  or ungrouping keeps them with their nodes.
+- **Transport buttons**: the Devices tab sets up gamepad transport
+  buttons in one click (A play/stop, B stop, X record) and learns a
+  control for any transport action. They're stored in the project like
+  other bindings.
+- Bindings are part of the project, so `audioc run` and offline renders
+  honor them too; `audioc inspect` lists them, and `audioc validate`
+  warns about bindings whose input is missing or wired.
+- **Performance panels.** Pin controls and displays (sliders, knobs,
+  buttons, toggles, XY pads, keyboards, number fields, dropdowns, meters,
+  scopes, analyzers, readouts) to a panel with `P` or a node's right-click
+  menu, and `Ctrl+Tab` (or the Canvas | Panels switch in the transport bar)
+  shows them as a grid of live widgets without the graph: a mixer window, a
+  drum pad, or a pedalboard built from your own patch. The widgets play
+  exactly as on the canvas. Add, rename, reorder, and delete panels from
+  their tabs; move cards by dragging, make them bigger or smaller, or
+  unpin them, each one undo step. Panels are saved with the project, and
+  pinned nodes show a pin badge on the canvas.
+- **Performance mode.** `F11` shows the current panel full screen with
+  bigger cells and only play/stop, the position, and the panel tabs;
+  `Esc` or `F11` leaves.
+- **JACK and ASIO builds are covered**: the README explains how to build
+  with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
+  built with both, with the JACK build playing a project through a JACK
+  server.
+
+### Changed
+
+- Building from source on Linux needs the udev development files
+  (`libudev-dev` on Debian and Ubuntu) as well as ALSA's; they let the
+  editor find gamepads.
+- Parameter smoothing now lands on the same samples whatever the block
+  size, so a render with controller changes is identical at every block
+  size.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added
@@ -215,6 +308,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Andorbal/audio-constructor/compare/v0.1.0...v0.2.0

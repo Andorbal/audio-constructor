@@ -46,11 +46,17 @@ pub enum Action {
     ToggleSidePanel,
     ShowTiming,
 
+    Pin,
+    TogglePanels,
+    PerformanceMode,
+
     PlayStop,
     PlayFromStart,
     Record,
     ToggleLoop,
     Rewind,
+    /// Computer keys go to the patch instead of running shortcuts.
+    PlayKeys,
 
     Shortcuts,
     About,
@@ -116,11 +122,15 @@ impl Action {
         Action::ZoomOut,
         Action::ToggleSidePanel,
         Action::ShowTiming,
+        Action::Pin,
+        Action::TogglePanels,
+        Action::PerformanceMode,
         Action::PlayStop,
         Action::PlayFromStart,
         Action::Record,
         Action::ToggleLoop,
         Action::Rewind,
+        Action::PlayKeys,
         Action::Shortcuts,
         Action::About,
     ];
@@ -162,11 +172,15 @@ impl Action {
             Action::ZoomOut => "Zoom Out",
             Action::ToggleSidePanel => "Side Panel",
             Action::ShowTiming => "Node Timing",
+            Action::Pin => "Pin to Panel",
+            Action::TogglePanels => "Canvas / Panels",
+            Action::PerformanceMode => "Performance Mode",
             Action::PlayStop => "Play / Stop",
             Action::PlayFromStart => "Play from Start",
             Action::Record => "Record",
             Action::ToggleLoop => "Loop",
             Action::Rewind => "Go to Start",
+            Action::PlayKeys => "Play Keys",
             Action::Shortcuts => "Keyboard Shortcuts",
             Action::About => "About Audio Constructor",
         }
@@ -210,14 +224,46 @@ impl Action {
             Action::ZoomOut => sc(NONE, Key::Minus),
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
+            Action::Pin => sc(NONE, Key::P),
+            Action::TogglePanels => sc(CMD, Key::Tab),
+            Action::PerformanceMode => sc(NONE, Key::F11),
             Action::PlayStop => sc(NONE, Key::Space),
             Action::PlayFromStart => sc(SHIFT, Key::Space),
             Action::Record => sc(NONE, Key::R),
             Action::ToggleLoop => None,
             Action::Rewind => None,
+            Action::PlayKeys => sc(CMD, Key::K),
             Action::Shortcuts => sc(CMD, Key::Slash),
             Action::About => None,
         }
+    }
+
+    /// Commands that work while the panels are shown instead of the canvas
+    /// (the rest act on the graph, which isn't on screen).
+    pub fn works_in_panels(self) -> bool {
+        matches!(
+            self,
+            Action::New
+                | Action::Open
+                | Action::Save
+                | Action::SaveAs
+                | Action::ExportWav
+                | Action::ExportPack
+                | Action::Quit
+                | Action::Undo
+                | Action::Redo
+                | Action::ToggleSidePanel
+                | Action::TogglePanels
+                | Action::PerformanceMode
+                | Action::PlayStop
+                | Action::PlayFromStart
+                | Action::Record
+                | Action::ToggleLoop
+                | Action::Rewind
+                | Action::PlayKeys
+                | Action::Shortcuts
+                | Action::About
+        )
     }
 
     /// Commands that work while typing in a text field.
@@ -290,5 +336,18 @@ mod tests {
             Some(Action::DeleteReconnect)
         );
         assert_eq!(for_key(Key::Q, Modifiers::NONE), None);
+        assert_eq!(for_key(Key::P, Modifiers::NONE), Some(Action::Pin));
+        assert_eq!(
+            for_key(Key::Tab, Modifiers::CTRL),
+            Some(Action::TogglePanels)
+        );
+        assert_eq!(
+            for_key(Key::Tab, Modifiers::NONE),
+            Some(Action::EnterLeaveGroup)
+        );
+        assert_eq!(
+            for_key(Key::F11, Modifiers::NONE),
+            Some(Action::PerformanceMode)
+        );
     }
 }

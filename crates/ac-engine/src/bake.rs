@@ -18,8 +18,8 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    AudioData, HostAccess, MidiEvent, MidiMsg, NodePath, Project, RecordRequest, RecordSink,
-    Registry, Resources, WholeCtx, WholeInputs, WholeOutputs,
+    AudioData, Control, ControlEvent, HostAccess, MidiEvent, MidiMsg, NodePath, Project,
+    RecordRequest, RecordSink, Registry, Resources, WholeCtx, WholeInputs, WholeOutputs,
 };
 
 use crate::compile::{CaptureTarget, CompileOptions, compile_with};
@@ -113,12 +113,14 @@ impl BakeStore {
     }
 }
 
-/// Input a bake replays into `Audio In` and `MIDI In` (offline renders,
-/// where those are known in advance).
+/// Input a bake replays into `Audio In`, `MIDI In`, and control-surface
+/// nodes (offline renders, where those are known in advance).
 #[derive(Clone, Debug, Default)]
 pub struct BakeInput {
     pub audio: Option<Arc<AudioData>>,
     pub midi: Arc<Vec<(u64, MidiMsg)>>,
+    /// Key, gamepad, and OSC events at absolute frames, in time order.
+    pub controls: Arc<Vec<(u64, Control, f32)>>,
 }
 
 /// Everything needed to bake one node, on any thread.
@@ -194,6 +196,7 @@ impl BakeJob {
         let in_channels = audio.map_or(0, |a| a.channels.len());
         let mut inp = vec![0.0f32; in_channels * block];
         let mut midi: Vec<MidiEvent> = Vec::new();
+        let mut controls: Vec<ControlEvent> = Vec::new();
         let mut done = 0usize;
         let mut started = true;
         while done < frames {
@@ -212,6 +215,13 @@ impl BakeJob {
                     midi.push(MidiEvent::new((at - done) as u32, msg));
                 }
             }
+            controls.clear();
+            for &(at, control, value) in self.input.controls.iter() {
+                let at = at as usize;
+                if at >= done && at < done + n {
+                    controls.push(ControlEvent::new((at - done) as u32, control, value));
+                }
+            }
             let mut host = HostAccess {
                 input: &inp[..in_channels * n],
                 in_channels,
@@ -222,6 +232,8 @@ impl BakeJob {
                 frames: n,
                 midi: &midi,
                 midi_out: None,
+                controls: &controls,
+                osc_out: None,
             };
             let transport = BlockTransport {
                 playing: true,

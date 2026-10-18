@@ -55,7 +55,8 @@ impl Body {
         })
     }
 
-    fn height(self) -> f32 {
+    /// The body's height on a card (canvas units).
+    pub fn height(self) -> f32 {
         match self {
             Body::Button => 40.0,
             Body::Toggle => 30.0,
@@ -215,6 +216,21 @@ pub fn interface_positions(graph: &Graph, moved: Option<[Pos2; 2]>) -> [Pos2; 2]
 
 /// Build the scene for the document's current scope.
 pub fn build(doc: &Document, registry: &Registry, iface_pos: Option<[Pos2; 2]>) -> Scene {
+    build_with(doc, registry, iface_pos, false)
+}
+
+/// The scene with every card expanded and every socket shown, whatever
+/// the canvas hides: the performance panels play widget bodies from it.
+pub fn build_expanded(doc: &Document, registry: &Registry) -> Scene {
+    build_with(doc, registry, None, true)
+}
+
+fn build_with(
+    doc: &Document,
+    registry: &Registry,
+    iface_pos: Option<[Pos2; 2]>,
+    expanded: bool,
+) -> Scene {
     let graph = doc.display_graph();
     let iface = doc.interface();
     let defs = &doc.project.group_defs;
@@ -319,8 +335,9 @@ pub fn build(doc: &Document, registry: &Registry, iface_pos: Option<[Pos2; 2]>) 
                 pos: pos2(n.ui.pos[0], n.ui.pos[1]),
                 width,
                 size: n.ui.size,
-                collapsed: n.ui.collapsed,
-                hide_unwired: n.extra.get(HIDE_UNWIRED).and_then(|v| v.as_bool()) == Some(true),
+                collapsed: n.ui.collapsed && !expanded,
+                hide_unwired: !expanded
+                    && n.extra.get(HIDE_UNWIRED).and_then(|v| v.as_bool()) == Some(true),
                 muted: n.muted,
                 selected: doc.selection.contains(&n.id),
                 body,

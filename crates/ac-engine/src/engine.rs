@@ -15,11 +15,13 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use ac_core::{
-    EngineInfo, HostAccess, MidiEvent, NodePath, Project, Registry, Resources, Value, param_value,
+    CONTROL_CAPACITY, ControlEvent, EngineInfo, HostAccess, InputEvent, MidiEvent, NodePath,
+    OscMessage, Project, Registry, Resources, TransportAction, Value, param_value,
 };
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::bake::{BakeInput, BakeJob, BakeResult, BakeSpec, BakeStore, WholeState};
+use crate::bindings::{BOUND_CAPACITY, BindingValues, Bound, MAX_SPLITS, carry_over};
 use crate::compile::{CarryLayout, CompileOptions, Compiled, ParamMap, compile};
 use crate::graph::{BlockTransport, CompiledGraph};
 use crate::pool::{MAX_WORKERS, RtPool};
@@ -31,6 +33,9 @@ const GARBAGE_RING: usize = 8;
 const PARAM_RING: usize = 4096;
 const COMMAND_RING: usize = 256;
 const MIDI_SCRATCH: usize = 1024;
+/// Raw input events waiting for the editor to learn from (dropped when
+/// full).
+const LEARN_RING: usize = 512;
 
 /// How the engine runs: the device (or render) rate and the largest block.
 #[derive(Clone, Debug)]
@@ -77,6 +82,12 @@ pub struct HostIo<'a> {
     /// capacity; messages beyond its capacity are dropped. `None`: no MIDI
     /// output.
     pub midi_out: Option<&'a mut Vec<MidiEvent>>,
+    /// Control-surface events (keys, gamepads, OSC) received during this
+    /// block, offsets relative to its first frame, in order.
+    pub controls: &'a [ControlEvent],
+    /// Where `OscOut` nodes put OSC messages, like `midi_out`. `None`: no
+    /// OSC output.
+    pub osc_out: Option<&'a mut Vec<OscMessage>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -123,6 +134,10 @@ pub struct Processor {
     status: Arc<EngineStatus>,
     clock: Option<ClockFn>,
     midi_scratch: Vec<MidiEvent>,
+    control_scratch: Vec<ControlEvent>,
+    /// This block's events that match a binding, in offset order.
+    bound: Vec<Bound>,
+    learn_tx: Producer<InputEvent>,
     workers: Option<Arc<RtPool>>,
     busy: [u64; MAX_WORKERS + 1],
 }
@@ -146,6 +161,9 @@ pub struct EngineHandle {
     garbage_rx: Consumer<Box<CompiledGraph>>,
     param_tx: Producer<ParamMsg>,
     cmd_tx: Producer<Command>,
+    learn_rx: Consumer<InputEvent>,
+    /// What the bindings of the last graph pushed set.
+    binding_values: Arc<BindingValues>,
     bakes: BakeStore,
     bake_specs: Vec<BakeSpec>,
     in_flight: HashSet<(NodePath, u64)>,
@@ -184,6 +202,7 @@ impl Engine {
         let (garbage_tx, garbage_rx) = RingBuffer::new(GARBAGE_RING);
         let (param_tx, param_rx) = RingBuffer::new(PARAM_RING);
         let (cmd_tx, cmd_rx) = RingBuffer::new(COMMAND_RING);
+        let (learn_tx, learn_rx) = RingBuffer::new(LEARN_RING);
         let status = Arc::new(EngineStatus::default());
         status
             .sample_rate
@@ -198,6 +217,7 @@ impl Engine {
             graph,
             layout,
             telemetry,
+            bindings: binding_values,
             params,
             carry,
             bakes: bake_specs,
@@ -216,6 +236,9 @@ impl Engine {
             status: status.clone(),
             clock: None,
             midi_scratch: Vec::with_capacity(MIDI_SCRATCH),
+            control_scratch: Vec::with_capacity(CONTROL_CAPACITY),
+            bound: Vec::with_capacity(BOUND_CAPACITY),
+            learn_tx,
             workers: None,
             busy: [0; MAX_WORKERS + 1],
         };
@@ -236,6 +259,8 @@ impl Engine {
             garbage_rx,
             param_tx,
             cmd_tx,
+            learn_rx,
+            binding_values,
             bakes,
             bake_specs,
             in_flight: HashSet::new(),
@@ -340,8 +365,9 @@ impl EngineHandle {
 
     // --- whole-input nodes and baking ---
 
-    /// Audio and MIDI that `Audio In` and `MIDI In` will receive, for bakes
-    /// in an offline render. Recompiles.
+    /// Audio, MIDI, and control events that `Audio In`, `MIDI In`, and the
+    /// control-surface nodes will receive, for bakes in an offline render.
+    /// Recompiles.
     pub fn set_bake_input(&mut self, input: BakeInput) -> CompileReport {
         let mut h = ac_core::util::Fnv64::new();
         if let Some(a) = &input.audio {
@@ -356,6 +382,14 @@ impl EngineHandle {
         for (at, msg) in input.midi.iter() {
             h.write(&at.to_le_bytes());
             h.write(format!("{msg:?}").as_bytes());
+        }
+        if !input.controls.is_empty() {
+            h.write(b"controls");
+        }
+        for (at, control, value) in input.controls.iter() {
+            h.write(&at.to_le_bytes());
+            h.write(format!("{control:?}").as_bytes());
+            h.write(&value.to_bits().to_le_bytes());
         }
         self.input_hash = h.finish();
         self.bake_input = input;
@@ -470,6 +504,7 @@ impl EngineHandle {
             graph,
             layout,
             telemetry,
+            bindings,
             params,
             carry,
             ..
@@ -480,6 +515,7 @@ impl EngineHandle {
                 self.params = params;
                 self.layout = layout;
                 self.store = telemetry;
+                self.binding_values = bindings;
             }
             Err(rtrb::PushError::Full(_)) => {
                 // Unreachable given the slots() check; the graph is dropped here, on
@@ -616,6 +652,33 @@ impl EngineHandle {
             status: self.status.clone(),
         }
     }
+
+    /// What each of the project's bindings last set on its input, for the
+    /// most recently compiled graph (indexed like `Project::bindings`).
+    pub fn binding_values(&self) -> Arc<BindingValues> {
+        self.binding_values.clone()
+    }
+
+    /// While on, the processor copies every MIDI and control event it
+    /// receives for [`EngineHandle::take_input_events`] (dropping them when
+    /// nobody takes them fast enough). Turning it on forgets anything left
+    /// from before.
+    pub fn set_input_monitor(&mut self, on: bool) {
+        if on {
+            while self.learn_rx.pop().is_ok() {}
+        }
+        self.status.input_monitor.store(on, Ordering::Relaxed);
+    }
+
+    /// Events received since the last call while the input monitor is on,
+    /// oldest first: what the editor learns bindings from.
+    pub fn take_input_events(&mut self) -> Vec<InputEvent> {
+        let mut out = Vec::new();
+        while let Ok(e) = self.learn_rx.pop() {
+            out.push(e);
+        }
+        out
+    }
 }
 
 impl Processor {
@@ -649,19 +712,34 @@ impl Processor {
         self.apply_commands();
         self.install_graphs();
         self.apply_params();
+        self.monitor_inputs(io);
+        self.graph
+            .bindings
+            .gather(io.midi, io.controls, &mut self.bound);
         io.output.fill(0.0);
         if frames == 0 {
             return;
-        }
-        if self.transport.reset_flag {
-            self.graph.reset_nodes();
-            self.transport.reset_flag = false;
         }
         let timing = self.status.timing_enabled.load(Ordering::Relaxed);
         let node_clock = if timing { self.clock } else { None };
         let max_block = self.graph.max_block.max(1);
         let mut done = 0usize;
+        let mut next_bound = 0usize;
+        let mut splits = 0usize;
         while done < frames {
+            // Bound events due by now act before this sub-block runs.
+            while let Some(&b) = self.bound.get(next_bound)
+                && b.offset as usize <= done
+            {
+                if let Some(action) = self.graph.apply_binding(b) {
+                    press(&mut self.transport, action);
+                }
+                next_bound += 1;
+            }
+            if self.transport.reset_flag {
+                self.graph.reset_nodes();
+                self.transport.reset_flag = false;
+            }
             let mut n = (frames - done).min(max_block);
             let t = self.transport;
             if t.playing
@@ -670,6 +748,15 @@ impl Processor {
                 && t.position + n as u64 > le
             {
                 n = (le - t.position) as usize;
+            }
+            // End the sub-block where the next bound event lands, so it
+            // acts on its own sample whatever the block size.
+            if splits < MAX_SPLITS
+                && let Some(b) = self.bound.get(next_bound)
+                && (b.offset as usize) < done + n
+            {
+                n = b.offset as usize - done;
+                splits += 1;
             }
             let n = n.max(1);
             // MIDI for this sub-block, rebased.
@@ -682,6 +769,19 @@ impl Processor {
                 {
                     self.midi_scratch
                         .push(MidiEvent::new((off - done) as u32, e.msg));
+                }
+            }
+            self.control_scratch.clear();
+            for e in io.controls {
+                let off = e.offset as usize;
+                if off >= done
+                    && off < done + n
+                    && self.control_scratch.len() < self.control_scratch.capacity()
+                {
+                    self.control_scratch.push(ControlEvent {
+                        offset: (off - done) as u32,
+                        ..*e
+                    });
                 }
             }
             let block = BlockTransport {
@@ -701,6 +801,8 @@ impl Processor {
                 frames: n,
                 midi: &self.midi_scratch,
                 midi_out: io.midi_out.as_deref_mut(),
+                controls: &self.control_scratch,
+                osc_out: io.osc_out.as_deref_mut(),
             };
             let engine = EngineInfo {
                 load: self.status.load_fraction(),
@@ -780,38 +882,21 @@ impl Processor {
 
     fn apply_commands(&mut self) {
         while let Ok(c) = self.cmd_rx.pop() {
-            let t = &mut self.transport;
-            match c {
-                Command::Play => {
-                    if !t.playing {
-                        t.playing = true;
-                        t.start_flag = true;
-                        t.stop_flag = false;
-                        if t.position == 0 {
-                            t.reset_flag = true;
-                        }
-                    }
-                }
-                Command::Stop => {
-                    if t.playing {
-                        t.playing = false;
-                        t.stop_flag = true;
-                        t.start_flag = false;
-                    }
-                }
-                Command::Seek(p) => {
-                    t.position = p;
-                    if t.playing {
-                        t.start_flag = true;
-                        if p == 0 {
-                            t.reset_flag = true;
-                        }
-                    }
-                }
-                Command::SetRecording(on) => t.recording = on,
-                Command::SetLoop(r) => t.loop_region = r.filter(|(a, b)| b > a),
-                Command::Reset => t.reset_flag = true,
-            }
+            command(&mut self.transport, c);
+        }
+    }
+
+    /// Copy this block's raw events for the editor while it's learning.
+    fn monitor_inputs(&mut self, io: &HostIo) {
+        if !self.status.input_monitor.load(Ordering::Relaxed) {
+            return;
+        }
+        for e in io.midi {
+            // A full ring drops the event; learning only needs a few.
+            let _ = self.learn_tx.push(InputEvent::Midi(e.msg));
+        }
+        for e in io.controls {
+            let _ = self.learn_tx.push(InputEvent::Control(e.control, e.value));
         }
     }
 
@@ -829,6 +914,7 @@ impl Processor {
                     std::mem::swap(&mut n.node, &mut o.node);
                 }
             }
+            carry_over(&mut new, &self.graph);
             let old = std::mem::replace(&mut self.graph, new);
             self.status
                 .generation
@@ -849,7 +935,74 @@ impl Processor {
                 self.graph.fire(m.slot);
             } else {
                 self.graph.set_param(m.slot, m.value);
+                self.graph.forget_bound_value(m.slot);
             }
+        }
+    }
+}
+
+/// Apply a transport command.
+fn command(t: &mut Transport, c: Command) {
+    match c {
+        Command::Play => {
+            if !t.playing {
+                t.playing = true;
+                t.start_flag = true;
+                t.stop_flag = false;
+                if t.position == 0 {
+                    t.reset_flag = true;
+                }
+            }
+        }
+        Command::Stop => {
+            if t.playing {
+                t.playing = false;
+                t.stop_flag = true;
+                t.start_flag = false;
+            }
+        }
+        Command::Seek(p) => {
+            t.position = p;
+            if t.playing {
+                t.start_flag = true;
+                if p == 0 {
+                    t.reset_flag = true;
+                }
+            }
+        }
+        Command::SetRecording(on) => t.recording = on,
+        Command::SetLoop(r) => t.loop_region = r.filter(|(a, b)| b > a),
+        Command::Reset => t.reset_flag = true,
+    }
+}
+
+/// A bound control pressed a transport action. These do what the editor's
+/// transport buttons do, except that Stop also ends recording (a stop
+/// button on a recorder ends the take).
+fn press(t: &mut Transport, action: TransportAction) {
+    match action {
+        TransportAction::Play => command(t, Command::Play),
+        TransportAction::Stop => {
+            command(t, Command::Stop);
+            t.recording = false;
+        }
+        TransportAction::PlayStop => {
+            let c = if t.playing {
+                Command::Stop
+            } else {
+                Command::Play
+            };
+            command(t, c);
+        }
+        TransportAction::Record => {
+            t.recording = !t.recording;
+            if t.recording {
+                command(t, Command::Play);
+            }
+        }
+        TransportAction::PlayFromStart => {
+            command(t, Command::Seek(0));
+            command(t, Command::Play);
         }
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "ac-io"
-description = "Device and file layer for Audio Constructor: audio and MIDI devices, WAV files, recording."
+description = "Device and file layer for Audio Constructor: audio, MIDI, gamepad, and OSC devices, WAV files, recording."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -32,6 +32,8 @@ hound.workspace = true
 # `priority.rs`).
 cpal = { workspace = true, features = ["realtime"] }
 midir.workspace = true
+gilrs.workspace = true
+rosc.workspace = true
 rtrb.workspace = true
 assert_no_alloc.workspace = true
 realfft.workspace = true

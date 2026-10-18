@@ -28,8 +28,11 @@ pub struct MenuState<'a> {
     pub has_selection: bool,
     pub side_panel: bool,
     pub timing: bool,
+    /// The panels are shown instead of the canvas.
+    pub panels: bool,
     pub playing: bool,
     pub looping: bool,
+    pub play_keys: bool,
     pub recent: &'a Recent,
     pub registry: &'a Registry,
 }
@@ -158,10 +161,21 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Mute, icons::SPEAKER_SLASH, sel);
             entry(ui, &mut out, Action::Collapse, icons::CARET_DOWN, sel);
             entry(ui, &mut out, Action::HideUnwired, icons::SELECTION, sel);
+            ui.separator();
+            entry(ui, &mut out, Action::Pin, icons::PUSH_PIN, sel && !s.panels);
         });
         ui.menu_button("View", |ui| {
             toggle(ui, &mut out, Action::ToggleSidePanel, s.side_panel);
             toggle(ui, &mut out, Action::ShowTiming, s.timing);
+            ui.separator();
+            toggle(ui, &mut out, Action::TogglePanels, s.panels);
+            entry(
+                ui,
+                &mut out,
+                Action::PerformanceMode,
+                icons::CORNERS_OUT,
+                true,
+            );
             ui.separator();
             entry(ui, &mut out, Action::FitAll, icons::CORNERS_OUT, true);
             entry(ui, &mut out, Action::FitSelection, icons::CROSSHAIR, true);
@@ -229,6 +243,8 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
             toggle(ui, &mut out, Action::ToggleLoop, s.looping);
+            ui.separator();
+            toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });
         ui.menu_button("Help", |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);

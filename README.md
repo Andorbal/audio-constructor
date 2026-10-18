@@ -9,7 +9,9 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > whole input, latency compensation, multi-core processing, and the Phase 2
 > node library (about eighty nodes, with editors for curves, step grids,
 > piano rolls, and bands) are in, as are blocks (23 ship, from reverbs to a
-> drum machine) and packs for sharing projects. See
+> drum machine), packs for sharing projects, and control surfaces
+> (gamepads, the computer keyboard, OSC, bindings with learn, and
+> performance panels). See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
@@ -83,14 +85,25 @@ You need a Rust toolchain from [rustup](https://rustup.rs); the repository
 pins the exact version in `rust-toolchain.toml`, and rustup installs it on
 first build.
 
-- **Linux:** `pkg-config` and the ALSA development headers, e.g.
-  `sudo apt install pkg-config libasound2-dev` (Debian/Ubuntu) or
-  `sudo dnf install pkgconf alsa-lib-devel` (Fedora). The editor needs a
+- **Linux:** `pkg-config` and the ALSA and udev development headers
+  (udev finds gamepads), e.g.
+  `sudo apt install pkg-config libasound2-dev libudev-dev` (Debian/Ubuntu) or
+  `sudo dnf install pkgconf alsa-lib-devel systemd-devel` (Fedora). The editor needs a
   desktop session (X11 or Wayland) and a GPU driver with Vulkan or OpenGL.
-  For JACK, build with `--features jack` (needs the JACK development
-  files); PipeWire works through its ALSA and JACK shims.
-- **Windows ASIO** (optional): build with `--features asio` and the
-  Steinberg ASIO SDK (`CPAL_ASIO_DIR`); WASAPI works without it.
+  PipeWire works through its ALSA and JACK shims without anything extra.
+- **JACK** (optional, mostly Linux): install the JACK development files
+  (`sudo apt install libjack-jackd2-dev`, or `jack-audio-connection-kit-devel`
+  on Fedora) and build with
+  `cargo build --release --features ac-app/jack,ac-cli/jack`. Pick **JACK**
+  in the Devices tab, or `audioc run --host jack`; the JACK (or
+  PipeWire-JACK) server sets the rate and buffer size.
+- **Windows ASIO** (optional): install LLVM (bindgen needs `libclang`) and
+  build with `cargo build --release --features ac-app/asio,ac-cli/asio`.
+  The build downloads the Steinberg ASIO SDK, or uses the unpacked SDK that
+  `CPAL_ASIO_DIR` points to. Pick **ASIO** in the Devices tab, or
+  `audioc run --host asio`. Binaries built with ASIO can't be passed on
+  without a license from Steinberg, so the released downloads leave it out;
+  WASAPI works without it.
 - **macOS and Windows:** nothing extra.
 
 ```

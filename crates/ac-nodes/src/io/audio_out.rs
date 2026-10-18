@@ -175,6 +175,8 @@ mod tests {
                 frames,
                 midi: &[],
                 midi_out: None,
+                controls: &[],
+                osc_out: None,
             },
             telemetry: TelemetryAccess {
                 values: &telemetry,

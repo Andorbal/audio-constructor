@@ -18,6 +18,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use crate::control::{ControlEvent, OscMessage};
 use crate::events::MidiEvent;
 use crate::node::AudioData;
 use crate::signal::{AutoTrigger, Rate};
@@ -138,7 +139,10 @@ pub struct AutoFlags {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FloatIn<'a> {
     Const(f32),
-    /// A smoothed parameter change: `start + step * i` for `i < len`, then `end`.
+    /// A smoothed parameter change from about `start` to `end` over `len`
+    /// frames. Frame `i < len` is `end - step * (len - i)`: counted back
+    /// from the end, so a ramp split across blocks of any size gives the
+    /// same value at the same sample.
     Ramp {
         start: f32,
         step: f32,
@@ -155,14 +159,9 @@ impl FloatIn<'_> {
     pub fn at(&self, i: usize) -> f32 {
         match *self {
             FloatIn::Const(v) | FloatIn::Block(v) => v,
-            FloatIn::Ramp {
-                start,
-                step,
-                len,
-                end,
-            } => {
+            FloatIn::Ramp { step, len, end, .. } => {
                 if i < len as usize {
-                    start + step * i as f32
+                    end - step * (len as usize - i) as f32
                 } else {
                     end
                 }
@@ -872,6 +871,13 @@ pub struct HostAccess<'a> {
     /// `offset` + the offset in this view). Only `host_output` nodes get it;
     /// write with [`HostAccess::send_midi`].
     pub midi_out: Option<&'a mut Vec<MidiEvent>>,
+    /// Control-surface events (keys, gamepads, OSC) received for this
+    /// block, offsets relative to this block.
+    pub controls: &'a [ControlEvent],
+    /// OSC messages to send, offsets relative to the host block like
+    /// `midi_out`. Only `host_output` nodes get it; write with
+    /// [`HostAccess::send_osc`].
+    pub osc_out: Option<&'a mut Vec<OscMessage>>,
 }
 
 impl<'a> HostAccess<'a> {
@@ -887,6 +893,8 @@ impl<'a> HostAccess<'a> {
             frames,
             midi: &[],
             midi_out: None,
+            controls: &[],
+            osc_out: None,
         }
     }
 
@@ -931,6 +939,29 @@ impl<'a> HostAccess<'a> {
     /// Whether [`HostAccess::send_midi`] goes anywhere.
     pub fn has_midi_out(&self) -> bool {
         self.midi_out.is_some()
+    }
+
+    pub fn controls(&self) -> &'a [ControlEvent] {
+        self.controls
+    }
+
+    /// Send an OSC message at `msg.offset` in this block. Keeps offsets
+    /// ascending; drops the message if the host has no OSC output or its
+    /// buffer is full.
+    pub fn send_osc(&mut self, mut msg: OscMessage) {
+        msg.offset = self.offset as u32 + msg.offset.min(self.frames.saturating_sub(1) as u32);
+        if let Some(buf) = self.osc_out.as_deref_mut() {
+            if buf.len() == buf.capacity() {
+                return;
+            }
+            let pos = buf.partition_point(|m| m.offset <= msg.offset);
+            buf.insert(pos, msg);
+        }
+    }
+
+    /// Whether [`HostAccess::send_osc`] goes anywhere.
+    pub fn has_osc_out(&self) -> bool {
+        self.osc_out.is_some()
     }
 }
 

@@ -9,6 +9,7 @@
 //! converts the virtual wires back into the definition's interface after.
 
 pub mod group;
+pub mod pins;
 
 use std::collections::{BTreeMap, BTreeSet};
 

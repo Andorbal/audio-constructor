@@ -6,9 +6,11 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::graph::Graph;
+use crate::binding::Binding;
+use crate::graph::{Graph, NodeInstance};
 use crate::group::GroupDef;
-use crate::id::GroupId;
+use crate::id::{GroupId, NodePath};
+use crate::panel::Panel;
 
 /// The current project file format version. Bumping it requires a migration
 /// in [`migrate`] and a fixture of the old format in the tests.
@@ -26,6 +28,14 @@ pub struct Project {
     pub graph: Graph,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub group_defs: BTreeMap<GroupId, GroupDef>,
+    /// Performance panels: grids of pinned control and display nodes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub panels: Vec<Panel>,
+    /// Controls mapped onto inputs and transport actions (UX.md "Bindings").
+    /// Left out of the file when empty, so projects without bindings read
+    /// and diff as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bindings: Vec<Binding>,
     /// Editor view state (pan/zoom), kept so a project reopens where it was.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<View>,
@@ -42,6 +52,8 @@ impl Default for Project {
             settings: Settings::default(),
             graph: Graph::default(),
             group_defs: BTreeMap::new(),
+            panels: Vec::new(),
+            bindings: Vec::new(),
             view: None,
             extra: serde_json::Map::new(),
         }
@@ -162,6 +174,25 @@ impl Project {
     /// order, trailing newline.
     pub fn to_json(&self) -> String {
         to_canonical_json(self)
+    }
+
+    /// The node at an engine path: through each group instance on the way
+    /// (by its definition) down to the last id. `None` if any step is
+    /// missing or isn't a group instance.
+    pub fn node_at(&self, path: &NodePath) -> Option<&NodeInstance> {
+        let (last, parents) = path.0.split_last()?;
+        let mut graph = &self.graph;
+        for id in parents {
+            let def = graph.node(*id)?.group_def()?;
+            graph = &self.group_defs.get(&def)?.graph;
+        }
+        graph.node(*last)
+    }
+
+    /// Drop panel pins to nodes that aren't in the root graph. Returns how
+    /// many were dropped.
+    pub fn prune_panels(&mut self) -> usize {
+        crate::panel::prune(&mut self.panels, &self.graph)
     }
 }
 
@@ -293,5 +324,135 @@ mod tests {
         let p = Project::from_json(r#"{"schema_version": 1}"#).unwrap();
         assert_eq!(p.settings.sample_rate, 48_000);
         assert_eq!(p.settings.tempo[0].bpm, 120.0);
+        assert!(p.bindings.is_empty());
+        assert!(p.panels.is_empty());
+    }
+
+    #[test]
+    fn bindings_round_trip_and_stay_out_of_files_without_them() {
+        use crate::binding::{Binding, GateMode, Source, TransportAction};
+        use crate::control::GamepadButton;
+        // A project without bindings writes exactly what it did before.
+        let text = sample().to_json();
+        assert!(!text.contains("bindings"));
+        assert_eq!(Project::from_json(&text).unwrap().to_json(), text);
+
+        let mut p = sample();
+        p.bindings.push(Binding {
+            min: Some(110.0),
+            max: Some(880.0),
+            ..Binding::input(
+                Source::MidiCc {
+                    channel: Some(2),
+                    cc: 74,
+                },
+                NodePath::root(NodeId(1)),
+                "freq",
+            )
+        });
+        p.bindings.push(Binding {
+            mode: GateMode::Toggle,
+            ..Binding::transport(
+                Source::GamepadButton {
+                    pad: None,
+                    button: GamepadButton::West,
+                },
+                TransportAction::Record,
+            )
+        });
+        let text = p.to_json();
+        let back = Project::from_json(&text).unwrap();
+        assert_eq!(back, p);
+        assert_eq!(back.to_json(), text);
+        assert!(text.contains("\"bindings\""));
+        // A binding that doesn't parse is a load error, like a bad wire.
+        let bad = text.replace("\"midi_cc\"", "\"midi_banjo\"");
+        assert!(Project::from_json(&bad).is_err());
+    }
+
+    #[test]
+    fn node_paths_resolve_through_group_instances() {
+        use crate::graph::GROUP_KIND;
+        let mut p = sample();
+        let mut def = GroupDef::new("Inner");
+        def.graph.nodes.push(NodeInstance::new(NodeId(7), "gain"));
+        p.group_defs.insert(GroupId::from("g"), def);
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(9), GROUP_KIND).with_config(serde_json::json!({"def": "g"})),
+        );
+        let at = |ids: &[u64]| {
+            p.node_at(&NodePath(ids.iter().map(|&i| NodeId(i)).collect()))
+                .map(|n| n.kind.clone())
+        };
+        assert_eq!(at(&[1]).as_deref(), Some("oscillator"));
+        assert_eq!(at(&[9, 7]).as_deref(), Some("gain"));
+        assert_eq!(at(&[9, 8]), None);
+        assert_eq!(at(&[1, 7]), None, "not a group instance");
+        assert_eq!(at(&[]), None);
+    }
+
+    #[test]
+    fn panels_round_trip() {
+        use crate::panel::{Panel, PanelItem};
+        let mut p = sample();
+        let mut live = Panel::new("Live");
+        live.items.push(PanelItem::new(NodeId(1)));
+        live.items.push(PanelItem {
+            node: NodeId(2),
+            size: Some([3, 2]),
+        });
+        p.panels = vec![live, Panel::new("Mixer")];
+        let text = p.to_json();
+        assert!(text.contains("\"panels\""), "{text}");
+        let loaded = Project::from_json(&text).unwrap();
+        assert_eq!(loaded, p);
+        assert_eq!(loaded.to_json(), text);
+        assert_eq!(loaded.panels[1].name, "Mixer");
+        assert!(loaded.panels[1].items.is_empty());
+        // A project without panels writes none.
+        assert!(!sample().to_json().contains("panels"));
+    }
+
+    #[test]
+    fn projects_from_before_panels_load() {
+        let text = r#"{
+  "schema_version": 1,
+  "name": "old",
+  "graph": {
+    "nodes": [{"id": "1", "kind": "slider", "ui": {"pos": [0.0, 0.0]}}],
+    "wires": []
+  },
+  "view": {"center": [0.0, 0.0], "zoom": 1.0}
+}"#;
+        let p = Project::from_json(text).unwrap();
+        assert!(p.panels.is_empty());
+        assert_eq!(p.graph.nodes.len(), 1);
+    }
+
+    #[test]
+    fn pins_to_missing_nodes_are_ignored_and_pruned() {
+        let text = r#"{
+  "schema_version": 1,
+  "graph": {
+    "nodes": [{"id": "1", "kind": "slider", "ui": {"pos": [0.0, 0.0]}}],
+    "wires": []
+  },
+  "panels": [
+    {"name": "Live", "items": [{"node": "99"}, {"node": "1", "size": [0, 400]}]},
+    {"name": "Empty", "future": true}
+  ]
+}"#;
+        let mut p = Project::from_json(text).unwrap();
+        let live = &p.panels[0];
+        let shown: Vec<NodeId> = live.pinned(&p.graph).map(|(_, n)| n.id).collect();
+        assert_eq!(shown, vec![NodeId(1)], "the dangling pin is skipped");
+        // Sizes out of range are kept in range when read.
+        assert_eq!(live.items[1].span([2, 1]), [1, crate::panel::MAX_SPAN]);
+        assert_eq!(live.items[0].span([2, 1]), [2, 1]);
+        // Unknown fields survive.
+        assert_eq!(p.panels[1].extra.get("future"), Some(&true.into()));
+        assert_eq!(p.prune_panels(), 1);
+        assert_eq!(p.panels[0].items.len(), 1);
+        assert_eq!(p.prune_panels(), 0);
     }
 }

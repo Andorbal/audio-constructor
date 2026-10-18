@@ -8,14 +8,17 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
+pub mod binding;
 pub mod block;
 pub mod clipboard;
+pub mod control;
 pub mod events;
 pub mod graph;
 pub mod group;
 pub mod id;
 pub mod io;
 pub mod node;
+pub mod panel;
 pub mod param;
 pub mod project;
 pub mod registry;
@@ -27,8 +30,16 @@ pub mod util;
 pub mod value;
 pub mod whole;
 
+pub use binding::{
+    Binding, Effect, GateMode, InputEvent, Learner, Mapping, Reading, Source, SourceKey, Target,
+    TransportAction,
+};
 pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
 pub use clipboard::Subgraph;
+pub use control::{
+    CONTROL_CAPACITY, Control, ControlEvent, GamepadAxis, GamepadButton, Key, OSC_OUT_CAPACITY,
+    OscMessage, osc_address_hash,
+};
 pub use events::{MIDI_CAPACITY, MidiEvent, MidiMsg, note_to_hz};
 pub use graph::{
     Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, VOICE_KIND,
@@ -45,6 +56,7 @@ pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
     NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
+pub use panel::{Panel, PanelItem};
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
 pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};

@@ -2,7 +2,7 @@
 //! logic (formatting, parsing, drag mapping) and how each widget is painted.
 //! Drawn by hand at the canvas zoom so text stays crisp at every scale.
 
-use ac_core::{AutoTrigger, NodeInstance, Scale, SignalType, SocketSpec, Unit, Value};
+use ac_core::{AutoTrigger, NodeInstance, SignalType, SocketSpec, Unit, Value};
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
 
 use crate::icons;
@@ -98,10 +98,11 @@ pub fn choice_label(spec: &SocketSpec, name: &str) -> String {
     }
 }
 
-/// Log mapping for a socket's range (Hz ranges and explicit log scales).
+/// Log mapping for a socket's range (Hz ranges and explicit log scales;
+/// bindings sweep the same way).
 fn is_log(spec: &SocketSpec) -> Option<(f64, f64)> {
     let (a, b) = spec.range?;
-    let log = spec.scale == Scale::Log || spec.unit == Unit::Hz;
+    let log = ac_core::binding::log_scaled(spec);
     (log && a > 0.0 && b > a).then_some((a, b))
 }
 

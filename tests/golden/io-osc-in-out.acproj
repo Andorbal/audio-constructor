@@ -1,0 +1,660 @@
+{
+  "schema_version": 1,
+  "name": "OSC In and Out",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "osc_in",
+        "config": {
+          "address": "/synth/pitch",
+          "args": 2
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "out_max": 880.0,
+          "out_min": 110.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "osc_in",
+        "config": {
+          "address": "/synth/cutoff"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "out_max": 5000.0,
+          "out_min": 200.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "svf",
+        "params": {
+          "resonance": 0.3
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "osc_in",
+        "config": {
+          "address": "/synth/gate"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "compare",
+        "params": {
+          "b": 0.5
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.02,
+          "decay": 0.1,
+          "release": 0.15,
+          "sustain": 0.7
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "b",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "osc_in",
+        "config": {
+          "address": "/synth/hit"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "trigger_to_gate",
+        "params": {
+          "length": 0.03
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "e",
+        "kind": "oscillator",
+        "params": {
+          "freq": 1500.0,
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "f",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0,
+          "gain_1": -14.0
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            800.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "osc_out",
+        "config": {
+          "host": "192.168.1.20",
+          "port": 8000,
+          "address": "/meter/level",
+          "args": 2
+        },
+        "params": {
+          "interval": 0.05
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            400.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "osc_out",
+        "config": {
+          "host": "localhost",
+          "port": 9001,
+          "address": "/echo/cutoff"
+        },
+        "params": {
+          "on_change": false
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            600.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:value",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:freq"
+      },
+      {
+        "from": "3:out",
+        "to": "6:in"
+      },
+      {
+        "from": "4:value",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:cutoff"
+      },
+      {
+        "from": "7:value",
+        "to": "8:a"
+      },
+      {
+        "from": "8:out",
+        "to": "9:gate"
+      },
+      {
+        "from": "6:lowpass",
+        "to": "a:a"
+      },
+      {
+        "from": "9:out",
+        "to": "a:b"
+      },
+      {
+        "from": "a:out",
+        "to": "b:a"
+      },
+      {
+        "from": "1:value_2",
+        "to": "b:b"
+      },
+      {
+        "from": "c:received",
+        "to": "d:in"
+      },
+      {
+        "from": "d:gate",
+        "to": "f:b"
+      },
+      {
+        "from": "e:out",
+        "to": "f:a"
+      },
+      {
+        "from": "b:out",
+        "to": "10:in_0"
+      },
+      {
+        "from": "f:out",
+        "to": "10:in_1"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      },
+      {
+        "from": "9:out",
+        "to": "12:value"
+      },
+      {
+        "from": "2:out",
+        "to": "12:value_2"
+      },
+      {
+        "from": "c:received",
+        "to": "12:send"
+      },
+      {
+        "from": "4:value",
+        "to": "13:value"
+      },
+      {
+        "from": "4:received",
+        "to": "13:send"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 2.0,
+    "block_independent": true,
+    "controls": [
+      [
+        0,
+        {
+          "osc": "/synth/pitch",
+          "arg": 0
+        },
+        0.0
+      ],
+      [
+        0,
+        {
+          "osc": "/synth/pitch",
+          "arg": 1
+        },
+        0.5
+      ],
+      [
+        14400,
+        {
+          "osc": "/synth/pitch",
+          "arg": 0
+        },
+        0.5
+      ],
+      [
+        14400,
+        {
+          "osc": "/synth/pitch",
+          "arg": 1
+        },
+        0.8
+      ],
+      [
+        24000,
+        {
+          "osc": "/synth/pitch",
+          "arg": 0
+        },
+        0.75
+      ],
+      [
+        57600,
+        {
+          "osc": "/synth/pitch",
+          "arg": 0
+        },
+        0.25
+      ],
+      [
+        57600,
+        {
+          "osc": "/synth/pitch",
+          "arg": 1
+        },
+        1.0
+      ],
+      [
+        4800,
+        {
+          "osc": "/synth/gate",
+          "arg": 0
+        },
+        1
+      ],
+      [
+        33600,
+        {
+          "osc": "/synth/gate",
+          "arg": 0
+        },
+        0
+      ],
+      [
+        48000,
+        {
+          "osc": "/synth/gate",
+          "arg": 0
+        },
+        1
+      ],
+      [
+        76800,
+        {
+          "osc": "/synth/gate",
+          "arg": 0
+        },
+        0
+      ],
+      [
+        4800,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.1
+      ],
+      [
+        7200,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.15000000000000002
+      ],
+      [
+        9600,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.2
+      ],
+      [
+        12000,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.25
+      ],
+      [
+        14400,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.30000000000000004
+      ],
+      [
+        16800,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.35000000000000003
+      ],
+      [
+        19200,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.4
+      ],
+      [
+        21600,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.45
+      ],
+      [
+        24000,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.5
+      ],
+      [
+        26400,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.55
+      ],
+      [
+        28800,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.6000000000000001
+      ],
+      [
+        31200,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.65
+      ],
+      [
+        33600,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.7000000000000001
+      ],
+      [
+        36000,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.75
+      ],
+      [
+        38400,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.8
+      ],
+      [
+        40800,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.8500000000000001
+      ],
+      [
+        43200,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.9
+      ],
+      [
+        67200,
+        {
+          "osc": "/synth/cutoff",
+          "arg": 0
+        },
+        0.3
+      ],
+      [
+        19200,
+        {
+          "osc": "/synth/hit",
+          "arg": 0
+        },
+        1
+      ],
+      [
+        38400,
+        {
+          "osc": "/synth/hit",
+          "arg": 0
+        },
+        1
+      ],
+      [
+        69600,
+        {
+          "osc": "/synth/hit",
+          "arg": 0
+        },
+        1
+      ],
+      [
+        28800,
+        {
+          "osc": "/synth/pitchbend",
+          "arg": 0
+        },
+        0.9
+      ],
+      [
+        28800,
+        {
+          "osc": "/other",
+          "arg": 0
+        },
+        1
+      ]
+    ]
+  }
+}

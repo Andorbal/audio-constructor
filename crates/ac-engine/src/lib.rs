@@ -9,6 +9,7 @@
 )]
 
 mod bake;
+mod bindings;
 mod compile;
 mod engine;
 mod flatten;
@@ -21,6 +22,7 @@ mod report;
 mod telemetry;
 
 pub use bake::{BakeInput, BakeJob, BakeResult, BakeSpec, BakeStore, WholeState};
+pub use bindings::BindingValues;
 pub use compile::{CarryLayout, CompileOptions, Compiled, ParamMap, ParamTarget, compile};
 pub use engine::{ClockFn, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 pub use graph::CompiledGraph;

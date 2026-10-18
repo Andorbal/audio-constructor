@@ -18,9 +18,9 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use ac_core::{
-    AutoFlags, BufferRef, EngineInfo, HostAccess, InputSlot, Inputs, Io, MidiEvent, Node, NodeMeta,
-    NodePath, OutputSlot, Outputs, ParamSlot, Phase, PrepareCtx, ProcessCtx, Signature,
-    SpectrumBuf, TelemetryAccess, TempoMap, TransportView,
+    AutoFlags, BufferRef, ControlEvent, EngineInfo, HostAccess, InputSlot, Inputs, Io, MidiEvent,
+    Node, NodeMeta, NodePath, OscMessage, OutputSlot, Outputs, ParamSlot, Phase, PrepareCtx,
+    ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TransportView,
 };
 
 use crate::pool::{Job, RtPool};
@@ -221,6 +221,8 @@ pub struct CompiledGraph {
     pub(crate) level_decay: f32,
     /// Output latency in samples.
     pub(crate) latency: u32,
+    /// The project's bindings, resolved to this graph's param slots.
+    pub(crate) bindings: crate::bindings::BindingTable,
 }
 
 /// What every step of a block shares (read-only, so it can be shared
@@ -246,6 +248,7 @@ struct Shared<'a> {
     host_stride: usize,
     host_offset: usize,
     host_midi: &'a [MidiEvent],
+    host_controls: &'a [ControlEvent],
 }
 
 /// A run of steps for one worker: `steps[i]` uses `work[i]`.
@@ -258,7 +261,7 @@ struct Chunk<'a, 'b> {
 impl Job for Chunk<'_, '_> {
     fn run(&mut self) {
         for (step, work) in self.steps.iter().zip(self.work.iter_mut()) {
-            run_step(self.shared, step, work, &mut [], None);
+            run_step(self.shared, step, work, &mut [], None, None);
         }
     }
 }
@@ -336,12 +339,15 @@ impl CompiledGraph {
                 p.fired = false;
                 if p.remaining > 0 {
                     let n = (frames as u32).min(p.remaining);
-                    p.value += p.step * n as f32;
                     p.remaining -= n;
                     if p.remaining == 0 {
                         p.value = p.target;
                         p.step = 0.0;
                     } else {
+                        // Counted back from the target, not accumulated,
+                        // so any split of the ramp into blocks lands on
+                        // the same values (FloatIn::Ramp).
+                        p.value = p.target - p.step * p.remaining as f32;
                         done = false;
                     }
                 }
@@ -436,6 +442,7 @@ impl CompiledGraph {
                     host_stride: host.stride,
                     host_offset: host.offset,
                     host_midi: host.midi,
+                    host_controls: host.controls,
                 };
                 let parallel = mid - start;
                 let width = (end - start).min(self.work.len());
@@ -448,13 +455,20 @@ impl CompiledGraph {
                     }
                     _ => {
                         for (step, w) in par_steps.iter().zip(par_work.iter_mut()) {
-                            run_step(&shared, step, w, &mut [], None);
+                            run_step(&shared, step, w, &mut [], None, None);
                         }
                     }
                 }
                 let serial_steps = &shared.steps[mid..end];
                 for (step, w) in serial_steps.iter().zip(serial_work.iter_mut()) {
-                    run_step(&shared, step, w, host.output, host.midi_out.as_deref_mut());
+                    run_step(
+                        &shared,
+                        step,
+                        w,
+                        host.output,
+                        host.midi_out.as_deref_mut(),
+                        host.osc_out.as_deref_mut(),
+                    );
                 }
             }
             for (k, step) in self.steps[start..end].iter().enumerate() {
@@ -631,14 +645,16 @@ fn move_back(
     }
 }
 
-/// Run one step whose outputs are in `work`. `host_output` and `midi_out`
-/// are the device outputs for serial steps, and empty for the rest.
+/// Run one step whose outputs are in `work`. `host_output`, `midi_out`,
+/// and `osc_out` are the device outputs for serial steps, and empty for the
+/// rest.
 fn run_step(
     shared: &Shared<'_>,
     step: &Step,
     work: &mut StepWork,
     host_output: &mut [f32],
     midi_out: Option<&mut Vec<MidiEvent>>,
+    osc_out: Option<&mut Vec<OscMessage>>,
 ) {
     let frames = shared.frames;
     let phase = match step.kind {
@@ -721,6 +737,8 @@ fn run_step(
                 frames,
                 midi: shared.host_midi,
                 midi_out,
+                controls: shared.host_controls,
+                osc_out,
             },
             telemetry: tele,
         };

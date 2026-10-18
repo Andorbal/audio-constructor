@@ -77,8 +77,9 @@ slate.
   to type.
 - Wired inputs show the live value in muted text; hover a socket to see it
   large, with rate (const/block/sample) and channel count.
-- Right-click a socket: disconnect, bind to MIDI CC / key / gamepad control
-  (MIDI learn), expose as a group input, add a Reroute.
+- Right-click a socket: disconnect, **Bind…** to a MIDI controller or note,
+  key, gamepad control, or OSC address (learn; see Bindings), remove its
+  bindings, expose as a group input, add a Reroute.
 - Badges in the header: **disabled** (whole-input node fed by a live
   source), **baking…/baked**, **error** (type/channel mismatch, with the
   message on hover), **latency** (samples this node adds), **muted**.
@@ -109,6 +110,8 @@ slate.
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
 | Find | `Ctrl+F` finds nodes by name/type and jumps to them |
 | Help | `F1` on a node opens its reference in the side panel |
+| Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
+| Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
 
 Wire routing: béziers by default, with a "straight with bends" option. Wires
 behind nodes are dimmed. Long wires can be turned into named **portals**
@@ -123,9 +126,12 @@ A resizable panel (`N` toggles) with tabs:
   bindings, timing, latency.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette.
-- **Project**: sample rate, length, tempo map, seed, assets, missing files.
+- **Project**: sample rate, length, tempo map, seed, bindings, assets,
+  missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
-  xrun counter, per-core load.
+  xrun counter, per-core load, OSC (a checkbox and port to listen on, 9000
+  unless changed and off until turned on; the address to send to; what has
+  arrived and what OSC Out nodes sent), and transport buttons.
 - **Problems**: compile errors and disabled nodes, click to jump.
 
 ## Transport bar
@@ -133,7 +139,19 @@ A resizable panel (`N` toggles) with tabs:
 Play/stop/record, position in bars:beats and time, tempo and time signature
 (click to edit the tempo map), loop toggle and range, metronome toggle (a
 built-in block), master meter, CPU and xrun indicator. `Space` plays/stops,
-`R` records, `Shift+Space` plays from the start.
+`R` records, `Shift+Space` plays from the start. At its right end, a
+**Canvas | Panels** switch and the performance-mode button.
+
+The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
+keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)
+instead of running canvas shortcuts. It's off by default because the
+canvas's shortcuts are single keys. While it's on, `Escape` and shortcuts
+with `Ctrl`/`Cmd`/`Alt` still work, text fields still get typing, holding a
+key doesn't repeat it, and every held key is released when Play keys turns
+off, a text field takes focus, or the window loses focus. The status bar
+says it's on. Performance mode turns Play keys on by itself (below); the
+panel view in the editor doesn't, since you still arrange cards and use
+`Space` for the transport there.
 
 ## Panels (the "performance view")
 
@@ -145,13 +163,88 @@ between the canvas and the panels; a panel can be shown full-screen for a
 performance. This is how a user builds a mixer window, a drum pad, or a
 pedalboard without the app providing one.
 
+- **Pinning.** `P` pins the selected nodes that have a widget to the
+  current panel, making "Panel 1" if there is none; on nodes already
+  pinned there, `P` unpins them. Widgets are the controls (Button, Toggle,
+  Slider, Knob, XY Pad, Keyboard, Number, Dropdown), the displays (Meter,
+  Scope, Analyzer, Readout), and Clip, Record, and Audio Out. A node's
+  right-click menu pins it to any panel or a new one, and unpins it. Pinned
+  nodes carry a pin badge in their header. Only top-level nodes can be
+  pinned (the menu says so inside a group): a group's insides are shared by
+  all its instances, so a pin there couldn't say which one it plays.
+  Deleting a node, or grouping it, takes it off every panel in the same
+  undo step.
+- **Showing panels.** `Ctrl+Tab`, View ▸ Canvas / Panels, or the switch in
+  the transport bar shows the panels in place of the canvas. Tabs across the
+  top show one panel each: click to show it, double-click to rename it,
+  right-click to rename, move left or right, or delete it; `+` adds a panel
+  and names it. While the panels show, shortcuts that act on the graph are
+  off; transport, undo, and file shortcuts still work.
+- **The grid.** Each card has the node's label and its live widget, played
+  exactly as on the canvas: dragging a slider is one undo step, a held
+  button or key is momentary and never touches the project, and meters,
+  scopes, analyzers, and readouts move with the audio. Cards flow left to
+  right in pin order; the Keyboard, Scope, Analyzer, and XY Pad get bigger
+  cells. Drag a card by its edge (anywhere but its widget) to move it;
+  `−` and `+` in its corner make it smaller or bigger, and `×` unpins it.
+  Each is one undo step. A panel taller than the window scrolls.
+- **Performance mode.** `F11`, View ▸ Performance Mode, or the Perform
+  button shows the current panel full screen with bigger cells. The menu
+  bar, side panel, status bar, and transport bar go; play/stop, the
+  position, the panel tabs, a Play keys button, and Exit stay. `Esc` or
+  `F11` leaves, and so does taking the window out of full screen.
+  Performance mode turns **Play keys** on, so the computer keys play the
+  patch (`Space` too: use the play button, or `Ctrl+K` or the keyboard
+  button to turn Play keys off); leaving puts Play keys back the way it
+  was. `Esc` and `F11` always leave, even with Play keys on.
+
 ## Bindings
 
-Any `Bool`/`Trigger`/`Float` input or control node can be bound to a MIDI
-CC/note, a computer key, or a gamepad control. **Learn** mode: right-click →
-Bind → move the control. Bindings are stored in the project and listed in the
-Project tab. Gamepad buttons can be bound to transport actions (A = play,
-B = stop, X = record) in the Devices tab.
+Any unwired `Float`, `Int`, `Bool`, or `Trigger` input can be bound to a
+MIDI controller or note, a computer key, a gamepad button or axis, or an
+OSC address, and transport actions can be bound the same way. Bindings are
+stored in the project, so the editor, `audioc run`, and offline renders
+all honor them (DECISIONS D92).
+
+- **Learn**: right-click an input → **Bind…**, then move the control. The
+  status line says what's listening ("move a control: MIDI, key, gamepad,
+  or OSC… Esc cancels"). Notes, keys, and buttons bind on press; a
+  controller, stick, or OSC value binds once it really moves (8 % of its
+  span), so jitter or a resting stick doesn't bind. A key pressed on the
+  canvas while learning is a candidate too, and runs no shortcut. The new
+  binding is one undo step. Control nodes (Slider, Knob, Toggle, Button,
+  Number, Dropdown) offer **Bind…** in their title's menu for their main
+  value; an XY Pad offers **Bind X…** and **Bind Y…**.
+- **Mapping**: controllers and sticks sweep the input's range (its slider's
+  range, on a log scale where the slider is log); notes press with their
+  velocity, keys and buttons press fully; triggers fire once per press; a
+  `Bool` follows the control (momentary) or flips on each press (toggle).
+  Pressed controls learned for a `Bool` start as toggles, except inputs
+  meant to be held (a Button's `pressed`, a keyboard key, `touched`,
+  `gate`). Each binding can set its own range and be inverted (D93).
+- **On the canvas** a bound input shows a small link left of its socket
+  (in the warning color if the input is wired, since a wired input ignores
+  its binding); hovering it names the control. While the patch plays, the
+  input's widget follows the control, on the canvas and on performance
+  panels alike. That isn't an edit: nothing is added
+  to undo, the project isn't marked changed, and the stored value is what's
+  saved. Moving the widget by hand takes over until the control moves
+  again. Right-click a bound input → **Remove Bindings**.
+- **Project tab** lists every binding: the control, what it drives (click
+  to jump to the node), its range, invert, momentary or toggle, and the
+  value it last set; × removes it. The **Node tab** lists the selected
+  node's bindings.
+- **Inside groups** a binding targets the instance the group was entered
+  through, not every instance (D94). Deleting a node removes its bindings
+  in the same undo step; grouping or ungrouping keeps them with their
+  nodes.
+- **Transport buttons** (Devices tab): one click adds the gamepad preset,
+  A = play/stop, B = stop, X = record, on any gamepad; any transport action
+  (play, stop, play/stop, record, play from start) can also be learned from
+  any control. Transport bindings are listed there and in the Project tab.
+- OSC events reach the engine as a hash of their address, so learning can
+  name an OSC address only if the project already mentions it (an OSC
+  node's settings, or another OSC binding) (D95).
 
 ## Live feedback
 

@@ -36,10 +36,20 @@ pub struct Document {
     /// moving nodes, view changes, and parameter values sent directly).
     pub engine_revision: u64,
     history: History,
+    /// While [`Document::at_root`] runs: the scope to come back to, which
+    /// undo steps record (so undoing a panel edit doesn't leave a group).
+    outer_scope: Option<Vec<ScopeEntry>>,
 }
 
 impl Document {
-    pub fn new(project: Project, path: Option<PathBuf>, base_dir: PathBuf, seed: u64) -> Document {
+    pub fn new(
+        mut project: Project,
+        path: Option<PathBuf>,
+        base_dir: PathBuf,
+        seed: u64,
+    ) -> Document {
+        // Pins to nodes that aren't there (a hand-edited file) are dropped.
+        project.prune_panels();
         Document {
             project,
             path,
@@ -51,6 +61,7 @@ impl Document {
             saved_revision: 0,
             engine_revision: 0,
             history: History::default(),
+            outer_scope: None,
         }
     }
 
@@ -202,6 +213,19 @@ impl Document {
         Some(*last)
     }
 
+    /// Run `f` with the root graph as the current scope, then come back
+    /// (the performance panels pin top-level nodes, whatever group the
+    /// canvas is in).
+    pub fn at_root<R>(&mut self, f: impl FnOnce(&mut Document) -> R) -> R {
+        let saved = std::mem::take(&mut self.scope);
+        let outer = self.outer_scope.replace(saved.clone());
+        let r = f(self);
+        self.outer_scope = outer;
+        self.scope = saved;
+        self.fix_scope();
+        r
+    }
+
     /// Breadcrumb labels from the root to the current scope.
     pub fn breadcrumb(&self) -> Vec<String> {
         let mut out = vec![self.title()];
@@ -223,7 +247,10 @@ impl Document {
         Snapshot {
             label: label.to_string(),
             project: self.project.clone(),
-            scope: self.scope.clone(),
+            scope: self
+                .outer_scope
+                .clone()
+                .unwrap_or_else(|| self.scope.clone()),
             selection: self.selection.clone(),
             revision: self.revision,
         }
@@ -281,6 +308,11 @@ impl Document {
             f,
         );
         edit::group::prune_instance_wires(&mut self.project);
+        // A node that left the root graph (deleted, or moved into a group)
+        // leaves every panel in the same step. Bindings follow their nodes,
+        // and go with deleted ones, in the same step too.
+        self.project.prune_panels();
+        crate::bindings::follow_edit(&before.project, &mut self.project);
         if self.project != before.project {
             self.history.push(before, None, 0.0);
             self.changed(true);
@@ -293,11 +325,30 @@ impl Document {
     pub fn edit_project<R>(&mut self, label: &str, f: impl FnOnce(&mut Project) -> R) -> R {
         let before = self.snapshot(label);
         let r = f(&mut self.project);
+        self.project.prune_panels();
+        crate::bindings::follow_edit(&before.project, &mut self.project);
         if self.project != before.project {
             self.history.push(before, None, 0.0);
             self.changed(true);
         }
         self.fix_scope();
+        r
+    }
+
+    /// Change the performance panels (given with the root graph they pin
+    /// from) as one undo step. Panels are views: the engine isn't told.
+    pub fn edit_panels<R>(
+        &mut self,
+        label: &str,
+        f: impl FnOnce(&mut Vec<ac_core::Panel>, &Graph) -> R,
+    ) -> R {
+        let before = self.snapshot(label);
+        let r = f(&mut self.project.panels, &self.project.graph);
+        self.project.prune_panels();
+        if self.project.panels != before.project.panels {
+            self.history.push(before, None, 0.0);
+            self.changed(false);
+        }
         r
     }
 
@@ -354,6 +405,32 @@ impl Document {
     pub fn edit_settings(&mut self, key: &str, now: f64, f: impl FnOnce(&mut Project)) {
         self.checkpoint_coalesced("Change project settings", key, now);
         f(&mut self.project);
+        self.changed(true);
+    }
+
+    /// Change binding `index` from a widget that reports changes every
+    /// frame while dragged (a range end): one undo step per field and
+    /// gesture. Nothing happens if it didn't change.
+    pub fn edit_binding(
+        &mut self,
+        index: usize,
+        field: &str,
+        now: f64,
+        f: impl FnOnce(&mut ac_core::Binding),
+    ) {
+        let Some(old) = self.project.bindings.get(index) else {
+            return;
+        };
+        let mut b = old.clone();
+        f(&mut b);
+        if b == *old {
+            return;
+        }
+        let key = format!("binding:{index}:{field}");
+        self.checkpoint_coalesced("Change binding", &key, now);
+        if let Some(slot) = self.project.bindings.get_mut(index) {
+            *slot = b;
+        }
         self.changed(true);
     }
 
