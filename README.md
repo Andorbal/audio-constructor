@@ -8,7 +8,8 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > the desktop editor. Phase 2 is under way: polyphony, nodes that bake their
 > whole input, latency compensation, multi-core processing, and the Phase 2
 > node library (about eighty nodes, with editors for curves, step grids,
-> piano rolls, and bands) are in. See
+> piano rolls, and bands) are in, as are blocks (23 ship, from reverbs to a
+> drum machine) and packs for sharing projects. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
