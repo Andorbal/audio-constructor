@@ -222,6 +222,32 @@ impl Canvas {
                         return true;
                     }
                 }
+                if *input && !iface {
+                    let bindable = scene
+                        .node(*node)
+                        .and_then(|n| n.socket(name, true))
+                        .and_then(|s| s.spec.as_ref())
+                        .is_some_and(ac_core::binding::bindable);
+                    if bindable && !wired && item(ui, icons::LINK, "Bind…", None) {
+                        io.events.push(CanvasEvent::Bind {
+                            node: *node,
+                            socket: name.clone(),
+                        });
+                        return true;
+                    }
+                    if io.bound.is_bound(*node, name)
+                        && item(ui, icons::LINK_BREAK, "Remove Bindings", None)
+                    {
+                        let target = ac_core::Target::Input {
+                            node: io.doc.node_path(*node),
+                            socket: name.clone(),
+                        };
+                        io.doc.edit_project("Remove bindings", |p| {
+                            p.bindings.retain(|b| b.target != target);
+                        });
+                        return true;
+                    }
+                }
                 if !iface && item(ui, icons::BOOK_OPEN, "Node Help", Some(Action::NodeHelp)) {
                     io.events.push(CanvasEvent::ShowHelp(*node));
                     return true;
@@ -280,6 +306,23 @@ impl Canvas {
                 if n.kind == "clip" && item(ui, icons::FILE_AUDIO, "Choose File…", None) {
                     io.events.push(CanvasEvent::ChooseClipFile(*node));
                     return true;
+                }
+                // A control binds its main value (an XY Pad either axis).
+                let main = crate::bindings::control_inputs(&n.kind);
+                for socket in main {
+                    let free = n.socket(socket, true).is_some_and(|s| !s.wired);
+                    let label = if main.len() > 1 {
+                        format!("Bind {}…", socket.to_uppercase())
+                    } else {
+                        "Bind…".to_string()
+                    };
+                    if free && item(ui, icons::LINK, &label, None) {
+                        io.events.push(CanvasEvent::Bind {
+                            node: *node,
+                            socket: socket.to_string(),
+                        });
+                        return true;
+                    }
                 }
                 ui.separator();
                 for (icon, a) in [

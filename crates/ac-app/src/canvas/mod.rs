@@ -59,6 +59,8 @@ pub enum CanvasEvent {
     Status(String),
     /// Run an editor command (from a right-click menu).
     Run(crate::actions::Action),
+    /// Learn a binding for an unwired input (UX.md "Bindings").
+    Bind { node: NodeId, socket: String },
 }
 
 /// What the canvas needs from the app each frame.
@@ -74,7 +76,18 @@ pub struct CanvasIo<'a> {
     pub show_timing: bool,
     /// Record nodes can write takes (the project is saved somewhere).
     pub can_record: bool,
+    /// Bound inputs in the current scope, with the values their bindings
+    /// last set.
+    pub bound: &'a crate::bindings::BoundInputs,
     pub events: Vec<CanvasEvent>,
+}
+
+impl CanvasIo<'_> {
+    /// A node of the current graph as drawn: bound inputs at the value
+    /// their bindings last set while the engine runs.
+    pub fn shown_node(&self, id: NodeId) -> Option<ac_core::NodeInstance> {
+        self.doc.graph().node(id).map(|n| self.bound.shown(n))
+    }
 }
 
 /// What the pointer is over.

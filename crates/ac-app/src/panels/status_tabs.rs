@@ -385,6 +385,15 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
         }
     }
 
+    midi_outputs(ui, io, state);
+
+    let choice = state
+        .transport_choice
+        .get_or_insert(ac_core::TransportAction::PlayStop);
+    super::bindings_ui::transport_section(ui, io, choice);
+}
+
+fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     section(ui, "MIDI outputs");
     if io.engine.midi_out.is_none() {
         ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::TEXT_MUTED));

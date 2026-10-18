@@ -54,6 +54,8 @@ pub struct EngineHost {
     pub midi_out: Option<MidiOutputs>,
     pub midi_out_choice: MidiSelect,
     last_rescan: Instant,
+    /// MIDI ports are connected (a device setup), so rescan for new ones.
+    scan_midi: bool,
     pub report: CompileReport,
     /// What the engine runs at (from the stream, or the null defaults).
     pub info: StreamInfo,
@@ -134,6 +136,7 @@ impl EngineHost {
             midi_out: None,
             midi_out_choice: MidiSelect::None,
             last_rescan: Instant::now(),
+            scan_midi: matches!(mode, AudioMode::Device(_)),
             report,
             info,
             config,
@@ -143,13 +146,21 @@ impl EngineHost {
             mode_off: host.is_none(),
             baker: Baker::new(),
         };
-        let ports = if matches!(mode, AudioMode::Device(_)) {
-            MidiPorts {
+        let ports = match mode {
+            AudioMode::Device(_) => MidiPorts {
                 input: Some(me.new_midi_inputs()),
                 output: Some(me.new_midi_outputs()),
+            },
+            // No ports, but room for virtual sources (`virtual_midi`).
+            AudioMode::Null => {
+                let (inputs, rx) = MidiInputs::new();
+                me.midi = Some(inputs);
+                MidiPorts {
+                    input: Some(rx),
+                    output: None,
+                }
             }
-        } else {
-            MidiPorts::default()
+            AudioMode::Off => MidiPorts::default(),
         };
         match host {
             Some(h) => me.run(h, processor, ports, project),
@@ -172,6 +183,12 @@ impl EngineHost {
         }
         self.midi_out = Some(outputs);
         queue
+    }
+
+    /// A virtual MIDI source feeding the engine like a port (an on-screen
+    /// controller, a test). `None` when nothing runs MIDI input.
+    pub fn virtual_midi(&mut self, name: &str) -> Option<ac_io::MidiSender> {
+        self.midi.as_mut()?.sender(name).ok()
     }
 
     /// Send MIDI Out nodes' messages to these ports from now on.
@@ -274,6 +291,7 @@ impl EngineHost {
             }
         };
         self.mode_off = false;
+        self.scan_midi = true;
         self.run(Box::new(host), processor, midi, project);
     }
 
@@ -313,7 +331,7 @@ impl EngineHost {
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();
         }
-        if self.last_rescan.elapsed() > MIDI_RESCAN {
+        if self.scan_midi && self.last_rescan.elapsed() > MIDI_RESCAN {
             self.rescan_midi();
         }
         if self.latency == LatencyState::Running

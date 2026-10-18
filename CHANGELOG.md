@@ -13,6 +13,35 @@ fixes and smaller changes.
 
 ## [0.5.0] - 2026-10-18
 
+### Added
+
+- **Bindings**: drive any unwired number, switch, or trigger input from a
+  MIDI controller or note, a computer key, a gamepad button or stick, or
+  an OSC address. Right-click the input (or a control node's title) and
+  choose **Bind…**, then move the control: the first one that really
+  moves is bound, as one undo step (Esc cancels). Controllers and sticks
+  sweep the input's range (on a log scale for frequencies, like its
+  slider), notes and keys press it, and triggers fire once per press.
+- Bound inputs show a small link on the canvas, and their widgets follow
+  the control while the patch plays without marking the project changed.
+  The Project tab lists every binding (range, invert, momentary or toggle,
+  jump to the node, remove); the Node tab lists the selected node's.
+  Deleting a node removes its bindings in the same undo step, and grouping
+  or ungrouping keeps them with their nodes.
+- **Transport buttons**: the Devices tab sets up gamepad transport
+  buttons in one click (A play/stop, B stop, X record) and learns a
+  control for any transport action. They're stored in the project like
+  other bindings.
+- Bindings are part of the project, so `audioc live` and offline renders
+  honor them too; `audioc inspect` lists them, and `audioc validate`
+  warns about bindings whose input is missing or wired.
+
+### Changed
+
+- Parameter smoothing now lands on the same samples whatever the block
+  size, so a render with controller changes is identical at every block
+  size.
+
 ## [0.4.0] - 2026-10-18
 
 ### Added

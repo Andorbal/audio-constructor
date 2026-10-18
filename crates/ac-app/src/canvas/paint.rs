@@ -498,8 +498,8 @@ impl Canvas {
             }
         }
 
-        // Sockets and rows.
-        let doc_node = io.doc.graph().node(n.id).cloned();
+        // Sockets and rows (bound inputs at their live values).
+        let doc_node = io.shown_node(n.id);
         for s in &n.outputs {
             let p = t.to_screen(s.pos);
             if !n.collapsed && text_ok {
@@ -575,8 +575,51 @@ impl Canvas {
                 );
             }
             self.paint_socket_dot(&mut sockets, p, n, s, hover, wiring, alpha);
+            if text_ok && let Some(b) = io.bound.get(n.id, &s.name) {
+                self.paint_bound_badge(painter, p, s.wired, &b.sources, alpha);
+            }
         }
         painter.extend(sockets);
+    }
+
+    /// A small link left of a bound input's socket (where its wire would
+    /// come in), naming what drives it on hover. A wired input ignores its
+    /// binding, so the link shows in the warning color.
+    fn paint_bound_badge(
+        &mut self,
+        painter: &Painter,
+        socket: Pos2,
+        wired: bool,
+        sources: &[String],
+        alpha: f32,
+    ) {
+        let z = self.view.zoom;
+        let color = if wired {
+            theme::WARNING
+        } else {
+            theme::ACCENT
+        };
+        let galley = painter.layout_no_wrap(
+            icons::LINK.to_string(),
+            theme::canvas_font(theme::FONT_SMALL, z, false),
+            theme::fade(color, alpha),
+        );
+        let size = galley.size();
+        let pos = pos2(
+            socket.x - (theme::SOCKET_RADIUS + 3.0) * z.sqrt() - size.x,
+            socket.y - size.y / 2.0,
+        );
+        let r = Rect::from_min_size(pos, size);
+        painter.galley(pos, galley, color);
+        let tip = if wired {
+            format!(
+                "Bound to {}, but the input is wired, so the binding does nothing.",
+                sources.join(", ")
+            )
+        } else {
+            format!("Bound to {}", sources.join(", "))
+        };
+        self.tips.push((r.expand(2.0), tip));
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -835,7 +878,8 @@ impl Canvas {
             }
             Body::Slider => {
                 let spec = n.socket("value", true).and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
+                let shown = io.shown_node(n.id);
+                let node = shown.as_ref();
                 if let (Some(spec), Some(node)) = (spec, node) {
                     let wired = n.socket("value", true).is_some_and(|s| s.wired);
                     let v = if wired {
@@ -860,7 +904,8 @@ impl Canvas {
             Body::Knob => {
                 let input = n.socket("value", true);
                 let spec = input.and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
+                let shown = io.shown_node(n.id);
+                let node = shown.as_ref();
                 if let (Some(spec), Some(node)) = (spec, node) {
                     let wired = input.is_some_and(|s| s.wired);
                     let v = if wired {
@@ -884,7 +929,8 @@ impl Canvas {
                 }
             }
             Body::XyPad => {
-                let node = io.doc.graph().node(n.id);
+                let shown = io.shown_node(n.id);
+                let node = shown.as_ref();
                 // Each axis from its input, or the live output when wired.
                 let axis = |name: &str| -> f32 {
                     let Some(s) = n.socket(name, true) else {
@@ -939,7 +985,8 @@ impl Canvas {
             Body::Number => {
                 let input = n.socket("value", true);
                 let spec = input.and_then(|s| s.spec.clone());
-                let node = io.doc.graph().node(n.id);
+                let shown = io.shown_node(n.id);
+                let node = shown.as_ref();
                 if let (Some(spec), Some(node)) = (spec, node) {
                     let wired = input.is_some_and(|s| s.wired);
                     let editing = matches!(&self.edit, Some(e) if matches!(&e.target, super::EditTarget::Param { node, socket, .. } if *node == n.id && socket == "value"));
@@ -968,7 +1015,7 @@ impl Canvas {
                 }
             }
             Body::Dropdown => {
-                if let Some(node) = io.doc.graph().node(n.id) {
+                if let Some(node) = io.shown_node(n.id).as_ref() {
                     let labels = ac_nodes::controls::dropdown::choices(&node.config);
                     let input = n.socket("value", true);
                     let wired = input.is_some_and(|s| s.wired);

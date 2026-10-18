@@ -329,7 +329,25 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
 - **Parameters in**: an SPSC ring (`rtrb`) of `(param slot, value)` updates
   (the control side resolves node path and socket name to a slot), drained
   at the start of each block. Values smooth over a few ms by
-  default to avoid zipper noise (per-socket opt-out).
+  default to avoid zipper noise (per-socket opt-out). A ramp counts back
+  from its target, so it gives the same samples however blocks split it.
+- **Bindings** (D92–D95): the project's bindings (a MIDI controller or
+  note, key, gamepad control, or OSC address → an input or a transport
+  action) compile to a table inside the compiled graph, resolved through
+  the same (path, socket) → slot map as parameter changes; bindings to
+  missing, wired, or unbindable inputs are compile warnings. Each block,
+  the processor matches its MIDI and control events against the table
+  (allocation-free, into a preallocated list in offset order) and splits
+  the block where a bound event lands, so the parameter change, trigger,
+  or transport action happens on that sample at any block size (at most
+  64 splits a block). What a binding last set carries over to the next
+  graph and is published through relaxed atomics
+  (`EngineHandle::binding_values`) for the editor's widgets; a parameter
+  message from the editor to the same slot wins. While the editor learns
+  a binding, the processor also copies raw events into a small ring
+  (`set_input_monitor`, `take_input_events`). Offline renders and the
+  null host feed test MIDI and control events through the same path, so
+  bindings are deterministic like everything else.
 - **Events in**: MIDI, gamepad, keyboard, OSC arrive on their own threads and
   are pushed into rings with timestamps from one monotonic clock (one ring
   per source, so no producer ever waits on another; a full ring drops and
@@ -382,6 +400,9 @@ impl EngineHandle {                                                   // control
     pub fn edit(&mut self, edit: GraphEdit) -> CompileReport;         // recompiles, hot-swaps
     pub fn set_param(&mut self, node: &NodePath, socket: &str, value: Value) -> bool;
     pub fn fire(&mut self, node: &NodePath, socket: &str) -> bool;    // inline trigger button
+    pub fn binding_values(&self) -> Arc<BindingValues>;               // what each binding last set
+    pub fn set_input_monitor(&mut self, on: bool);                    // copy raw events for learning
+    pub fn take_input_events(&mut self) -> Vec<InputEvent>;
     pub fn play(&mut self); pub fn stop(&mut self); pub fn seek(&mut self, sample: u64);
     pub fn set_recording(&mut self, on: bool); pub fn set_loop(&mut self, r: Option<(u64, u64)>);
     pub fn telemetry(&self) -> TelemetryReader;
@@ -494,7 +515,9 @@ like the computer keyboard, pushes into the same per-source rings, and one
 
 - **Project**: `name.acproj`, a JSON document with `schema_version`. Node
   params by socket name; node ids stable. Formatted with stable key order so
-  diffs are readable.
+  diffs are readable. Bindings are a `bindings` list (source, target by node
+  path and socket or transport action, optional `min`/`max`/`invert`/`mode`),
+  left out when empty.
 - **Block**: `name.acblock`, a JSON `GroupDef` with metadata (name,
   description, version, author, tags) and the project `schema_version`, plus
   `uses`: the definitions its own group nodes reference. Blocks live in

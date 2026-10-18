@@ -1,5 +1,6 @@
 //! The side panel (`N`): Node, Library, Project, Devices, and Problems tabs.
 
+mod bindings_ui;
 mod library;
 pub mod markdown;
 mod node_tab;
@@ -70,6 +71,8 @@ pub enum PanelRequest {
     /// Replace a definition with the library's newer version.
     UpdateBlock(GroupId),
     UpdateAllBlocks,
+    /// Learn a binding for an input or a transport action.
+    Learn(ac_core::Target),
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -80,6 +83,8 @@ pub struct DevicesState {
     pub draft: Option<ac_io::AudioConfig>,
     /// MIDI output port names, read when first shown.
     pub midi_outputs: Option<Vec<String>>,
+    /// The transport action "Bind…" learns a control for.
+    pub transport_choice: Option<ac_core::TransportAction>,
 }
 
 /// The side panel's own state.

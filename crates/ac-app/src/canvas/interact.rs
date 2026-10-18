@@ -325,11 +325,10 @@ impl Canvas {
                     .and_then(|s| s.spec.clone().map(|spec| (spec, field_rect(s))));
                 match spec {
                     Some((spec, _)) if widgets::field(&spec) == widgets::Field::Number => {
+                        // From the value shown (a bound input's live value).
                         let start = io
-                            .doc
-                            .graph()
-                            .node(node)
-                            .map_or(0.0, |n| widgets::number(n, &spec));
+                            .shown_node(node)
+                            .map_or(0.0, |n| widgets::number(&n, &spec));
                         self.gesture = Gesture::DragValue {
                             node,
                             socket,
@@ -393,14 +392,14 @@ impl Canvas {
                     // drag sideways like inline fields.
                     Some((b @ (Body::Knob | Body::Number), _)) => {
                         let spec = free("value");
-                        let inst = io.doc.graph().node(node);
+                        let inst = io.shown_node(node);
                         match (spec, inst) {
                             (Some(spec), Some(inst)) => {
                                 let knob = b == Body::Knob;
                                 self.gesture = Gesture::DragValue {
                                     node,
                                     socket: "value".into(),
-                                    start: widgets::number(inst, &spec),
+                                    start: widgets::number(&inst, &spec),
                                     spec,
                                     origin,
                                     width: if knob { KNOB_TRAVEL } else { DRAG_TRAVEL },
@@ -928,9 +927,10 @@ impl Canvas {
                     return;
                 };
                 let Some(spec) = s.spec.clone() else { return };
-                let Some(n) = io.doc.graph().node(node) else {
+                let Some(shown) = io.shown_node(node) else {
                     return;
                 };
+                let n = &shown;
                 match widgets::field(&spec) {
                     widgets::Field::Number => {
                         let v = widgets::number(n, &spec);
