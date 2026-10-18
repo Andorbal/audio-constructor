@@ -349,8 +349,9 @@ impl EngineHandle {
 
     // --- whole-input nodes and baking ---
 
-    /// Audio and MIDI that `Audio In` and `MIDI In` will receive, for bakes
-    /// in an offline render. Recompiles.
+    /// Audio, MIDI, and control events that `Audio In`, `MIDI In`, and the
+    /// control-surface nodes will receive, for bakes in an offline render.
+    /// Recompiles.
     pub fn set_bake_input(&mut self, input: BakeInput) -> CompileReport {
         let mut h = ac_core::util::Fnv64::new();
         if let Some(a) = &input.audio {
@@ -365,6 +366,14 @@ impl EngineHandle {
         for (at, msg) in input.midi.iter() {
             h.write(&at.to_le_bytes());
             h.write(format!("{msg:?}").as_bytes());
+        }
+        if !input.controls.is_empty() {
+            h.write(b"controls");
+        }
+        for (at, control, value) in input.controls.iter() {
+            h.write(&at.to_le_bytes());
+            h.write(format!("{control:?}").as_bytes());
+            h.write(&value.to_bits().to_le_bytes());
         }
         self.input_hash = h.finish();
         self.bake_input = input;

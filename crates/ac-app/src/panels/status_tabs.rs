@@ -1,5 +1,6 @@
-//! The Devices tab (audio device, latency, MIDI inputs and outputs) and
-//! the Problems tab (compile diagnostics, click to jump).
+//! The Devices tab (audio device, latency, MIDI inputs and outputs,
+//! gamepads, OSC, computer keys) and the Problems tab (compile diagnostics,
+//! click to jump).
 
 use ac_engine::Severity;
 use egui::RichText;
@@ -386,6 +387,11 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
 
     section(ui, "MIDI outputs");
+    midi_outputs(ui, io, state);
+    control_surfaces(ui, io);
+}
+
+fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     if io.engine.midi_out.is_none() {
         ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::TEXT_MUTED));
         return;
@@ -431,6 +437,119 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     if ui.button(format!("{}  Refresh", icons::REDO)).clicked() {
         state.midi_outputs = None;
         io.engine.rescan_midi();
+    }
+}
+
+/// Gamepads, OSC in and out, and the computer keys.
+fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
+    let muted = |ui: &mut egui::Ui, t: &str| {
+        ui.label(RichText::new(t).color(theme::TEXT_MUTED));
+    };
+
+    section(ui, "Gamepads");
+    match io.engine.gamepads.as_ref() {
+        None => muted(ui, "Gamepads are off (no device runtime)."),
+        Some(g) => {
+            let pads = g.connected();
+            if let Some(e) = g.error() {
+                muted(ui, &e);
+            } else if pads.is_empty() {
+                muted(ui, "No gamepads connected. Plug one in any time.");
+            }
+            for p in &pads {
+                ui.label(format!(
+                    "{}  {}  {}",
+                    icons::GAME_CONTROLLER,
+                    p.index,
+                    p.name
+                ))
+                .on_hover_text(format!("Gamepad {} in Gamepad nodes and bindings", p.index));
+            }
+            // Hot-plugging shows up without a click.
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(500));
+        }
+    }
+
+    section(ui, "OSC");
+    let listening = io.engine.osc_in.as_ref().map(|l| l.port());
+    ui.horizontal(|ui| {
+        let mut on = listening.is_some();
+        let r = ui.checkbox(&mut on, "Listen on UDP port");
+        let mut port = io.engine.osc_port;
+        let field = ui.add(
+            egui::DragValue::new(&mut port)
+                .range(1024..=65535)
+                .speed(1.0),
+        );
+        if field.changed() {
+            io.engine.osc_port = port;
+        }
+        let retarget = listening.is_some_and(|p| p != io.engine.osc_port)
+            && (field.drag_stopped() || field.lost_focus());
+        if r.changed() || retarget {
+            let want = on.then_some(io.engine.osc_port);
+            io.engine.set_osc_in(want);
+        }
+        r.on_hover_text(
+            "Receive OSC from phone and tablet apps or other programs on the network. Each \
+             message argument is a control for OSC In nodes and bindings.",
+        );
+    });
+    if let Some(e) = &io.engine.osc_error {
+        ui.colored_label(theme::WARNING, format!("{} {e}", icons::WARNING));
+    }
+    if let Some(l) = io.engine.osc_in.as_ref() {
+        let port = l.port();
+        let to = match ac_io::osc::local_ip() {
+            Some(ip) => format!("Send to {ip}:{port}"),
+            None => format!("Send to this computer, port {port}"),
+        };
+        ui.label(RichText::new(to).color(theme::TEXT_STRONG));
+        let st = l.stats();
+        let mut line = format!("{} messages", st.messages);
+        if st.malformed > 0 {
+            line.push_str(&format!(" · {} not OSC", st.malformed));
+        }
+        if st.dropped > 0 {
+            line.push_str(&format!(" · {} dropped", st.dropped));
+        }
+        ui.label(RichText::new(line).small().color(theme::TEXT_MUTED));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(250));
+    }
+    match io.engine.osc_out.as_ref() {
+        None => muted(ui, "OSC Out is off (no device runtime)."),
+        Some(o) => {
+            let mut line = format!(
+                "OSC Out nodes send to the address in their settings · {} sent",
+                o.sent()
+            );
+            if o.errors() > 0 {
+                line.push_str(&format!(" · {} failed", o.errors()));
+            }
+            if o.dropped() > 0 {
+                line.push_str(&format!(" · {} dropped", o.dropped()));
+            }
+            ui.label(RichText::new(line).small().color(theme::TEXT_MUTED));
+        }
+    }
+
+    section(ui, "Computer keys");
+    ui.label(
+        RichText::new(
+            "Turn on Play keys (the keyboard button in the transport bar) to send key \
+             presses to the patch instead of running shortcuts.",
+        )
+        .color(theme::TEXT_MUTED),
+    );
+    if let Some(c) = io.engine.controls.as_ref()
+        && c.dropped() > 0
+    {
+        ui.colored_label(
+            theme::WARNING,
+            format!("{} control events dropped", c.dropped()),
+        );
     }
 }
 

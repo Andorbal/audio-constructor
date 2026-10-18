@@ -76,6 +76,7 @@ pub const NOTE: &str = "\u{E348}";
 pub const WAVEFORM: &str = "\u{E802}";
 pub const MUSIC_NOTES: &str = "\u{E340}";
 pub const KEYBOARD: &str = "\u{E2D8}";
+pub const GAME_CONTROLLER: &str = "\u{E26E}";
 pub const MICROPHONE: &str = "\u{E326}";
 pub const HEADPHONES: &str = "\u{E2A6}";
 pub const GAUGE: &str = "\u{E628}";

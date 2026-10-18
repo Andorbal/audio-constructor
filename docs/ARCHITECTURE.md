@@ -339,13 +339,22 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   callback period lands a quarter of the way into this block,
   `offset = clamp((t_recv − (t_callback − block)) × rate, 0, frames − 1)`.
   That costs one buffer of latency and removes the jitter of quantizing to
-  callback boundaries.
+  callback boundaries. MIDI reaches the engine in `HostIo::midi`; keys,
+  gamepad buttons and axes, and OSC arguments share one fixed-size event
+  type, `ControlEvent`, in `HostIo::controls` (nodes read them with
+  `HostAccess::controls`). Both kinds use the same ring code
+  (`ac-io::rings`); a stream takes all of its sources and sinks as one
+  `EventPorts` (MIDI in and out, controls in, OSC out) and hands them back
+  when it stops (D85).
 - **Events out**: `MidiOut` nodes run on the device-output path and write
   into a MIDI buffer the host hands the engine with each block
   (`HostIo::midi_out`). The callback stamps each message with the time it
   should leave, one block after the callback that produced it (mirroring
   events in), and pushes it into a lock-free ring; a sender thread writes it
-  to the chosen ports when its time comes (D62).
+  to the chosen ports when its time comes (D62). `OscOut` nodes write OSC
+  messages (address and arguments inline, so building one never allocates)
+  into `HostIo::osc_out` the same way; a sender thread encodes each when
+  it's due and sends it over UDP to the message's own target (D85).
 - **Device input** comes from a separate input stream through an SPSC ring
   of interleaved samples, drained by the output callback (which owns the
   processor). The same path serves one duplex interface or two devices. The
@@ -451,9 +460,11 @@ This keeps a single project format and a single engine, with no mode switch.
   (`Transport.time`, oscillators, envelopes, clocks, MIDI) are block-size
   independent; golden projects declare which kind they are and the test
   suite checks both.
+- A render can be fed device input, MIDI, and control events (keys,
+  gamepads, OSC) at absolute frames, and bakes replay the same input.
 - Besides the device outputs, a render collects what `FileOut` nodes
   receive (into memory reserved from the render length, so nothing is ever
-  dropped) and what `MidiOut` nodes send. `audioc render` writes the files
+  dropped) and what `MidiOut` and `OscOut` nodes send. `audioc render` writes the files
   next to the main output, refusing paths that would leave its folder, and
   `--midi-out` writes the messages as a standard MIDI file (D61).
 
@@ -466,9 +477,11 @@ device's rate), and `start` turns it into a running `AudioStream` that owns
 the engine's `Processor`, reports counters, measures latency, and hands the
 processor back when stopped (so switching devices at the same rate doesn't
 rebuild the engine). The device backend (cpal) and a timer-paced null host
-implement both. MIDI needs no trait: every source, a port or a virtual one
-like the computer keyboard, pushes into the same per-source rings, and one
-`MidiReceiver` drains them on the audio thread.
+implement both. Event sources need no trait: every MIDI source, a port or a
+virtual one, pushes into its own ring and one `MidiReceiver` drains them on
+the audio thread; every control source (the computer keys, the gamepad
+thread, the OSC listener) owns a `ControlSender` and one `ControlReceiver`
+drains those.
 
 | Platform | Backends (cpal) | Notes |
 | --- | --- | --- |
@@ -491,11 +504,24 @@ without either feature.
   burst by cross-correlation.
 - Device callback threads ask the OS for real-time priority; a refusal is
   reported, not fatal.
-- MIDI via midir, hot-plug aware. Gamepads via gilrs (buttons as `Bool`/
-  `Trigger`, axes as `Float`, with a dead zone (radial for sticks) and
-  curve in the node).
-- The computer keyboard is a control source like any other: the host feeds
-  key events into the same ring as MIDI.
+- MIDI via midir, hot-plug aware.
+- Gamepads via gilrs, on their own thread, hot-plug aware. A gamepad's index
+  is the first one free when it connects and stays put while it's
+  connected; buttons are 0–1, sticks −1 to 1 (right and up positive), and
+  the analog triggers are both buttons and 0–1 axes. Unplugging releases
+  what was held. Dead zones and curves beyond gilrs's own are the node's.
+  Linux builds link libudev. No gamepad system is reported, never fatal
+  (D86).
+  The Gamepad node gives buttons as `Bool` gates and `Trigger` presses
+  and axes as `Float`s, with a radial dead zone for the sticks and a
+  response curve (D89).
+- OSC via rosc: a UDP listener on a chosen port (off until asked for) turns
+  every argument of every message into a control event, stamped on arrival
+  (bundles flattened, time tags ignored); OSC out sends from a sender
+  thread (D87).
+- The computer keyboard is a control source like any other: with Play keys
+  on, the editor sends key presses and releases into its own ring instead
+  of running shortcuts (D88).
 - A **null host** (no devices, silent, clocked by the caller) exists for
   tests, CI, and the agent's environment, which has no audio hardware.
 
@@ -538,12 +564,12 @@ All hosts call the same `Engine`.
   undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
 - **CLI** (`ac-cli`, binary `audioc`):
   - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]... [--input in.wav] [--midi-out notes.mid]` also writes each `FileOut` node's file next to `out.wav`.
-  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--midi-out NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests.
+  - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--midi-out NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N] [--osc-in PORT] [--no-gamepad]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests. Gamepads are listened to unless `--no-gamepad` (connects and disconnects are printed); `--osc-in PORT` listens for OSC on that UDP port; OSC Out nodes always send.
   - `audioc latency [device options] [--count N]` measures the round trip through a loopback cable.
   - `audioc validate <project>` prints the compile report (errors, disabled nodes, latency).
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
-  - `audioc devices` lists audio devices and MIDI inputs and outputs.
+  - `audioc devices` lists audio devices, MIDI inputs and outputs, and connected gamepads, and says how to receive and send OSC.
   - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
   - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
   - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.

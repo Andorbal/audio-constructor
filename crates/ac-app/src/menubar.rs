@@ -32,6 +32,7 @@ pub struct MenuState<'a> {
     pub panels: bool,
     pub playing: bool,
     pub looping: bool,
+    pub play_keys: bool,
     pub recent: &'a Recent,
     pub registry: &'a Registry,
 }
@@ -242,6 +243,8 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
             toggle(ui, &mut out, Action::ToggleLoop, s.looping);
+            ui.separator();
+            toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });
         ui.menu_button("Help", |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);
