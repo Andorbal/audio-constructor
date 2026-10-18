@@ -1,5 +1,10 @@
 //! Event payloads: MIDI messages with sample offsets.
 
+/// Events one `Midi` output holds per block, in the engine and the test
+/// harness. Past it an output drops events, so nodes that owe note-offs
+/// hold back optional messages to keep room for them.
+pub const MIDI_CAPACITY: usize = 1024;
+
 /// A MIDI message stamped with its sample offset inside the current block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MidiEvent {

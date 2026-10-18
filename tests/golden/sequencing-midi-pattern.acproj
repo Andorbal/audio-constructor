@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "name": "MIDI Pattern, Chord, and Transpose into Voices",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 3.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      },
+      {
+        "beat": 4.0,
+        "bpm": 150.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 4,
+          "channel": 1,
+          "notes": [
+            [
+              0,
+              0.5,
+              48,
+              100
+            ],
+            [
+              0.5,
+              0.5,
+              51,
+              90
+            ],
+            [
+              1,
+              1,
+              55,
+              100
+            ],
+            [
+              2,
+              0.75,
+              53,
+              80
+            ],
+            [
+              3,
+              0.5,
+              50,
+              100
+            ],
+            [
+              3.5,
+              1,
+              58,
+              70
+            ]
+          ]
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "chord",
+        "params": {
+          "chord": "power",
+          "spread": 1
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "midi_transpose",
+        "params": {
+          "root": "C",
+          "scale": "minor",
+          "semitones": 13,
+          "snap": true
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "voices",
+        "config": {
+          "def": "pluck",
+          "voices": 6,
+          "steal": "oldest"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "gain",
+        "params": {
+          "gain": -14.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:midi",
+        "to": "2:midi"
+      },
+      {
+        "from": "2:midi",
+        "to": "3:midi"
+      },
+      {
+        "from": "3:midi",
+        "to": "4:midi"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "pluck": {
+      "name": "Pluck voice",
+      "version": 1,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "4:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw"
+            },
+            "ui": {
+              "pos": [
+                200.0,
+                -60.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.005,
+              "decay": 0.2,
+              "release": 0.1,
+              "sustain": 0.3
+            },
+            "ui": {
+              "pos": [
+                200.0,
+                140.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                400.0,
+                40.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:freq",
+            "to": "2:freq"
+          },
+          {
+            "from": "1:gate",
+            "to": "3:gate"
+          },
+          {
+            "from": "2:out",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

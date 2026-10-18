@@ -19,7 +19,7 @@ losing performance or clarity, it should be a *block* (a saved group) in
   otherwise. No hidden parameters. Config (things that change the socket
   list, like a mixer's input count) is the only exception.
 - **Generators share a contract.** Anything that produces a signal over time
-  (Oscillator, Clip, Graph, Sampler, Pattern, LFO, envelopes) has:
+  (Oscillator, Clip, Graph, Sampler, Pattern, MidiPattern) has:
   - `start: Trigger` — starts or restarts. Unwired, it shows a dropdown:
     *On transport play* (default) / *Never* (only via wire).
   - `stop: Trigger`, `reset: Trigger`.
@@ -27,6 +27,9 @@ losing performance or clarity, it should be a *block* (a saved group) in
   - `reverse: Trigger` toggles direction where that makes sense (Clip, Graph,
     Sampler, Pattern), and `rate: Float(Ratio)` scales speed.
   - `playing: Bool` and `end: Trigger` outputs so generators can chain.
+  Modulators that follow a gate or a clock instead (ADSR, Envelope, LFO,
+  StepSequencer) restart from their own inputs (`gate`/`trigger`,
+  `retrigger`, `reset`) and don't take the full contract (DECISIONS D64).
 - **Stateful nodes implement `reset()`** and are reset when the transport
   restarts from zero.
 - **Sample-rate independent.** Never hard-code 44.1/48 kHz.
@@ -62,10 +65,10 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Oscillator` | P1 | `freq: Float(Hz)`, `shape` (sine, tri, saw, square, pulse with `width`), `phase: Float`, `sync: Trigger` (hard sync), `fm: Float` (linear FM). Out: `out: Float` at sample rate (wires to Audio or to any parameter). Band-limited for audio use; a `pure` config flag disables anti-aliasing for LFO-style use. |
 | `Clip` | P1 | Plays an audio file. Generator contract (start/stop/loop/reverse/rate). `position: Float(Seconds)` input for seeking; outputs `out: Audio`, `position: Float`, `end: Trigger`. Resamples to engine rate on load. |
 | `Transport` | P1 | Song time as signals: `time: Float(Seconds)`, `beat: Float(Beats)`, `bar: Int`, `beat_in_bar: Int`, `bpm: Float`, `playing: Bool`, `play: Trigger`, `stop: Trigger`. (The user's "SongTime".) |
-| `Noise` | P2 | White, pink, brown; seeded. `gain`, `seed` config. |
-| `Graph` | P2 | A hand-drawn curve (lines or béziers, editable in the node) with `duration: Float(Seconds or Beats)`; generator contract. Out: `out: Float`. Doubles as an envelope and, via `Shaper`, as a transfer function. |
-| `Sampler` | P2 | Plays a `Buffer` with pitch (`note`/`freq`), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
-| `Wavetable` | P2 | Scans a table (from a `Buffer` or built-in set) with `position: Float` morphing. |
+| `Noise` | P2 | White, pink, brown at the same RMS; seeded. `gain`, `seed` config; start/stop/reset. |
+| `Graph` | P2 | A hand-drawn curve (straight, held, smooth, or bent segments, drawn in the node editor) with `duration: Float(Seconds or Beats)`; generator contract. Out: `out: Float`, `position`. Doubles as an envelope. |
+| `Sampler` | P2 | Plays a `Buffer` (or, unwired, an audio file) with pitch (`note` against a `root` config), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
+| `Wavetable` | P2 | Scans a table (from a `Buffer` or the built-in sine → triangle → saw → square set) with `position: Float` morphing; band-limited per octave; `freq`, `phase`, `sync`, `fm`. |
 | `Impulse` | P2 | A single-sample click on `trigger`; for testing filters and building percussion. |
 | `Granular` | P3 | Grain cloud over a `Buffer`: grain size, density, spray, pitch, each a socket. |
 
@@ -76,12 +79,12 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Gain` | P1 | `in: Audio`, `gain: Float(dB)`. Channel-polymorphic. (Also "Volume".) |
 | `Pan` | P1 | Mono or stereo in, stereo out, `pan: Float(-1..1)`: constant-power law for mono, balance (far side fades, near side stays at unity) for stereo. |
 | `Mix` | P1 | N inputs (config), each with `gain: Float(dB)`; sums to `out`. Select four nodes and add a Mix to auto-wire them. |
-| `Crossfade` | P2 | `a`, `b`, `mix: Float(0..1)`. Works for `Audio` and `Float`. |
-| `EnvelopeFollower` | P2 | `in: Audio` → `level: Float` (peak or RMS, attack/release). Half of a compressor, all of a sidechain detector. |
-| `GainComputer` | P2 | `level: Float(dB)` → `gain_reduction: Float(dB)` from `threshold`, `ratio`, `knee`; `expand` mode for gates/expanders. The other half of a compressor; also a sidechain compressor when the detector is wired to a different source. |
-| `Lookahead` | P2 | Delays `in` by `time` and reports it as latency so `GainComputer` can see transients early. Lookahead + follower + computer + gain = limiter block. |
-| `Shaper` | P2 | Waveshaping: built-in curves (tanh, hard clip, fold, tube-ish) or a `Graph` as transfer function; `drive`, `bias`. |
-| `Normalize` | P2, WI | Scales a whole signal to a target peak or LUFS. |
+| `Crossfade` | P2 | `a`, `b`, `mix: Float(0..1)`, linear or equal-power `curve`. Works for `Audio` and `Float`. |
+| `EnvelopeFollower` | P2 | `in: Audio` → `level: Float` and `level_db` (peak or RMS, attack/release, channels linked). Half of a compressor, all of a sidechain detector. |
+| `GainComputer` | P2 | `level: Float(dB)` → `gain_reduction: Float(dB)` and linear `gain` from `threshold`, `ratio`, `knee`; `expand` mode for gates/expanders. The other half of a compressor; also a sidechain compressor when the detector is wired to a different source. |
+| `Lookahead` | P2 | Two outputs from one input: `out`, delayed by `time` (reported as latency), and `early`, undelayed, for the detector, so it sees transients before they arrive. Lookahead + follower + computer + gain = limiter block. |
+| `Shaper` | P2 | Waveshaping: built-in curves (tanh, hard clip, soft clip, fold, tube) or a custom transfer curve drawn in the node editor; `drive`, `bias`, `mix`; 2× oversampled. |
+| `Normalize` | P2, WI | Scales a whole signal to a target sample peak or integrated loudness (LUFS, ITU-R BS.1770); `mode` config. |
 
 ## Filters
 
@@ -132,17 +135,17 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Compare` | P1 | `a`, `b`, op → `Bool`. `hysteresis` input to avoid chatter. |
 | `Map` | P1 | Linear/exponential/log remap from one range to another, with clamp option. |
 | `Clamp` | P2 | `min`, `max`. |
-| `Logic` | P2 | and, or, xor, not, nand. |
+| `Logic` | P2 | and, or, xor, not, nand, nor. |
 | `Convert` | P2 | Unit conversions: dB↔gain, Hz↔MIDI note, semitones↔ratio, seconds↔beats, samples↔seconds. |
 | `Smooth` | P2 | Slew limiter / one-pole smoother; `rise`, `fall` times. |
-| `Integrate` / `Differentiate` | P2 | With leak/reset. |
+| `Integrate` / `Differentiate` | P2 | Integrate over seconds with `leak`, `reset`, and optional bounds that don't wind up; differentiate per second. |
 | `Random` | P2 | Seeded random on `trigger`; uniform or normal; `min`, `max`. |
 | `SampleHold` | P2 | Sample `in` on `trigger`. |
-| `Quantize` | P2 | Round `in` to `step`. |
+| `Quantize` | P2 | Round `in` to `offset + k·step`. |
 | `Counter` | P2 | Increments on `trigger`, wraps at `max`, `reset`. Out: `Int`. |
-| `Accumulate` | P2 | Adds `in` on `trigger`. |
-| `Select` | P2 | N inputs (config), `index: Int` picks one. Works for any type. |
-| `Switch` | P2 | `a`/`b` by `Bool`. |
+| `Accumulate` | P2 | Adds `in` on `trigger`, from `initial`; `reset`. |
+| `Select` | P2 | N inputs (config), `index: Int` picks one (wrapping). Works for any type; audio crossfades over 5 ms, MIDI releases held notes when the route changes. |
+| `Switch` | P2 | `a`/`b` by `Bool`, any type, with the same crossfade and note release as `Select`. |
 
 ## Modulation and envelopes
 
@@ -150,8 +153,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | --- | --- | --- |
 | `ADSR` | P1 | `gate: Bool` (or `on`/`off` triggers), attack/decay/sustain/release, curve shape (linear or exponential). Out: `out: Float` (sample rate), `active: Bool` (sample rate), `end: Trigger`. |
 | `LFO` | P2 | Block-rate oscillator with shapes, `rate` in Hz or beats, `phase`, `retrigger`, `unipolar/bipolar`, `smooth` for random shapes. Lighter than `Oscillator` for hundreds of modulators. |
-| `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints) with loop points. |
-| `StepSequencer` | P2 | N steps of `Float` values; advances on `clock`; `direction`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
+| `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints drawn in the editor) with a sustain point and loop points; `gate`, `trigger`, `time_scale`. |
+| `StepSequencer` | P2 | N steps of `Float` values (drawn in the editor); advances on `clock`; `direction`, `length`, `glide`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
 | `RandomWalk` | P2 | Smooth random modulation; `rate`, `range`, `seed`. |
 | `Chaos` | P3 | Lorenz/Rössler attractor outputs. |
 
@@ -165,29 +168,29 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `FrequencyTrigger` | P2 | Fires when energy in a band (`low`, `high`) exceeds `threshold`, or when `PitchDetect`'s frequency is above/below/within a range. Outputs `trigger`, `gate`. |
 | `Onset` | P2 | Transient detector (spectral flux); `sensitivity`. Out: `trigger`, `strength: Float`. |
 | `ClockDivide` | P2 | Pass every Nth trigger; `offset`. |
-| `ClockMultiply` | P2 | Interpolates N triggers between incoming ones. |
-| `TriggerDelay` | P2 | Delay a trigger by time or beats. |
+| `ClockMultiply` | P2 | Passes each trigger and fills in `multiply − 1` more, evenly spaced by the last interval between incoming ones. |
+| `TriggerDelay` | P2 | Delay each trigger by `time` (seconds, or beats with config `unit`). |
 | `GateToTrigger` | P2 | Rising/falling/both edges. |
-| `TriggerToGate` | P2 | Gate high for `length` after a trigger. |
-| `Euclidean` | P2 | `steps`, `pulses`, `rotation` → trigger pattern on `clock`. |
-| `Probability` | P2 | Pass a trigger with `chance`; seeded. |
-| `Burst` | P2 | N triggers at `rate` after one trigger. |
-| `Latch` | P2 | `set`/`reset` triggers → `Bool`; or toggle mode. |
-| `Timer` | P2 | `start` → `elapsed: Float`, `done: Trigger` after `duration`. |
+| `TriggerToGate` | P2 | Gate high for `length` after a trigger (seconds or beats); a retrigger restarts the length. |
+| `Euclidean` | P2 | `steps`, `pulses`, `rotation` → trigger pattern on `clock`; also `gate` and `step: Int`. |
+| `Probability` | P2 | Pass a trigger with `chance`, otherwise send it to `else`; seeded. |
+| `Burst` | P2 | `count` triggers, `interval` apart, after one trigger; `done` with the last. |
+| `Latch` | P2 | `set`/`reset`/`toggle` triggers → `Bool`, starting at `initial`. |
+| `Timer` | P2 | `start`/`stop` → `elapsed: Float`, `running: Bool`, `progress`, and `done: Trigger` after `duration` (where it stops). |
 
 ## Sequencing and notes
 
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `MidiNote` | P1 | Monophonic `Midi` → `freq: Float(Hz)`, `gate: Bool`, `velocity: Float`, `note: Int`, `trigger`; last/low/high note priority, `glide`. |
-| `MidiCC` | P2 | One controller number → `Float` (0..1 or custom range), `channel` filter. |
-| `MidiFilter` | P2 | Channel, note range, event type. |
-| `MidiTranspose` | P2 | Semitones; `scale` snap option. |
-| `Pattern` | P2 | A grid of N step buttons (config: steps, rows). Advances on `clock`; per row outputs `trigger` and `gate`; also `step: Int`, `reset`, `reverse`, generator contract. The user's "pattern of 4, 8, 16 buttons". |
-| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats; generator contract; `midi` output. From a riff to a whole song. |
+| `MidiCC` | P2 | One controller number → `Float` (0..1 or custom range, with `smooth`), `channel` filter, `changed: Trigger`. Controller 128 reads pitch bend, 129 channel pressure. |
+| `MidiFilter` | P2 | Channel, note range, event types. A note-off whose note-on passed always passes. |
+| `MidiTranspose` | P2 | Semitones; `snap` to a `scale` over `root` (or a custom `mask`). Note-offs follow the note each note-on became. |
+| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k` and `gate_k`; also `step: Int`, `reset`, `reverse`, generator contract. The user's "pattern of 4, 8, 16 buttons". |
+| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`; `midi` and `position` outputs. From a riff to a whole song. |
 | `NoteToMidi` | P2 | `trigger`/`gate` + `note: Int` + `velocity` → `Midi` events. How a hand-built keyboard of `Button`s becomes a MIDI source. |
-| `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes, octaves. |
-| `Chord` | P2 | One note → several (intervals config). |
+| `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes up/down/up-down/random/as played, octaves, `gate` length, `latch`. |
+| `Chord` | P2 | One note → several: named chords or custom `intervals`, `inversion`, `spread`. |
 | `ScaleQuantize` | P2 | Snap `Float`/`Int` notes or `Midi` to a scale; `root`, `scale` with custom masks. |
 | `Voices` | P2 | **Polyphony.** A group instance run once per voice (config: voice count 1–64, steal policy oldest/newest/lowest/highest/none). `midi` in; inside the body a `Voice` node exposes `freq`, `gate`, `velocity`, `index`, `trigger`; `Audio` and `Float` outputs from all voices are summed. The synth-building primitive. |
 | `Voice` | P2 | Inside a `Voices` body: this voice's `freq`, `gate`, `velocity`, `note`, `trigger`, `index`, and its own `midi` stream. Does nothing elsewhere. |
@@ -203,10 +206,10 @@ Panels (UX.md) to make a performance surface.
 | `Toggle` | P1 | `Bool` on/off. Bindable. |
 | `Slider` | P1 | `Float` with range, unit, and log/linear scale. Bindable to a MIDI CC or a gamepad axis via the node's menu. |
 | `Knob` | P2 | Same as Slider, round. |
-| `XYPad` | P2 | Two `Float` outputs plus `gate` on touch. |
-| `Keyboard` | P2 | Virtual piano → `midi`; also plays from the computer keyboard when focused. |
-| `Number` | P2 | A typed `Float`/`Int` field. |
-| `Dropdown` | P2 | Labeled choices → `Int`. |
+| `XYPad` | P2 | Two `Float` outputs plus `gate` while touched and `touch: Trigger` on press. |
+| `Keyboard` | P2 | Virtual piano → `midi` (config: lowest note, keys, channel; `velocity`, `octave`). Computer-keyboard play comes with `KeyboardIn` (M2.4). |
+| `Number` | P2 | A typed `Float`/`Int` field with optional limits. |
+| `Dropdown` | P2 | Labeled choices (config) → `Int`, and `changed: Trigger`. |
 
 ## Display nodes
 

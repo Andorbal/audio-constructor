@@ -72,6 +72,9 @@ pub struct Output {
     pub buffers: BTreeMap<String, BufferRef>,
     /// Device output channels written by the node.
     pub host_out: Vec<Vec<f32>>,
+    /// MIDI the node sent to the devices, at absolute sample positions
+    /// (`host_output` nodes only).
+    pub host_midi_out: Vec<(u64, MidiMsg)>,
 }
 
 impl Output {
@@ -666,7 +669,7 @@ impl Harness {
                     OutputSlot::Trigger((o_trig.len() - 1) as u32)
                 }
                 SignalType::Midi => {
-                    o_midi.push(Vec::with_capacity(1024));
+                    o_midi.push(Vec::with_capacity(crate::MIDI_CAPACITY));
                     OutputSlot::Midi((o_midi.len() - 1) as u32)
                 }
                 SignalType::Spectrum => match spec.spectrum.or(follow_shape) {
@@ -698,6 +701,8 @@ impl Harness {
                 .copy_from_slice(&slice_block(ch, start, frames));
         }
         let mut host_output = vec![0.0; self.host_out_channels * frames];
+        // As in the engine, only device writers can send MIDI.
+        let mut host_midi_out: Vec<MidiEvent> = Vec::with_capacity(crate::MIDI_CAPACITY);
         let host_midi: Vec<MidiEvent> = self
             .host_midi
             .iter()
@@ -771,6 +776,7 @@ impl Harness {
                     offset: 0,
                     frames,
                     midi: &host_midi,
+                    midi_out: self.meta.host_output.then_some(&mut host_midi_out),
                 },
                 telemetry: TelemetryAccess {
                     values: &self.telemetry,
@@ -846,6 +852,11 @@ impl Harness {
         for c in 0..self.host_out_channels {
             out.host_out[c].extend_from_slice(&host_output[c * frames..(c + 1) * frames]);
         }
+        out.host_midi_out.extend(
+            host_midi_out
+                .iter()
+                .map(|e| (start + u64::from(e.offset), e.msg)),
+        );
 
         self.frame = end;
         if self.playing {

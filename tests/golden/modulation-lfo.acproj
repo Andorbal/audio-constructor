@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "name": "Modulation: LFO",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "interval": 1.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "lfo",
+        "params": {
+          "rate": 5.0
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 340.0,
+          "out_min": 300.0
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "params": {
+          "shape": "triangle",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "lfo",
+        "config": {
+          "unit": "beats"
+        },
+        "params": {
+          "polarity": "unipolar",
+          "rate": 0.5,
+          "shape": "ramp_down"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "lfo",
+        "params": {
+          "amount": 0.3,
+          "rate": 8.0,
+          "shape": "smooth_random",
+          "smooth": 0.5
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "clamp",
+        "params": {
+          "max": 1.0,
+          "min": 0.0
+        },
+        "ui": {
+          "pos": [
+            1260.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            150.0
+          ]
+        }
+      },
+      {
+        "id": "a",
+        "kind": "math",
+        "params": {
+          "b": 0.5,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            150.0
+          ]
+        }
+      },
+      {
+        "id": "b",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            360.0,
+            150.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:trigger",
+        "to": "2:retrigger"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:freq"
+      },
+      {
+        "from": "5:out",
+        "to": "7:a"
+      },
+      {
+        "from": "6:out",
+        "to": "7:b"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "9:a"
+      },
+      {
+        "from": "4:out",
+        "to": "9:b"
+      },
+      {
+        "from": "9:out",
+        "to": "a:a"
+      },
+      {
+        "from": "a:out",
+        "to": "b:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": false
+  }
+}

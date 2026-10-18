@@ -13,6 +13,24 @@ fixes and smaller changes.
 
 ## [0.3.0] - 2026-10-18
 
+### Added
+
+- **MIDI Out** sends MIDI to hardware and other programs, keeping each
+  message's timing within the block. It can re-channel everything, ends the
+  notes it started when the transport stops, and has a `panic` trigger. Pick
+  the port in the Devices tab or with `audioc run --midi-out <name>`;
+  `audioc devices` now lists MIDI outputs too.
+- **File Out** renders its input to a file of its own during `audioc render`,
+  so one render can produce stems, dry and wet versions, or a click track
+  next to the mix. Paths are relative to the main output's folder.
+- `audioc render --midi-out song.mid` writes what MIDI Out nodes sent to a
+  standard MIDI file, on the project's beats and with its tempo changes.
+- **Node editors** in the Node tab, with a larger editor in its own window:
+  draw breakpoint curves for Graph, Envelope, and Shaper; paint steps on
+  Pattern's grid; draw, move, and stretch notes in MidiPattern's piano roll;
+  drag BandSplit's crossover frequencies; and draw StepSequencer's values.
+  A whole drag is one undo step.
+
 ## [0.2.0] - 2026-10-18
 
 Milestone M2.1 of the roadmap, engine depth: polyphony, nodes that need

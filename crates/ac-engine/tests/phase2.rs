@@ -153,8 +153,10 @@ node! {
     category: Spectral,
     keywords: [],
     /// Emits a 16-point frame every 8 samples whose bin 0 is the frame's
-    /// sample position. Try this: nothing.
-    pub struct TSpec {}
+    /// sample position; reports config `latency`. Try this: nothing.
+    pub struct TSpec {
+        latency: u32,
+    }
 }
 impl Node for TSpec {
     fn meta() -> NodeMeta {
@@ -163,8 +165,13 @@ impl Node for TSpec {
     fn describe(_: &Config) -> Signature {
         Signature::new().output(SocketSpec::spectrum("out").shape(16, 8))
     }
-    fn new(_: &Config, _: &PrepareCtx) -> Self {
-        TSpec {}
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        TSpec {
+            latency: config.get("latency").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+        }
+    }
+    fn latency(&self) -> u32 {
+        self.latency
     }
     fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         let pos = ctx.transport.position;
@@ -211,6 +218,39 @@ impl Node for TSpecPass {
                     dst[0] += 0.5;
                 }
             }
+        }
+    }
+    fn reset(&mut self) {}
+}
+
+node! {
+    kind: "t_spec_mix",
+    name: "SpecMix",
+    category: Spectral,
+    keywords: [],
+    /// Passes audio `in` through; reads a spectrum it ignores. Try this:
+    /// nothing.
+    pub struct TSpecMix {}
+}
+impl Node for TSpecMix {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new()
+            .input(SocketSpec::spectrum("spec"))
+            .input(SocketSpec::audio("in"))
+            .output(SocketSpec::audio("out"))
+    }
+    fn new(_: &Config, _: &PrepareCtx) -> Self {
+        TSpecMix {}
+    }
+    fn process(&mut self, _: &ProcessCtx, io: &mut Io) {
+        let input = io.inputs.audio(1);
+        let mut out = io.outputs.audio(0);
+        for c in 0..out.channels() {
+            out.channel(c)
+                .copy_from_slice(input.channel(c.min(input.channels() - 1)));
         }
     }
     fn reset(&mut self) {}
@@ -317,6 +357,7 @@ fn registry() -> Arc<Registry> {
         .register::<TDouble>()
         .register::<TSpec>()
         .register::<TSpecPass>()
+        .register::<TSpecMix>()
         .register::<TSpecOut>()
         .register::<TBuf>()
         .register::<TBufOut>();
@@ -369,6 +410,7 @@ fn run(engine: &mut Engine, block: usize, blocks: usize, input: Option<&[f32]>) 
             output: &mut out,
             out_channels: 2,
             midi: &[],
+            midi_out: None,
         };
         engine.process(&mut io);
         all.extend_from_slice(&out[..block]);
@@ -775,6 +817,58 @@ fn spectrum_frames_flow_with_their_offsets_and_shapes_follow() {
 }
 
 #[test]
+fn spectrum_paths_carry_latency_and_audio_lines_up_with_them() {
+    // t_spec (latency 7) → mix.spec ; src → mix.in ; mix → out.
+    let p = P::new()
+        .node_with(NodeInstance::new(NodeId(1), "t_spec").with_config(json!({ "latency": 7 })))
+        .node(2, "t_src")
+        .node(3, "t_spec_mix")
+        .node(4, "t_out")
+        .wire(1, "out", 3, "spec")
+        .wire(2, "out", 3, "in")
+        .wire(3, "out", 4, "in")
+        .build();
+    let r = offline(&p, 16, 0.001);
+    assert_eq!(
+        r.report.stats.compensation,
+        vec![(path(3), "in".to_string(), 7)]
+    );
+    assert_eq!(r.report.stats.latency, 7);
+    for (t, &v) in r.channels[0].iter().enumerate().skip(7) {
+        assert_eq!(v, (t - 7) as f32, "frame {t}");
+    }
+}
+
+#[test]
+fn a_dry_path_cancels_against_fft_then_ifft() {
+    // osc → fft → ifft → math.a ; osc → math.b ; a − b → out. The engine
+    // delays the dry path by the FFT's window, so the difference is silence.
+    let p = P::new()
+        .node_with(NodeInstance::new(NodeId(1), "oscillator").with_param("freq", 220.0))
+        .node(2, "fft")
+        .node(3, "ifft")
+        .node_with(
+            NodeInstance::new(NodeId(4), "math")
+                .with_param("op", ac_core::Value::Text("subtract".into())),
+        )
+        .node(5, "t_out")
+        .wire(1, "out", 2, "in")
+        .wire(2, "spectrum", 3, "spectrum")
+        .wire(3, "out", 4, "a")
+        .wire(1, "out", 4, "b")
+        .wire(4, "out", 5, "in")
+        .build();
+    let r = offline(&p, 64, 0.2);
+    assert_eq!(
+        r.report.stats.compensation,
+        vec![(path(4), "b".to_string(), 2047)]
+    );
+    let out = &r.channels[0];
+    let peak = out[4096..].iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak < 1e-4, "residual {peak}");
+}
+
+#[test]
 fn spectrum_wires_are_type_checked() {
     let p = P::new()
         .node(1, "t_spec")
@@ -1010,6 +1104,7 @@ fn a_polyphonic_synth_sounds_and_is_identical_on_many_cores() {
                 output: &mut out,
                 out_channels: 2,
                 midi: &events,
+                midi_out: None,
             };
             e.process(&mut io);
             all.extend_from_slice(&out[..block]);

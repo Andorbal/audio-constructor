@@ -203,6 +203,7 @@ fn bench_one(
             output: &mut out[..2 * n],
             out_channels: 2,
             midi: if done == 0 { &events } else { &[] },
+            midi_out: None,
         };
         engine.process(&mut io);
         n_blocks += 1;
@@ -234,6 +235,7 @@ fn bench_one(
                 output: &mut out[..2 * n],
                 out_channels: 2,
                 midi: if done == 0 { &events } else { &[] },
+                midi_out: None,
             };
             engine.process(&mut io);
             done += n;

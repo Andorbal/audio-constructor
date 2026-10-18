@@ -23,6 +23,7 @@ name = "ac-app"
 version = "0.3.0"
 dependencies = [
  "ac-core",
+ "ac-dsp",
  "ac-engine",
  "ac-io",
  "ac-nodes",

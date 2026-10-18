@@ -3,6 +3,7 @@
 
 use ac_core::{AudioIn, AudioOut, Registry};
 
+pub mod analyzer;
 pub mod meter;
 pub mod readout;
 pub mod scope;
@@ -12,6 +13,7 @@ pub fn register(r: &mut Registry) {
     r.register::<meter::Meter>();
     r.register::<scope::Scope>();
     r.register::<readout::Readout>();
+    r.register::<analyzer::Analyzer>();
 }
 
 /// Copy every channel of `input` to `out` bit for bit, so a display node can

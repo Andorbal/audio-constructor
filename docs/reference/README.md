@@ -7,30 +7,85 @@ node. Edit the node's source, not these files.
 | --- | --- | --- |
 | [Audio In](io.md#audio-in) | Input / Output | Brings a device input channel, or a pair of them, into the patch. |
 | [Audio Out](io.md#audio-out) | Input / Output | Sends audio to the device outputs. |
+| [File Out](io.md#file-out) | Input / Output | Renders its input to a file of its own when the project is rendered offline. |
 | [MIDI In](io.md#midi-in) | Input / Output | Brings MIDI from the connected devices into the patch. |
+| [MIDI Out](io.md#midi-out) | Input / Output | Sends MIDI to the connected devices. |
 | [Record](io.md#record) | Input / Output | Writes audio to a file, one take at a time. |
 | [Clip](generators.md#clip) | Generators | Plays an audio file, with looping, reverse, and variable speed. |
+| [Graph](generators.md#graph) | Generators | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
+| [Impulse](generators.md#impulse) | Generators | A single-sample click on each `trigger`, as a sample-rate `Float`. |
+| [Noise](generators.md#noise) | Generators | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |
 | [Oscillator](generators.md#oscillator) | Generators | A periodic waveform (sine, triangle, saw, square, or pulse) at `freq` + `fm` Hz, as a sample-rate `Float` that wires into audio or into any parameter. |
+| [Sampler](generators.md#sampler) | Generators | Plays a recorded sound at any pitch, with start and end points, a sustain loop, and the generator contract: the building block for drum machines and sampled instruments. |
 | [Transport](generators.md#transport) | Generators | Song time as signals: seconds, beats, bars, tempo, and play state. |
+| [Wavetable](generators.md#wavetable) | Generators | An oscillator that plays single-cycle waveforms from a table and morphs between them with `position`, as a sample-rate `Float`. |
+| [Crossfade](level.md#crossfade) | Level & Dynamics | Blends two signals: `mix` 0 is all `a`, 1 is all `b`, and values in between mix them. |
+| [Envelope Follower](level.md#envelope-follower) | Level & Dynamics | Measures how loud a signal is, moment to moment: `level` (linear, 0 to 1 for full scale) and `level_db` (decibels, never below −120), both at sample rate. |
 | [Gain](level.md#gain) | Level & Dynamics | Scales a signal by a gain in decibels. Works on any number of channels. |
+| [Gain Computer](level.md#gain-computer) | Level & Dynamics | Turns a level into a gain change: the decision-making half of a compressor, limiter, expander, or gate. |
+| [Lookahead](level.md#lookahead) | Level & Dynamics | Lets a level detector see the signal before it is heard: `out` is the input delayed by `time`, and `early` is the input as it comes in, `time` ahead of `out`. |
 | [Mix](level.md#mix) | Level & Dynamics | Sums several audio signals into one, each with its own gain in decibels. |
+| [Normalize](level.md#normalize) | Level & Dynamics | Turns a whole signal up or down so its peak, or its loudness, lands on `target`. |
 | [Pan](level.md#pan) | Level & Dynamics | Places a mono signal in the stereo field, or shifts the balance of a stereo one. The output is always stereo. |
+| [Shaper](level.md#shaper) | Level & Dynamics | Waveshaping: bends the signal through a curve for saturation, clipping, folding, or any transfer function you draw. |
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Reverse](time.md#reverse) | Time | Plays its input backwards. |
+| [Accumulate](math.md#accumulate) | Math & Logic | Adds `in` to a running total on every `trigger`. |
+| [Clamp](math.md#clamp) | Math & Logic | Keeps `in` between `min` and `max`. |
 | [Compare](math.md#compare) | Math & Logic | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
 | [Constant](math.md#constant) | Math & Logic | A fixed `Float`, `Int`, or `Bool` value, set with its inline widget. |
+| [Convert](math.md#convert) | Math & Logic | Converts `in` from one unit to another. |
+| [Counter](math.md#counter) | Math & Logic | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
+| [Differentiate](math.md#differentiate) | Math & Logic | How fast `in` is changing, in units per second. |
+| [Integrate](math.md#integrate) | Math & Logic | Adds up `in` over time: the running integral, per second. |
+| [Logic](math.md#logic) | Math & Logic | Combines two gates, `a` and `b`, with a logic operation. |
 | [Map](math.md#map) | Math & Logic | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Math & Logic | Combines two values, `a` and `b`, with an arithmetic operation. |
+| [Quantize](math.md#quantize) | Math & Logic | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
+| [Random](math.md#random) | Math & Logic | A new random value on every `trigger`, held until the next. |
+| [SampleHold](math.md#sample-hold) | Math & Logic | Samples `in` at each `trigger` and holds that value until the next. |
+| [Select](math.md#select) | Math & Logic | Passes on one of several inputs, picked by `index`. |
+| [Smooth](math.md#smooth) | Math & Logic | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
+| [Switch](math.md#switch) | Math & Logic | Passes on `a` while `select` is false and `b` while it is true. |
 | [Unary](math.md#unary) | Math & Logic | Applies a one-input function to `in`: trigonometry, exponentials, rounding, and the like. |
 | [ADSR](modulation.md#adsr) | Modulation | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
+| [Envelope](modulation.md#envelope) | Modulation | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |
+| [LFO](modulation.md#lfo) | Modulation | A low-frequency oscillator for modulation: a cheap, block-rate wave to move other parameters. |
+| [RandomWalk](modulation.md#random-walk) | Modulation | Smooth random modulation that wanders around `center`, never further than `range` from it. |
+| [StepSequencer](modulation.md#step-sequencer) | Modulation | A row of step values played one after another, moving on with each `clock` trigger. |
+| [Burst](triggers.md#burst) | Triggers & Gates | Fires a quick run of triggers after each trigger. |
 | [Clock](triggers.md#clock) | Triggers & Gates | Fires a trigger every `interval`, locked to the transport. |
+| [Clock Divide](triggers.md#clock-divide) | Triggers & Gates | Passes every Nth trigger. |
+| [Clock Multiply](triggers.md#clock-multiply) | Triggers & Gates | Fills the gap between incoming triggers with evenly spaced ones. |
+| [Euclidean](triggers.md#euclidean) | Triggers & Gates | Steps through a Euclidean rhythm: `pulses` hits spread as evenly as possible over `steps`. |
+| [Gate to Trigger](triggers.md#gate-to-trigger) | Triggers & Gates | Fires a trigger where a gate turns on, turns off, or both. |
+| [Latch](triggers.md#latch) | Triggers & Gates | Remembers an on/off state that triggers set, reset, and flip. |
+| [Probability](triggers.md#probability) | Triggers & Gates | Lets each trigger through with a chance. |
+| [Threshold Trigger](triggers.md#threshold-trigger) | Triggers & Gates | Fires a trigger when a level rises above a threshold. |
+| [Timer](triggers.md#timer) | Triggers & Gates | Counts the time since `start`, and fires `done` once `duration` has passed. |
+| [Trigger Delay](triggers.md#trigger-delay) | Triggers & Gates | Delays each trigger by a time in seconds or beats. |
+| [Trigger to Gate](triggers.md#trigger-to-gate) | Triggers & Gates | Turns each trigger into a gate of a set length. |
+| [Arpeggiator](sequencing.md#arpeggiator) | Sequencing & Notes | Plays the notes you hold one at a time, stepping on each clock tick. |
+| [Chord](sequencing.md#chord) | Sequencing & Notes | Plays a whole chord for every incoming note. |
+| [MIDI CC](sequencing.md#midi-cc) | Sequencing & Notes | Turns one MIDI controller into a `Float` in a range you choose. |
+| [MIDI Filter](sequencing.md#midi-filter) | Sequencing & Notes | Passes only the MIDI you want: one channel, a range of notes, and chosen kinds of message. |
 | [MIDI Note](sequencing.md#midi-note) | Sequencing & Notes | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |
+| [MIDI Pattern](sequencing.md#midi-pattern) | Sequencing & Notes | A piano-roll clip of notes in beats that plays as MIDI, from a one-bar riff to a whole song. |
+| [MIDI Transpose](sequencing.md#midi-transpose) | Sequencing & Notes | Shifts MIDI notes up or down by semitones, optionally snapping them into a scale. |
+| [Note To MIDI](sequencing.md#note-to-midi) | Sequencing & Notes | Builds MIDI notes from signals: a gate or a trigger, a note number, and a velocity. |
+| [Pattern](sequencing.md#pattern) | Sequencing & Notes | A grid of step buttons that plays one step per clock tick, like a drum machine's pattern. |
+| [Scale Quantize](sequencing.md#scale-quantize) | Sequencing & Notes | Snaps notes to a scale: a `Float` note number, or the notes of a MIDI stream. |
 | [Voice](sequencing.md#voice) | Sequencing & Notes | One voice's note, inside the body of a `Voices` node. |
 | [Voices](sequencing.md#voices) | Sequencing & Notes | Makes any patch polyphonic: its body (a group) runs once per voice, each voice plays one note at a time, and the voices' outputs are added together. |
 | [Button](controls.md#button) | Controls | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |
+| [Dropdown](controls.md#dropdown) | Controls | A menu of named choices; outputs the index of the one picked. |
+| [Keyboard](controls.md#keyboard) | Controls | A piano keyboard you play with the mouse or the computer keyboard; it sends the notes out as MIDI. |
+| [Knob](controls.md#knob) | Controls | A round dial for a value you set by hand, with a range, a unit, and a linear or log scale. |
+| [Number](controls.md#number) | Controls | A number you type in: a `Float` or an `Int`, optionally kept within a range. |
 | [Slider](controls.md#slider) | Controls | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | Controls | An on/off switch. |
+| [XY Pad](controls.md#xy-pad) | Controls | A square pad you drag a point around on: two values at once, plus a gate while you touch it. |
 | [Meter](display.md#meter) | Display | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Display | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | Display | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |

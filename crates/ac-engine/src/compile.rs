@@ -20,10 +20,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, MidiEvent, Node, NodePath, OutRate,
-    OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry, RenderWholeFn, Resources,
-    SignalType, SocketSpec, SpectrumBuf, SpectrumShape, TempoMap, TriggerSrc, WholeInputs,
-    conversion, param_value,
+    Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, MIDI_CAPACITY, MidiEvent, Node,
+    NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry,
+    RenderWholeFn, Resources, SignalType, SocketSpec, SpectrumBuf, SpectrumShape, TempoMap,
+    TriggerSrc, WholeInputs, conversion, param_value,
     util::{Fnv64, derive_seed},
 };
 use serde_json::json;
@@ -39,8 +39,6 @@ use crate::telemetry::{NodeTelemetry, TelemetryLayout, TelemetryStore, atomics};
 
 /// Smoothing time for parameter changes ("a few ms", ARCHITECTURE §8).
 const SMOOTH_SECONDS: f64 = 0.005;
-/// Event capacity per MIDI buffer per block.
-const MIDI_CAPACITY: usize = 1024;
 /// Upper bound on channels per wire, to keep a bad config from allocating wildly.
 const MAX_CHANNELS: usize = 64;
 /// Node ids of compensation delays, under the node whose input they feed;
@@ -477,6 +475,12 @@ pub(crate) fn compile_with(
                 continue;
             };
             if comp_type(spec.ty, store[s][o]).is_none() {
+                // Spectra carry their producer's path latency (an FFT's
+                // window) but can't be delayed (D56), so the other inputs
+                // line up with them.
+                if spec.ty == SignalType::Spectrum {
+                    in_lat = in_lat.max(lat_out[s]);
+                }
                 continue;
             }
             let l = lat_out[s];

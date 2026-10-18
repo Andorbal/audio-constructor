@@ -251,6 +251,19 @@ pub struct RecordRequest<'a> {
     pub sample_rate: u32,
 }
 
+/// What a `FileOut` node asks the host for: a file its input renders to.
+#[derive(Clone, Copy, Debug)]
+pub struct FileRequest<'a> {
+    /// Flattened node path, unique within the project.
+    pub node_key: &'a str,
+    /// The node's label or kind name.
+    pub name: &'a str,
+    /// The path from the node's config, as written.
+    pub path: &'a str,
+    pub channels: usize,
+    pub sample_rate: u32,
+}
+
 /// A real-time-safe sink for recorded audio. The host's disk thread owns the
 /// file; every method here must be wait-free and allocation-free.
 pub trait RecordSink: Send {
@@ -285,6 +298,12 @@ pub trait Resources: Send + Sync {
 
     /// A sink for a `Record` node, or `None` if recording isn't available.
     fn recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
+        None
+    }
+
+    /// A sink for a `FileOut` node: everything written between `start` and
+    /// `stop` becomes the file. Only offline renders provide one.
+    fn file_out(&self, _req: &FileRequest<'_>) -> Option<Box<dyn RecordSink>> {
         None
     }
 }

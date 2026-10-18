@@ -17,7 +17,7 @@ pub use ac_engine::NullHost;
 use ac_engine::Processor;
 
 use crate::latency::{Latency, LatencyError};
-use crate::midi::MidiReceiver;
+use crate::runtime::MidiPorts;
 use crate::runtime::{
     AudioError, AudioHost, AudioStream, CallbackCore, CoreControl, CoreParts, StartError, Stopped,
     StreamCounters, StreamInfo, StreamStats,
@@ -62,10 +62,10 @@ impl AudioHost for NullAudio {
         &self.info
     }
 
-    fn start(
+    fn start_with(
         self: Box<Self>,
         processor: Processor,
-        midi: Option<MidiReceiver>,
+        midi: MidiPorts,
     ) -> Result<Box<dyn AudioStream>, StartError> {
         let info = self.info;
         let counters = Arc::new(StreamCounters::default());
@@ -218,6 +218,7 @@ mod tests {
             output: &mut out,
             out_channels: 2,
             midi: &[],
+            midi_out: None,
         };
         back.process(&mut io);
         assert!(handle.position() >= pos);

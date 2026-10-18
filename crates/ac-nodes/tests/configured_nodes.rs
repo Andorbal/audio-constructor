@@ -1,9 +1,10 @@
 //! Real-time hygiene for node configurations the default sweep in
 //! `all_nodes.rs` doesn't reach: a Clip with a loaded (and resampled) file,
-//! tempo-synced Delay, a wide Mix, a pure Oscillator, the delay-based
-//! filters and time effects at their buffer-size extremes, and Mid/Side
-//! decoding. Each runs at block sizes 1, 64, and 1024 with every input
-//! driven, under an allocation guard.
+//! tempo-synced Delay, a wide Mix, a pure Oscillator, beat-timed trigger
+//! nodes, a full-size Keyboard, typed controls, the delay-based filters and
+//! time effects at their buffer-size extremes, and Mid/Side decoding. Each
+//! runs at block sizes 1, 64, and 1024 with every input driven, under an
+//! allocation guard.
 
 use std::sync::Arc;
 
@@ -48,6 +49,15 @@ fn configured_nodes_process_without_allocating() {
         ("delay", json!({ "unit": "beats", "max_time": 0.5 })),
         ("mix", json!({ "inputs": 64 })),
         ("oscillator", json!({ "pure": true })),
+        ("trigger_delay", json!({ "unit": "beats" })),
+        ("trigger_to_gate", json!({ "unit": "beats" })),
+        ("keyboard", json!({ "low": 21, "keys": 88, "channel": 16 })),
+        ("number", json!({ "type": "int", "min": -5, "max": 5 })),
+        ("dropdown", json!({ "choices": ["a", "b", "c", "d", "e"] })),
+        (
+            "xy_pad",
+            json!({ "x_min": 20, "x_max": 20000, "y_min": -1, "y_max": 1 }),
+        ),
         ("comb", json!({ "max_delay": 2.0 })),
         ("allpass", json!({ "max_delay": 0.001 })),
         ("freeze", json!({ "max_time": 0.05 })),

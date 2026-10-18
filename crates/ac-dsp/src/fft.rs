@@ -35,18 +35,36 @@ impl Window {
 
     /// The periodic window of length `n` (the right form for overlap-add).
     pub fn table(self, n: usize) -> Vec<f32> {
+        let mut v = vec![0.0; n];
+        self.fill(&mut v);
+        v
+    }
+
+    /// Write the periodic window of length `out.len()` into `out`, without
+    /// allocating (for nodes that learn a frame size on the audio thread).
+    pub fn fill(self, out: &mut [f32]) {
         let tau = std::f64::consts::TAU;
-        (0..n)
-            .map(|i| {
-                let x = i as f64 / n.max(1) as f64;
-                (match self {
-                    Window::Rectangular => 1.0,
-                    Window::Hann => 0.5 - 0.5 * (tau * x).cos(),
-                    Window::Hamming => 0.54 - 0.46 * (tau * x).cos(),
-                    Window::Blackman => 0.42 - 0.5 * (tau * x).cos() + 0.08 * (2.0 * tau * x).cos(),
-                }) as f32
-            })
-            .collect()
+        let n = out.len().max(1) as f64;
+        for (i, o) in out.iter_mut().enumerate() {
+            let x = i as f64 / n;
+            *o = (match self {
+                Window::Rectangular => 1.0,
+                Window::Hann => 0.5 - 0.5 * (tau * x).cos(),
+                Window::Hamming => 0.54 - 0.46 * (tau * x).cos(),
+                Window::Blackman => 0.42 - 0.5 * (tau * x).cos() + 0.08 * (2.0 * tau * x).cos(),
+            }) as f32;
+        }
+    }
+
+    /// The window's mean value: a sine centered on a bin peaks at
+    /// `amplitude × size × coherent_gain / 2`.
+    pub fn coherent_gain(self) -> f32 {
+        match self {
+            Window::Rectangular => 1.0,
+            Window::Hann => 0.5,
+            Window::Hamming => 0.54,
+            Window::Blackman => 0.42,
+        }
     }
 }
 

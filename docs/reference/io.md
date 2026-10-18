@@ -55,6 +55,34 @@ for a headphone cue mix, or wire an `Oscillator` straight in at a low
 | --- | --- | --- | --- | --- |
 | `in` | Audio | — |  | Signal to play. |
 
+<a id="file-out"></a>
+## File Out
+
+Kind: `file_out` · Also found by: export, bounce, stem, render, file, save, wav
+
+Renders its input to a file of its own when the project is rendered
+offline.
+
+`path` names the file, relative to the folder the main render goes
+to (`drums.wav`, `stems/bass.wav`); `.wav` is added if there's no
+extension. The file covers the same span as the render, at the same
+sample rate and bit depth. `channels` sets mono (1) or stereo (2, the
+default); a mono signal into a stereo File Out is written to both.
+
+One `audioc render` can produce many files this way: stems, a dry and
+a wet version, a click track. While the patch plays live, File Out
+does nothing; use `Record` to capture a performance.
+
+**Try this:** put a File Out after each instrument's last effect,
+named after the instrument, and render once to get a set of stems
+that line up sample for sample with the full mix.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to write. |
+
 <a id="midi-in"></a>
 ## MIDI In
 
@@ -84,6 +112,38 @@ different channels to split a keyboard between two sounds.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `midi` | Midi | Messages from the devices. |
+
+<a id="midi-out"></a>
+## MIDI Out
+
+Kind: `midi_out` · Also found by: send, device, hardware, synth, output, controller, external
+
+Sends MIDI to the connected devices.
+
+Every message keeps its timing within the block. `channel` re-channels
+everything: 0 keeps each message's own channel, 1–16 sends them all on
+that one.
+
+When the transport stops, the node ends every note it started and
+hasn't ended yet, so a hardware synth isn't left droning. A `panic`
+trigger does the same and also sends All Notes Off on all sixteen
+channels, for notes something else left hanging.
+
+The host chooses the device (`audioc run --midi-out`, or the Devices
+tab in the editor). An offline render collects the messages instead
+(`audioc render --midi-out song.mid`).
+
+**Try this:** wire a `Pattern` or an `Arpeggiator` into a MIDI Out to
+play a hardware synth in time with the patch, then route the synth's
+audio back in through an `Audio In` to process it.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Messages to send. |
+| `channel` | Int | 0 | 0 … 16 | Send everything on this channel, 1–16; 0 keeps each message's channel. |
+| `panic` | Trigger | — |  | Ends every note, on every channel. |
 
 <a id="record"></a>
 ## Record

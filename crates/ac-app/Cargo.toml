@@ -27,6 +27,7 @@ asio = ["ac-io/asio"]
 
 [dependencies]
 ac-core.workspace = true
+ac-dsp.workspace = true
 ac-nodes.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true

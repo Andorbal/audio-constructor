@@ -84,8 +84,8 @@ fn channels(config: &Config) -> usize {
 }
 
 /// The file's first `channels` channels at `rate`, sharing the host's
-/// buffer when no conversion is needed.
-fn prepare(asset: Arc<AudioData>, channels: usize, rate: f64) -> Arc<AudioData> {
+/// buffer when no conversion is needed (Sampler loads files the same way).
+pub(crate) fn prepare(asset: Arc<AudioData>, channels: usize, rate: f64) -> Arc<AudioData> {
     let file_rate = f64::from(asset.sample_rate);
     let used = asset.channels.len().min(channels);
     if file_rate <= 0.0 || file_rate == rate || asset.frames() == 0 {
