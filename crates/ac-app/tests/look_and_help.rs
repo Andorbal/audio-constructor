@@ -156,6 +156,22 @@ fn ui_scale_steps_change_the_zoom_factor_and_are_remembered() {
     std::fs::remove_dir_all(file.parent().unwrap()).ok();
 }
 
+#[test]
+fn every_side_panel_tab_fits_at_the_default_width() {
+    let mut h = harness_with(AppSettings::in_memory(), None);
+    let window = 1400.0;
+    // Narrow: the tabs not shown keep only their icons.
+    let help = h.get_by_label(icons::BOOK_OPEN).rect();
+    assert!(help.max.x <= window, "{help:?}");
+    let node = h.get_by_label(&format!("{} Node", icons::SLIDERS)).rect();
+    assert!(node.min.x > window - 400.0 && node.max.x < help.min.x);
+    // Shown, a tab has its name.
+    h.state_mut().side.show_help(None);
+    steps(&mut h, 2);
+    let help = h.get_by_label(&format!("{} Help", icons::BOOK_OPEN)).rect();
+    assert!(help.max.x <= window, "{help:?}");
+}
+
 /// One node of `kind`, selected.
 fn one_node(kind: &str) -> Harness<'static, EditorApp> {
     let mut p = Project::default();
@@ -199,9 +215,10 @@ fn f1_on_a_gain_computer_lists_the_blocks_that_use_it() {
         h.query_all_by_label("Float (dB)").count() >= 2,
         "threshold and knee are in decibels"
     );
-    let _ = h.get_by_label("USED IN");
+    let used_in = h.get_by_label("USED IN").rect();
     for name in ["Compressor", "Multiband Compressor", "Limiter"] {
-        let _ = h.get_by_label(&block_link(name));
+        let link = h.get_by_label(&block_link(name)).rect();
+        assert!(link.min.y > used_in.max.y, "{name} is listed under Used in");
     }
     assert!(
         h.query_by_label(&block_link("Tremolo")).is_none(),
