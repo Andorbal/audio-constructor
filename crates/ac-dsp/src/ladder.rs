@@ -11,7 +11,8 @@
 //! saturator's output is bounded and each stage is a stable one-pole, the
 //! loop is bounded for any feedback amount: with feedback of 4 or more it
 //! self-oscillates at the cutoff (the loop's phase reaches -180° there) and
-//! the `tanh` sets the level.
+//! the `tanh` sets the level. The `tanh` is a bounded Padé approximant
+//! ([`tanh_pade`]), within 1e-4 of the real one.
 //!
 //! The other responses mix the input and stage outputs with binomial
 //! weights, so the four poles become `(1 - H)ⁿ·Hᵐ` combinations (the
@@ -121,6 +122,24 @@ pub struct LadderTaps {
 /// Far beyond any real signal (+240 dB) but well inside `f32`.
 const RUNAWAY: f64 = 1e12;
 
+/// Where [`tanh_pade`] stops following its polynomial and holds.
+const PADE_LIMIT: f64 = 4.97;
+
+/// A fast `tanh`: the [7/6] Padé approximant from Lambert's continued
+/// fraction for `tanh`, `x(135135 + 17325x² + 378x⁴ + x⁶) / (135135 +
+/// 62370x² + 3150x⁴ + 28x⁶)`, with `x` clamped to ±4.97 where it reaches
+/// 0.9999994. Within 1e-4 of `tanh` everywhere, monotonic, and bounded by
+/// ±1, at a fraction of the library call's cost (the ladder runs one per
+/// sample per channel). NaN stays NaN.
+#[inline]
+pub fn tanh_pade(x: f64) -> f64 {
+    let x = x.clamp(-PADE_LIMIT, PADE_LIMIT);
+    let x2 = x * x;
+    let num = x * (135_135.0 + x2 * (17_325.0 + x2 * (378.0 + x2)));
+    let den = 135_135.0 + x2 * (62_370.0 + x2 * (3_150.0 + x2 * 28.0));
+    num / den
+}
+
 /// The four stage states of one channel.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Ladder {
@@ -142,7 +161,7 @@ impl Ladder {
         let sum = c.beta * (((s1 * g + s2) * g + s3) * g + s4);
         // Exact linear solution of u = x − k·y4, with y4 = G⁴·u + sum,
         // then the input stage's saturation.
-        let u = ((x - c.k * sum) * c.inv).tanh();
+        let u = tanh_pade((x - c.k * sum) * c.inv);
         let mut y = [0.0; 4];
         let mut v = u;
         for (stage, out) in self.stages.iter_mut().zip(&mut y) {
@@ -241,6 +260,21 @@ mod tests {
             .filter(|w| w[0] < 0.0 && w[1] >= 0.0)
             .count();
         assert!((crossings as f64 - 440.0).abs() < 3.0, "{crossings}");
+    }
+
+    #[test]
+    fn the_fast_tanh_is_close_bounded_and_monotonic() {
+        let mut prev = -2.0;
+        for i in -100_000..=100_000 {
+            let x = f64::from(i) / 10_000.0;
+            let t = tanh_pade(x);
+            assert!((t - x.tanh()).abs() < 1e-4, "{x}");
+            assert!(t.abs() < 1.0 && t >= prev, "{x}");
+            prev = t;
+        }
+        assert_eq!(tanh_pade(0.0), 0.0);
+        assert_eq!(tanh_pade(-1e300), -tanh_pade(1e300));
+        assert!(tanh_pade(f64::NAN).is_nan());
     }
 
     #[test]
