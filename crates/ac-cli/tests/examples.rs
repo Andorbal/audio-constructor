@@ -22,6 +22,7 @@ const EXPECTED: &[&str] = &[
     "reverse-delay",
     "multiband-compressor",
     "vocoder",
+    "generative-patch",
 ];
 
 /// Examples that only make sound from a live input.
@@ -200,6 +201,21 @@ fn subtractive_synth_cli_render_is_bit_identical() {
     let lib = render_example(&path, 4.0);
     assert_eq!(cli.channels, lib.channels);
     std::fs::remove_file(wav).ok();
+}
+
+/// The Generative Patch's random choices come from the project's seed: the
+/// same seed plays the same notes every time, another seed other notes.
+#[test]
+fn generative_patch_follows_the_seed() {
+    let path = example("generative-patch");
+    let project = ac_io::load_project(&path).expect("loads");
+    let a = render_project(&project, &path, 6.0);
+    let b = render_project(&project, &path, 6.0);
+    assert!(a.channels == b.channels, "two renders differ");
+    let mut reseeded = project.clone();
+    reseeded.settings.seed += 1;
+    let c = render_project(&reseeded, &path, 6.0);
+    assert!(a.channels != c.channels, "a new seed plays the same notes");
 }
 
 /// `project` with Audio Out fed from `from` instead.
