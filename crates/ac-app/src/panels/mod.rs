@@ -8,8 +8,8 @@ mod status_tabs;
 
 use std::collections::BTreeSet;
 
-use ac_core::{NodeId, NodePath, Registry};
-use ac_io::AssetStore;
+use ac_core::{BlockSource, GroupId, NodeId, NodePath, Registry};
+use ac_io::{AssetStore, Library};
 use egui::{RichText, vec2};
 
 use crate::audio::EngineHost;
@@ -18,7 +18,7 @@ use crate::icons;
 use crate::palette::Candidate;
 use crate::theme;
 
-pub use library::LibraryItem;
+pub use library::{BlockFilter, LibraryItem, filter_blocks, first_sentence};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
@@ -61,6 +61,15 @@ pub enum PanelRequest {
     Status(String),
     /// Open another audio device setup.
     SwitchAudio(ac_io::AudioConfig),
+    /// Choose a block file to add to the library.
+    ImportBlockFile,
+    /// Take a saved or imported block out of the library.
+    RemoveBlock(BlockSource),
+    /// Save a group definition to the library.
+    SaveBlock(GroupId),
+    /// Replace a definition with the library's newer version.
+    UpdateBlock(GroupId),
+    UpdateAllBlocks,
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -78,6 +87,8 @@ pub struct SidePanel {
     pub open: bool,
     pub tab: Tab,
     pub library_query: String,
+    /// Which blocks the Library tab lists.
+    pub block_filter: BlockFilter,
     label_edit: Option<(NodeId, String)>,
     pub devices: DevicesState,
 }
@@ -88,6 +99,7 @@ impl Default for SidePanel {
             open: true,
             tab: Tab::Node,
             library_query: String::new(),
+            block_filter: BlockFilter::default(),
             label_edit: None,
             devices: DevicesState::default(),
         }
@@ -98,6 +110,7 @@ impl Default for SidePanel {
 pub struct PanelIo<'a> {
     pub doc: &'a mut Document,
     pub registry: &'a Registry,
+    pub library: &'a Library,
     pub engine: &'a mut EngineHost,
     pub assets: &'a AssetStore,
     pub missing: &'a BTreeSet<String>,
@@ -147,7 +160,9 @@ impl SidePanel {
                 ui.add_space(2.0);
                 match self.tab {
                     Tab::Node => node_tab::show(ui, io, &mut self.label_edit),
-                    Tab::Library => library::show(ui, io, &mut self.library_query),
+                    Tab::Library => {
+                        library::show(ui, io, &mut self.library_query, &mut self.block_filter)
+                    }
                     Tab::Project => project_tab::show(ui, io),
                     Tab::Devices => status_tabs::devices(ui, io, &mut self.devices),
                     Tab::Problems => status_tabs::problems(ui, io),

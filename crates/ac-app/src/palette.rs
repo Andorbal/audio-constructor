@@ -1,8 +1,13 @@
 //! The add-node palette (`Shift+A`, double-click, or dropping a wire on
 //! empty canvas): fuzzy search with synonyms, keyboard driven, filtered to
-//! nodes that can complete a dragged wire.
+//! nodes that can complete a dragged wire. It offers nodes, the groups in
+//! the project, and the blocks in the library.
 
-use ac_core::{Category, Config, GROUP_KIND, GroupId, Registry, SignalType};
+use ac_core::{
+    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, Registry, SignalType, VOICE_KIND,
+    VOICES_KIND,
+};
+use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Color32, Key, Pos2, RichText, Sense, vec2};
 
 use crate::canvas::PendingWire;
@@ -21,6 +26,64 @@ pub struct Candidate {
     pub config: Config,
     /// The socket to auto-wire when completing a pending wire.
     pub socket: Option<String>,
+    /// A library block: adding it pastes an instance of its definition.
+    pub block: Option<BlockSource>,
+}
+
+impl Candidate {
+    /// A node of `kind` with an empty config.
+    pub fn node(name: &str, kind: &str, category: Option<Category>, summary: String) -> Candidate {
+        Candidate {
+            name: name.to_string(),
+            kind: kind.to_string(),
+            category,
+            summary,
+            config: ac_core::empty_config(),
+            socket: None,
+            block: None,
+        }
+    }
+}
+
+/// Whether a block is meant for polyphony: a Voice node inside reads each
+/// copy's note, so it's added as a Voices instance.
+pub fn block_is_polyphonic(block: &Block) -> bool {
+    block.def.graph.nodes.iter().any(|n| n.kind == VOICE_KIND)
+}
+
+/// The palette's entry for a library block.
+pub fn block_candidate(b: &LibraryBlock, socket: Option<String>) -> Candidate {
+    let kind = if block_is_polyphonic(&b.block) {
+        VOICES_KIND
+    } else {
+        GROUP_KIND
+    };
+    Candidate {
+        name: b.name().to_string(),
+        kind: kind.to_string(),
+        category: None,
+        summary: first_paragraph(&b.block.def.description).to_string(),
+        config: ac_core::empty_config(),
+        socket,
+        block: Some(b.source.clone()),
+    }
+}
+
+/// Text up to the first blank line.
+pub fn first_paragraph(text: &str) -> &str {
+    text.split("\n\n").next().unwrap_or("").trim()
+}
+
+/// How well a name matches a query: 0 exactly, 1 as a prefix, 2 otherwise.
+fn tier(name: &str, q: &str) -> u8 {
+    let name = name.to_lowercase();
+    if name == q {
+        0
+    } else if name.starts_with(q) {
+        1
+    } else {
+        2
+    }
 }
 
 /// What the user picked, with the wire it completes and where it goes.
@@ -46,14 +109,18 @@ pub struct Palette {
     age: u32,
 }
 
-/// What the palette offers for `query`, best first.
+/// What the palette offers for `query`, best first: nodes in the
+/// registry's order, with groups and blocks whose names match the query
+/// outright moved up among them.
 pub fn candidates(
     registry: &Registry,
+    library: &Library,
     doc: &Document,
     query: &str,
     pending: Option<&PendingWire>,
 ) -> Vec<Candidate> {
-    let mut out = Vec::new();
+    let q = query.trim().to_lowercase();
+    let mut out: Vec<(u8, Candidate)> = Vec::new();
     for e in registry.search(query) {
         if e.meta.kind == GROUP_KIND {
             continue;
@@ -67,18 +134,23 @@ pub fn candidates(
             },
             None => None,
         };
-        out.push(Candidate {
-            name: e.meta.name.to_string(),
-            kind: e.meta.kind.to_string(),
-            category: Some(e.meta.category),
-            summary: e.meta.summary(),
-            config,
-            socket,
-        });
+        let t = tier(e.meta.name, &q).min(tier(e.meta.kind, &q));
+        out.push((
+            t,
+            Candidate {
+                name: e.meta.name.to_string(),
+                kind: e.meta.kind.to_string(),
+                category: Some(e.meta.category),
+                summary: e.meta.summary(),
+                config,
+                socket,
+                block: None,
+            },
+        ));
     }
+    let mut extra = Vec::new();
     // Group definitions in this project, except ones that would contain
     // the group being edited.
-    let q = query.trim().to_lowercase();
     for (id, def) in &doc.project.group_defs {
         if let Some(scope) = doc.current_def()
             && (id == scope || edit::group::def_contains(&doc.project.group_defs, id, scope))
@@ -97,7 +169,7 @@ pub fn candidates(
             },
             None => None,
         };
-        out.push(Candidate {
+        extra.push(Candidate {
             name: def.name.clone(),
             kind: GROUP_KIND.to_string(),
             category: None,
@@ -108,9 +180,31 @@ pub fn candidates(
             },
             config: serde_json::json!({ "def": GroupId::clone(id).0 }),
             socket,
+            block: None,
         });
     }
-    out
+    // Library blocks, by name, tags, or description.
+    for b in library.search(query) {
+        let sig = if block_is_polyphonic(&b.block) {
+            ac_core::voices_signature(&b.block.def)
+        } else {
+            ac_core::group_signature(&b.block.def)
+        };
+        let socket = match pending {
+            Some(p) => match pick_socket(&sig, p) {
+                Some(s) => Some(s),
+                None => continue,
+            },
+            None => None,
+        };
+        extra.push(block_candidate(b, socket));
+    }
+    for c in extra {
+        let t = if q.is_empty() { 2 } else { tier(&c.name, &q) };
+        let at = out.iter().position(|(u, _)| *u > t).unwrap_or(out.len());
+        out.insert(at, (t, c));
+    }
+    out.into_iter().map(|(_, c)| c).collect()
 }
 
 /// The socket of a new node that completes `p`: for a wire from an output,
@@ -158,12 +252,13 @@ impl Palette {
         &mut self,
         ctx: &egui::Context,
         registry: &Registry,
+        library: &Library,
         doc: &Document,
     ) -> Option<Picked> {
         if !self.open {
             return None;
         }
-        let list = candidates(registry, doc, &self.query, self.pending.as_ref());
+        let list = candidates(registry, library, doc, &self.query, self.pending.as_ref());
         if self.selected >= list.len() {
             self.selected = list.len().saturating_sub(1);
         }
@@ -221,7 +316,7 @@ impl Palette {
                         let te = egui::TextEdit::singleline(&mut self.query)
                             .id(egui::Id::unique("add-node-query"))
                             .hint_text(format!(
-                                "{}  Search nodes  (volume, lpf, clock…)",
+                                "{}  Search nodes and blocks  (volume, lpf, tremolo…)",
                                 icons::MAGNIFYING_GLASS
                             ))
                             .desired_width(f32::INFINITY)
@@ -296,7 +391,7 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
     let strip =
         egui::Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(4.0, rect.height() - 12.0));
     p.rect_filled(strip, theme::radius(2.0), color);
-    let icon = if c.kind == GROUP_KIND {
+    let icon = if c.category.is_none() {
         format!("{}  ", icons::STACK)
     } else {
         String::new()
@@ -312,7 +407,11 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
             theme::TEXT
         },
     );
-    let cat = c.category.map_or("Group", |c| c.name());
+    let cat = match (c.category, &c.block) {
+        (Some(cat), _) => cat.name(),
+        (None, Some(_)) => "Block",
+        (None, None) => "Group",
+    };
     p.text(
         rect.right_center() - vec2(8.0, 0.0),
         Align2::RIGHT_CENTER,
@@ -357,11 +456,12 @@ mod tests {
     #[test]
     fn search_uses_synonyms() {
         let r = ac_nodes::registry();
-        let c = candidates(&r, &doc(), "volume", None);
+        let c = candidates(&r, &Library::default(), &doc(), "volume", None);
         assert_eq!(c[0].kind, "gain");
-        assert!(candidates(&r, &doc(), "", None).len() >= 20);
+        let none = Library::default();
+        assert!(candidates(&r, &none, &doc(), "", None).len() >= 20);
         assert!(
-            !candidates(&r, &doc(), "", None)
+            !candidates(&r, &none, &doc(), "", None)
                 .iter()
                 .any(|c| c.kind == GROUP_KIND)
         );
@@ -375,7 +475,7 @@ mod tests {
             to: None,
             ty: SignalType::Audio,
         };
-        let c = candidates(&r, &doc(), "", Some(&p));
+        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p));
         assert!(
             c.iter()
                 .any(|c| c.kind == "gain" && c.socket.as_deref() == Some("in"))
@@ -387,7 +487,7 @@ mod tests {
             to: Some(Endpoint::new(NodeId(1), "flip")),
             ty: SignalType::Trigger,
         };
-        let c = candidates(&r, &doc(), "", Some(&p));
+        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p));
         assert!(
             c.iter()
                 .any(|c| c.kind == "button" && c.socket.as_deref() == Some("trigger"))
