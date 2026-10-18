@@ -50,6 +50,11 @@ fixes and smaller changes.
   - **Guitar-to-Synth**: a synth that follows the pitch and dynamics of a
     guitar on Audio In, with a recorded riff standing in until you switch
     the guitar on.
+- `audioc bench` has a ninth stress project, `subtractive-voices-16`:
+  sixteen voices of the shipped Subtractive Synth Voice block (two saws, a
+  ladder filter, and an envelope each), all sounding at once. It is the
+  synth the Phase 2 performance target is measured on; the results are in
+  `bench/README.md`.
 
 ### Changed
 
