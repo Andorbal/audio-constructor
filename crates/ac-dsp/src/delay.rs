@@ -89,10 +89,24 @@ impl DelayLine {
     /// clear.
     #[inline]
     pub fn tap(&self, k: usize) -> f32 {
-        if k as f64 > self.max_delay() {
+        if k > self.buf.len() - PAD {
             return 0.0;
         }
         self.ago(k)
+    }
+
+    /// `(tap(k), tap(k + 1))`, reading the two neighbours at once where
+    /// they sit next to each other in the buffer.
+    #[inline]
+    pub fn tap_pair(&self, k: usize) -> (f32, f32) {
+        let older = k + 1;
+        if k >= 1 && older <= self.filled && older <= self.buf.len() - PAD && self.write >= older {
+            let i = self.write - older;
+            if let Some(&[o, n]) = self.buf.get(i..i + 2) {
+                return (n, o);
+            }
+        }
+        (self.tap(k), self.tap(older))
     }
 
     /// Silence the line. Constant time (nothing is overwritten), so it is
@@ -170,6 +184,14 @@ mod tests {
         assert_eq!(d.tap(0), 0.0);
         assert_eq!(d.tap(9), 0.0);
         assert_eq!(d.tap(3), d.read(3.0));
+        // Pairs match single taps everywhere, across the wrap and the edges.
+        let mut d = DelayLine::new(6);
+        for n in 0..23 {
+            d.write(n as f32 + 1.0);
+            for k in 0..9 {
+                assert_eq!(d.tap_pair(k), (d.tap(k), d.tap(k + 1)), "n {n} k {k}");
+            }
+        }
     }
 
     #[test]

@@ -60,6 +60,8 @@ node! {
         lfo: Vec<(f64, f64)>,
         gains: Vec<f32>,
         mixes: Vec<f32>,
+        /// One channel's block as it passes through the stages.
+        work: Vec<f32>,
     }
 }
 
@@ -219,6 +221,7 @@ impl Node for Diffuser {
             lfo: vec![(0.0, 0.0); block],
             gains: vec![0.0; block],
             mixes: vec![1.0; block],
+            work: vec![0.0; block],
         }
     }
 
@@ -238,19 +241,28 @@ impl Node for Diffuser {
             ) else {
                 continue;
             };
-            for (i, (o, &x)) in dst.iter_mut().zip(src).enumerate() {
-                let scale = self.sizes.get(i).copied().unwrap_or(0.5);
-                let (ls, lc) = self.lfo.get(i).copied().unwrap_or((0.0, 0.0));
-                let g = self.gains.get(i).copied().unwrap_or(0.0);
-                let m = self.mixes.get(i).copied().unwrap_or(1.0);
-                let x = finite_or(x, 0.0);
-                let mut y = x;
-                for ((ap, &b), &(oc, os)) in stages.iter_mut().zip(base).zip(offsets) {
+            for (w, &x) in self.work.iter_mut().zip(src) {
+                *w = finite_or(x, 0.0);
+            }
+            // The stages are in series with no feedback between them, so
+            // each runs over the whole block in turn: the same arithmetic as
+            // sample by sample, with one delay line in cache at a time.
+            for ((ap, &b), &(oc, os)) in stages.iter_mut().zip(base).zip(offsets) {
+                for (((w, &scale), &(ls, lc)), &g) in self
+                    .work
+                    .iter_mut()
+                    .zip(&self.sizes)
+                    .zip(&self.lfo)
+                    .zip(&self.gains)
+                    .take(frames)
+                {
                     // sin(θ + φ) = sin θ·cos φ + cos θ·sin φ.
                     let d = b * scale + ls * oc + lc * os;
-                    y = ap.tick(y, d, g);
+                    *w = ap.tick(*w, d, g);
                 }
-                *o = x * (1.0 - m) + y * m;
+            }
+            for (((o, &x), &y), &m) in dst.iter_mut().zip(src).zip(&self.work).zip(&self.mixes) {
+                *o = finite_or(x, 0.0) * (1.0 - m) + y * m;
             }
         }
     }

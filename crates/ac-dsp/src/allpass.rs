@@ -77,7 +77,8 @@ impl Allpass {
         };
         let eta = ((1.0 - frac) / (1.0 + frac)) as f32;
         // y[n] = η·(s[n] − y[n−1]) + s[n−1], with s the line delayed by k.
-        let y = eta * (self.line.tap(k) - self.frac_y) + self.line.tap(k + 1);
+        let (newer, older) = self.line.tap_pair(k);
+        let y = eta * (newer - self.frac_y) + older;
         self.frac_y = if y.is_finite() { y } else { 0.0 };
         self.frac_y
     }
