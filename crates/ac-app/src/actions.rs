@@ -36,6 +36,22 @@ pub enum Action {
     /// Turn wires into portals, or portals back into wires.
     Portal,
 
+    /// Lay out the selection (or everything) in layers, left to right.
+    AutoLayout,
+    /// The align and distribute menu, at the pointer.
+    ArrangeMenu,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    AlignTop,
+    AlignMiddle,
+    AlignBottom,
+    DistributeHorizontally,
+    DistributeVertically,
+    /// Wire two selected nodes ("lazy connect").
+    LazyConnect,
+    Find,
+
     Mute,
     Collapse,
     HideUnwired,
@@ -91,6 +107,13 @@ const CMD_ALT: Modifiers = Modifiers {
     mac_cmd: false,
     command: true,
 };
+const SHIFT_ALT: Modifiers = Modifiers {
+    alt: true,
+    ctrl: false,
+    shift: true,
+    mac_cmd: false,
+    command: false,
+};
 
 impl Action {
     pub const ALL: &'static [Action] = &[
@@ -120,6 +143,18 @@ impl Action {
         Action::Ungroup,
         Action::EnterLeaveGroup,
         Action::Portal,
+        Action::AutoLayout,
+        Action::ArrangeMenu,
+        Action::AlignLeft,
+        Action::AlignCenter,
+        Action::AlignRight,
+        Action::AlignTop,
+        Action::AlignMiddle,
+        Action::AlignBottom,
+        Action::DistributeHorizontally,
+        Action::DistributeVertically,
+        Action::LazyConnect,
+        Action::Find,
         Action::Mute,
         Action::Collapse,
         Action::HideUnwired,
@@ -175,6 +210,18 @@ impl Action {
             Action::Ungroup => "Ungroup",
             Action::EnterLeaveGroup => "Enter / Leave Group",
             Action::Portal => "Make Portal / Back to Wire",
+            Action::AutoLayout => "Auto-Layout",
+            Action::ArrangeMenu => "Align / Distribute…",
+            Action::AlignLeft => "Align Left",
+            Action::AlignCenter => "Align Center",
+            Action::AlignRight => "Align Right",
+            Action::AlignTop => "Align Top",
+            Action::AlignMiddle => "Align Middle",
+            Action::AlignBottom => "Align Bottom",
+            Action::DistributeHorizontally => "Distribute Horizontally",
+            Action::DistributeVertically => "Distribute Vertically",
+            Action::LazyConnect => "Connect Selected",
+            Action::Find => "Find…",
             Action::Mute => "Mute",
             Action::Collapse => "Collapse",
             Action::HideUnwired => "Hide Unwired Sockets",
@@ -232,6 +279,19 @@ impl Action {
             Action::Ungroup => sc(CMD_ALT, Key::G),
             Action::EnterLeaveGroup => sc(NONE, Key::Tab),
             Action::Portal => sc(SHIFT, Key::P),
+            Action::AutoLayout => sc(CMD, Key::L),
+            // `Alt+A` is Select None (D101).
+            Action::ArrangeMenu => sc(SHIFT_ALT, Key::A),
+            Action::AlignLeft
+            | Action::AlignCenter
+            | Action::AlignRight
+            | Action::AlignTop
+            | Action::AlignMiddle
+            | Action::AlignBottom
+            | Action::DistributeHorizontally
+            | Action::DistributeVertically => None,
+            Action::LazyConnect => sc(NONE, Key::F),
+            Action::Find => sc(CMD, Key::F),
             Action::Mute => sc(NONE, Key::M),
             Action::Collapse => sc(NONE, Key::H),
             Action::HideUnwired => sc(CMD, Key::H),
@@ -258,6 +318,22 @@ impl Action {
             Action::Shortcuts => sc(CMD, Key::Slash),
             Action::About => None,
         }
+    }
+
+    /// The alignment an align or distribute command applies.
+    pub fn align(self) -> Option<crate::edit::align::Align> {
+        use crate::edit::align::Align;
+        Some(match self {
+            Action::AlignLeft => Align::Left,
+            Action::AlignCenter => Align::Center,
+            Action::AlignRight => Align::Right,
+            Action::AlignTop => Align::Top,
+            Action::AlignMiddle => Align::Middle,
+            Action::AlignBottom => Align::Bottom,
+            Action::DistributeHorizontally => Align::Horizontally,
+            Action::DistributeVertically => Align::Vertically,
+            _ => return None,
+        })
     }
 
     /// Commands that work while the panels are shown instead of the canvas
@@ -380,6 +456,22 @@ mod tests {
             for_key(Key::F11, Modifiers::NONE),
             Some(Action::PerformanceMode)
         );
+        // Alt+A stays Select None; the align menu adds Shift (D101).
+        assert_eq!(for_key(Key::A, SHIFT_ALT), Some(Action::ArrangeMenu));
+        assert_eq!(for_key(Key::L, Modifiers::CTRL), Some(Action::AutoLayout));
+        assert_eq!(for_key(Key::L, Modifiers::NONE), Some(Action::SelectLinked));
+        assert_eq!(for_key(Key::F, Modifiers::NONE), Some(Action::LazyConnect));
+        assert_eq!(for_key(Key::F, Modifiers::CTRL), Some(Action::Find));
+    }
+
+    #[test]
+    fn every_alignment_has_a_command() {
+        for how in crate::edit::align::Align::ALL {
+            assert!(
+                Action::ALL.iter().any(|a| a.align() == Some(how)),
+                "{how:?}"
+            );
+        }
     }
 
     #[test]

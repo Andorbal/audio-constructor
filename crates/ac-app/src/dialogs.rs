@@ -246,6 +246,10 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                             ("Disconnect", "Drag a wire's end off its input"),
                             ("Insert on wire", "Drop an unwired node onto a wire"),
                             (
+                                "Wire nodes into a new one",
+                                "Select two or more, then Shift+A",
+                            ),
+                            (
                                 "Fine / coarse values",
                                 "Ctrl / Shift while dragging a value",
                             ),

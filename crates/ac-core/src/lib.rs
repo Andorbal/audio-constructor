@@ -59,7 +59,9 @@ pub use node::{
 pub use panel::{Panel, PanelItem};
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
-pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};
+pub use registry::{
+    NodeEntry, Registry, RenderWholeFn, fuzzy_score, group_signature, voices_signature,
+};
 pub use signal::{
     AutoTrigger, Channels, Conversion, OutRate, Rate, Scale, SignalType, Signature, SocketSpec,
     SpectrumShape, Unit, conversion,
