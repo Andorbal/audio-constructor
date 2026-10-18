@@ -552,3 +552,25 @@ fn a_dropdown_on_a_panel_picks_from_its_labels() {
     assert_eq!(engine_param(&h, NodeId(1), "value"), Some(Value::Int(2)));
     assert!(h.query_by_label("triangle").is_none(), "the menu closed");
 }
+
+#[test]
+fn a_number_on_a_panel_takes_typing() {
+    let config = json!({"type": "int", "min": 0, "max": 100});
+    let mut h = harness(with_panel(nodes(&[("number", config)]), "Live", &[1]));
+    press(&mut h, Modifiers::CTRL, Key::Tab);
+    let c = panel_body(&h, NodeId(1)).center();
+    click(&mut h, c);
+    assert!(h.state().perform.is_typing());
+    h.event(Event::Text("42".into()));
+    steps(&mut h, 2);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    assert!(!h.state().perform.is_typing());
+    assert_eq!(param(&h, NodeId(1), "value"), Some(Value::Int(42)));
+    // Escape leaves the field without changing the value.
+    click(&mut h, c);
+    h.event(Event::Text("7".into()));
+    steps(&mut h, 2);
+    press(&mut h, Modifiers::NONE, Key::Escape);
+    assert!(!h.state().perform.is_typing());
+    assert_eq!(param(&h, NodeId(1), "value"), Some(Value::Int(42)));
+}
