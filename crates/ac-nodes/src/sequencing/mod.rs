@@ -6,6 +6,7 @@ pub mod chord;
 pub mod midi_cc;
 pub mod midi_filter;
 pub mod midi_note;
+pub mod midi_pattern;
 pub mod midi_transpose;
 pub mod note_to_midi;
 mod notes;
@@ -26,4 +27,5 @@ pub fn register(r: &mut Registry) {
     r.register::<chord::Chord>();
     r.register::<note_to_midi::NoteToMidi>();
     r.register::<pattern::Pattern>();
+    r.register::<midi_pattern::MidiPattern>();
 }
