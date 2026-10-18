@@ -165,15 +165,15 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `FrequencyTrigger` | P2 | Fires when energy in a band (`low`, `high`) exceeds `threshold`, or when `PitchDetect`'s frequency is above/below/within a range. Outputs `trigger`, `gate`. |
 | `Onset` | P2 | Transient detector (spectral flux); `sensitivity`. Out: `trigger`, `strength: Float`. |
 | `ClockDivide` | P2 | Pass every Nth trigger; `offset`. |
-| `ClockMultiply` | P2 | Interpolates N triggers between incoming ones. |
-| `TriggerDelay` | P2 | Delay a trigger by time or beats. |
+| `ClockMultiply` | P2 | Passes each trigger and fills in `multiply − 1` more, evenly spaced by the last interval between incoming ones. |
+| `TriggerDelay` | P2 | Delay each trigger by `time` (seconds, or beats with config `unit`). |
 | `GateToTrigger` | P2 | Rising/falling/both edges. |
-| `TriggerToGate` | P2 | Gate high for `length` after a trigger. |
-| `Euclidean` | P2 | `steps`, `pulses`, `rotation` → trigger pattern on `clock`. |
-| `Probability` | P2 | Pass a trigger with `chance`; seeded. |
-| `Burst` | P2 | N triggers at `rate` after one trigger. |
-| `Latch` | P2 | `set`/`reset` triggers → `Bool`; or toggle mode. |
-| `Timer` | P2 | `start` → `elapsed: Float`, `done: Trigger` after `duration`. |
+| `TriggerToGate` | P2 | Gate high for `length` after a trigger (seconds or beats); a retrigger restarts the length. |
+| `Euclidean` | P2 | `steps`, `pulses`, `rotation` → trigger pattern on `clock`; also `gate` and `step: Int`. |
+| `Probability` | P2 | Pass a trigger with `chance`, otherwise send it to `else`; seeded. |
+| `Burst` | P2 | `count` triggers, `interval` apart, after one trigger; `done` with the last. |
+| `Latch` | P2 | `set`/`reset`/`toggle` triggers → `Bool`, starting at `initial`. |
+| `Timer` | P2 | `start`/`stop` → `elapsed: Float`, `running: Bool`, `progress`, and `done: Trigger` after `duration` (where it stops). |
 
 ## Sequencing and notes
 
@@ -203,10 +203,10 @@ Panels (UX.md) to make a performance surface.
 | `Toggle` | P1 | `Bool` on/off. Bindable. |
 | `Slider` | P1 | `Float` with range, unit, and log/linear scale. Bindable to a MIDI CC or a gamepad axis via the node's menu. |
 | `Knob` | P2 | Same as Slider, round. |
-| `XYPad` | P2 | Two `Float` outputs plus `gate` on touch. |
-| `Keyboard` | P2 | Virtual piano → `midi`; also plays from the computer keyboard when focused. |
-| `Number` | P2 | A typed `Float`/`Int` field. |
-| `Dropdown` | P2 | Labeled choices → `Int`. |
+| `XYPad` | P2 | Two `Float` outputs plus `gate` while touched and `touch: Trigger` on press. |
+| `Keyboard` | P2 | Virtual piano → `midi` (config: lowest note, keys, channel; `velocity`, `octave`). Computer-keyboard play comes with `KeyboardIn` (M2.4). |
+| `Number` | P2 | A typed `Float`/`Int` field with optional limits. |
+| `Dropdown` | P2 | Labeled choices (config) → `Int`, and `changed: Trigger`. |
 
 ## Display nodes
 
