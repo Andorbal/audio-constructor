@@ -494,4 +494,60 @@ mod tests {
         );
         assert!(!c.iter().any(|c| c.kind == "gain"));
     }
+
+    #[test]
+    fn blocks_named_outright_come_first() {
+        let r = ac_nodes::registry();
+        let lib = Library::shipped_only();
+        let c = candidates(&r, &lib, &doc(), "tremolo", None);
+        // The LFO lists "tremolo" as a synonym; the block of that name leads.
+        assert_eq!(
+            c[0].block,
+            Some(BlockSource::new(ac_core::Origin::Shipped, "tremolo"))
+        );
+        assert_eq!(c[0].kind, GROUP_KIND);
+        assert_eq!(c[0].summary, first_paragraph(&c[0].summary));
+        assert!(c.iter().any(|c| c.kind == "lfo"));
+        // Tags and descriptions match too.
+        let c = candidates(&r, &lib, &doc(), "amplitude", None);
+        assert!(c.iter().any(|c| c.block.is_some()));
+        // With no query, blocks follow the nodes.
+        let all = candidates(&r, &lib, &doc(), "", None);
+        assert!(all.last().unwrap().block.is_some());
+        assert!(all[0].block.is_none());
+    }
+
+    #[test]
+    fn pending_wires_filter_blocks_by_their_interface() {
+        let r = ac_nodes::registry();
+        let lib = Library::shipped_only();
+        let from_audio = PendingWire {
+            from: Some(Endpoint::new(NodeId(1), "out")),
+            to: None,
+            ty: SignalType::Audio,
+        };
+        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&from_audio));
+        let t = c
+            .iter()
+            .find(|c| c.block.is_some())
+            .expect("Tremolo takes audio");
+        assert_eq!(t.socket.as_deref(), Some("in"));
+        let into_midi = PendingWire {
+            from: None,
+            to: Some(Endpoint::new(NodeId(1), "midi")),
+            ty: SignalType::Midi,
+        };
+        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&into_midi));
+        assert!(
+            !c.iter().any(|c| c.block.is_some()),
+            "Tremolo has no MIDI output"
+        );
+    }
+
+    #[test]
+    fn first_paragraphs() {
+        assert_eq!(first_paragraph("One. Two.\n\nThree."), "One. Two.");
+        assert_eq!(first_paragraph("  Only  "), "Only");
+        assert_eq!(first_paragraph(""), "");
+    }
 }
