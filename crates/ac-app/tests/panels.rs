@@ -446,3 +446,109 @@ fn a_meter_on_a_panel_follows_live_audio() {
     assert!(h.state().perform.body_rect(NodeId(3)).is_some());
     h.state_mut().engine.handle.stop();
 }
+
+#[test]
+fn a_keyboard_on_a_panel_plays_and_slides() {
+    let mut h = harness(with_panel(nodes(&[("keyboard", json!({}))]), "Keys", &[1]));
+    press(&mut h, Modifiers::CTRL, Key::Tab);
+    let b = panel_body(&h, NodeId(1));
+    // Low on the keys only white keys are hit: C3 is key 0, D3 key 2.
+    let white = |i: f32| pos2(b.min.x + b.width() * (i + 0.5) / 15.0, b.max.y - 5.0);
+    h.hover_at(white(0.0));
+    steps(&mut h, 2);
+    h.drag_at(white(0.0));
+    steps(&mut h, 2);
+    assert_eq!(
+        engine_param(&h, NodeId(1), "key_0"),
+        Some(Value::Bool(true))
+    );
+    for i in 1..=4 {
+        h.hover_at(white(0.0) + (white(1.0) - white(0.0)) * (i as f32 / 4.0));
+        steps(&mut h, 1);
+    }
+    steps(&mut h, 2);
+    assert_eq!(
+        engine_param(&h, NodeId(1), "key_0"),
+        Some(Value::Bool(false))
+    );
+    assert_eq!(
+        engine_param(&h, NodeId(1), "key_2"),
+        Some(Value::Bool(true))
+    );
+    h.drop_at(white(1.0));
+    steps(&mut h, 4);
+    assert_eq!(
+        engine_param(&h, NodeId(1), "key_2"),
+        Some(Value::Bool(false))
+    );
+    let doc = h.state().document();
+    assert!(!doc.can_undo() && !doc.is_dirty(), "playing isn't an edit");
+}
+
+#[test]
+fn cards_move_resize_and_unpin_on_the_panel() {
+    let mut h = harness(with_panel(
+        nodes(&[
+            ("knob", json!({})),
+            ("toggle", json!({})),
+            ("readout", json!({})),
+        ]),
+        "Live",
+        &[1, 2, 3],
+    ));
+    press(&mut h, Modifiers::CTRL, Key::Tab);
+    let cell = |h: &Harness<'static, EditorApp>, id: u64| {
+        h.state()
+            .perform
+            .cells
+            .iter()
+            .find(|c| c.node == NodeId(id))
+            .cloned()
+            .expect("the card is drawn")
+    };
+    // Drag the knob's card by its header onto the readout's card.
+    let from = cell(&h, 1).header.center();
+    let to = cell(&h, 3).rect.center();
+    drag(&mut h, from, to);
+    assert_eq!(pinned(&h, 0), vec![NodeId(2), NodeId(3), NodeId(1)]);
+    assert_eq!(h.state().document().undo_label(), Some("Move on panel"));
+    // + makes the toggle's card wider; − puts it back.
+    let wide = cell(&h, 2).rect.width();
+    let [_, grow, _] = cell(&h, 2)
+        .buttons
+        .expect("buttons outside performance mode");
+    click(&mut h, grow.center());
+    assert!(cell(&h, 2).rect.width() > wide * 1.5);
+    assert_eq!(
+        h.state().document().project.panels[0].items[0].size,
+        Some([2, 1])
+    );
+    let [shrink, _, _] = cell(&h, 2).buttons.unwrap();
+    click(&mut h, shrink.center());
+    assert_eq!(h.state().document().project.panels[0].items[0].size, None);
+    // × unpins; the node stays in the patch.
+    let [_, _, unpin] = cell(&h, 3).buttons.unwrap();
+    click(&mut h, unpin.center());
+    assert_eq!(pinned(&h, 0), vec![NodeId(2), NodeId(1)]);
+    assert_eq!(h.state().document().project.graph.nodes.len(), 3);
+    // Each was one step: undo them all, back to the start.
+    for _ in 0..4 {
+        press(&mut h, Modifiers::COMMAND, Key::Z);
+    }
+    assert_eq!(pinned(&h, 0), vec![NodeId(1), NodeId(2), NodeId(3)]);
+    assert!(!h.state().document().is_dirty());
+}
+
+#[test]
+fn a_dropdown_on_a_panel_picks_from_its_labels() {
+    let config = json!({"choices": ["sine", "triangle", "saw"]});
+    let mut h = harness(with_panel(nodes(&[("dropdown", config)]), "Live", &[1]));
+    press(&mut h, Modifiers::CTRL, Key::Tab);
+    let c = panel_body(&h, NodeId(1)).center();
+    click(&mut h, c);
+    h.get_by_label("saw").click();
+    steps(&mut h, 3);
+    assert_eq!(param(&h, NodeId(1), "value"), Some(Value::Int(2)));
+    assert_eq!(engine_param(&h, NodeId(1), "value"), Some(Value::Int(2)));
+    assert!(h.query_by_label("triangle").is_none(), "the menu closed");
+}
