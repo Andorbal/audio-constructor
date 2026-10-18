@@ -155,6 +155,12 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
         }
     }
     let (mut handle, mut processor) = engine.split();
+    // The engine applies bindings itself, from whatever MIDI and controls
+    // reach it.
+    let bindings = handle.project().bindings.len();
+    if bindings > 0 {
+        println!("bindings: {bindings}");
+    }
     let workers = worker_pool(args.threads);
     if let Some(w) = &workers {
         println!("engine threads: {}", w.workers() + 1);
