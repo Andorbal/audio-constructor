@@ -5,8 +5,14 @@ use std::path::PathBuf;
 /// The plugin's dynamic library (`libac_plugin.so`, `libac_plugin.dylib`,
 /// `ac_plugin.dll`), which cargo builds with the crate's rlib before it
 /// links the integration tests: next to the test binary (`deps/`) or one
-/// folder up (the profile folder).
+/// folder up (the profile folder). `AC_PLUGIN_LIBRARY` names another one
+/// instead, such as the binary inside a release bundle (CI tests those).
 pub fn plugin_library() -> PathBuf {
+    if let Some(path) = std::env::var_os("AC_PLUGIN_LIBRARY") {
+        let path = PathBuf::from(path);
+        assert!(path.is_file(), "AC_PLUGIN_LIBRARY: {} isn't a file", path.display());
+        return path;
+    }
     let name = format!(
         "{}ac_plugin{}",
         std::env::consts::DLL_PREFIX,
