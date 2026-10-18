@@ -5,6 +5,8 @@ use ac_core::{Config, ConfigExt, Registry};
 pub mod comment;
 pub mod feedback;
 pub mod group;
+pub mod info;
+pub mod latency;
 pub mod merge_channels;
 pub mod reroute;
 pub mod split_channels;
@@ -17,6 +19,8 @@ pub fn register(r: &mut Registry) {
     r.register::<split_channels::SplitChannels>();
     r.register::<merge_channels::MergeChannels>();
     r.register::<comment::Comment>();
+    r.register::<latency::Latency>();
+    r.register::<info::Info>();
 }
 
 /// Most channels a channel-count config accepts; bounds the sockets and

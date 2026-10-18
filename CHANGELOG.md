@@ -13,6 +13,35 @@ fixes and smaller changes.
 
 ## [0.2.0] - 2026-10-18
 
+Milestone M2.1 of the roadmap, engine depth: polyphony, nodes that need
+their whole input, latency compensation, and the use of every core.
+
+### Added
+
+- **Polyphony** with the **Voices** node: any group becomes a polyphonic
+  instrument. Its body runs once per voice (1 to 64), a **Voice** node inside
+  gives each copy its note, pitch, gate, velocity, and index, and the voices'
+  outputs are summed. Busy voices are stolen by age or pitch (or new notes are
+  ignored), the sustain pedal holds notes, and bend and controllers reach
+  every voice.
+- **Whole-input nodes and baking.** Nodes that need all of their input first,
+  starting with the new **Reverse** node, render their upstream part of the
+  patch in the background and play the result in time with the transport.
+  Editing anything upstream bakes again while the old result keeps playing;
+  a live source such as Audio In disables them, and offline renders always
+  bake them first.
+- **Latency compensation.** Where paths of different latency meet, the engine
+  delays the faster ones so everything lines up, including sample-rate
+  modulation, triggers, and MIDI. The new **Latency** node delays by a set
+  number of samples and reports the latency at any point of the patch.
+- **Info** node: sample rate, block size, CPU load, dropouts, and latency as
+  signals.
+- **Multi-core processing.** Independent parts of a patch (voices, parallel
+  chains) can run on a pool of real-time worker threads, with exactly the
+  same output as on one core, and per-core load is reported.
+- **Spectrum and Buffer signal types**, for FFT frames and shared audio
+  buffers, with their own socket colors and square sockets.
+
 ## [0.1.0] - 2026-10-17
 
 The first release: Phase 1 of the roadmap, the foundation. The engine, 32

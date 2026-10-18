@@ -74,8 +74,9 @@ pub fn registry_json(registry: &Registry) -> serde_json::Value {
                 "summary": e.meta.summary(),
                 "doc": e.meta.doc_text(),
                 "live": e.meta.live,
-                "inputs": sig.inputs.iter().map(socket_json).collect::<Vec<_>>(),
-                "outputs": sig.outputs.iter().map(socket_json).collect::<Vec<_>>(),
+                "whole_input": e.meta.whole_input,
+                "inputs": sig.inputs.iter().filter(|s| !s.hidden).map(socket_json).collect::<Vec<_>>(),
+                "outputs": sig.outputs.iter().filter(|s| !s.hidden).map(socket_json).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -84,7 +85,9 @@ pub fn registry_json(registry: &Registry) -> serde_json::Value {
 
 fn fmt_value(v: &Value, s: &SocketSpec) -> String {
     match (v, s.ty) {
-        (_, SignalType::Audio | SignalType::Midi) => "—".into(),
+        (_, SignalType::Audio | SignalType::Midi | SignalType::Spectrum | SignalType::Buffer) => {
+            "—".into()
+        }
         (_, SignalType::Trigger) if s.choices.is_empty() => "—".into(),
         (Value::Text(t), _) => format!("`{t}`"),
         (Value::Float(f), _) => format!("{f}"),
@@ -102,6 +105,7 @@ fn type_label(s: &SocketSpec) -> String {
 }
 
 fn socket_table(out: &mut String, title: &str, sockets: &[SocketSpec], inputs: bool) {
+    let sockets: Vec<&SocketSpec> = sockets.iter().filter(|s| !s.hidden).collect();
     if sockets.is_empty() {
         return;
     }
@@ -180,6 +184,9 @@ pub fn write_docs(registry: &Registry, dir: &Path) -> Result<()> {
             let mut tags = format!("Kind: `{}`", m.kind);
             if m.live {
                 tags.push_str(" · live source");
+            }
+            if m.whole_input {
+                tags.push_str(" · whole input (baked)");
             }
             if !m.keywords.is_empty() {
                 let _ = write!(tags, " · Also found by: {}", m.keywords.join(", "));

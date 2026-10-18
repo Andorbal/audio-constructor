@@ -6,6 +6,7 @@
 //! - [`Baked`] stands in for a whole-input node and streams its bake, or
 //!   silence while disabled or baking (ARCHITECTURE §9).
 //! - [`Capture`] stands in for the node being baked and records its inputs.
+//! - [`VoicesSum`] adds up one output of every voice of a `Voices` node.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
@@ -387,6 +388,70 @@ impl Node for Capture {
             }
         }
         self.frames += frames as u64;
+    }
+
+    fn reset(&mut self) {}
+}
+// --- VoicesSum -----------------------------------------------------------------
+
+pub(crate) const VOICES_SUM_KIND: &str = "voices_sum";
+
+/// Adds up `voices` inputs (`in_0`, `in_1`, ...) of one type (`type`:
+/// `audio` or `float`), in voice order.
+pub(crate) struct VoicesSum {
+    inputs: usize,
+    audio: bool,
+}
+
+impl Node for VoicesSum {
+    fn meta() -> NodeMeta {
+        NodeMeta::new(VOICES_SUM_KIND, "Voices sum", Category::Utility)
+    }
+
+    fn describe(config: &Config) -> Signature {
+        let n = config.get_u64_or("voices", 1).clamp(1, 64);
+        let audio = config.get_str_or("type", "audio") == "audio";
+        let mut sig = Signature::new();
+        for v in 0..n {
+            sig = sig.input(if audio {
+                SocketSpec::audio(format!("in_{v}"))
+            } else {
+                SocketSpec::float(format!("in_{v}"), ac_core::Unit::Generic, 0.0).no_smooth()
+            });
+        }
+        sig.output(if audio {
+            SocketSpec::audio("out")
+        } else {
+            SocketSpec::float("out", ac_core::Unit::Generic, 0.0).poly()
+        })
+    }
+
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        VoicesSum {
+            inputs: config.get_u64_or("voices", 1).clamp(1, 64) as usize,
+            audio: config.get_str_or("type", "audio") == "audio",
+        }
+    }
+
+    fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
+        if self.audio {
+            let mut out = io.outputs.audio(0);
+            for v in 0..self.inputs {
+                let input = io.inputs.audio(v);
+                for c in 0..out.channels() {
+                    let src = input.channel(c);
+                    for (o, s) in out.channel(c).iter_mut().zip(src) {
+                        *o += s;
+                    }
+                }
+            }
+        } else {
+            let ins = &io.inputs;
+            let n = self.inputs;
+            io.outputs
+                .float(0)
+                .fill_with(|i| (0..n).map(|v| ins.float(v).at(i)).sum());
+        }
     }
 
     fn reset(&mut self) {}

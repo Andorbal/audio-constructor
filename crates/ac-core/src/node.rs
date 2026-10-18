@@ -130,8 +130,8 @@ pub struct NodeMeta {
     /// number of cores. A node must set this to write `io.host.output`;
     /// every other node sees an empty device output.
     pub host_output: bool,
-    /// Wants to know the latency compensation applied to its inputs
-    /// ([`Node::compensation`]).
+    /// Wants to know the path latency at its output
+    /// ([`Node::path_latency`]).
     pub latency_probe: bool,
 }
 
@@ -394,11 +394,11 @@ pub trait Node: Send + 'static {
         WholeOutputs::default()
     }
 
-    /// For latency probes ([`NodeMeta::latency_probe`]): the delay, in
-    /// samples, the compiler inserted ahead of this node's inputs to line
-    /// them up with its slowest input. Called on the control thread after
-    /// `new`.
-    fn compensation(&mut self, samples: u32) {
+    /// For latency probes ([`NodeMeta::latency_probe`]): how far behind the
+    /// sources this node's output runs, in samples (the slowest path into
+    /// it plus its own latency), which is what latency compensation lines
+    /// other paths up to. Called on the control thread after `new`.
+    fn path_latency(&mut self, samples: u32) {
         let _ = samples;
     }
 

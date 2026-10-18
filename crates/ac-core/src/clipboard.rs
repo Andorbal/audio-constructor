@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
 
-use crate::graph::{GROUP_KIND, Graph, NodeInstance, Wire};
+use crate::graph::{Graph, NodeInstance, Wire};
 use crate::group::GroupDef;
 use crate::id::{GroupId, IdGen, NodeId};
 use crate::project::to_canonical_json;
@@ -149,9 +149,7 @@ impl Subgraph {
 
 fn retarget_groups(graph: &mut Graph, map: &HashMap<GroupId, GroupId>) {
     for n in &mut graph.nodes {
-        if n.kind != GROUP_KIND {
-            continue;
-        }
+        // Groups and Voices nodes both reference definitions.
         if let Some(def) = n.group_def()
             && let Some(new) = map.get(&def)
             && *new != def
@@ -166,6 +164,7 @@ fn retarget_groups(graph: &mut Graph, map: &HashMap<GroupId, GroupId>) {
 mod tests {
     use super::*;
     use crate::graph::Endpoint;
+    use crate::graph::GROUP_KIND;
 
     fn graph() -> Graph {
         let mut g = Graph::default();

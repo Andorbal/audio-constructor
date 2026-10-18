@@ -45,3 +45,43 @@ echo, or wire a slow `pure` Oscillator through a `Map` into `time`
 | --- | --- | --- |
 | `out` | Audio | Dry and delayed signal. |
 
+<a id="reverse"></a>
+## Reverse
+
+Kind: `reverse` · whole input (baked) · Also found by: backwards, reversed, flip, palindrome, whole input
+
+Plays its input backwards.
+
+Reverse needs to hear all of its input before it can play the end
+first, so it doesn't run live like other nodes. When everything
+feeding it is known ahead of time (a Clip, an Oscillator, a Pattern,
+a Slider), the engine renders that part of the patch over the project
+length in the background (**baking**, shown on the node) and Reverse
+plays the result in time with the transport. Change anything upstream
+and it bakes again; the old bake plays until the new one is ready.
+When a live source such as Audio In feeds it, Reverse is **disabled**
+and outputs silence, since it can't know what you'll play next. An
+offline render (`audioc render`, Export WAV) always works, because the
+whole input is known.
+
+The `segment` config reverses the input in slices of that many
+seconds instead of all at once (0, the default, reverses the whole
+project): each slice plays backwards in its own place, which keeps
+the music where it was.
+
+**Try this:** feed it a drum Clip with `segment` set to one beat's
+length (0.5 s at 120 BPM) for a reversed groove that stays in time,
+or put a `Delay` after it for the classic reverse-echo swell.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to reverse. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The input, backwards. |
+

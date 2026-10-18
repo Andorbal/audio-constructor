@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use crate::graph::{GROUP_KIND, NodeInstance};
+use crate::graph::{GROUP_KIND, NodeInstance, VOICES_KIND};
 use crate::group::GroupDef;
 use crate::id::GroupId;
 use crate::node::{Node, NodeMeta, PrepareCtx};
@@ -95,6 +95,10 @@ impl Registry {
             let def = defs.get(&node.group_def()?)?;
             return Some(group_signature(def));
         }
+        if node.kind == VOICES_KIND {
+            let def = defs.get(&node.group_def()?)?;
+            return Some(voices_signature(def));
+        }
         self.get(&node.kind).map(|e| (e.describe)(&node.config))
     }
 
@@ -138,6 +142,19 @@ pub fn group_signature(def: &GroupDef) -> Signature {
         s.ty = o.ty;
         sig.outputs.push(s);
     }
+    sig
+}
+
+/// Signature of a `Voices` node: a `midi` input that picks the voices, then
+/// the body's interface (inputs reach every voice; outputs are summed over
+/// the voices).
+pub fn voices_signature(def: &GroupDef) -> Signature {
+    let mut sig = group_signature(def);
+    sig.inputs.retain(|s| s.name != "midi");
+    sig.inputs.insert(
+        0,
+        SocketSpec::midi("midi").doc("Notes to share out among the voices."),
+    );
     sig
 }
 
@@ -323,6 +340,13 @@ mod tests {
         let missing = NodeInstance::new(crate::NodeId(2), GROUP_KIND)
             .with_config(serde_json::json!({"def": "nope"}));
         assert!(reg().signature_of(&missing, &defs).is_none());
+        // A Voices node adds `midi` ahead of the body's interface.
+        let v = NodeInstance::new(crate::NodeId(3), VOICES_KIND)
+            .with_config(serde_json::json!({"def": "v"}));
+        let sig = reg().signature_of(&v, &defs).unwrap();
+        assert_eq!(sig.inputs[0].name, "midi");
+        assert_eq!(sig.inputs[1].name, "cutoff");
+        assert_eq!(sig.outputs[0].name, "out");
     }
 
     fn reg() -> Registry {

@@ -28,7 +28,10 @@ pub mod whole;
 
 pub use clipboard::Subgraph;
 pub use events::{MidiEvent, MidiMsg, note_to_hz};
-pub use graph::{Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, Wire};
+pub use graph::{
+    Endpoint, Frame, GROUP_KIND, Graph, NodeInstance, NodeUi, REROUTE_KIND, VOICE_KIND,
+    VOICES_KIND, Wire,
+};
 pub use group::{GroupDef, GroupInput, GroupOutput};
 pub use id::{GroupId, IdGen, NodeId, NodePath};
 pub use io::{
@@ -42,7 +45,7 @@ pub use node::{
 };
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
-pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature};
+pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};
 pub use signal::{
     AutoTrigger, Channels, Conversion, OutRate, Rate, Scale, SignalType, Signature, SocketSpec,
     SpectrumShape, Unit, conversion,

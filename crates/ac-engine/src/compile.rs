@@ -94,7 +94,7 @@ struct CarryKey {
     config: String,
     index: u32,
     latency: u32,
-    compensation: u32,
+    probe: u32,
 }
 
 /// What the previous compile produced, so the next one can carry state over
@@ -433,7 +433,7 @@ pub(crate) fn compile_with(
                 f.config.clone(),
                 derive_seed(seed, f.path.stable_hash()),
             ));
-            nb.push_fresh(f, fi, node, String::new(), 0);
+            nb.push_fresh(f, fi, node, String::new());
             continue;
         }
         if let Some(spec) = whole.get(&fi) {
@@ -450,7 +450,6 @@ pub(crate) fn compile_with(
                 f,
                 fi,
                 &extra,
-                0,
                 |_, _| Box::new(Baked::new(&sig, result.as_ref().map(|r| r.outputs.clone()))),
                 sample_rate,
                 max_block,
@@ -459,17 +458,7 @@ pub(crate) fn compile_with(
             );
             continue;
         }
-        nb.prepare(
-            f,
-            fi,
-            "",
-            0,
-            f.create,
-            sample_rate,
-            max_block,
-            seed,
-            resources,
-        );
+        nb.prepare(f, fi, "", f.create, sample_rate, max_block, seed, resources);
     }
 
     // --- 7. latency compensation ---
@@ -501,7 +490,6 @@ pub(crate) fn compile_with(
         }
         lat_out[node] = in_lat.saturating_add(nb.latency[node]);
     }
-    let mut probe_comp: HashMap<usize, u32> = HashMap::new();
     for &(node, input, samples) in &comps {
         let (s, o) = match src_of[node][input] {
             Some(x) => x,
@@ -534,39 +522,27 @@ pub(crate) fn compile_with(
         });
         src_of.push(vec![Some((s, o))]);
         src_of[node][input] = Some((ci, 0));
-        store.push(vec![store[s][o]]);
+        let st = out_stores(&flat.nodes[ci], &src_of[ci], &store, false);
+        store.push(st);
         nb.index.push(None);
         nb.latency.push(0);
         lat_out.push(lat_out[s] + samples);
         let f = &flat.nodes[ci];
-        nb.prepare(
-            f,
-            ci,
-            "",
-            0,
-            f.create,
-            sample_rate,
-            max_block,
-            seed,
-            resources,
-        );
+        nb.prepare(f, ci, "", f.create, sample_rate, max_block, seed, resources);
         let at = order
             .iter()
             .position(|it| *it == Item::Main(node))
             .unwrap_or(order.len());
         order.insert(at, Item::Main(ci));
-        let e = probe_comp.entry(node).or_insert(0);
-        *e = (*e).max(samples);
     }
-    // Probes learn the compensation ahead of them; a carried probe whose
-    // compensation changed is rebuilt.
+    // Probes learn the path latency at their output; a carried probe whose
+    // value changed is rebuilt.
     for (fi, f) in flat.nodes.iter().enumerate() {
         if !f.meta.latency_probe {
             continue;
         }
         let Some(idx) = nb.index[fi] else { continue };
-        let c = probe_comp.get(&fi).copied().unwrap_or(0);
-        nb.set_compensation(f, idx, c, sample_rate, max_block, seed, resources);
+        nb.set_probe(f, idx, lat_out[fi], sample_rate, max_block, seed, resources);
     }
     let total_latency = {
         let sinks: Vec<u32> = (0..flat.nodes.len())
@@ -1107,14 +1083,7 @@ struct NodeBuilder<'a> {
 }
 
 impl NodeBuilder<'_> {
-    fn push_fresh(
-        &mut self,
-        f: &FlatNode,
-        fi: usize,
-        node: Box<dyn Node>,
-        config: String,
-        compensation: u32,
-    ) {
+    fn push_fresh(&mut self, f: &FlatNode, fi: usize, node: Box<dyn Node>, config: String) {
         let idx = self.nodes.len() as u32;
         self.index[fi] = Some(idx);
         self.latency[fi] = node.latency();
@@ -1125,7 +1094,7 @@ impl NodeBuilder<'_> {
                 config,
                 index: idx,
                 latency: self.latency[fi],
-                compensation,
+                probe: 0,
             },
         );
         self.nodes.push(NodeBox {
@@ -1143,7 +1112,6 @@ impl NodeBuilder<'_> {
         f: &FlatNode,
         fi: usize,
         extra: &str,
-        compensation: u32,
         create: impl FnOnce(&Config, &PrepareCtx) -> Box<dyn Node>,
         sample_rate: f64,
         max_block: usize,
@@ -1170,7 +1138,7 @@ impl NodeBuilder<'_> {
                         config: config_key,
                         index: idx,
                         latency: old.latency,
-                        compensation,
+                        probe: old.probe,
                     },
                 );
                 self.nodes.push(NodeBox {
@@ -1190,19 +1158,19 @@ impl NodeBuilder<'_> {
                     resources,
                 };
                 let node = create(&f.config, &ctx);
-                self.push_fresh(f, fi, node, config_key, compensation);
+                self.push_fresh(f, fi, node, config_key);
             }
         }
     }
 
-    /// Tell a latency probe its compensation, rebuilding it if it was
+    /// Tell a latency probe its path latency, rebuilding it if it was
     /// carried over with a different value.
     #[allow(clippy::too_many_arguments)]
-    fn set_compensation(
+    fn set_probe(
         &mut self,
         f: &FlatNode,
         idx: u32,
-        compensation: u32,
+        value: u32,
         sample_rate: f64,
         max_block: usize,
         seed: u64,
@@ -1212,9 +1180,9 @@ impl NodeBuilder<'_> {
         let previous = self
             .reuse
             .and_then(|p| p.nodes.get(&f.path))
-            .map(|k| k.compensation);
+            .map(|k| k.probe);
         match carried {
-            Some(pos) if previous != Some(compensation) => {
+            Some(pos) if previous != Some(value) => {
                 // Rebuild in place: same index, fresh state.
                 self.carry.remove(pos);
                 let key = f.path.to_string();
@@ -1227,7 +1195,7 @@ impl NodeBuilder<'_> {
                     resources,
                 };
                 let mut node = (f.create)(&f.config, &ctx);
-                node.compensation(compensation);
+                node.path_latency(value);
                 if let Some(nb) = self.nodes.get_mut(idx as usize) {
                     nb.node = node;
                     nb.load_pending = true;
@@ -1236,12 +1204,12 @@ impl NodeBuilder<'_> {
             Some(_) => {}
             None => {
                 if let Some(nb) = self.nodes.get_mut(idx as usize) {
-                    nb.node.compensation(compensation);
+                    nb.node.path_latency(value);
                 }
             }
         }
         if let Some(k) = self.layout.nodes.get_mut(&f.path) {
-            k.compensation = compensation;
+            k.probe = value;
         }
     }
 }

@@ -1,19 +1,30 @@
 //! Group flattening and reroute removal (ARCHITECTURE §7 step 1).
 //!
 //! Every group instance is expanded in place; inner nodes get paths prefixed
-//! by the instance path so their state stays addressable. Reroute dots are
-//! removed by connecting their source straight to their targets. Wires are
-//! resolved to socket indices; anything that doesn't resolve is reported and
-//! dropped.
+//! by the instance path so their state stays addressable. A `Voices` node
+//! expands into its voice allocator, one copy of its body per voice (paths
+//! `voices/<voice>/...`), and a summing node per output (DECISIONS D12).
+//! Reroute dots are removed by connecting their source straight to their
+//! targets. Wires are resolved to socket indices; anything that doesn't
+//! resolve is reported and dropped.
 
 use std::collections::{BTreeMap, HashMap};
 
 use ac_core::{
-    Config, Endpoint, GROUP_KIND, Graph, GroupDef, GroupId, Node, NodeId, NodeMeta, NodePath,
-    PrepareCtx, Project, REROUTE_KIND, Registry, RenderWholeFn, Signature, Value,
+    Config, ConfigExt, Endpoint, GROUP_KIND, Graph, GroupDef, GroupId, Node, NodeId, NodeMeta,
+    NodePath, PrepareCtx, Project, REROUTE_KIND, Registry, RenderWholeFn, SignalType, Signature,
+    VOICE_KIND, VOICES_KIND, Value,
 };
+use serde_json::json;
 
+use crate::internal::{self, VOICES_SUM_KIND, VoicesSum};
 use crate::report::CompileReport;
+
+/// Node ids of the summing nodes under a Voices node, one per body output
+/// (the output index is added). Voice copies use ids `0..voices`.
+const SUM_ID_BASE: u64 = 0x5_0000_0000_0000;
+/// Most voices a Voices node runs (matches the node's own clamp).
+const MAX_VOICES: u64 = 64;
 
 /// Groups nested deeper than this are reported as an error (it's almost
 /// certainly a mistake, and it bounds the work).
@@ -50,7 +61,18 @@ pub(crate) struct Flat {
 
 enum Item<'p> {
     Flat(usize),
-    Group { scope: usize, def: &'p GroupDef },
+    Group {
+        scope: usize,
+        def: &'p GroupDef,
+    },
+    /// A Voices node: its allocator, one scope per voice, and a summing node
+    /// per body output (`None` for outputs that aren't summed).
+    Voices {
+        alloc: usize,
+        scopes: Vec<usize>,
+        def: &'p GroupDef,
+        sums: Vec<Option<usize>>,
+    },
     Reroute,
     Missing,
 }
@@ -75,6 +97,9 @@ struct Builder<'p> {
     registry: &'p Registry,
     scopes: Vec<Scope<'p>>,
     nodes: Vec<FlatNode>,
+    /// Voice nodes and the allocator output that feeds each: (voice node,
+    /// allocator, voice index).
+    voice_links: Vec<(usize, usize, usize)>,
 }
 
 pub(crate) fn flatten(project: &Project, registry: &Registry, report: &mut CompileReport) -> Flat {
@@ -83,14 +108,16 @@ pub(crate) fn flatten(project: &Project, registry: &Registry, report: &mut Compi
         registry,
         scopes: Vec::new(),
         nodes: Vec::new(),
+        voice_links: Vec::new(),
     };
     let mut stack = Vec::new();
-    b.build_scope(&project.graph, None, &mut stack, report);
+    b.build_scope(&project.graph, None, &mut stack, None, report);
 
     let mut wires = Vec::new();
     for s in 0..b.scopes.len() {
         b.resolve_scope_wires(s, &mut wires, report);
     }
+    b.voice_wires(&mut wires);
 
     // Group input params: deepest scopes first so outer instances win.
     let mut group_inputs = HashMap::new();
@@ -108,11 +135,14 @@ pub(crate) fn flatten(project: &Project, registry: &Registry, report: &mut Compi
 }
 
 impl<'p> Builder<'p> {
+    /// Build a scope. `voice` is the allocator and voice index of the
+    /// Voices body this scope sits in, if any.
     fn build_scope(
         &mut self,
         graph: &'p Graph,
         prefix: Option<NodePath>,
         stack: &mut Vec<GroupId>,
+        voice: Option<(usize, usize)>,
         report: &mut CompileReport,
     ) -> usize {
         let idx = self.scopes.len();
@@ -126,7 +156,9 @@ impl<'p> Builder<'p> {
                 Some(p) => p.child(node.id),
                 None => NodePath::root(node.id),
             };
-            let item = if node.kind == GROUP_KIND {
+            let item = if node.kind == VOICES_KIND {
+                self.build_voices(node, &path, stack, report)
+            } else if node.kind == GROUP_KIND {
                 match node.group_def() {
                     None => {
                         report.error(Some(&path), None, "group node has no `def` in its config");
@@ -155,8 +187,13 @@ impl<'p> Builder<'p> {
                         }
                         Some(def) => {
                             stack.push(def_id);
-                            let child =
-                                self.build_scope(&def.graph, Some(path.clone()), stack, report);
+                            let child = self.build_scope(
+                                &def.graph,
+                                Some(path.clone()),
+                                stack,
+                                voice,
+                                report,
+                            );
                             stack.pop();
                             Item::Group { scope: child, def }
                         }
@@ -171,10 +208,28 @@ impl<'p> Builder<'p> {
                     .label
                     .clone()
                     .unwrap_or_else(|| entry.meta.name.to_string());
+                let mut config = node.config.clone();
+                if node.kind == VOICE_KIND {
+                    match voice {
+                        Some((alloc, v)) => {
+                            if let Some(obj) = config.as_object_mut() {
+                                obj.insert("voice_index".into(), v.into());
+                            } else {
+                                config = json!({ "voice_index": v });
+                            }
+                            self.voice_links.push((self.nodes.len(), alloc, v));
+                        }
+                        None => report.warning(
+                            Some(&path),
+                            None,
+                            "a Voice node only works inside the body of a Voices node",
+                        ),
+                    }
+                }
                 self.nodes.push(FlatNode {
                     path,
                     kind: node.kind.clone(),
-                    config: node.config.clone(),
+                    config,
                     params: node.params.clone(),
                     muted: node.muted,
                     name,
@@ -215,6 +270,15 @@ impl<'p> Builder<'p> {
                 let o = def.outputs.iter().find(|o| o.name == ep.socket)?;
                 self.resolve_out(*child, &o.source, depth + 1)
             }
+            Item::Voices {
+                scopes, def, sums, ..
+            } => {
+                let k = def.outputs.iter().position(|o| o.name == ep.socket)?;
+                match sums.get(k).copied().flatten() {
+                    Some(sum) => Some((sum, 0)),
+                    None => self.resolve_out(*scopes.first()?, &def.outputs[k].source, depth + 1),
+                }
+            }
             Item::Reroute => {
                 let into = Endpoint::new(ep.node, "in");
                 let w = sc.graph.wire_into(&into)?;
@@ -240,6 +304,19 @@ impl<'p> Builder<'p> {
                 if let Some(input) = def.inputs.iter().find(|x| x.name == ep.socket) {
                     for t in &input.targets {
                         self.resolve_in(*child, t, depth + 1, out);
+                    }
+                }
+            }
+            Some(Item::Voices {
+                alloc, scopes, def, ..
+            }) => {
+                if ep.socket == "midi" {
+                    out.push((*alloc, 0));
+                } else if let Some(input) = def.inputs.iter().find(|x| x.name == ep.socket) {
+                    for &child in scopes {
+                        for t in &input.targets {
+                            self.resolve_in(child, t, depth + 1, out);
+                        }
                     }
                 }
             }
@@ -300,6 +377,138 @@ impl<'p> Builder<'p> {
         }
     }
 
+    /// Expand a Voices node: allocator, voice scopes, summing nodes.
+    fn build_voices(
+        &mut self,
+        node: &'p ac_core::NodeInstance,
+        path: &NodePath,
+        stack: &mut Vec<GroupId>,
+        report: &mut CompileReport,
+    ) -> Item<'p> {
+        let Some(def_id) = node.group_def() else {
+            report.error(
+                Some(path),
+                None,
+                "Voices node has no `def` (body) in its config",
+            );
+            return Item::Missing;
+        };
+        let Some(def) = self.project.group_defs.get(&def_id) else {
+            report.error(
+                Some(path),
+                None,
+                format!("group definition `{def_id}` is missing from the project"),
+            );
+            return Item::Missing;
+        };
+        if stack.contains(&def_id) {
+            report.error(
+                Some(path),
+                None,
+                format!("group `{def_id}` contains itself"),
+            );
+            return Item::Missing;
+        }
+        if stack.len() >= MAX_DEPTH {
+            report.error(Some(path), None, "groups are nested too deeply");
+            return Item::Missing;
+        }
+        let Some(entry) = self.registry.get(VOICES_KIND) else {
+            report.error(Some(path), None, "Voices isn't available in this build");
+            return Item::Missing;
+        };
+        let voices = node.config.get_u64_or("voices", 8).clamp(1, MAX_VOICES) as usize;
+        let name = node
+            .ui
+            .label
+            .clone()
+            .unwrap_or_else(|| entry.meta.name.to_string());
+        let alloc = self.nodes.len();
+        self.nodes.push(FlatNode {
+            path: path.clone(),
+            kind: VOICES_KIND.to_string(),
+            config: node.config.clone(),
+            params: node.params.clone(),
+            muted: node.muted,
+            name: name.clone(),
+            sig: (entry.describe)(&node.config),
+            meta: entry.meta.clone(),
+            create: entry.create,
+            render_whole: entry.render_whole,
+        });
+        stack.push(def_id);
+        let scopes: Vec<usize> = (0..voices)
+            .map(|v| {
+                let prefix = path.child(NodeId(v as u64));
+                self.build_scope(&def.graph, Some(prefix), stack, Some((alloc, v)), report)
+            })
+            .collect();
+        stack.pop();
+        let sums = def
+            .outputs
+            .iter()
+            .enumerate()
+            .map(|(k, o)| {
+                let ty = match o.ty {
+                    SignalType::Audio => "audio",
+                    SignalType::Float => "float",
+                    _ => return None,
+                };
+                let config = json!({ "voices": voices, "type": ty });
+                self.nodes.push(FlatNode {
+                    path: path.child(NodeId(SUM_ID_BASE + k as u64)),
+                    kind: VOICES_SUM_KIND.to_string(),
+                    sig: VoicesSum::describe(&config),
+                    config,
+                    params: BTreeMap::new(),
+                    muted: false,
+                    name: format!("{name} {}", o.name),
+                    meta: VoicesSum::meta(),
+                    create: internal::create::<VoicesSum>,
+                    render_whole: VoicesSum::render_whole,
+                });
+                Some(self.nodes.len() - 1)
+            })
+            .collect();
+        Item::Voices {
+            alloc,
+            scopes,
+            def,
+            sums,
+        }
+    }
+
+    /// Wires inside Voices nodes: allocator → each copy's Voice nodes, and
+    /// each copy's outputs → the summing nodes.
+    fn voice_wires(&self, wires: &mut Vec<FlatWire>) {
+        for &(voice, alloc, v) in &self.voice_links {
+            if let Some(i) = self.nodes[voice].sig.input_index("voice_midi") {
+                wires.push(FlatWire {
+                    from: (alloc, v),
+                    to: (voice, i),
+                });
+            }
+        }
+        for sc in &self.scopes {
+            for item in sc.items.values() {
+                let Item::Voices {
+                    scopes, def, sums, ..
+                } = item
+                else {
+                    continue;
+                };
+                for (k, sum) in sums.iter().enumerate() {
+                    let Some(sum) = *sum else { continue };
+                    for (v, &child) in scopes.iter().enumerate() {
+                        if let Some(from) = self.resolve_out(child, &def.outputs[k].source, 0) {
+                            wires.push(FlatWire { from, to: (sum, v) });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn group_params(
         &mut self,
         s: usize,
@@ -310,15 +519,19 @@ impl<'p> Builder<'p> {
     ) {
         let graph = self.scopes[s].graph;
         for node in &graph.nodes {
-            let Some(Item::Group { scope: child, def }) = self.scopes[s].items.get(&node.id) else {
-                continue;
+            let (children, def): (Vec<usize>, &GroupDef) = match self.scopes[s].items.get(&node.id)
+            {
+                Some(Item::Group { scope, def }) => (vec![*scope], *def),
+                Some(Item::Voices { scopes, def, .. }) => (scopes.clone(), *def),
+                _ => continue,
             };
-            let (child, def) = (*child, *def);
             let path = self.scopes[s].path(node.id);
             for input in &def.inputs {
                 let mut targets = Vec::new();
-                for t in &input.targets {
-                    self.resolve_in(child, t, 0, &mut targets);
+                for &child in &children {
+                    for t in &input.targets {
+                        self.resolve_in(child, t, 0, &mut targets);
+                    }
                 }
                 let wired = graph
                     .wire_into(&Endpoint::new(node.id, &input.name))
@@ -343,7 +556,8 @@ impl<'p> Builder<'p> {
                 group_inputs.insert((path.clone(), input.name.clone()), targets);
             }
             for output in &def.outputs {
-                if let Some(src) = self.resolve_out(child, &output.source, 0) {
+                let src = self.resolve_out(s, &Endpoint::new(node.id, &output.name), 0);
+                if let Some(src) = src {
                     group_outputs.insert((path.clone(), output.name.clone()), src);
                 }
             }
