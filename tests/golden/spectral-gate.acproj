@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Spectral gate, dry and wet",
   "settings": {
     "sample_rate": 48000,

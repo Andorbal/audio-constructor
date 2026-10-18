@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Block: FM Operator Pair",
   "settings": {
     "sample_rate": 48000,

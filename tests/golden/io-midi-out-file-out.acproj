@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "MIDI Out and File Out",
   "settings": {
     "sample_rate": 48000,

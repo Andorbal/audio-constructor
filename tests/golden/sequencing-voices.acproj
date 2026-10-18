@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Voices: a four-voice chord",
   "settings": {
     "sample_rate": 48000,

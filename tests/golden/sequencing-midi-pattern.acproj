@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "MIDI Pattern, Chord, and Transpose into Voices",
   "settings": {
     "sample_rate": 48000,
