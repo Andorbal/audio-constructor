@@ -120,7 +120,7 @@ pub fn paint(out: &mut Vec<Shape>, c: [Pos2; 4], look: WireLook) {
     out.push(curve(
         c,
         look.width + 1.5,
-        Color32::from_black_alpha((70.0 * look.alpha) as u8),
+        theme::fade(theme::wire_casing(), look.alpha),
     ));
     out.push(curve(c, look.width, base));
 
@@ -149,7 +149,7 @@ fn flow(out: &mut Vec<Shape>, c: &[Pos2; 4], look: WireLook) {
     let pts = flatten(c);
     let db = 20.0 * look.level.max(1e-6).log10();
     let strength = ((db + 60.0) / 60.0).clamp(0.2, 1.0);
-    let bright = theme::mix(look.color, Color32::WHITE, 0.7);
+    let bright = theme::mix(look.color, theme::wire_flash(), 0.7);
     let color = theme::fade(bright, strength * look.alpha);
     let spacing = 18.0;
     let dash: f32 = 6.0;
@@ -176,13 +176,13 @@ fn flow(out: &mut Vec<Shape>, c: &[Pos2; 4], look: WireLook) {
 /// An event pulse: the wire flashes and a bright dot runs to the input.
 fn pulse(out: &mut Vec<Shape>, c: &[Pos2; 4], look: WireLook, t: f32) {
     let ease = 1.0 - (1.0 - t) * (1.0 - t);
-    let flash = theme::fade(Color32::WHITE, (1.0 - t) * 0.5 * look.alpha);
+    let flash = theme::fade(theme::wire_flash(), (1.0 - t) * 0.5 * look.alpha);
     out.push(curve(*c, look.width + 2.0, flash));
     let p = eval(c, ease);
     out.push(Shape::circle_filled(
         p,
         3.5 + 2.0 * (1.0 - t),
-        theme::fade(theme::mix(look.color, Color32::WHITE, 0.6), look.alpha),
+        theme::fade(theme::mix(look.color, theme::wire_flash(), 0.6), look.alpha),
     ));
 }
 

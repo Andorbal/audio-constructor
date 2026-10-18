@@ -119,11 +119,8 @@ fn inline(text: &str, size: f32, color: Color32) -> LayoutJob {
     bold.color = theme::text_strong();
     let mut italic = normal.clone();
     italic.italics = true;
-    let mut code = TextFormat::simple(
-        theme::mono_font(size - 1.0),
-        Color32::from_rgb(0xE6, 0xC0, 0x8A),
-    );
-    code.background = Color32::from_rgb(0x2C, 0x30, 0x38);
+    let mut code = TextFormat::simple(theme::mono_font(size - 1.0), theme::code_text());
+    code.background = theme::code_bg();
     let mut rest = text;
     let mut buf = String::new();
     let push = |job: &mut LayoutJob, s: &mut String, f: &TextFormat| {

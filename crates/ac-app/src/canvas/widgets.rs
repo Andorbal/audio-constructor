@@ -448,7 +448,7 @@ pub fn paint_check(painter: &Painter, rect: Rect, zoom: f32, label: &str, on: bo
                 Align2::CENTER_CENTER,
                 icons::CHECK,
                 theme::canvas_font(theme::FONT_SMALL, zoom, false),
-                theme::fade(Color32::from_rgb(0x10, 0x14, 0x1C), state.alpha),
+                theme::fade(theme::on_accent(), state.alpha),
             );
         }
     } else {
@@ -527,7 +527,7 @@ pub fn paint_socket(
     let color = theme::fade(theme::type_color(ty), alpha);
     let edge = Stroke::new(
         (1.2 * (r / 5.0)).max(0.8),
-        theme::fade(Color32::from_rgb(0x12, 0x13, 0x16), alpha),
+        theme::fade(theme::socket_edge(), alpha),
     );
     let fill = if filled {
         color

@@ -261,7 +261,7 @@ impl Canvas {
             painter.rect_filled(
                 pill,
                 theme::radius(pill.height() / 2.0),
-                Color32::from_rgba_premultiplied(0x2A, 0x3A, 0x36, 0xE8),
+                theme::breadcrumb_bg(),
             );
             painter.galley(pill.min + vec2(10.0, 5.0), galley, theme::text());
             painter.text(
@@ -279,11 +279,7 @@ impl Canvas {
                 pos2(r.center().x, r.max.y - 24.0),
                 galley.size() + vec2(24.0, 10.0),
             );
-            painter.rect_filled(
-                pill,
-                theme::radius(pill.height() / 2.0),
-                Color32::from_rgba_premultiplied(0x10, 0x11, 0x14, 0xD8),
-            );
+            painter.rect_filled(pill, theme::radius(pill.height() / 2.0), theme::hint_bg());
             painter.galley(pill.min + vec2(12.0, 5.0), galley, theme::text());
         }
         painter.text(

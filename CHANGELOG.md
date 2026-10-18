@@ -13,6 +13,25 @@ fixes and smaller changes.
 
 ## [0.6.0] - 2026-10-18
 
+### Added
+
+- **Light theme**: View ▸ Theme switches between Dark, Light, and Follow
+  System (your operating system's light or dark mode) at once. The light
+  theme keeps text easy to read everywhere (at least 4.5:1 contrast, the
+  level accessibility guidelines ask of body text), and wires, sockets,
+  node headers, meters, and scopes are deepened so they stand out on
+  light cards. The editor remembers your choice.
+- **UI scale**: View ▸ UI Scale makes the whole editor bigger or smaller,
+  canvas text included, in steps from 75 % to 200 %. `Ctrl+=` and
+  `Ctrl+-` step through the sizes and `Ctrl+0` goes back to 100 % (the
+  canvas keeps its own zoom on `+`, `-`, and the wheel). The editor
+  remembers the size too.
+
+### Changed
+
+- Secondary text in the dark theme is a shade lighter, so it stays
+  readable on buttons.
+
 ## [0.5.0] - 2026-10-18
 
 Control surfaces: gamepads, the computer keyboard, and Open Sound Control

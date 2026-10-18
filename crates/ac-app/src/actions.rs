@@ -43,6 +43,10 @@ pub enum Action {
     FitSelection,
     ZoomIn,
     ZoomOut,
+    /// The whole interface bigger or smaller (egui's zoom factor), or at 100 %.
+    UiScaleUp,
+    UiScaleDown,
+    UiScaleReset,
     ToggleSidePanel,
     ShowTiming,
 
@@ -120,6 +124,9 @@ impl Action {
         Action::FitSelection,
         Action::ZoomIn,
         Action::ZoomOut,
+        Action::UiScaleUp,
+        Action::UiScaleDown,
+        Action::UiScaleReset,
         Action::ToggleSidePanel,
         Action::ShowTiming,
         Action::Pin,
@@ -170,6 +177,9 @@ impl Action {
             Action::FitSelection => "Frame Selected",
             Action::ZoomIn => "Zoom In",
             Action::ZoomOut => "Zoom Out",
+            Action::UiScaleUp => "Bigger Interface",
+            Action::UiScaleDown => "Smaller Interface",
+            Action::UiScaleReset => "Interface at 100 %",
             Action::ToggleSidePanel => "Side Panel",
             Action::ShowTiming => "Node Timing",
             Action::Pin => "Pin to Panel",
@@ -222,6 +232,9 @@ impl Action {
             Action::FitSelection => sc(NONE, Key::Period),
             Action::ZoomIn => sc(NONE, Key::Plus),
             Action::ZoomOut => sc(NONE, Key::Minus),
+            Action::UiScaleUp => sc(CMD, Key::Equals),
+            Action::UiScaleDown => sc(CMD, Key::Minus),
+            Action::UiScaleReset => sc(CMD, Key::Num0),
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
             Action::Pin => sc(NONE, Key::P),
@@ -261,6 +274,9 @@ impl Action {
                 | Action::ToggleLoop
                 | Action::Rewind
                 | Action::PlayKeys
+                | Action::UiScaleUp
+                | Action::UiScaleDown
+                | Action::UiScaleReset
                 | Action::Shortcuts
                 | Action::About
         )
@@ -276,6 +292,9 @@ impl Action {
                 | Action::New
                 | Action::Quit
                 | Action::ExportWav
+                | Action::UiScaleUp
+                | Action::UiScaleDown
+                | Action::UiScaleReset
         )
     }
 }
@@ -349,5 +368,24 @@ mod tests {
             for_key(Key::F11, Modifiers::NONE),
             Some(Action::PerformanceMode)
         );
+    }
+
+    #[test]
+    fn ui_scale_keys_leave_canvas_zoom_alone() {
+        assert_eq!(for_key(Key::Minus, Modifiers::NONE), Some(Action::ZoomOut));
+        assert_eq!(
+            for_key(Key::Minus, Modifiers::CTRL),
+            Some(Action::UiScaleDown)
+        );
+        assert_eq!(
+            for_key(Key::Equals, Modifiers::CTRL),
+            Some(Action::UiScaleUp)
+        );
+        assert_eq!(
+            for_key(Key::Num0, Modifiers::CTRL),
+            Some(Action::UiScaleReset)
+        );
+        assert_eq!(for_key(Key::Num0, Modifiers::NONE), None);
+        assert_eq!(for_key(Key::F1, Modifiers::NONE), Some(Action::NodeHelp));
     }
 }

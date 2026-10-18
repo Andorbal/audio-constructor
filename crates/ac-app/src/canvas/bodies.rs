@@ -15,11 +15,6 @@ use crate::theme;
 /// 4:30, like most hardware.
 const KNOB_SWEEP: f32 = 1.5 * PI;
 
-/// Raised surfaces (button tops, knob caps) and their hovered shade.
-const RAISED: Color32 = Color32::from_rgb(0x32, 0x36, 0x3F);
-const RAISED_HOVER: Color32 = Color32::from_rgb(0x3A, 0x3F, 0x49);
-const SHADOW: Color32 = Color32::from_rgb(0x15, 0x16, 0x1A);
-
 fn controls_color() -> Color32 {
     theme::category_color(ac_core::Category::Controls)
 }
@@ -39,16 +34,16 @@ pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: boo
     let base = if down {
         theme::category_color(ac_core::Category::Controls)
     } else if hovered {
-        Color32::from_rgb(0x3A, 0x3F, 0x49)
+        theme::raised_hover()
     } else {
-        Color32::from_rgb(0x32, 0x36, 0x3F)
+        theme::raised()
     };
     if !down {
         // A lip under the button so it reads as raised.
         painter.rect_filled(
             rect.translate(vec2(0.0, 2.0 * zoom)),
             r,
-            theme::fade(Color32::from_rgb(0x1A, 0x1C, 0x21), alpha),
+            theme::fade(theme::raised_lip(), alpha),
         );
     }
     painter.rect_filled(rect, r, theme::fade(base, alpha));
@@ -85,9 +80,9 @@ pub fn toggle(painter: &Painter, rect: Rect, zoom: f32, on: bool, hovered: bool,
     let fill = if on {
         on_color
     } else if hovered {
-        Color32::from_rgb(0x3A, 0x3F, 0x49)
+        theme::toggle_hover()
     } else {
-        Color32::from_rgb(0x30, 0x34, 0x3C)
+        theme::toggle_off()
     };
     painter.rect_filled(track, theme::radius(h / 2.0), theme::fade(fill, alpha));
     let knob_x = if on {
@@ -152,11 +147,7 @@ pub fn slider(
         track.center().y,
     );
     let kr = if hovered || active { 6.5 } else { 5.5 } * zoom;
-    painter.circle_filled(
-        knob,
-        kr + 1.0,
-        theme::fade(Color32::from_rgb(0x15, 0x16, 0x1A), alpha),
-    );
+    painter.circle_filled(knob, kr + 1.0, theme::fade(theme::body_shadow(), alpha));
     painter.circle_filled(knob, kr, theme::fade(theme::text_strong(), alpha));
     if zoom >= 0.4 {
         painter.text(
@@ -229,12 +220,12 @@ pub fn knob(
     painter.circle_filled(
         center + vec2(0.0, 1.5 * zoom),
         cap,
-        theme::fade(SHADOW, alpha),
+        theme::fade(theme::body_shadow(), alpha),
     );
     let fill = if hovered || active {
-        RAISED_HOVER
+        theme::raised_hover()
     } else {
-        RAISED
+        theme::raised()
     };
     painter.circle_filled(center, cap, theme::fade(fill, alpha));
     if active {
@@ -321,7 +312,7 @@ pub fn xy_pad(
     if touched {
         painter.circle_filled(p, dot * 2.0, theme::fade(color, 0.2 * alpha));
     }
-    painter.circle_filled(p, dot + 1.0, theme::fade(SHADOW, alpha));
+    painter.circle_filled(p, dot + 1.0, theme::fade(theme::body_shadow(), alpha));
     painter.circle_filled(
         p,
         dot,
@@ -345,16 +336,16 @@ pub fn keyboard(
 ) {
     let lit = controls_color();
     let r = theme::radius(2.0 * zoom);
-    let edge = Stroke::new(1.0, theme::fade(SHADOW, alpha));
+    let edge = Stroke::new(1.0, theme::fade(theme::body_shadow(), alpha));
     for k in keys {
         let down = held.contains(&k.index);
         let fill = match (k.black, down, hovered == Some(k.index)) {
             (false, true, _) => lit,
-            (false, false, true) => Color32::from_rgb(0xC9, 0xCD, 0xD4),
-            (false, false, false) => Color32::from_rgb(0xE6, 0xE8, 0xEC),
-            (true, true, _) => theme::mix(lit, SHADOW, 0.25),
-            (true, false, true) => Color32::from_rgb(0x44, 0x48, 0x52),
-            (true, false, false) => Color32::from_rgb(0x1E, 0x20, 0x25),
+            (false, false, true) => theme::KEY_WHITE_HOVER,
+            (false, false, false) => theme::KEY_WHITE,
+            (true, true, _) => theme::mix(lit, theme::body_shadow(), 0.25),
+            (true, false, true) => theme::KEY_BLACK_HOVER,
+            (true, false, false) => theme::KEY_BLACK,
         };
         let rect = if k.black {
             k.rect
@@ -388,7 +379,7 @@ pub fn keyboard(
                     if down {
                         theme::text_strong()
                     } else {
-                        Color32::from_rgb(0x6A, 0x70, 0x7A)
+                        theme::KEY_LABEL
                     },
                     alpha,
                 ),
