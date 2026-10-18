@@ -26,7 +26,25 @@ fixes and smaller changes.
   it uses into one `.acpack` to share, copying in files from outside the
   project's folder; `audioc unpack` unpacks one, and never writes outside
   the folder it unpacks into.
-- The **Tremolo** block.
+- **Blocks in the editor.** The palette (Shift+A) and the Library tab find
+  blocks by name, tag, or description; the Library tab lists shipped, your
+  own, and imported blocks with origin filters and tag chips, and imports
+  block files. A group's Node tab saves it to your library, and when the
+  library has a newer version of a block a project uses, the Node and
+  Project tabs offer to update it (one undo step; values you set carry
+  over).
+- **File ▸ Open** opens packs (unpacked into a folder next to them) and
+  imports block files; **File ▸ Export Pack…** shares the current project
+  with its audio. Blocks a pack carries join your library.
+- Shipped blocks: **Tremolo**, **Compressor**, **Limiter** (keeps peaks under a
+  ceiling, with lookahead), **Noise Gate**, **Sidechain Ducker**,
+  **Multiband Compressor**, **Track** (volume, pan, mute, and solo for a
+  mix), **Metronome**, and **Tape Stop**.
+
+### Changed
+
+- File ▸ Open shows the file dialog first and asks about unsaved changes
+  only when the file will replace the open project.
 
 ## [0.3.0] - 2026-10-18
 

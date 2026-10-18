@@ -1187,7 +1187,18 @@ impl EditorApp {
             FileKind::Pack => match ac_io::unpack_beside(path) {
                 Ok(project) => {
                     let dir = files::project_dir(&project);
-                    let what = format!("Unpacked {} into {}", file_name(path), dir.display());
+                    let mut what = format!("Unpacked {} into {}", file_name(path), dir.display());
+                    // Someone else's blocks: import them and point the
+                    // copies at the imports, before the project opens.
+                    if let Ok(mut p) = ac_io::load_project(&project) {
+                        let adopted = self.library.adopt(&mut p);
+                        if adopted > 0 && ac_io::save_project(&project, &p).is_ok() {
+                            what.push_str(&format!(
+                                " · added {adopted} block{} from it to your library",
+                                plural(adopted)
+                            ));
+                        }
+                    }
                     if let Err(e) = self.open_project(&project, what, now) {
                         self.warn(
                             format!(

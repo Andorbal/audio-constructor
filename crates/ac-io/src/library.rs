@@ -264,6 +264,46 @@ impl Library {
         }
         added
     }
+
+    /// Take in the blocks of a project that came from someone else (a
+    /// pack): every copy of a person's own or imported block that isn't
+    /// exactly one of ours is imported and its copy re-pointed at the
+    /// imported block, so `user:x` from them can't be mistaken for our
+    /// `user:x` (and offered "updates" from it). Shipped blocks are the same
+    /// everywhere and stay as they are. Returns how many copies were
+    /// re-pointed; the project changes only then.
+    pub fn adopt(&mut self, project: &mut Project) -> usize {
+        let mut retagged = 0;
+        let ids: Vec<GroupId> = project.group_defs.keys().cloned().collect();
+        for id in ids {
+            let Some(source) = project.group_defs[&id]
+                .source
+                .as_deref()
+                .and_then(BlockSource::parse)
+            else {
+                continue;
+            };
+            if source.origin == Origin::Shipped {
+                continue;
+            }
+            let Some(mut block) = Block::from_project(project, &id) else {
+                continue;
+            };
+            block.def.source = None;
+            // Ours, exactly: nothing to do.
+            if self.get(&source).is_some_and(|b| b.block == block) {
+                continue;
+            }
+            let Ok(new) = self.import(block, &source.id) else {
+                continue;
+            };
+            if let Some(def) = project.group_defs.get_mut(&id) {
+                def.source = Some(new.to_string());
+                retagged += 1;
+            }
+        }
+        retagged
+    }
 }
 
 /// Write via a temporary file so a crash never leaves half a block.
@@ -381,5 +421,38 @@ mod tests {
                 .is_some()
         );
         assert_eq!(lib.import_unknown(&p), 0, "only once");
+    }
+
+    #[test]
+    fn someone_elses_block_of_the_same_name_is_adopted_not_confused() {
+        let mut lib = Library::default();
+        let mine = lib.save_user(block("Comp", &["mine"])).unwrap();
+        lib.save_user(block("Comp", &["mine"])).unwrap(); // our v2
+        // Their `user:comp` is a different block at v1.
+        let mut p = Project::default();
+        let mut theirs = block("Comp", &["theirs"]).def;
+        theirs.source = Some(mine.to_string());
+        p.group_defs.insert(GroupId("comp".into()), theirs);
+        // An exact copy of a shipped-style or our own current block stays.
+        let mut ours = lib.get(&mine).unwrap().block.def.clone();
+        ours.source = Some(mine.to_string());
+        p.group_defs.insert(GroupId("ours".into()), ours);
+        assert_eq!(lib.adopt(&mut p), 1);
+        let src = p.group_defs[&GroupId("comp".into())]
+            .source
+            .clone()
+            .unwrap();
+        assert_eq!(src, "imported:comp");
+        assert_eq!(
+            p.group_defs[&GroupId("ours".into())].source.as_deref(),
+            Some("user:comp")
+        );
+        // No update is offered from our Comp to their block any more.
+        assert!(
+            lib.updates(&p)
+                .iter()
+                .all(|u| u.def != GroupId("comp".into()))
+        );
+        assert_eq!(lib.adopt(&mut p), 0, "already adopted");
     }
 }
