@@ -40,6 +40,12 @@ fixes and smaller changes.
   ceiling, with lookahead), **Noise Gate**, **Sidechain Ducker**,
   **Multiband Compressor**, **Track** (volume, pan, mute, and solo for a
   mix), **Metronome**, and **Tape Stop**.
+- Instrument blocks for Voices (tick **Polyphonic** and play MIDI into
+  them): **Karplus-Strong String** (a plucked string, in tune across the
+  keyboard), **Subtractive Synth Voice** (two detuned saws through a ladder
+  filter with an envelope sweep), and **FM Operator Pair**. Rhythm and
+  voice blocks: **Drum Machine** (a 16-step pattern playing synthesized
+  kick, snare, and hats), **Euclidean Drummer**, and **Vocoder** (12 bands).
 
 ### Changed
 

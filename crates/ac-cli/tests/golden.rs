@@ -355,7 +355,14 @@ fn golden_renders_are_deterministic_live_and_offline() {
 
 #[test]
 fn audioc_render_matches_the_library() {
-    let path = projects().into_iter().next().expect("a golden project");
+    // The CLI can't feed a golden's test MIDI or input: use one without.
+    let path = projects()
+        .into_iter()
+        .find(|p| {
+            let i = inputs(&ac_io::load_project(p).expect("loads"));
+            i.midi.is_empty() && i.input.is_none()
+        })
+        .expect("a golden project without test inputs");
     let out_wav = std::env::temp_dir().join(format!("ac-golden-cli-{}.wav", std::process::id()));
     let status = std::process::Command::new(env!("CARGO_BIN_EXE_audioc"))
         .args(["render", "-q", "--bit-depth", "32f", "-o"])
