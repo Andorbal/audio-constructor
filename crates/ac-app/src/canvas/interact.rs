@@ -6,24 +6,14 @@ use std::collections::BTreeSet;
 use ac_core::{Endpoint, NodeId, SignalType, Value, Wire};
 use egui::{PointerButton, Pos2, Rect, Response, pos2, vec2};
 
-use super::scene::{Body, Class, NodeView, Scene};
+use super::controls::{self, Click, ControlGesture, DRAG_TRAVEL, Grab, plain_number};
+use super::scene::{Body, Class, Scene};
 use super::{
-    Canvas, CanvasEvent, CanvasIo, EditTarget, Gesture, Hit, InlineEdit, PendingRelease,
-    PendingWire, accepts, field_rect, piano, widgets,
+    Canvas, CanvasEvent, CanvasIo, EditTarget, Gesture, Hit, InlineEdit, PendingWire, accepts,
+    field_rect, widgets,
 };
 use crate::edit::{self, GROUP_IN, GROUP_OUT};
 use crate::theme;
-
-/// A held control (a Button, a Keyboard key, an XY Pad) stays down in the
-/// engine for at least this long, so a quick tap is never lost between
-/// blocks.
-pub(super) const MIN_HOLD: f64 = 0.04;
-
-/// Pointer travel (points) that sweeps an inline value's whole soft range.
-const DRAG_TRAVEL: f32 = 320.0;
-
-/// Vertical pointer travel (points) that turns a knob through its range.
-const KNOB_TRAVEL: f32 = 200.0;
 
 impl Canvas {
     /// Handle the pointer for this frame. Returns whether the document changed.
@@ -73,7 +63,7 @@ impl Canvas {
             }
         }
         if primary_released {
-            self.release_hold(io, now);
+            self.controls.release(io, now);
         } else {
             self.follow_hold(io, scene, now);
         }
@@ -106,7 +96,12 @@ impl Canvas {
             self.finish_drag(io, scene, pointer, modifiers, now);
         }
 
-        if response.clicked() && !matches!(self.gesture, Gesture::HoldButton { .. }) {
+        if response.clicked()
+            && !matches!(
+                self.controls.active,
+                Some(ControlGesture::HoldButton { .. })
+            )
+        {
             let hit = self.press.clone().map_or(hover.clone(), |p| p.0);
             self.click(io, scene, hit, modifiers, now);
         }
@@ -139,117 +134,22 @@ impl Canvas {
         now: f64,
     ) {
         let Some(n) = scene.node(node) else { return };
-        let Some((body, rect)) = n.body else { return };
+        let Some((_, rect)) = n.body else { return };
         let r = self.transform().rect_to_screen(rect);
-        match body {
-            Body::Button => {
-                self.hold_down(io, node, "pressed");
-                self.gesture = Gesture::HoldButton { node, since: now };
-            }
-            Body::Keyboard => {
-                if let Some(key) = key_under(io, node, r, pointer) {
-                    self.hold_down(io, node, &piano::key_socket(key));
-                    self.gesture = Gesture::HoldKey {
-                        node,
-                        key,
-                        since: now,
-                    };
-                }
-            }
-            Body::XyPad => {
-                let touch = n.socket("touched", true).is_some_and(|s| !s.wired);
-                let values = pad_values(n, r, pointer);
-                if !touch && values.is_empty() {
-                    // Every input is wired: the pad only shows them.
-                    return;
-                }
-                Self::send_params(io, node, &values, now);
-                if touch {
-                    self.hold_down(io, node, "touched");
-                }
-                self.gesture = Gesture::HoldPad {
-                    node,
-                    since: now,
-                    touch,
-                };
-            }
-            _ => {}
-        }
+        self.controls.press(io, n, r, pointer, now);
     }
 
     /// While a Keyboard key or an XY Pad is held, follow the pointer:
     /// sliding onto another key plays it instead, and the pad's point moves.
     fn follow_hold(&mut self, io: &mut CanvasIo, scene: &Scene, now: f64) {
         let Some(p) = self.pointer else { return };
-        let (node, held) = match self.gesture {
-            Gesture::HoldKey { node, .. } | Gesture::HoldPad { node, .. } => {
-                (node, self.gesture.clone())
-            }
-            _ => return,
+        let Some(node) = self.controls.following() else {
+            return;
         };
         let Some(n) = scene.node(node) else { return };
         let Some((_, rect)) = n.body else { return };
         let r = self.transform().rect_to_screen(rect);
-        match held {
-            Gesture::HoldKey { key, since, .. } => {
-                let Some(next) = key_under(io, node, r, p) else {
-                    return;
-                };
-                if next != key {
-                    self.let_go(io, node, piano::key_socket(key), since, now);
-                    self.hold_down(io, node, &piano::key_socket(next));
-                    self.gesture = Gesture::HoldKey {
-                        node,
-                        key: next,
-                        since: now,
-                    };
-                }
-            }
-            Gesture::HoldPad { .. } => {
-                let values = pad_values(n, r, p);
-                Self::send_params(io, node, &values, now);
-            }
-            _ => {}
-        }
-    }
-
-    /// The primary button came up: a held control lets go.
-    fn release_hold(&mut self, io: &mut CanvasIo, now: f64) {
-        let pad = match self.gesture {
-            Gesture::HoldPad { .. } => true,
-            Gesture::HoldButton { .. } | Gesture::HoldKey { .. } => false,
-            _ => return,
-        };
-        if let Some((node, socket, since)) = self.gesture.held() {
-            self.let_go(io, node, socket, since, now);
-        }
-        if pad {
-            // The pad's moves were one undo step.
-            io.doc.end_coalescing();
-        }
-        self.gesture = Gesture::Idle;
-    }
-
-    /// Hold an input down in the engine, dropping a release of it that was
-    /// still waiting (so it isn't let go while held again).
-    fn hold_down(&mut self, io: &mut CanvasIo, node: NodeId, socket: &str) {
-        self.releases
-            .retain(|r| !(r.node == node && r.socket == socket));
-        Self::hold(io, node, socket, true);
-    }
-
-    /// Let go of an input held since `since`, but not before it has been
-    /// down for [`MIN_HOLD`].
-    fn let_go(&mut self, io: &mut CanvasIo, node: NodeId, socket: String, since: f64, now: f64) {
-        if now - since >= MIN_HOLD {
-            Self::hold(io, node, &socket, false);
-        } else {
-            self.releases.push(PendingRelease {
-                node,
-                socket,
-                at: since + MIN_HOLD,
-            });
-        }
+        self.controls.follow(io, n, r, p, now);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -329,89 +229,42 @@ impl Canvas {
                         let start = io
                             .shown_node(node)
                             .map_or(0.0, |n| widgets::number(&n, &spec));
-                        self.gesture = Gesture::DragValue {
+                        // A fixed travel, not the field's width: narrow
+                        // fields would be too touchy.
+                        self.controls.begin_value_drag(
                             node,
-                            socket,
+                            &socket,
                             spec,
                             start,
                             origin,
-                            // A fixed travel, not the field's width: narrow
-                            // fields would be too touchy.
-                            width: DRAG_TRAVEL,
-                            vertical: false,
-                        };
+                            DRAG_TRAVEL,
+                            false,
+                        );
                         self.hint = Some("Ctrl: fine · Shift: coarse".into());
                     }
                     _ => self.begin_move(io, node, modifiers, origin),
                 }
             }
             Hit::Body { node } => {
-                let body = scene.node(node).and_then(|n| n.body);
-                // The unwired input a body drags, with its spec.
-                let free = |socket: &str| {
-                    scene
-                        .node(node)
-                        .and_then(|n| n.socket(socket, true))
-                        .filter(|s| !s.wired)
-                        .and_then(|s| s.spec.clone())
+                let grab = match scene.node(node) {
+                    Some(n) => match n.body {
+                        Some((_, rect)) => {
+                            self.controls
+                                .begin_drag(io, n, t.rect_to_screen(rect), origin, now)
+                        }
+                        None => Grab::Other,
+                    },
+                    None => Grab::Other,
                 };
-                match body {
-                    Some((Body::Slider, rect)) => {
-                        let n = io.doc.graph().node(node);
-                        let spec = scene
-                            .node(node)
-                            .and_then(|n| n.socket("value", true))
-                            .and_then(|s| s.spec.clone());
-                        if let (Some(n), Some(spec)) = (n, spec) {
-                            // Jump to where the slider was grabbed, then drag.
-                            let r = t.rect_to_screen(rect);
-                            let tpos = ((origin.x - r.min.x) / r.width().max(1.0)).clamp(0.0, 1.0);
-                            let lo = spec.range.map_or(0.0, |r| r.0);
-                            let start = widgets::dragged(
-                                lo,
-                                tpos * r.width(),
-                                r.width(),
-                                &spec,
-                                false,
-                                false,
-                            );
-                            let _ = n;
-                            Self::send_param(io, node, "value", Value::Float(start), now);
-                            self.gesture = Gesture::DragValue {
-                                node,
-                                socket: "value".into(),
-                                spec,
-                                start,
-                                origin,
-                                width: r.width(),
-                                vertical: false,
-                            };
+                match grab {
+                    Grab::Control => {
+                        let body = scene.node(node).and_then(|n| n.body).map(|b| b.0);
+                        if matches!(body, Some(Body::Knob | Body::Number)) {
+                            self.hint = Some("Ctrl: fine · Shift: coarse".into());
                         }
                     }
-                    // Knobs turn with an up-and-down drag; number fields
-                    // drag sideways like inline fields.
-                    Some((b @ (Body::Knob | Body::Number), _)) => {
-                        let spec = free("value");
-                        let inst = io.shown_node(node);
-                        match (spec, inst) {
-                            (Some(spec), Some(inst)) => {
-                                let knob = b == Body::Knob;
-                                self.gesture = Gesture::DragValue {
-                                    node,
-                                    socket: "value".into(),
-                                    start: widgets::number(&inst, &spec),
-                                    spec,
-                                    origin,
-                                    width: if knob { KNOB_TRAVEL } else { DRAG_TRAVEL },
-                                    vertical: knob,
-                                };
-                                self.hint = Some("Ctrl: fine · Shift: coarse".into());
-                            }
-                            _ => self.begin_move(io, node, modifiers, origin),
-                        }
-                    }
-                    Some((Body::Button, _)) => {}
-                    _ => self.begin_move(io, node, modifiers, origin),
+                    Grab::Nothing => {}
+                    Grab::Other => self.begin_move(io, node, modifiers, origin),
                 }
             }
             Hit::Header { node } | Hit::Node { node } | Hit::Collapse { node } => {
@@ -541,6 +394,7 @@ impl Canvas {
         now: f64,
     ) {
         let t = self.transform();
+        self.controls.drag(io, pointer, modifiers, now);
         match &mut self.gesture {
             Gesture::Pan => {
                 let d = response.drag_delta();
@@ -574,31 +428,6 @@ impl Canvas {
                     (Some((_, n, s)), _) => Some((n, s, now)),
                     (None, _) => None,
                 };
-            }
-            Gesture::DragValue {
-                node,
-                socket,
-                spec,
-                start,
-                origin,
-                width,
-                vertical,
-            } => {
-                let fine = modifiers.ctrl || modifiers.command;
-                // Up turns a knob up (screen y grows downwards).
-                let travel = if *vertical {
-                    origin.y - pointer.y
-                } else {
-                    pointer.x - origin.x
-                };
-                let v = widgets::dragged(*start, travel, *width, spec, fine, modifiers.shift);
-                let value = if spec.ty == SignalType::Int {
-                    Value::Int(v as i64)
-                } else {
-                    Value::Float(v)
-                };
-                let (node, socket) = (*node, socket.clone());
-                Self::send_param(io, node, &socket, value, now);
             }
             Gesture::Cut { points } | Gesture::Reroute { points } => {
                 if points.last().is_none_or(|l| (*l - pointer).length() > 3.0) {
@@ -655,11 +484,7 @@ impl Canvas {
                 io.doc.changed(false);
             }
             // Held controls follow the pointer every frame (`follow_hold`).
-            Gesture::BoxSelect { .. }
-            | Gesture::Idle
-            | Gesture::HoldButton { .. }
-            | Gesture::HoldKey { .. }
-            | Gesture::HoldPad { .. } => {}
+            Gesture::BoxSelect { .. } | Gesture::Idle => {}
         }
         let _ = ui;
     }
@@ -758,6 +583,8 @@ impl Canvas {
         now: f64,
     ) {
         let t = self.transform();
+        // Held controls let go in `Controls::release`, before this runs.
+        self.controls.end_drag(io);
         let gesture = std::mem::replace(&mut self.gesture, Gesture::Idle);
         self.hint = None;
         match gesture {
@@ -781,7 +608,6 @@ impl Canvas {
                 detached,
                 snap,
             } => self.finish_wire(io, scene, pointer, pending, detached, snap),
-            Gesture::DragValue { .. } => io.doc.end_coalescing(),
             Gesture::Cut { points } => {
                 let cut: Vec<Wire> = scene
                     .wires
@@ -830,12 +656,7 @@ impl Canvas {
             | Gesture::ResizeNode { .. } => {
                 io.doc.drop_noop_step();
             }
-            // Held controls let go in `release_hold`, before this runs.
-            Gesture::Pan
-            | Gesture::Idle
-            | Gesture::HoldButton { .. }
-            | Gesture::HoldKey { .. }
-            | Gesture::HoldPad { .. } => {}
+            Gesture::Pan | Gesture::Idle => {}
         }
         let _ = modifiers;
     }
@@ -961,40 +782,27 @@ impl Canvas {
             Hit::Fire { node, socket } => Self::fire(io, node, &socket),
             Hit::Body { node } => {
                 let Some(n) = scene.node(node) else { return };
-                let free = |socket: &str| {
-                    n.socket(socket, true)
-                        .filter(|s| !s.wired)
-                        .and_then(|s| s.spec.clone())
-                };
-                match n.body {
-                    Some((Body::Toggle, _)) => Self::fire(io, node, "flip"),
-                    Some((Body::Clip, _)) => io.events.push(CanvasEvent::ChooseClipFile(node)),
-                    // Pressing played them already.
-                    Some((Body::Button | Body::Keyboard | Body::XyPad, _)) => {}
-                    Some((Body::Dropdown, rect)) if free("value").is_some() => {
+                let rect = n.body.map_or(Rect::NOTHING, |b| b.1);
+                match controls::click(io, n) {
+                    Click::Done => {}
+                    Click::Select => self.select(io, node, modifiers),
+                    Click::Choose => {
                         let r = t.rect_to_screen(rect);
                         self.choice = Some((node, "value".into(), r.left_bottom()));
                     }
-                    // The number itself is the field: click to type.
-                    Some((Body::Number, rect)) => {
-                        match (free("value"), io.doc.graph().node(node)) {
-                            (Some(spec), Some(inst)) => {
-                                self.edit = Some(InlineEdit {
-                                    target: EditTarget::Param {
-                                        node,
-                                        socket: "value".into(),
-                                        spec: spec.clone(),
-                                    },
-                                    text: plain_number(widgets::number(inst, &spec), &spec),
-                                    rect: rect.shrink2(vec2(6.0, 6.0)),
-                                    multiline: false,
-                                    started: false,
-                                });
-                            }
-                            _ => self.select(io, node, modifiers),
-                        }
+                    Click::Type { spec, text } => {
+                        self.edit = Some(InlineEdit {
+                            target: EditTarget::Param {
+                                node,
+                                socket: "value".into(),
+                                spec,
+                            },
+                            text,
+                            rect: rect.shrink2(vec2(6.0, 6.0)),
+                            multiline: false,
+                            started: false,
+                        });
                     }
-                    _ => self.select(io, node, modifiers),
                 }
             }
             Hit::Collapse { node } => {
@@ -1068,27 +876,17 @@ impl Canvas {
             }
             Hit::Body { node } => {
                 let Some(n) = scene.node(node) else { return };
-                // Double-click a knob to put it back to its default.
-                if let Some((Body::Knob, _)) = n.body
-                    && let Some(s) = n.socket("value", true).filter(|s| !s.wired)
-                    && let Some(spec) = &s.spec
+                // A knob goes back to its default; a slider takes typing.
+                if let Click::Type { spec, text } = controls::double_click(io, n, now)
+                    && let Some((_, rect)) = n.body
                 {
-                    Self::send_param(io, node, "value", spec.default.clone(), now);
-                    io.doc.end_coalescing();
-                    return;
-                }
-                if let Some((Body::Slider, rect)) = n.body
-                    && let Some(spec) = n.socket("value", true).and_then(|s| s.spec.clone())
-                    && let Some(inst) = io.doc.graph().node(node)
-                {
-                    let v = widgets::number(inst, &spec);
                     self.edit = Some(InlineEdit {
                         target: EditTarget::Param {
                             node,
                             socket: "value".into(),
-                            spec: spec.clone(),
+                            spec,
                         },
-                        text: plain_number(v, &spec),
+                        text,
                         rect: Rect::from_min_size(rect.min, vec2(rect.width(), 18.0)),
                         multiline: false,
                         started: false,
@@ -1113,28 +911,6 @@ impl Canvas {
     }
 }
 
-/// The Keyboard key under screen point `p`, for the keyboard drawn in `r`.
-fn key_under(io: &CanvasIo, node: NodeId, r: Rect, p: Pos2) -> Option<usize> {
-    let inst = io.doc.graph().node(node)?;
-    let (low, keys) = piano::layout(io.registry, inst);
-    piano::key_at(&piano::keys(low, keys, r), p)
-}
-
-/// The XY Pad's unwired `x` and `y` for screen point `p` on the pad drawn
-/// in `r` (clamped to the pad; y grows upwards).
-fn pad_values(n: &NodeView, r: Rect, p: Pos2) -> Vec<(&'static str, Value)> {
-    let tx = ((p.x - r.min.x) / r.width().max(1.0)).clamp(0.0, 1.0);
-    let ty = ((r.max.y - p.y) / r.height().max(1.0)).clamp(0.0, 1.0);
-    [("x", tx), ("y", ty)]
-        .into_iter()
-        .filter_map(|(name, t)| {
-            let s = n.socket(name, true).filter(|s| !s.wired)?;
-            let v = widgets::at_position(f64::from(t), s.spec.as_ref()?)?;
-            Some((name, Value::Float(v)))
-        })
-        .collect()
-}
-
 /// Could `node` be spliced into `wire`? (The same rule as `insert_on_wire`.)
 fn can_insert(io: &CanvasIo, node: NodeId, wire: &Wire) -> bool {
     let mut project = io.doc.project.clone();
@@ -1155,18 +931,4 @@ fn snap_f(v: f32) -> f32 {
 
 fn snap_vec(v: egui::Vec2) -> egui::Vec2 {
     vec2(snap_f(v.x), snap_f(v.y))
-}
-
-/// A number as typed text, without its unit (units are accepted back).
-pub fn plain_number(v: f64, spec: &ac_core::SocketSpec) -> String {
-    if spec.ty == SignalType::Int {
-        return format!("{}", v.round() as i64);
-    }
-    let s = format!("{v:.4}");
-    let s = s.trim_end_matches('0').trim_end_matches('.');
-    if s.is_empty() || s == "-0" {
-        "0".into()
-    } else {
-        s.to_string()
-    }
 }

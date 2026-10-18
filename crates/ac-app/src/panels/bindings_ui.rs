@@ -2,9 +2,7 @@
 //! selected node's in the Node tab, and the transport buttons in the
 //! Devices tab (UX.md "Bindings").
 
-use ac_core::{
-    Binding, GateMode, NodePath, SignalType, SocketSpec, Target, TransportAction,
-};
+use ac_core::{Binding, GateMode, NodePath, SignalType, SocketSpec, Target, TransportAction};
 use egui::RichText;
 
 use super::{PanelIo, PanelRequest, section};
@@ -49,10 +47,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
             ac_core::Source::Key { .. } => icons::KEYBOARD,
             _ => icons::LINK,
         };
-        ui.label(
-            RichText::new(format!("{icon} {}", b.source.label()))
-                .color(theme::TEXT_STRONG),
-        );
+        ui.label(RichText::new(format!("{icon} {}", b.source.label())).color(theme::TEXT_STRONG));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
                 .small_button(icons::X)
@@ -134,7 +129,11 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                 invert_box(ui, io, index, b.invert);
             }
             Some((SignalType::Trigger, _)) => {
-                ui.label(RichText::new("fires on press").small().color(theme::TEXT_MUTED));
+                ui.label(
+                    RichText::new("fires on press")
+                        .small()
+                        .color(theme::TEXT_MUTED),
+                );
             }
             _ if matches!(b.target, Target::Transport { .. }) => {
                 ui.label(RichText::new("on press").small().color(theme::TEXT_MUTED));
@@ -165,7 +164,8 @@ fn invert_box(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, invert: bool) {
         .on_hover_text("Turn the control around")
         .changed()
     {
-        io.doc.edit_binding(index, "invert", io.now, |b| b.invert = inv);
+        io.doc
+            .edit_binding(index, "invert", io.now, |b| b.invert = inv);
         io.doc.end_coalescing();
     }
 }
@@ -232,9 +232,11 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
     section(ui, "Bindings");
     if mine.is_empty() {
         ui.label(
-            RichText::new("Right-click an unwired input and choose Bind… to drive it from a control.")
-                .small()
-                .color(theme::TEXT_MUTED),
+            RichText::new(
+                "Right-click an unwired input and choose Bind… to drive it from a control.",
+            )
+            .small()
+            .color(theme::TEXT_MUTED),
         );
         return;
     }
@@ -259,18 +261,21 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
 
 /// The Devices tab's transport buttons: the gamepad preset, the
 /// transport bindings, and learning one.
-pub(super) fn transport_section(
-    ui: &mut egui::Ui,
-    io: &mut PanelIo,
-    choice: &mut TransportAction,
-) {
+pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mut TransportAction) {
     section(ui, "Transport buttons");
     if ui
-        .button(format!("{}  Add gamepad transport buttons", icons::GAME_CONTROLLER))
+        .button(format!(
+            "{}  Add gamepad transport buttons",
+            icons::GAME_CONTROLLER
+        ))
         .on_hover_text("A plays and stops, B stops, X records, on any gamepad.")
         .clicked()
     {
-        let n = bindings::add_all(io.doc, "Add transport buttons", bindings::transport_preset());
+        let n = bindings::add_all(
+            io.doc,
+            "Add transport buttons",
+            bindings::transport_preset(),
+        );
         let msg = if n == 0 {
             "The gamepad transport buttons are already set up.".to_string()
         } else {

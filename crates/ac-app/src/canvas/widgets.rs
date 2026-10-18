@@ -2,7 +2,7 @@
 //! logic (formatting, parsing, drag mapping) and how each widget is painted.
 //! Drawn by hand at the canvas zoom so text stays crisp at every scale.
 
-use ac_core::{AutoTrigger, NodeInstance, Scale, SignalType, SocketSpec, Unit, Value};
+use ac_core::{AutoTrigger, NodeInstance, SignalType, SocketSpec, Unit, Value};
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
 
 use crate::icons;

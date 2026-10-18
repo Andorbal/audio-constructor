@@ -258,35 +258,29 @@ pub struct BoundInput {
     pub live: Option<Value>,
 }
 
-/// The bound inputs of the current scope, by node id and socket.
+/// Every bound input, by engine path and socket, so the canvas (in any
+/// group) and the panels (at the root) look them up the same way.
 #[derive(Clone, Debug, Default)]
 pub struct BoundInputs {
-    pub inputs: HashMap<(NodeId, String), BoundInput>,
+    pub inputs: HashMap<(NodePath, String), BoundInput>,
 }
 
 impl BoundInputs {
-    /// Gather the bindings that target nodes in the current scope (through
-    /// the instance it was entered by), with live values from the engine.
-    pub fn gather(doc: &Document, registry: &Registry, values: &BindingValues) -> BoundInputs {
-        let mut inputs: HashMap<(NodeId, String), BoundInput> = HashMap::new();
-        let prefix = doc.scope_prefix();
-        for (i, b) in doc.project.bindings.iter().enumerate() {
+    /// Gather the project's input bindings, with the values the engine's
+    /// bindings last set.
+    pub fn gather(project: &Project, registry: &Registry, values: &BindingValues) -> BoundInputs {
+        let mut inputs: HashMap<(NodePath, String), BoundInput> = HashMap::new();
+        for (i, b) in project.bindings.iter().enumerate() {
             let Target::Input { node, socket } = &b.target else {
                 continue;
             };
-            let Some((leaf, parents)) = node.0.split_last() else {
-                continue;
-            };
-            if parents != prefix.as_slice() {
-                continue;
-            }
-            let e = inputs.entry((*leaf, socket.clone())).or_default();
+            let e = inputs.entry((node.clone(), socket.clone())).or_default();
             e.sources.push(b.source.label());
             if let Some(v) = values.get(i)
-                && let Some(n) = doc.graph().node(*leaf)
+                && let Some(n) = project.node_at(node)
             {
                 let ty = registry
-                    .signature_of(n, &doc.project.group_defs)
+                    .signature_of(n, &project.group_defs)
                     .and_then(|s| s.inputs.into_iter().find(|s| s.name == *socket))
                     .map(|s| s.ty);
                 e.live = Some(match ty {
@@ -299,20 +293,20 @@ impl BoundInputs {
         BoundInputs { inputs }
     }
 
-    pub fn get(&self, node: NodeId, socket: &str) -> Option<&BoundInput> {
-        self.inputs.get(&(node, socket.to_string()))
+    pub fn get(&self, node: &NodePath, socket: &str) -> Option<&BoundInput> {
+        self.inputs.get(&(node.clone(), socket.to_string()))
     }
 
-    pub fn is_bound(&self, node: NodeId, socket: &str) -> bool {
+    pub fn is_bound(&self, node: &NodePath, socket: &str) -> bool {
         self.get(node, socket).is_some()
     }
 
-    /// `node` as the canvas should draw it: its stored values, with bound
-    /// inputs at the value their bindings last set.
-    pub fn shown(&self, node: &NodeInstance) -> NodeInstance {
+    /// `node` (at engine path `path`) as it should be drawn: its stored
+    /// values, with bound inputs at the value their bindings last set.
+    pub fn shown(&self, path: &NodePath, node: &NodeInstance) -> NodeInstance {
         let mut n = node.clone();
-        for ((id, socket), b) in &self.inputs {
-            if *id == node.id
+        for ((p, socket), b) in &self.inputs {
+            if p == path
                 && let Some(v) = &b.live
             {
                 n.params.insert(socket.clone(), v.clone());
@@ -411,8 +405,7 @@ mod tests {
         def.graph.nodes.push(NodeInstance::new(NodeId(5), "knob"));
         p.group_defs.insert(GroupId::from("g"), def);
         p.graph.nodes.push(
-            NodeInstance::new(NodeId(9), GROUP_KIND)
-                .with_config(serde_json::json!({"def": "g"})),
+            NodeInstance::new(NodeId(9), GROUP_KIND).with_config(serde_json::json!({"def": "g"})),
         );
         p
     }
@@ -430,7 +423,8 @@ mod tests {
             ));
             p.bindings
                 .push(Binding::input(cc(3), NodePath::root(NodeId(77)), "gain"));
-            p.bindings.push(Binding::transport(cc(4), TransportAction::Play));
+            p.bindings
+                .push(Binding::transport(cc(4), TransportAction::Play));
             p
         };
         let mut after = before.clone();
@@ -530,13 +524,14 @@ mod tests {
             NodeInstance::new(NodeId(1), "osc_in")
                 .with_config(serde_json::json!({"address": "/mix/fader"})),
         );
-        let mut l = Learn::new(LearnTarget::Transport(TransportAction::Play), String::new(), &p);
+        let mut l = Learn::new(
+            LearnTarget::Transport(TransportAction::Play),
+            String::new(),
+            &p,
+        );
         let h = ac_core::osc_address_hash("/mix/fader");
         let osc = ac_core::Control::Osc { address: h, arg: 0 };
-        let got = l.feed(&[
-            InputEvent::Control(osc, 0.0),
-            InputEvent::Control(osc, 0.5),
-        ]);
+        let got = l.feed(&[InputEvent::Control(osc, 0.0), InputEvent::Control(osc, 0.5)]);
         assert_eq!(
             got,
             Some(Source::Osc {
@@ -550,8 +545,14 @@ mod tests {
     fn editor_keys_map_to_computer_keys() {
         assert_eq!(key_from_egui(egui::Key::A), ac_core::Key::from_name("A"));
         assert_eq!(key_from_egui(egui::Key::Num7), ac_core::Key::from_name("7"));
-        assert_eq!(key_from_egui(egui::Key::Space), ac_core::Key::from_name("Space"));
-        assert_eq!(key_from_egui(egui::Key::ArrowUp), ac_core::Key::from_name("Up"));
+        assert_eq!(
+            key_from_egui(egui::Key::Space),
+            ac_core::Key::from_name("Space")
+        );
+        assert_eq!(
+            key_from_egui(egui::Key::ArrowUp),
+            ac_core::Key::from_name("Up")
+        );
         assert_eq!(key_from_egui(egui::Key::F5), ac_core::Key::from_name("F5"));
     }
 }

@@ -70,6 +70,11 @@ fn right_click(h: &mut Harness<'static, EditorApp>, at: Pos2) {
     steps(h, 2);
 }
 
+/// A canvas menu item's label (its icon, then its name).
+fn menu_item(name: &str) -> String {
+    format!("{}  {name}", ac_app::icons::LINK)
+}
+
 fn cc(controller: u8, value: u8) -> MidiMsg {
     MidiMsg::ControlChange {
         channel: 0,
@@ -109,7 +114,7 @@ fn bind_an_input_by_moving_a_midi_controller() {
         .socket_screen_pos(NodeId(2), "gain", true)
         .expect("gain's gain input is drawn");
     right_click(&mut h, socket);
-    h.get_by_label_contains("Bind…").click();
+    h.get_by_label(&menu_item("Bind…")).click();
     steps(&mut h, 3);
     assert!(h.state().learn.is_some(), "learning");
     assert!(
@@ -132,7 +137,11 @@ fn bind_an_input_by_moving_a_midi_controller() {
     assert!(h.state().learn.is_some());
     // A real turn binds it, as one undo step.
     midi.send(cc(7, 100));
-    assert!(wait_for(&mut h, |a| !a.document().project.bindings.is_empty()));
+    assert!(wait_for(&mut h, |a| !a
+        .document()
+        .project
+        .bindings
+        .is_empty()));
     let doc = h.state().document();
     assert!(h.state().learn.is_none());
     assert_eq!(
@@ -152,8 +161,9 @@ fn bind_an_input_by_moving_a_midi_controller() {
     // The Project tab lists it.
     h.state_mut().side.tab = Tab::Project;
     steps(&mut h, 3);
-    assert!(h.query_by_label_contains("MIDI CC 7 · ch 1").is_some());
-    assert!(h.query_by_label_contains("→ Gain · Gain").is_some());
+    let row = format!("{} MIDI CC 7 · ch 1", ac_app::icons::LINK);
+    assert!(h.query_by_label(&row).is_some());
+    assert!(h.query_by_label("→ Gain · gain").is_some());
 
     // The controller now moves the gain in the engine: the widget follows
     // without touching the document.
@@ -170,7 +180,7 @@ fn bind_an_input_by_moving_a_midi_controller() {
     assert!(
         doc.graph()
             .node(NodeId(2))
-            .is_some_and(|n| n.params.get("gain").is_none())
+            .is_some_and(|n| !n.params.contains_key("gain"))
     );
 
     // Undo takes the binding away.
@@ -189,7 +199,7 @@ fn escape_cancels_learning_and_keys_can_be_learned() {
         .socket_screen_pos(NodeId(2), "gain", true)
         .unwrap();
     right_click(&mut h, socket);
-    h.get_by_label_contains("Bind…").click();
+    h.get_by_label(&menu_item("Bind…")).click();
     steps(&mut h, 3);
     press(&mut h, Modifiers::NONE, Key::Escape);
     assert!(h.state().learn.is_none());
@@ -199,7 +209,7 @@ fn escape_cancels_learning_and_keys_can_be_learned() {
     // delete the selection).
     h.state_mut().doc.selection = [NodeId(2)].into();
     right_click(&mut h, socket);
-    h.get_by_label_contains("Bind…").click();
+    h.get_by_label(&menu_item("Bind…")).click();
     steps(&mut h, 3);
     press(&mut h, Modifiers::NONE, Key::X);
     let doc = h.state().document();
@@ -265,7 +275,8 @@ fn the_transport_preset_adds_three_gamepad_buttons() {
     let mut h = harness(two_nodes());
     h.state_mut().side.tab = Tab::Devices;
     steps(&mut h, 3);
-    h.get_by_label_contains("Add gamepad transport buttons").click();
+    h.get_by_label_contains("Add gamepad transport buttons")
+        .click();
     steps(&mut h, 3);
     let actions: Vec<TransportAction> = h
         .state()
@@ -288,7 +299,8 @@ fn the_transport_preset_adds_three_gamepad_buttons() {
     );
     assert!(h.query_by_label_contains("Gamepad A (south)").is_some());
     // Again: nothing new, and one undo removes all three.
-    h.get_by_label_contains("Add gamepad transport buttons").click();
+    h.get_by_label_contains("Add gamepad transport buttons")
+        .click();
     steps(&mut h, 3);
     assert_eq!(h.state().document().project.bindings.len(), 3);
     h.hover_at(Pos2::new(700.0, 600.0));

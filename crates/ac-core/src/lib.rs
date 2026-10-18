@@ -18,6 +18,7 @@ pub mod group;
 pub mod id;
 pub mod io;
 pub mod node;
+pub mod panel;
 pub mod param;
 pub mod project;
 pub mod registry;
@@ -55,6 +56,7 @@ pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
     NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
+pub use panel::{Panel, PanelItem};
 pub use param::param_value;
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
 pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};

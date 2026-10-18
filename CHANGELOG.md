@@ -35,6 +35,23 @@ fixes and smaller changes.
 - Bindings are part of the project, so `audioc live` and offline renders
   honor them too; `audioc inspect` lists them, and `audioc validate`
   warns about bindings whose input is missing or wired.
+- **Performance panels.** Pin controls and displays (sliders, knobs,
+  buttons, toggles, XY pads, keyboards, number fields, dropdowns, meters,
+  scopes, analyzers, readouts) to a panel with `P` or a node's right-click
+  menu, and `Ctrl+Tab` (or the Canvas | Panels switch in the transport bar)
+  shows them as a grid of live widgets without the graph: a mixer window, a
+  drum pad, or a pedalboard built from your own patch. The widgets play
+  exactly as on the canvas. Add, rename, reorder, and delete panels from
+  their tabs; move cards by dragging, make them bigger or smaller, or
+  unpin them, each one undo step. Panels are saved with the project, and
+  pinned nodes show a pin badge on the canvas.
+- **Performance mode.** `F11` shows the current panel full screen with
+  bigger cells and only play/stop, the position, and the panel tabs;
+  `Esc` or `F11` leaves.
+- **JACK and ASIO builds are covered**: the README explains how to build
+  with JACK (Linux) or ASIO (Windows) and pick them, and every change is now
+  built with both, with the JACK build playing a project through a JACK
+  server.
 
 ### Changed
 

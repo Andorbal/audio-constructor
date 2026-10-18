@@ -1,11 +1,12 @@
 //! Popups on the canvas: right-click menus, choice dropdowns, typing into
 //! fields, and hover tooltips.
 
-use ac_core::{Endpoint, NodeId, SignalType, Value, Wire};
+use ac_core::{Endpoint, NodeId, SignalType, Wire};
 use egui::{Align2, Pos2, Rect, RichText, vec2};
 
+use super::controls::{self, FieldResult};
 use super::live::source_path;
-use super::scene::{Body, Class, Scene};
+use super::scene::{Class, Scene};
 use super::{Canvas, CanvasEvent, CanvasIo, EditTarget, Hit, InlineEdit, widgets};
 use crate::actions::Action;
 use crate::edit::{self, GROUP_IN};
@@ -85,36 +86,20 @@ impl Canvas {
             0
         };
         if let Some((node, socket, at)) = self.choice.clone() {
-            let (items, current) = choice_items(io, scene, node, &socket);
-            let mut close = false;
-            let area = egui::Area::new(egui::Id::unique("canvas-choice"))
-                .order(egui::Order::Foreground)
-                .fixed_pos(at)
-                .constrain(true)
-                .show(&ctx, |ui| {
-                    egui::Frame::menu(ui.style()).show(ui, |ui| {
-                        ui.set_min_width(140.0);
-                        if items.is_empty() {
-                            close = true;
-                        }
-                        // A Dropdown can hold dozens of labels.
-                        egui::ScrollArea::vertical()
-                            .max_height(320.0)
-                            .show(ui, |ui| {
-                                for (i, (label, value)) in items.iter().enumerate() {
-                                    if ui.selectable_label(current == Some(i), label).clicked() {
-                                        Self::send_param(io, node, &socket, value.clone(), now);
-                                        io.doc.end_coalescing();
-                                        close = true;
-                                    }
-                                }
-                            });
-                    });
-                });
-            let clicked_outside = self.choice_age > 0
-                && ctx.input(|i| i.pointer.any_pressed())
-                && !area.response.contains_pointer();
-            if close || clicked_outside {
+            let close = match scene.node(node) {
+                Some(n) => controls::choice_popup(
+                    &ctx,
+                    egui::Id::unique("canvas-choice"),
+                    io,
+                    n,
+                    &socket,
+                    at,
+                    self.choice_age,
+                    now,
+                ),
+                None => true,
+            };
+            if close {
                 self.choice = None;
             }
         }
@@ -235,7 +220,7 @@ impl Canvas {
                         });
                         return true;
                     }
-                    if io.bound.is_bound(*node, name)
+                    if io.bound_input(*node, name).is_some()
                         && item(ui, icons::LINK_BREAK, "Remove Bindings", None)
                     {
                         let target = ac_core::Target::Input {
@@ -323,6 +308,9 @@ impl Canvas {
                         });
                         return true;
                     }
+                }
+                if pin_items(ui, io, n) {
+                    return true;
                 }
                 ui.separator();
                 for (icon, a) in [
@@ -440,61 +428,19 @@ impl Canvas {
             !e.multiline,
         );
         let id = egui::Id::unique("canvas-inline-edit");
-        let mut te = if e.multiline {
-            egui::TextEdit::multiline(&mut e.text)
-        } else {
-            egui::TextEdit::singleline(&mut e.text)
-        };
-        te = te
-            .id(id)
-            .font(font)
-            .margin(egui::Margin::symmetric(4, 1))
-            .desired_width(rect.width());
-        let out = ui.put(rect, te);
-        if !e.started {
-            out.request_focus();
-            // Select everything so typing replaces the value.
-            if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), id) {
-                let all = egui::text::CCursorRange::two(
-                    egui::text::CCursor::new(0),
-                    egui::text::CCursor::new(e.text.chars().count()),
-                );
-                state.cursor.set_char_range(Some(all));
-                state.store(ui.ctx(), id);
+        let multiline = e.multiline;
+        match controls::text_field(ui, id, rect, font, &mut e.text, &mut e.started, multiline) {
+            FieldResult::Editing => {
+                self.edit = Some(e);
+                return;
             }
-            e.started = true;
-            self.edit = Some(e);
-            return;
-        }
-        let (enter, escape) = ui.input(|i| {
-            (
-                i.key_pressed(egui::Key::Enter),
-                i.key_pressed(egui::Key::Escape),
-            )
-        });
-        if escape {
-            return;
-        }
-        let commit = if e.multiline {
-            out.lost_focus()
-        } else {
-            enter || out.lost_focus()
-        };
-        if !commit {
-            self.edit = Some(e);
-            return;
+            FieldResult::Cancel => return,
+            FieldResult::Commit => {}
         }
         match &e.target {
-            EditTarget::Param { node, socket, spec } => match widgets::parse(&e.text, spec) {
-                Some(v) => {
-                    Self::send_param(io, *node, socket, v, now);
-                    io.doc.end_coalescing();
-                }
-                None => io.events.push(CanvasEvent::Status(format!(
-                    "“{}” isn't a number",
-                    e.text.trim()
-                ))),
-            },
+            EditTarget::Param { node, socket, spec } => {
+                controls::commit_value(io, *node, socket, spec, &e.text, now);
+            }
             EditTarget::Label(node) => {
                 let text = e.text.trim().to_string();
                 let node = *node;
@@ -698,46 +644,76 @@ impl Canvas {
     }
 }
 
-/// What a choice popup offers for an input: each label with the value
-/// picking it stores, and which one is chosen now. A Dropdown's `value`
-/// lists the labels from its config and stores their index; other choice
-/// inputs list their socket's named choices.
-fn choice_items(
-    io: &CanvasIo,
-    scene: &Scene,
-    node: NodeId,
-    socket: &str,
-) -> (Vec<(String, Value)>, Option<usize>) {
-    let spec = scene
-        .node(node)
-        .and_then(|n| n.socket(socket, true))
-        .and_then(|s| s.spec.clone());
-    let (Some(spec), Some(inst)) = (spec, io.doc.graph().node(node)) else {
-        return (Vec::new(), None);
-    };
-    let dropdown = scene
-        .node(node)
-        .and_then(|n| n.body)
-        .is_some_and(|(b, _)| b == Body::Dropdown && b.drives(socket));
-    if dropdown {
-        let labels = ac_nodes::controls::dropdown::choices(&inst.config);
-        let last = labels.len().saturating_sub(1) as f64;
-        let current = widgets::number(inst, &spec).round().clamp(0.0, last) as usize;
-        let items = labels
-            .into_iter()
-            .enumerate()
-            .map(|(i, l)| (l, Value::Int(i as i64)))
-            .collect();
-        return (items, Some(current));
+/// The Pin to Panel entries of a node's menu: pin the selection to each
+/// panel it isn't on, or to a new one, and unpin it from the ones it is.
+/// Returns true when one was chosen.
+fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -> bool {
+    if n.body.is_none() {
+        return false;
     }
-    let chosen = widgets::choice(inst, &spec);
-    let items = spec
-        .choices
+    ui.separator();
+    if !io.doc.scope.is_empty() {
+        ui.label(
+            RichText::new(format!(
+                "{}  Pin to Panel: top-level nodes only",
+                icons::PUSH_PIN
+            ))
+            .small()
+            .color(theme::TEXT_FAINT),
+        );
+        return false;
+    }
+    // The right-clicked node is in the selection; pin all of it.
+    let nodes: Vec<NodeId> = if io.doc.selection.contains(&n.id) {
+        io.doc
+            .selection
+            .iter()
+            .copied()
+            .filter(|id| !edit::is_virtual(*id))
+            .collect()
+    } else {
+        vec![n.id]
+    };
+    let panels: Vec<(usize, String, bool)> = io
+        .doc
+        .project
+        .panels
         .iter()
-        .map(|c| (widgets::choice_label(&spec, c), Value::Text(c.to_string())))
+        .enumerate()
+        .map(|(i, p)| (i, p.name.clone(), p.contains(n.id)))
         .collect();
-    let current = spec.choices.iter().position(|c| *c == chosen);
-    (items, current)
+    let pin = |panel| crate::perform::PinRequest::Pin {
+        nodes: nodes.clone(),
+        panel,
+    };
+    for (i, name, on) in &panels {
+        if !on && item(ui, icons::PUSH_PIN, &format!("Pin to {name}"), None) {
+            io.events.push(CanvasEvent::Pin(pin(Some(*i))));
+            return true;
+        }
+    }
+    if item(ui, icons::PUSH_PIN, "Pin to New Panel", None) {
+        io.events.push(CanvasEvent::Pin(pin(None)));
+        return true;
+    }
+    for (i, name, on) in &panels {
+        if *on
+            && item(
+                ui,
+                icons::PUSH_PIN_SLASH,
+                &format!("Unpin from {name}"),
+                None,
+            )
+        {
+            io.events
+                .push(CanvasEvent::Pin(crate::perform::PinRequest::Unpin {
+                    nodes: nodes.clone(),
+                    panel: Some(*i),
+                }));
+            return true;
+        }
+    }
+    false
 }
 
 fn tooltip(ui: &egui::Ui, p: Pos2, add: impl FnOnce(&mut egui::Ui)) {

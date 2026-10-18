@@ -73,6 +73,47 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p ac-core -p ac-dsp -p ac-nodes -p ac-engine --target wasm32-unknown-unknown
 
+  jack:
+    name: JACK build (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system libraries and a JACK server
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-jackd2-dev jackd2
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy -p ac-io -p ac-cli -p ac-app --all-targets --features ac-io/jack,ac-cli/jack,ac-app/jack -- -D warnings
+      - name: Start JACK with its dummy driver
+        run: |
+          jackd --no-realtime -d dummy -r 48000 -p 256 > jackd.log 2>&1 &
+          for _ in $(seq 50); do jack_lsp > /dev/null 2>&1 && break; sleep 0.2; done
+          jack_lsp
+      - name: Run the engine on JACK
+        run: cargo test -p ac-io --features jack --test backends -- --ignored
+      - name: Run a project on JACK from the command line
+        run: |
+          cargo run -p ac-cli --features jack -- devices | tee devices.txt
+          grep -q '^JACK' devices.txt
+          cargo run -p ac-cli --features jack -- run examples/start.acproj --host jack --duration 1 | tee run.txt
+          grep -q '^audio: JACK' run.txt
+
+  asio:
+    name: ASIO build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      # Without CPAL_ASIO_DIR the build downloads the ASIO SDK from Steinberg;
+      # bindgen uses the runner's LLVM. Nothing built here is distributed.
+      - run: cargo build -p ac-cli -p ac-app --features ac-cli/asio,ac-app/asio
+      - run: cargo test -p ac-io --features asio --test backends
+      - name: The ASIO host is listed
+        shell: bash
+        run: |
+          cargo run -p ac-cli --features asio -- devices | tee devices.txt
+          grep -q '^ASIO' devices.txt
+
   deny:
     name: cargo deny
     runs-on: ubuntu-latest
