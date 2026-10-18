@@ -69,6 +69,13 @@ fixes and smaller changes.
   input. `audioc nodes --docs` writes it.
 - **File ▸ Examples** lists every shipped example and opens the one you
   pick as an untitled copy, so saving never overwrites the example.
+- A **Merge** node (Math & Logic) combines several MIDI or trigger streams
+  into one, so a MIDI keyboard, the computer keys, and a pattern can all
+  play one instrument at once. Its settings choose how many inputs it has
+  (2 to 16) and whether it carries MIDI or triggers. A note played from
+  two sources at once sounds once and ends when the last of them lets go,
+  the sustain pedal stays down while any source holds it, and restarting
+  the transport releases everything still held, so no note hangs.
 
 ### Changed
 
