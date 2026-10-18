@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Meters, scopes, readouts, and analyzers that show what a signal is doing.
+
 <a id="analyzer"></a>
 ## Analyzer
 

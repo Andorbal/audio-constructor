@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony.
+
 <a id="arpeggiator"></a>
 ## Arpeggiator
 

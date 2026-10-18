@@ -57,6 +57,15 @@ enum Kind {
         default: f64,
     },
     File,
+    /// On or off, as a checkbox.
+    Flag {
+        default: bool,
+    },
+    /// One line of text that reads as `default` until it's set. A list of
+    /// names stored as an array shows comma-separated.
+    Line {
+        default: &'static str,
+    },
 }
 
 /// FFT sizes the spectral nodes offer (others are rounded to a power of two).
@@ -595,6 +604,121 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             "Slice (s, 0 = all)",
             Kind::Number { default: 0.0 },
         )],
+        "oscillator" => vec![f(
+            "pure",
+            "Pure (no anti-aliasing, for LFOs)",
+            Kind::Flag { default: false },
+        )],
+        "delay" => vec![
+            f(
+                "unit",
+                "Time in",
+                Kind::Choice {
+                    choices: &["seconds", "beats"],
+                    default: "seconds",
+                },
+            ),
+            f(
+                "max_time",
+                "Longest delay (s)",
+                Kind::Number { default: 4.0 },
+            ),
+        ],
+        "gamepad" => vec![
+            f(
+                "pad",
+                "Gamepad (1 is the first)",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+            f(
+                "releases",
+                "Release triggers",
+                Kind::Flag { default: false },
+            ),
+        ],
+        "keyboard_in" => vec![
+            f(
+                "keys",
+                "Keys (names, comma-separated)",
+                Kind::Line {
+                    default: "1, 2, 3, 4",
+                },
+            ),
+            f(
+                "low",
+                "Note of the A key",
+                Kind::Count {
+                    min: 0,
+                    max: 127,
+                    default: 60,
+                },
+            ),
+            f(
+                "channel",
+                "MIDI channel",
+                Kind::Count {
+                    min: 1,
+                    max: 16,
+                    default: 1,
+                },
+            ),
+        ],
+        "osc_in" => vec![
+            f(
+                "address",
+                "Address",
+                Kind::Line {
+                    default: "/fader/1",
+                },
+            ),
+            f(
+                "args",
+                "Numbers per message",
+                Kind::Count {
+                    min: 1,
+                    max: 4,
+                    default: 1,
+                },
+            ),
+        ],
+        "osc_out" => vec![
+            f(
+                "host",
+                "Send to (IP address or localhost)",
+                Kind::Line {
+                    default: "127.0.0.1",
+                },
+            ),
+            f(
+                "port",
+                "Port",
+                Kind::Count {
+                    min: 1,
+                    max: 65_535,
+                    default: 9000,
+                },
+            ),
+            f(
+                "address",
+                "Address",
+                Kind::Line {
+                    default: "/fader/1",
+                },
+            ),
+            f(
+                "args",
+                "Numbers per message",
+                Kind::Count {
+                    min: 1,
+                    max: 4,
+                    default: 1,
+                },
+            ),
+        ],
         "latency" => vec![
             f(
                 "samples",
@@ -1274,6 +1398,24 @@ fn apply_editor(
     }
 }
 
+/// What a [`Kind::Line`] field shows: the stored text, a stored list of
+/// names comma-separated, or the default when nothing is stored.
+fn line_text(stored: Option<&serde_json::Value>, default: &str) -> String {
+    match stored {
+        None => default.to_string(),
+        Some(serde_json::Value::String(s)) => s.clone(),
+        Some(serde_json::Value::Array(items)) => items
+            .iter()
+            .map(|v| match v {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        Some(other) => other.to_string(),
+    }
+}
+
 fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
     let key = key.to_string();
     io.doc.edit(io.registry, "Change setting", |g, _| {
@@ -1493,6 +1635,20 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             }
                         });
                     }
+                    Kind::Flag { default } => {
+                        let mut on = node.config.get_bool_or(f.key, *default);
+                        if ui.checkbox(&mut on, "").changed() {
+                            set_config(io, id, f.key, on.into());
+                        }
+                    }
+                    Kind::Line { default } => {
+                        let stored = line_text(node.config.get(f.key), default);
+                        let mut t = stored.clone();
+                        let r = ui.add(egui::TextEdit::singleline(&mut t).hint_text(*default));
+                        if r.lost_focus() && t.trim() != stored {
+                            set_config(io, id, f.key, t.trim().into());
+                        }
+                    }
                     Kind::File => {
                         let file = node.config.get_str_or(f.key, "").to_string();
                         ui.vertical(|ui| {
@@ -1629,5 +1785,41 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
                 });
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Settings a freshly added node has no value for yet must still be
+    /// reachable: these nodes' settings change their sockets or where they
+    /// send, and an empty config would otherwise show no field at all.
+    #[test]
+    fn new_nodes_can_reach_their_settings() {
+        for (kind, keys) in [
+            ("oscillator", &["pure"][..]),
+            ("delay", &["unit", "max_time"]),
+            ("gamepad", &["pad", "releases"]),
+            ("keyboard_in", &["keys", "low", "channel"]),
+            ("osc_in", &["address", "args"]),
+            ("osc_out", &["host", "port", "address", "args"]),
+        ] {
+            let fields: Vec<&str> = schema(kind).iter().map(|f| f.key).collect();
+            for k in keys {
+                assert!(fields.contains(k), "{kind} has no `{k}` field");
+            }
+        }
+    }
+
+    #[test]
+    fn line_fields_show_text_lists_and_defaults() {
+        let v = serde_json::json!(["Space", "Z", 3]);
+        assert_eq!(line_text(Some(&v), "1"), "Space, Z, 3");
+        assert_eq!(
+            line_text(Some(&serde_json::json!("/xy")), "/fader/1"),
+            "/xy"
+        );
+        assert_eq!(line_text(None, "/fader/1"), "/fader/1");
     }
 }

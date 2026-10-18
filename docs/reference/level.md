@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from.
+
 <a id="crossfade"></a>
 ## Crossfade
 

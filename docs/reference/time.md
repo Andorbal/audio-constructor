@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion.
+
 <a id="delay"></a>
 ## Delay
 

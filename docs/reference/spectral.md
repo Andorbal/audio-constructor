@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection.
+
 <a id="band-split"></a>
 ## Band Split
 
