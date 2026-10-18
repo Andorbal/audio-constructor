@@ -70,9 +70,9 @@ fn origin_label(o: Origin) -> &'static str {
 
 fn origin_color(o: Origin) -> Color32 {
     match o {
-        Origin::Shipped => theme::ACCENT,
-        Origin::User => theme::OK,
-        Origin::Imported => theme::WARNING,
+        Origin::Shipped => theme::accent(),
+        Origin::User => theme::ok(),
+        Origin::Imported => theme::warning(),
     }
 }
 
@@ -99,7 +99,7 @@ pub(super) fn show(
         .collect();
     if !query.trim().is_empty() {
         if all.is_empty() {
-            ui.label(RichText::new("No nodes match.").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("No nodes match.").color(theme::text_muted()));
         }
         for c in &all {
             item(ui, io, c);
@@ -112,7 +112,8 @@ pub(super) fn show(
         if items.is_empty() {
             continue;
         }
-        let header = RichText::new(format!("{}  ({})", cat.name(), items.len())).color(theme::TEXT);
+        let header =
+            RichText::new(format!("{}  ({})", cat.name(), items.len())).color(theme::text());
         egui::CollapsingHeader::new(header)
             .id_salt(("library", cat.slug()))
             .default_open(false)
@@ -134,7 +135,7 @@ pub(super) fn show(
     ui.label(
         RichText::new("Drag a node or block onto the canvas, or click to add it in the middle.")
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
 }
 
@@ -162,9 +163,9 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
             let text = RichText::new(format!("{label} {count}"))
                 .size(theme::FONT_SMALL)
                 .color(if on {
-                    theme::TEXT_STRONG
+                    theme::text_strong()
                 } else {
-                    theme::TEXT_MUTED
+                    theme::text_muted()
                 });
             let b = egui::Button::selectable(on, text).min_size(vec2(0.0, 22.0));
             if ui.add(b).clicked() {
@@ -182,13 +183,17 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
                 let text = RichText::new(format!("#{t}"))
                     .size(theme::FONT_SMALL - 0.5)
                     .color(if on {
-                        theme::TEXT_STRONG
+                        theme::text_strong()
                     } else {
-                        theme::TEXT_MUTED
+                        theme::text_muted()
                     });
                 let chip = egui::Button::new(text)
                     .selected(on)
-                    .fill(if on { theme::ACCENT_DIM } else { theme::BORDER })
+                    .fill(if on {
+                        theme::accent_dim()
+                    } else {
+                        theme::border()
+                    })
                     .corner_radius(theme::radius(9.0));
                 let hint = if on {
                     "Click again to show every tag"
@@ -213,7 +218,7 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
             }
             _ => "No blocks match.",
         };
-        ui.label(RichText::new(hint).small().color(theme::TEXT_MUTED));
+        ui.label(RichText::new(hint).small().color(theme::text_muted()));
     }
     for b in list {
         block_row(ui, io, b);
@@ -236,23 +241,19 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
     let (rect, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
     let p = ui.painter();
     if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2B, 0x2F, 0x37),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     p.rect_filled(
         egui::Rect::from_min_size(rect.min + vec2(4.0, 7.0), vec2(3.0, rect.height() - 14.0)),
         theme::radius(1.5),
-        theme::GROUP_HEADER,
+        theme::group_header(),
     );
     let name = p.text(
         rect.min + vec2(14.0, 5.0),
         Align2::LEFT_TOP,
         format!("{}  {}", icons::STACK, d.name),
         theme::ui_font(theme::FONT_UI),
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
     // Where it came from, as a small badge after the name.
     let origin = b.source.origin;
@@ -279,15 +280,15 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
         Align2::RIGHT_TOP,
         format!("v{}", d.version),
         theme::mono_font(theme::FONT_SMALL),
-        theme::TEXT_FAINT,
+        theme::text_faint(),
     );
     let mut job = egui::text::LayoutJob::single_section(
         first_sentence(&d.description).to_string(),
-        egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL), theme::TEXT_MUTED),
+        egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL), theme::text_muted()),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(width - 20.0);
     let g = p.layout_job(job);
-    p.galley(rect.min + vec2(14.0, 21.0), g, theme::TEXT_MUTED);
+    p.galley(rect.min + vec2(14.0, 21.0), g, theme::text_muted());
     if !d.tags.is_empty() {
         let tags: Vec<String> = d
             .tags
@@ -296,11 +297,11 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
             .collect();
         let mut job = egui::text::LayoutJob::single_section(
             tags.join("  "),
-            egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL - 0.5), theme::TEXT_FAINT),
+            egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL - 0.5), theme::text_faint()),
         );
         job.wrap = egui::text::TextWrapping::truncate_at_width(width - 20.0);
         let g = p.layout_job(job);
-        p.galley(rect.min + vec2(14.0, 37.0), g, theme::TEXT_FAINT);
+        p.galley(rect.min + vec2(14.0, 37.0), g, theme::text_faint());
     }
     resp.dnd_set_drag_payload(c.clone());
     if resp.clicked() {
@@ -318,7 +319,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
             ui.label(
                 RichText::new("Shipped blocks stay in the library.")
                     .small()
-                    .color(theme::TEXT_MUTED),
+                    .color(theme::text_muted()),
             );
         } else if ui
             .button(format!("{}  Remove from library", icons::TRASH))
@@ -332,7 +333,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
     resp.on_hover_ui(|ui| {
         ui.set_max_width(340.0);
         if d.description.is_empty() {
-            ui.label(RichText::new("No description.").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("No description.").color(theme::text_muted()));
         } else {
             markdown::show(ui, &d.description);
         }
@@ -348,7 +349,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
                 d.version
             ))
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
         );
     });
 }
@@ -358,15 +359,11 @@ fn item(ui: &mut egui::Ui, io: &mut PanelIo, c: &Candidate) {
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 38.0), Sense::click_and_drag());
     let p = ui.painter();
     if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2B, 0x2F, 0x37),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     let color = c
         .category
-        .map_or(theme::GROUP_HEADER, theme::category_color);
+        .map_or(theme::group_header(), theme::category_color);
     p.rect_filled(
         egui::Rect::from_min_size(rect.min + vec2(4.0, 7.0), vec2(3.0, rect.height() - 14.0)),
         theme::radius(1.5),
@@ -382,15 +379,15 @@ fn item(ui: &mut egui::Ui, io: &mut PanelIo, c: &Candidate) {
         Align2::LEFT_TOP,
         format!("{icon}{}", c.name),
         theme::ui_font(theme::FONT_UI),
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
     let mut job = egui::text::LayoutJob::single_section(
         c.summary.clone(),
-        egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL), theme::TEXT_MUTED),
+        egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL), theme::text_muted()),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(width - 20.0);
     let g = p.layout_job(job);
-    p.galley(rect.min + vec2(14.0, 21.0), g, theme::TEXT_MUTED);
+    p.galley(rect.min + vec2(14.0, 21.0), g, theme::text_muted());
     resp.dnd_set_drag_payload(c.clone());
     if resp.clicked() {
         io.requests.push(PanelRequest::Add(c.clone()));

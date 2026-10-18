@@ -197,7 +197,7 @@ pub(super) fn ui(
             Align2::RIGHT_TOP,
             format!("step {}: {}", s + 1, (v * 1000.0).round() / 1000.0),
             egui::FontId::proportional(theme::FONT_SMALL),
-            theme::TEXT_MUTED,
+            theme::text_muted(),
         );
     }
     edit

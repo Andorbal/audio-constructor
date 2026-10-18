@@ -381,7 +381,15 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   back to the cushion and counts a device xrun.
 - **Telemetry out**: meters, scope rings, per-socket levels, per-node
   timings, and the xrun counter are relaxed atomics the UI reads at frame
-  rate (DECISIONS D22). Nothing waits on the UI.
+  rate (DECISIONS D22). Nothing waits on the UI. Per-node timing runs only
+  while `EngineStatus::timing_enabled` is set (the editor's `Ctrl+T`): each
+  step adds its time (two clock reads) to its node's running sum, and when
+  the host block ends the processor publishes every sum and starts over, so
+  a node's reading covers all its steps and sub-blocks and a reader never
+  sees a half-counted block. `EngineStatus::block_frames` gives the block's
+  budget; `TelemetryReader::node_times` lists every node's time by engine
+  path, and the editor smooths them and sums them for groups and voices
+  (D105).
 - **Multi-core**: each wave's steps are split into jobs that a fixed pool of
   real-time workers and the callback thread claim from one lock-free counter;
   the callback thread waits only for jobs another thread has claimed, so a
@@ -636,5 +644,6 @@ through the `Engine` API.
   visible.
 - **UI tests**: egui_kittest drives the editor (add node, wire, undo) without
   a display. Snapshot tests run where a software renderer is available.
-- **Runtime instrumentation**: per-node CPU time and the xrun counter are
-  always collected (cheap) and can be shown in the editor, Blender-style.
+- **Runtime instrumentation**: the xrun counter and per-thread load are
+  always collected; per-node CPU time is collected while the editor shows
+  it (`Ctrl+T`) and by `audioc bench`, and costs nothing otherwise.

@@ -122,9 +122,9 @@ impl PathPrompt {
             ui.label(
                 RichText::new(self.purpose.title())
                     .size(theme::FONT_HEADING)
-                    .color(theme::TEXT_STRONG),
+                    .color(theme::text_strong()),
             );
-            ui.label(RichText::new("Type the file's path.").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("Type the file's path.").color(theme::text_muted()));
             ui.add_space(6.0);
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.text)
@@ -174,17 +174,17 @@ pub fn confirm_discard(ctx: &egui::Context, title: &str) -> Option<Confirm> {
             ui.label(
                 RichText::new(icons::WARNING)
                     .size(24.0)
-                    .color(theme::WARNING),
+                    .color(theme::warning()),
             );
             ui.vertical(|ui| {
                 ui.label(
                     RichText::new(format!("Save changes to “{title}”?"))
                         .size(theme::FONT_HEADING)
-                        .color(theme::TEXT_STRONG),
+                        .color(theme::text_strong()),
                 );
                 ui.label(
                     RichText::new("Your changes will be lost if you don't save them.")
-                        .color(theme::TEXT_MUTED),
+                        .color(theme::text_muted()),
                 );
             });
         });
@@ -195,7 +195,7 @@ pub fn confirm_discard(ctx: &egui::Context, title: &str) -> Option<Confirm> {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .button(RichText::new("Save").color(theme::TEXT_STRONG))
+                    .button(RichText::new("Save").color(theme::text_strong()))
                     .clicked()
                 {
                     out = Some(Confirm::Save);
@@ -232,7 +232,7 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                             ui.label(
                                 RichText::new(ctx.format_shortcut(&sc))
                                     .font(theme::mono_font(theme::FONT_VALUE))
-                                    .color(theme::TEXT_STRONG),
+                                    .color(theme::text_strong()),
                             );
                             ui.end_row();
                         }
@@ -246,6 +246,10 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                             ("Disconnect", "Drag a wire's end off its input"),
                             ("Insert on wire", "Drop an unwired node onto a wire"),
                             (
+                                "Wire nodes into a new one",
+                                "Select two or more, then Shift+A",
+                            ),
+                            (
                                 "Fine / coarse values",
                                 "Ctrl / Shift while dragging a value",
                             ),
@@ -255,7 +259,7 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                             ("Leave performance mode", "Esc or F11"),
                         ] {
                             ui.label(what);
-                            ui.label(RichText::new(how).color(theme::TEXT_MUTED));
+                            ui.label(RichText::new(how).color(theme::text_muted()));
                             ui.end_row();
                         }
                     });
@@ -269,11 +273,11 @@ pub fn about(ctx: &egui::Context, open: &mut bool) {
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            ui.label(RichText::new(format!("{}  Audio Constructor", icons::WAVEFORM)).size(theme::FONT_TITLE).color(theme::TEXT_STRONG));
+            ui.label(RichText::new(format!("{}  Audio Constructor", icons::WAVEFORM)).size(theme::FONT_TITLE).color(theme::text_strong()));
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(6.0);
             ui.label("A node-based audio construction suite: build instruments, effects, recorders, and sequencers from small nodes and wires.");
             ui.add_space(6.0);
-            ui.label(RichText::new("Fonts: Inter and JetBrains Mono (SIL Open Font License). Icons: Phosphor (MIT).").small().color(theme::TEXT_MUTED));
+            ui.label(RichText::new("Fonts: Inter and JetBrains Mono (SIL Open Font License). Icons: Phosphor (MIT).").small().color(theme::text_muted()));
         });
 }

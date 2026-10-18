@@ -61,6 +61,18 @@ impl Canvas {
             if let Hit::Body { node } = hover {
                 self.press_body(io, scene, node, pointer, now);
             }
+            // The view jumps to where the minimap was pressed, and follows
+            // a drag from there.
+            if hover == Hit::Minimap
+                && self.is_idle()
+                && let Some(map) = self.minimap_now
+            {
+                self.minimap_pan(&map, pointer);
+                self.gesture = Gesture::Minimap { map };
+            }
+        }
+        if primary_released && matches!(self.gesture, Gesture::Minimap { .. }) {
+            self.gesture = Gesture::Idle;
         }
         if primary_released {
             self.controls.release(io, now);
@@ -109,7 +121,7 @@ impl Canvas {
             let hit = self.press.clone().map_or(hover.clone(), |p| p.0);
             self.double_click(io, scene, hit, pointer, now);
         }
-        if response.secondary_clicked() {
+        if response.secondary_clicked() && hover != Hit::Minimap {
             if let Some(n) = hover.node()
                 && !io.doc.selection.contains(&n)
             {
@@ -318,6 +330,8 @@ impl Canvas {
                     origin: t.to_canvas(origin),
                 };
             }
+            // The press started following the pointer already.
+            Hit::Minimap => {}
             Hit::Wire(_) | Hit::None => {
                 if modifiers.ctrl || modifiers.command {
                     self.gesture = Gesture::Cut {
@@ -402,6 +416,10 @@ impl Canvas {
                 self.view.pan(d);
             }
             Gesture::Move { .. } => self.update_move(io, scene, pointer, modifiers.ctrl),
+            Gesture::Minimap { map } => {
+                let map = *map;
+                self.minimap_pan(&map, pointer);
+            }
             Gesture::Wire { pending, snap, .. } => {
                 // Snap to the nearest compatible socket within reach.
                 let mut best: Option<(f32, NodeId, String)> = None;
@@ -656,7 +674,7 @@ impl Canvas {
             | Gesture::ResizeNode { .. } => {
                 io.doc.drop_noop_step();
             }
-            Gesture::Pan | Gesture::Idle => {}
+            Gesture::Pan | Gesture::Idle | Gesture::Minimap { .. } => {}
         }
         let _ = modifiers;
     }
@@ -834,6 +852,8 @@ impl Canvas {
                     io.doc.selection.clear();
                 }
             }
+            // The press already moved the view.
+            Hit::Minimap => {}
         }
     }
 
@@ -869,6 +889,9 @@ impl Canvas {
                         if io.doc.enter_group(node) {
                             self.edit = None;
                         }
+                    }
+                    Class::Portal(_) => {
+                        self.jump_to_partner(io.doc, io.registry, node);
                     }
                     Class::Interface { .. } => {}
                     _ => self.rename_node(io.doc, io.registry, node),

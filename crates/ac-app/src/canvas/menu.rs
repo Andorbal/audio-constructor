@@ -25,6 +25,8 @@ pub enum Target {
     Frame(usize),
     Wire(Wire, Pos2),
     Canvas(Pos2),
+    /// Align, distribute, and auto-layout for the selection.
+    Arrange,
 }
 
 impl Target {
@@ -132,7 +134,7 @@ impl Canvas {
                 let iface = edit::is_virtual(*node);
                 ui.label(
                     RichText::new(super::paint::pretty(name))
-                        .color(theme::TEXT_MUTED)
+                        .color(theme::text_muted())
                         .small(),
                 );
                 if wired && item(ui, icons::LINK_BREAK, "Disconnect", None) {
@@ -246,13 +248,23 @@ impl Canvas {
                 if matches!(n.class, Class::Interface { .. }) {
                     ui.label(
                         RichText::new("Group interface")
-                            .color(theme::TEXT_MUTED)
+                            .color(theme::text_muted())
                             .small(),
                     );
                     ui.label(RichText::new("Drag to its empty socket to add one;\nright-click a socket to rename or remove it.").small());
                     return false;
                 }
-                ui.label(RichText::new(&n.title).color(theme::TEXT_MUTED).small());
+                if let Class::Portal(info) = &n.class {
+                    return self.portal_items(ui, io, *node, info, now);
+                }
+                ui.label(RichText::new(&n.title).color(theme::text_muted()).small());
+                if n.class == Class::Reroute
+                    && item(ui, icons::TAG, "Make Portal", Some(Action::Portal))
+                {
+                    let r = self.portal_from_reroute(io, *node, now);
+                    io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
+                    return true;
+                }
                 if let Class::Group(_) = n.class
                     && item(
                         ui,
@@ -307,6 +319,48 @@ impl Canvas {
                             socket: socket.to_string(),
                         });
                         return true;
+                    }
+                }
+                let several = io
+                    .doc
+                    .selection
+                    .iter()
+                    .filter(|id| !edit::is_virtual(**id))
+                    .count();
+                if several >= 2 {
+                    ui.separator();
+                    if several == 2
+                        && item(
+                            ui,
+                            icons::PLUGS_CONNECTED,
+                            Action::LazyConnect.label(),
+                            Some(Action::LazyConnect),
+                        )
+                    {
+                        run(io, Action::LazyConnect);
+                        return true;
+                    }
+                    if item(
+                        ui,
+                        icons::FLOW_ARROW,
+                        Action::AutoLayout.label(),
+                        Some(Action::AutoLayout),
+                    ) {
+                        run(io, Action::AutoLayout);
+                        return true;
+                    }
+                    // Its own menu, in place: a submenu would close with
+                    // this one on the click that picks from it.
+                    if item(
+                        ui,
+                        icons::ALIGN_LEFT,
+                        Action::ArrangeMenu.label(),
+                        Some(Action::ArrangeMenu),
+                    ) {
+                        if let Some((_, at)) = self.menu {
+                            self.menu = Some((Target::Arrange, at));
+                        }
+                        return false;
                     }
                 }
                 if pin_items(ui, io, n) {
@@ -371,6 +425,28 @@ impl Canvas {
                     self.mark_born(&new, now);
                     return true;
                 }
+                if item(ui, icons::TAG, "Make Portal", Some(Action::Portal)) {
+                    let r = self.portal_from_wire(io, w, now);
+                    io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
+                    return true;
+                }
+                false
+            }
+            Target::Arrange => {
+                ui.label(
+                    RichText::new("Arrange the selection")
+                        .color(theme::text_muted())
+                        .small(),
+                );
+                for (i, (icon, a)) in arrange_items().into_iter().enumerate() {
+                    if i == 1 || i == 7 {
+                        ui.separator();
+                    }
+                    if item(ui, icon, a.label(), Some(a)) {
+                        run(io, a);
+                        return true;
+                    }
+                }
                 false
             }
             Target::Canvas(at) => {
@@ -408,6 +484,58 @@ impl Canvas {
                 false
             }
         }
+    }
+
+    /// The menu of a portal tag: jump to the other end, rename, back to a
+    /// wire, and the usual duplicate and delete.
+    fn portal_items(
+        &mut self,
+        ui: &mut egui::Ui,
+        io: &mut CanvasIo,
+        node: NodeId,
+        info: &edit::portal::Info,
+        now: f64,
+    ) -> bool {
+        let _ = now;
+        let role = if info.send { "sender" } else { "receiver" };
+        ui.label(
+            RichText::new(format!("Portal “{}” · {role}", info.name))
+                .color(theme::text_muted())
+                .small(),
+        );
+        let jump = match (info.send, info.partners.len()) {
+            (_, 0) => None,
+            (true, 1) => Some("Jump to Receiver".to_string()),
+            (true, n) => Some(format!("Jump to Next Receiver (of {n})")),
+            (false, _) => Some("Jump to Sender".to_string()),
+        };
+        if let Some(label) = jump
+            && item(ui, icons::ARROW_SQUARE_OUT, &label, None)
+        {
+            self.jump_to_partner(io.doc, io.registry, node);
+            return true;
+        }
+        for (icon, a, label) in [
+            (icons::PENCIL, Action::Rename, "Rename Portal"),
+            (icons::LINK, Action::Portal, "Back to Wire"),
+            (icons::COPY, Action::Duplicate, "Duplicate"),
+        ] {
+            if item(ui, icon, label, Some(a)) {
+                io.events.push(CanvasEvent::Run(a));
+                return true;
+            }
+        }
+        ui.separator();
+        if item(
+            ui,
+            icons::TRASH,
+            Action::Delete.label(),
+            Some(Action::Delete),
+        ) {
+            io.events.push(CanvasEvent::Run(Action::Delete));
+            return true;
+        }
+        false
     }
 
     /// The text field for typing a value, a label, or a note.
@@ -456,6 +584,12 @@ impl Canvas {
                     }
                 });
             }
+            EditTarget::Portal(node) => {
+                let (node, text) = (*node, e.text.clone());
+                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                    edit::portal::rename(g, node, &text);
+                });
+            }
             EditTarget::Comment(node) => {
                 let text = e.text.clone();
                 let node = *node;
@@ -493,7 +627,7 @@ impl Canvas {
             return;
         }
         let Some(p) = self.pointer else { return };
-        if !self.screen.contains(p) {
+        if !self.screen.contains(p) || self.minimap_now.is_some_and(|m| m.rect.contains(p)) {
             return;
         }
         let ctx = ui.ctx();
@@ -538,13 +672,13 @@ impl Canvas {
                         super::paint::pretty(&s.name)
                     })
                     .strong()
-                    .color(theme::TEXT_STRONG),
+                    .color(theme::text_strong()),
                 );
                 ui.label(RichText::new(s.ty.name()).color(theme::type_color(s.ty)));
                 if let Some(spec) = &s.spec
                     && !spec.unit.suffix().is_empty()
                 {
-                    ui.label(RichText::new(spec.unit.suffix()).color(theme::TEXT_MUTED));
+                    ui.label(RichText::new(spec.unit.suffix()).color(theme::text_muted()));
                 }
             });
             let mut facts = Vec::new();
@@ -582,7 +716,7 @@ impl Canvas {
                 ui.label(
                     RichText::new(facts.join(" · "))
                         .small()
-                        .color(theme::TEXT_MUTED),
+                        .color(theme::text_muted()),
                 );
             }
             if let Some((path, sock)) = &reading {
@@ -605,7 +739,7 @@ impl Canvas {
                     ui.label(
                         RichText::new(t)
                             .font(theme::mono_font(18.0))
-                            .color(theme::TEXT_STRONG),
+                            .color(theme::text_strong()),
                     );
                 }
             } else if input
@@ -630,12 +764,12 @@ impl Canvas {
                     ui.label(
                         RichText::new(text)
                             .font(theme::mono_font(18.0))
-                            .color(theme::TEXT_STRONG),
+                            .color(theme::text_strong()),
                     );
                 }
             }
             if let Some(doc) = s.spec.as_ref().map(|s| s.doc).filter(|d| !d.is_empty()) {
-                ui.label(RichText::new(doc).color(theme::TEXT));
+                ui.label(RichText::new(doc).color(theme::text()));
             }
             if s.is_new_slot() {
                 ui.label("Drop a wire here to add a socket to the group's interface.");
@@ -659,7 +793,7 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
                 icons::PUSH_PIN
             ))
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
         );
         return false;
     }
@@ -714,6 +848,28 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
         }
     }
     false
+}
+
+/// The arrange menu's entries: auto-layout, the six alignments, and the
+/// two ways to distribute (the Edit menu lists the same).
+pub fn arrange_items() -> [(&'static str, Action); 9] {
+    [
+        (icons::FLOW_ARROW, Action::AutoLayout),
+        (icons::ALIGN_LEFT, Action::AlignLeft),
+        (icons::ALIGN_CENTER_HORIZONTAL, Action::AlignCenter),
+        (icons::ALIGN_RIGHT, Action::AlignRight),
+        (icons::ALIGN_TOP, Action::AlignTop),
+        (icons::ALIGN_CENTER_VERTICAL, Action::AlignMiddle),
+        (icons::ALIGN_BOTTOM, Action::AlignBottom),
+        (
+            icons::ARROWS_OUT_LINE_HORIZONTAL,
+            Action::DistributeHorizontally,
+        ),
+        (
+            icons::ARROWS_OUT_LINE_VERTICAL,
+            Action::DistributeVertically,
+        ),
+    ]
 }
 
 fn tooltip(ui: &egui::Ui, p: Pos2, add: impl FnOnce(&mut egui::Ui)) {

@@ -11,6 +11,97 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.6.0] - 2026-10-18
+
+Editor conveniences: tidy, align, and wire faster, find anything, keep
+long wires out of the way, see where the time goes, and work in a light
+theme at any size, with help for every node a key away.
+
+### Added
+
+- **Auto-layout** (`Ctrl+L`): tidy the selection, or the whole graph when
+  nothing is selected, into columns that follow the signal from left to
+  right. Loops through a Feedback node read from start to finish, sources
+  and modulators sit next to what they drive, notes line up above or
+  below the patch, frames move and resize with what's in them, and the
+  patch stays where it was on the canvas. One undo step.
+- **Align and distribute** (`Shift+Alt+A` at the pointer, Edit ▸ Align /
+  Distribute, or a node's right-click menu with several selected): line
+  the selected nodes up by their left, center, right, top, middle, or
+  bottom, or space them out with equal gaps.
+- **Lazy connect** (`F`): with two nodes selected, wire the left one into
+  the right one: its first output into the first free input that takes
+  it, with matching names like `out` → `in` first. Press it again for the
+  next free input. It never makes a loop without a Feedback node, and the
+  status line says what it wired or why it couldn't.
+- **Wire selected nodes into a new one**: select two or more nodes and
+  add a node with `Shift+A` (or from the Add menu): they're wired into it
+  in the order you selected them, and it lands to their right. A Mix grows
+  inputs to fit. If they don't all fit, the node is added unwired and the
+  status line says why.
+- **Find** (`Ctrl+F`): find nodes by name, kind, or id anywhere in the
+  project, inside groups too, with the group each is in. Arrow keys
+  choose, Enter jumps there (into the group, selected and centered), and
+  Esc closes.
+- **Light theme**: View ▸ Theme switches between Dark, Light, and Follow
+  System (your operating system's light or dark mode) at once. The light
+  theme keeps text easy to read everywhere (at least 4.5:1 contrast, the
+  level accessibility guidelines ask of body text), and wires, sockets,
+  node headers, meters, and scopes are deepened so they stand out on
+  light cards. The editor remembers your choice.
+- **UI scale**: View ▸ UI Scale makes the whole editor bigger or smaller,
+  canvas text included, in steps from 75 % to 200 %. `Ctrl+=` and
+  `Ctrl+-` step through the sizes and `Ctrl+0` goes back to 100 % (the
+  canvas keeps its own zoom on `+`, `-`, and the wheel). The editor
+  remembers the size too.
+- **Node help**: `F1` on a node (or Node Help in its right-click menu, or
+  the Help button in the Node tab) opens its reference in the side
+  panel's new Help tab: what it does, its "Try this" tip highlighted,
+  every socket with its unit, default, and range, and **Used in**: the
+  blocks in your library and the example projects built with it. Click a
+  block to add it to the canvas, or an example to open it as a new
+  project (after asking about unsaved changes). With nothing selected,
+  the Help tab lists every node and finds them by name or synonym, like
+  the palette. The Node tab shows the tip too.
+- **Portals**: turn a long wire into a pair of named tags, a sender by its
+  source and a receiver by its destination, with no line across the canvas.
+  Right-click a wire or a reroute and choose Make Portal, or select a
+  reroute (or the two nodes a wire joins) and press `Shift+P`. A source has
+  one sender and as many receivers as you like: make portals of its other
+  wires, or copy and paste a receiver. Hover a tag to light up its other
+  end, double-click it to jump there, and press `F2` to rename the whole
+  portal; `Shift+P` on a tag turns it back into a plain wire. Portals work
+  inside groups, pasted portals keep names of their own, and a portal plays
+  exactly like the wire it replaced (older versions open it as two reroutes
+  and a wire).
+- **Minimap**: while your patch doesn't fit the window, a small map of it
+  sits in the canvas's corner, with the nodes in their category colors, the
+  frames, and the part you're looking at outlined. Click or drag in it to
+  go there. It hides itself once everything fits; `Shift+M` or
+  View ▸ Minimap turns it off and on.
+
+### Changed
+
+- Secondary text in the dark theme is a shade lighter, so it stays
+  readable on buttons.
+- **Node timing** (`Ctrl+T`) shows each node's processing time per block
+  in microseconds, held steady over about half a second and colored from
+  cool to hot by its share of the block's time budget, so the expensive
+  parts of a patch stand out. Hover a time to see its share. Groups and
+  Voices show the total of what's inside them (every voice), and inside a
+  Voices body each node shows all its copies. The Node tab shows the
+  selected node's time and share, with a Measure button while timing is
+  off. Timing is still off until you ask for it and costs nothing then.
+  Nodes that run in several steps, such as Feedback, and blocks split by
+  bindings now count all their time.
+
+### Fixed
+
+- Jumping to a node inside a group from the Problems or Project tab now
+  centers that node, and leaving the group returns to the view you had.
+- A project opened right after the editor starts keeps its saved view
+  instead of being reframed.
+
 ## [0.5.0] - 2026-10-18
 
 Control surfaces: gamepads, the computer keyboard, and Open Sound Control
@@ -308,6 +399,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Andorbal/audio-constructor/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Andorbal/audio-constructor/compare/v0.2.0...v0.3.0

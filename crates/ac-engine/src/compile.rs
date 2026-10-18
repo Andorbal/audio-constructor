@@ -964,6 +964,7 @@ pub(crate) fn compile_with(
         socket_value: atomics(n_socket),
         socket_events: atomics(n_socket),
         node_time: atomics(n_time),
+        node_time_acc: atomics(n_time),
     });
 
     // Work space sized to the widest step, one per step of the widest wave.

@@ -231,10 +231,10 @@ impl PerformView {
         let mut grid = full;
         if !self.fullscreen {
             let strip = Rect::from_min_size(full.min, vec2(full.width(), TABS));
-            ui.painter().rect_filled(strip, 0.0, theme::PANEL_BG);
+            ui.painter().rect_filled(strip, 0.0, theme::panel_bg());
             ui.painter().line_segment(
                 [strip.left_bottom(), strip.right_bottom()],
-                Stroke::new(1.0, theme::BORDER),
+                Stroke::new(1.0, theme::border()),
             );
             let inner = strip.shrink2(vec2(10.0, 4.0));
             ui.scope_builder(
@@ -282,9 +282,9 @@ impl PerformView {
             let text = RichText::new(&name)
                 .size(theme::FONT_UI)
                 .color(if selected {
-                    theme::TEXT_STRONG
+                    theme::text_strong()
                 } else {
-                    theme::TEXT_MUTED
+                    theme::text_muted()
                 });
             let tab = ui
                 .add(
@@ -364,7 +364,7 @@ impl PerformView {
             ui.label(
                 RichText::new("P on the canvas pins the selected controls · Ctrl+Tab: canvas")
                     .small()
-                    .color(theme::TEXT_FAINT),
+                    .color(theme::text_faint()),
             );
         });
     }
@@ -411,7 +411,11 @@ impl PerformView {
                         RichText::new(icon)
                             .family(theme::icons_fill_family())
                             .size(22.0)
-                            .color(if playing { theme::PLAY } else { theme::TEXT }),
+                            .color(if playing {
+                                theme::play()
+                            } else {
+                                theme::text()
+                            }),
                     )
                     .selected(playing)
                     .min_size(vec2(52.0, 36.0)),
@@ -429,12 +433,12 @@ impl PerformView {
             ui.label(
                 RichText::new(bars)
                     .font(theme::mono_font(20.0))
-                    .color(theme::TEXT_STRONG),
+                    .color(theme::text_strong()),
             );
             ui.label(
                 RichText::new(time)
                     .font(theme::mono_font(theme::FONT_UI))
-                    .color(theme::TEXT_MUTED),
+                    .color(theme::text_muted()),
             );
             if doc.project.panels.len() > 1 {
                 ui.add_space(12.0);
@@ -466,9 +470,9 @@ impl PerformView {
                     .add(
                         egui::Button::new(RichText::new(icons::KEYBOARD).size(20.0).color(
                             if play_keys {
-                                theme::ACCENT
+                                theme::accent()
                             } else {
-                                theme::TEXT
+                                theme::text()
                             },
                         ))
                         .selected(play_keys)
@@ -496,7 +500,7 @@ impl PerformView {
             Sense::click_and_drag(),
         );
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 0.0, theme::CANVAS_BG);
+        painter.rect_filled(rect, 0.0, theme::canvas_bg());
         let dt = self.live.begin_frame(now);
         if self.controls.release_due(io, now) {
             ctx.request_repaint();
@@ -671,7 +675,7 @@ impl PerformView {
             painter.rect_stroke(
                 ghost,
                 theme::radius(theme::NODE_RADIUS),
-                Stroke::new(1.5, theme::ACCENT),
+                Stroke::new(1.5, theme::accent()),
                 StrokeKind::Inside,
             );
         }
@@ -1004,8 +1008,8 @@ fn paint_card(
     let radius = theme::radius(theme::NODE_RADIUS);
     let alpha = if moving { 0.45 } else { 1.0 };
     painter.add(theme::node_shadow().as_shape(c.rect, radius));
-    painter.rect_filled(c.rect, radius, theme::fade(theme::NODE_BG, alpha));
-    let accent = n.map_or(theme::MISSING_HEADER, |n| n.accent);
+    painter.rect_filled(c.rect, radius, theme::fade(theme::node_bg(), alpha));
+    let accent = n.map_or(theme::missing_header(), |n| n.accent);
     let strip = Rect::from_min_size(c.rect.min, vec2(c.rect.width(), theme::HEADER_STRIP));
     painter.rect_filled(
         strip,
@@ -1018,11 +1022,11 @@ fn paint_card(
         theme::fade(accent, alpha),
     );
     let outline = if target {
-        Stroke::new(2.0, theme::ACCENT)
+        Stroke::new(2.0, theme::accent())
     } else if matches!(here, PanelHit::Card(_)) {
-        Stroke::new(1.0, theme::NODE_HOVER)
+        Stroke::new(1.0, theme::node_hover())
     } else {
-        Stroke::new(1.0, theme::fade(theme::NODE_OUTLINE, alpha))
+        Stroke::new(1.0, theme::fade(theme::node_outline(), alpha))
     };
     painter.rect_stroke(c.rect, radius, outline, StrokeKind::Outside);
     let title = n.map_or_else(|| "Missing node".to_string(), |n| n.title.clone());
@@ -1031,7 +1035,7 @@ fn paint_card(
         title,
         egui::TextFormat::simple(
             theme::ui_font(theme::FONT_NODE_TITLE * c.zoom.min(1.25)),
-            theme::fade(theme::TEXT_STRONG, alpha),
+            theme::fade(theme::text_strong(), alpha),
         ),
     );
     job.wrap =
@@ -1043,7 +1047,7 @@ fn paint_card(
             c.header.center().y + 1.5 - galley.size().y / 2.0,
         ),
         galley,
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
     if let Some(buttons) = c.buttons {
         let lit = [
@@ -1060,9 +1064,9 @@ fn paint_card(
                 theme::ui_font(theme::FONT_SMALL + 1.0),
                 theme::fade(
                     if lit {
-                        theme::TEXT_STRONG
+                        theme::text_strong()
                     } else {
-                        theme::TEXT_FAINT
+                        theme::text_faint()
                     },
                     alpha,
                 ),
@@ -1075,7 +1079,7 @@ fn paint_card(
             Align2::CENTER_CENTER,
             "no widget to show",
             theme::ui_font(theme::FONT_SMALL),
-            theme::TEXT_MUTED,
+            theme::text_muted(),
         );
     }
 }
@@ -1087,18 +1091,18 @@ fn empty_state(painter: &egui::Painter, rect: Rect, title: &str, text: &str) {
         Align2::CENTER_CENTER,
         format!("{}  {title}", icons::SQUARES_FOUR),
         theme::ui_font(theme::FONT_HEADING),
-        theme::TEXT,
+        theme::text(),
     );
     let galley = painter.layout(
         text.to_string(),
         theme::ui_font(theme::FONT_UI),
-        theme::TEXT_MUTED,
+        theme::text_muted(),
         (rect.width() - 80.0).clamp(120.0, 520.0),
     );
     painter.galley(
         pos2(c.x - galley.size().x / 2.0, c.y - 8.0),
         galley,
-        theme::TEXT_MUTED,
+        theme::text_muted(),
     );
 }
 

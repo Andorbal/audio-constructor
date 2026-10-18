@@ -8,7 +8,7 @@ use ac_core::{
     VOICES_KIND,
 };
 use ac_io::{Library, LibraryBlock};
-use egui::{Align2, Color32, Key, Pos2, RichText, Sense, vec2};
+use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
 
 use crate::canvas::PendingWire;
 use crate::document::Document;
@@ -104,6 +104,9 @@ pub struct Palette {
     pub screen: Pos2,
     pub canvas: Pos2,
     pub pending: Option<PendingWire>,
+    /// A line above the search saying what happens to the node added
+    /// (the selected nodes it will be wired from).
+    pub note: Option<String>,
     focus: bool,
     /// Frames since it opened (the opening click mustn't close it).
     age: u32,
@@ -238,6 +241,7 @@ impl Palette {
         self.screen = screen;
         self.canvas = canvas;
         self.pending = pending;
+        self.note = None;
         self.focus = true;
         self.age = 0;
     }
@@ -245,6 +249,7 @@ impl Palette {
     pub fn close(&mut self) {
         self.open = false;
         self.pending = None;
+        self.note = None;
     }
 
     /// Show the palette; returns the chosen candidate.
@@ -309,9 +314,16 @@ impl Palette {
                                 ui.label(
                                     RichText::new(format!("Nodes that {side} {}", p.ty.name()))
                                         .small()
-                                        .color(theme::TEXT_MUTED),
+                                        .color(theme::text_muted()),
                                 );
                             });
+                        }
+                        if let Some(note) = &self.note {
+                            ui.label(
+                                RichText::new(format!("{}  {note}", icons::PLUGS_CONNECTED))
+                                    .small()
+                                    .color(theme::text_muted()),
+                            );
                         }
                         let te = egui::TextEdit::singleline(&mut self.query)
                             .id(egui::Id::unique("add-node-query"))
@@ -331,7 +343,7 @@ impl Palette {
                         }
                         ui.add_space(4.0);
                         if list.is_empty() {
-                            ui.label(RichText::new("Nothing matches.").color(theme::TEXT_MUTED));
+                            ui.label(RichText::new("Nothing matches.").color(theme::text_muted()));
                         }
                         egui::ScrollArea::vertical()
                             .max_height(300.0)
@@ -353,7 +365,7 @@ impl Palette {
                             });
                         if let Some(c) = list.get(self.selected) {
                             ui.separator();
-                            ui.label(RichText::new(&c.summary).small().color(theme::TEXT));
+                            ui.label(RichText::new(&c.summary).small().color(theme::text()));
                         }
                     });
             });
@@ -377,17 +389,13 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
     let (rect, resp) = ui.allocate_exact_size(vec2(width, 26.0), Sense::click());
     let p = ui.painter();
     if selected {
-        p.rect_filled(rect, theme::radius(5.0), theme::ACCENT_DIM);
+        p.rect_filled(rect, theme::radius(5.0), theme::accent_dim());
     } else if resp.hovered() {
-        p.rect_filled(
-            rect,
-            theme::radius(5.0),
-            Color32::from_rgb(0x2E, 0x32, 0x3A),
-        );
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
     }
     let color = c
         .category
-        .map_or(theme::GROUP_HEADER, theme::category_color);
+        .map_or(theme::group_header(), theme::category_color);
     let strip =
         egui::Rect::from_min_size(rect.min + vec2(6.0, 6.0), vec2(4.0, rect.height() - 12.0));
     p.rect_filled(strip, theme::radius(2.0), color);
@@ -402,9 +410,9 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
         format!("{icon}{}", c.name),
         theme::ui_font(theme::FONT_UI),
         if selected {
-            theme::TEXT_STRONG
+            theme::text_strong()
         } else {
-            theme::TEXT
+            theme::text()
         },
     );
     let cat = match (c.category, &c.block) {
@@ -417,7 +425,7 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
         Align2::RIGHT_CENTER,
         cat,
         theme::ui_font(theme::FONT_SMALL),
-        theme::TEXT_MUTED,
+        theme::text_muted(),
     );
     if let Some(s) = &c.socket {
         let x = rect.right_center().x
@@ -426,7 +434,7 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
                 f.layout_no_wrap(
                     cat.to_string(),
                     theme::ui_font(theme::FONT_SMALL),
-                    theme::TEXT_MUTED,
+                    theme::text_muted(),
                 )
                 .size()
                 .x
@@ -437,7 +445,7 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
             Align2::RIGHT_CENTER,
             format!("→ {s}"),
             theme::mono_font(theme::FONT_SMALL),
-            theme::TEXT_FAINT,
+            theme::text_faint(),
         );
     }
     resp

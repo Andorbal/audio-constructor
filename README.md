@@ -11,7 +11,8 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > piano rolls, and bands) are in, as are blocks (23 ship, from reverbs to a
 > drum machine), packs for sharing projects, and control surfaces
 > (gamepads, the computer keyboard, OSC, bindings with learn, and
-> performance panels). See
+> performance panels), and editor conveniences (auto-layout, find,
+> portals, a minimap, a light theme, UI scale, and F1 help). See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
@@ -122,7 +123,10 @@ cargo run --release -p ac-app -- examples/guitar-pedalboard.acproj
 
 Press `Space` to play, `Shift+A` to add a node, drag between sockets to
 wire, `Ctrl+Z` to undo. Pick your audio interface and MIDI keyboard in the
-side panel's **Devices** tab (`N` toggles the panel). The examples in
+side panel's **Devices** tab (`N` toggles the panel). `F1` on a node opens
+its help, with a "Try this" tip and the blocks and examples that use it.
+View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
+interface from 75 % to 200 %. The examples in
 `examples/` are good places to start: **Start**, **Guitar Pedalboard**,
 **Subtractive Synth**, **Four Tracks**, and **Reverse Delay** (a Phase 2
 preview).
