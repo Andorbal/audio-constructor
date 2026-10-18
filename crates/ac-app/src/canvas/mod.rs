@@ -7,6 +7,7 @@
 //! drawing order, the hit order, and the zoomed geometry always agree.
 
 pub mod bodies;
+pub mod controls;
 mod interact;
 pub mod live;
 mod menu;
@@ -160,17 +161,6 @@ pub enum Gesture {
         /// The socket the end has snapped to, and since when.
         snap: Option<(NodeId, String, f64)>,
     },
-    /// Dragging a value: sideways for fields and sliders, up and down for
-    /// knobs (`vertical`). `width` is the travel that sweeps the range.
-    DragValue {
-        node: NodeId,
-        socket: String,
-        spec: SocketSpec,
-        start: f64,
-        origin: Pos2,
-        width: f32,
-        vertical: bool,
-    },
     Cut {
         points: Vec<Pos2>,
     },
@@ -194,40 +184,6 @@ pub enum Gesture {
         start: Vec2,
         origin: Pos2,
     },
-    /// A Button node held down.
-    HoldButton {
-        node: NodeId,
-        since: f64,
-    },
-    /// A Keyboard key held down; dragging across the keys moves it.
-    HoldKey {
-        node: NodeId,
-        key: usize,
-        since: f64,
-    },
-    /// An XY Pad held down: the point follows the pointer. `touch`: the
-    /// pad holds `touched` (it isn't wired).
-    HoldPad {
-        node: NodeId,
-        since: f64,
-        touch: bool,
-    },
-}
-
-impl Gesture {
-    /// The input a hold gesture keeps down, and since when.
-    fn held(&self) -> Option<(NodeId, String, f64)> {
-        match self {
-            Gesture::HoldButton { node, since } => Some((*node, "pressed".into(), *since)),
-            Gesture::HoldKey { node, key, since } => Some((*node, piano::key_socket(*key), *since)),
-            Gesture::HoldPad {
-                node,
-                since,
-                touch: true,
-            } => Some((*node, "touched".into(), *since)),
-            _ => None,
-        }
-    }
 }
 
 /// Typing into a field on the canvas.
@@ -265,16 +221,6 @@ struct Ghost {
     died: f64,
 }
 
-/// A held input (a Button, a Keyboard key, an XY Pad's `touched`) let go
-/// too soon after it was pressed: the release waits so the engine sees the
-/// press for at least a block.
-#[derive(Clone, Debug)]
-struct PendingRelease {
-    node: NodeId,
-    socket: String,
-    at: f64,
-}
-
 /// The canvas's own state (everything else lives in the document).
 pub struct Canvas {
     pub view: View,
@@ -295,7 +241,8 @@ pub struct Canvas {
     /// not count as a click outside).
     menu_age: u32,
     choice_age: u32,
-    releases: Vec<PendingRelease>,
+    /// Widget bodies and inline values being played (shared with panels).
+    pub controls: controls::Controls,
     /// Space was used to pan, so its release doesn't toggle playback.
     space_panned: bool,
     /// Screen rectangle of the canvas last frame.
@@ -337,7 +284,7 @@ impl Default for Canvas {
             choice: None,
             menu_age: 0,
             choice_age: 0,
-            releases: Vec::new(),
+            controls: controls::Controls::default(),
             space_panned: false,
             screen: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),
             pointer: None,
@@ -375,7 +322,7 @@ impl Canvas {
     }
 
     pub fn is_idle(&self) -> bool {
-        matches!(self.gesture, Gesture::Idle)
+        matches!(self.gesture, Gesture::Idle) && !self.controls.is_active()
     }
 
     /// Note that nodes were just created (they fade in).
@@ -431,6 +378,7 @@ impl Canvas {
     /// Restore the view stored in a project (or frame it if none).
     pub fn reset_for(&mut self, doc: &Document, registry: &Registry) {
         self.gesture = Gesture::Idle;
+        self.controls.active = None;
         self.edit = None;
         self.menu = None;
         self.choice = None;
@@ -516,6 +464,10 @@ impl Canvas {
         if self.edit.take().is_some() {
             return true;
         }
+        if self.controls.cancel(doc) {
+            self.hint = None;
+            return true;
+        }
         match std::mem::replace(&mut self.gesture, Gesture::Idle) {
             Gesture::Idle => false,
             Gesture::Move { ids, starts, .. } => {
@@ -528,19 +480,7 @@ impl Canvas {
                 self.hint = None;
                 true
             }
-            g => {
-                // A held control lets go (after its minimum hold) rather
-                // than staying down in the engine.
-                if let Some((node, socket, since)) = g.held() {
-                    self.releases.push(PendingRelease {
-                        node,
-                        socket,
-                        at: since + interact::MIN_HOLD,
-                    });
-                }
-                if matches!(g, Gesture::HoldPad { .. } | Gesture::DragValue { .. }) {
-                    doc.end_coalescing();
-                }
+            _ => {
                 self.hint = None;
                 true
             }
@@ -662,40 +602,15 @@ impl Canvas {
         crate::params::set(io.doc, io.engine, id, socket, value, now);
     }
 
-    /// Several inputs of one node changed by one gesture (an XY Pad's `x`
-    /// and `y`): one undo step for them together.
-    fn send_params(io: &mut CanvasIo, id: NodeId, values: &[(&str, Value)], now: f64) {
-        crate::params::set_many(io.doc, io.engine, id, values, now);
-    }
-
     fn fire(io: &mut CanvasIo, id: NodeId, socket: &str) {
         crate::params::fire(io.doc, io.engine, id, socket);
-    }
-
-    /// Held inputs (a Button's `pressed`, a Keyboard's keys, an XY Pad's
-    /// `touched`) go straight to the engine: holding a control down isn't
-    /// a project change, and playing a keyboard leaves no undo steps.
-    fn hold(io: &mut CanvasIo, id: NodeId, socket: &str, down: bool) {
-        crate::params::momentary(io.doc, io.engine, id, socket, Value::Bool(down));
     }
 
     /// Inputs the canvas is holding down for the engine on `node` right
     /// now (a pressed Button, a played Keyboard key, a touched XY Pad),
     /// including releases still waiting out the minimum hold.
     pub fn held_inputs(&self, node: NodeId) -> Vec<String> {
-        let mut out: Vec<String> = self
-            .gesture
-            .held()
-            .filter(|h| h.0 == node)
-            .map(|h| h.1)
-            .into_iter()
-            .collect();
-        for r in &self.releases {
-            if r.node == node && !out.contains(&r.socket) {
-                out.push(r.socket.clone());
-            }
-        }
-        out
+        self.controls.held_inputs(node)
     }
 
     /// Screen rectangle of a node's widget body in the last drawn frame
@@ -750,15 +665,7 @@ impl Canvas {
         self.handle_view_input(ui, &response, dt);
 
         // Releases held back so a quick tap still reaches the engine.
-        let (due, waiting): (Vec<PendingRelease>, Vec<PendingRelease>) =
-            std::mem::take(&mut self.releases)
-                .into_iter()
-                .partition(|r| r.at <= now);
-        self.releases = waiting;
-        for r in due {
-            Self::hold(io, r.node, &r.socket, false);
-        }
-        if !self.releases.is_empty() {
+        if self.controls.release_due(io, now) {
             ui.ctx().request_repaint();
         }
 

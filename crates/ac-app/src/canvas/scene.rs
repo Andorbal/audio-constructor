@@ -55,7 +55,8 @@ impl Body {
         })
     }
 
-    fn height(self) -> f32 {
+    /// The body's height on a card (canvas units).
+    pub fn height(self) -> f32 {
         match self {
             Body::Button => 40.0,
             Body::Toggle => 30.0,
