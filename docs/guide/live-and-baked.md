@@ -133,7 +133,7 @@ The total delay the patch adds on the way to the outputs is shown in the
 Project tab as **Output latency**, and printed by `audioc validate`, which
 also lists each node that adds some. When you play an instrument live
 through a patch, this adds to the sound card's latency, so keep large
-FFTs and pitch shifters out of the live path, or use a smaller FFT `size`.
+FFTs and pitch shifters out of the live path, or give the FFT a smaller **Size**.
 
 A **Feedback** node delays its loop by one buffer. That's what makes a
 loop possible, and it means a loop's timing depends on the buffer size.

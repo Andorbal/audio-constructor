@@ -53,7 +53,7 @@ Biquad as a tone control, and a Delay. You don't need to press play: live
 input always passes through. Pick your interface in the Devices tab with
 the smallest buffer that doesn't crackle; 128 frames is a good start.
 
-**Try:** set the echo's `unit` to beats (Node tab, Settings) to lock the
+**Try:** set the echo's **Time in** to beats (Node tab, Settings) to lock the
 repeats to the tempo, or add a second Biquad in peak mode for a mid
 boost.
 
@@ -149,7 +149,7 @@ where it is **disabled** while live. It's the example for
 [Live and baked](live-and-baked.md).
 
 **Try:** turn on Use Audio In, play, and watch the lower Reverse stay
-disabled; set the Reverse's `segment` and the Delay's `time` to 1 s
+disabled; set the Reverse's **Slice** (Settings) and the Delay's `time` to 1 s
 together for longer phrases.
 
 ## Multiband Compressor

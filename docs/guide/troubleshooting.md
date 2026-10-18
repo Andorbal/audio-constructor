@@ -160,7 +160,7 @@ and wires, and does nothing; a version that knows it plays it again.
 - **Node timing** (`Ctrl+T`) puts each node's cost in its title, colored
   from cool to hot; groups and Voices nodes show their total. The Node tab
   shows the selected node's share of the budget.
-- Usual suspects: many voices (lower `voices` on a Voices node), large FFT
+- Usual suspects: many voices (lower **Voices** in a Voices node's Settings), large FFT
   sizes, Pitch Shift, Diffuser, and reverbs. LFOs are much cheaper than
   Oscillators for slow modulation.
 - **Engine threads** in the Devices tab (or `audioc run --threads N`)

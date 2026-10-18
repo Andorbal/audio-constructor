@@ -130,10 +130,10 @@ keyboard, or the computer keyboard through a Keyboard In node, or let a
    …).
 3. Change the voice like any patch: add a filter, a second oscillator, a
    filter envelope. Every copy follows. Press `Tab` to come back out.
-4. In the Node tab, **Settings** sets how many voices there are
-   (`voices`, 1 to 64, default 8) and which note gives way when you play
-   more notes than that (`steal`: the oldest note by default; also the
-   newest, the lowest, the highest, or none, which ignores the new note).
+4. In the Node tab, **Settings** sets how many **Voices** there are (1 to
+   64, default 8) and, under **When all are busy**, which note gives way
+   when you play more notes than that: the oldest by default, or the
+   newest, the lowest, the highest, or none (the new note is ignored).
 
 Any group can become polyphonic: select it and tick **Polyphonic (one
 copy per voice)** in the Node tab. Inside, use a Voice node instead of
@@ -157,7 +157,7 @@ Modulation is wiring a moving signal into a parameter. Some sources:
 | Node | Moves | Good for |
 | --- | --- | --- |
 | **LFO** | A slow repeating wave: sine, triangle, saw, ramp down, square, random, smooth random | Vibrato, tremolo, filter sweeps. Light enough to use by the hundred |
-| **Oscillator** | The same at audio rate (set `pure` in its Settings for sharp corners) | FM, fast wobbles, ring modulation (multiply two with **Math**) |
+| **Oscillator** | The same at audio rate (tick **Pure** in its Settings for sharp corners) | FM, fast wobbles, ring modulation (multiply two with **Math**) |
 | **ADSR**, **Envelope** | A shape each time a gate opens; Envelope is drawn as breakpoints, with sustain and loop points | Notes, swells, filter envelopes |
 | **Graph** | A drawn curve played over a time you set | Automation lanes, one-off sweeps, custom LFO shapes when looped |
 | **StepSequencer** | A row of values, one step per `clock` trigger | Arpeggiated filters, rhythmic gates, melodies |
@@ -192,7 +192,7 @@ change it (see [Blocks and sharing](blocks.md)).
 
 ### Delay and space
 
-- **Delay**: echoes. `time` in seconds, or in beats when its `unit`
+- **Delay**: echoes. `time` in seconds, or in beats when its **Time in**
   setting is beats; `feedback` for more repeats; `mix` from dry to all
   echoes. Changing `time` while it plays bends the pitch like tape.
 - **Plate Reverb** and **Hall Reverb** (blocks): `predelay`, `decay`,
@@ -245,7 +245,7 @@ Spectral nodes work on a sound's frequencies instead of its samples.
   spectrum: **Spectral Gate** silences quiet frequencies (a noise
   reduction per frequency), and **Spectral Shift** moves every partial up
   or down for metallic and shimmering sounds. Give the IFFT the same
-  `window` setting as the FFT.
+  **Window** setting as the FFT.
 - **Band Split** splits a sound into frequency bands that add back up to
   the original, one output per band, for multiband processing. Drag,
   split, and merge the bands in its band editor in the Node tab.
@@ -265,7 +265,7 @@ meet, so a dry signal mixed back in stays lined up; see
 
 - **Clip** plays an audio file: choose it in the Node tab, then loop it,
   reverse it, or change its `rate`.
-- **Sampler** plays a sound at any pitch (`note` against its `root`
+- **Sampler** plays a sound at any pitch (`note` against its **Root note**
   setting) with start, end, and loop points. It plays a file, or a
   `buffer` straight from a Record node.
 - **Pattern** is a grid of step buttons: one step per `clock` trigger, a
