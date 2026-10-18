@@ -1,0 +1,1858 @@
+{
+  "schema_version": 1,
+  "name": "Sidechain Pump",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 15.5,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 124.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "A pad that pumps with the kick drum: the classic dance-music sidechain. Press Space to play.\n\nThe Sidechain Ducker turns the pad down every time the kick hits and lets it swell back in between, so the pad breathes in time with the beat. The kick is only the ducker's key: it is heard through the Mix, not through the ducker."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -232.0
+          ],
+          "size": [
+            640.0,
+            112.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 16.0,
+          "notes": [
+            [
+              0.0,
+              3.9,
+              57,
+              90
+            ],
+            [
+              0.0,
+              3.9,
+              60,
+              90
+            ],
+            [
+              0.0,
+              3.9,
+              64,
+              90
+            ],
+            [
+              0.0,
+              3.9,
+              69,
+              90
+            ],
+            [
+              4.0,
+              3.9,
+              53,
+              90
+            ],
+            [
+              4.0,
+              3.9,
+              57,
+              90
+            ],
+            [
+              4.0,
+              3.9,
+              60,
+              90
+            ],
+            [
+              4.0,
+              3.9,
+              65,
+              90
+            ],
+            [
+              8.0,
+              3.9,
+              55,
+              90
+            ],
+            [
+              8.0,
+              3.9,
+              60,
+              90
+            ],
+            [
+              8.0,
+              3.9,
+              64,
+              90
+            ],
+            [
+              8.0,
+              3.9,
+              67,
+              90
+            ],
+            [
+              12.0,
+              3.9,
+              55,
+              90
+            ],
+            [
+              12.0,
+              3.9,
+              59,
+              90
+            ],
+            [
+              12.0,
+              3.9,
+              62,
+              90
+            ],
+            [
+              12.0,
+              3.9,
+              67,
+              90
+            ]
+          ],
+          "channel": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Chords"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "voices",
+        "config": {
+          "def": "subtractive-synth-voice",
+          "voices": 8,
+          "steal": "oldest"
+        },
+        "params": {
+          "attack": 0.03,
+          "cutoff": 700.0,
+          "decay": 0.8,
+          "detune": 18.0,
+          "env_amount": 1.5,
+          "level": -8.0,
+          "release": 0.6,
+          "resonance": 0.15,
+          "sustain": 0.7
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Pad"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "comment",
+        "config": {
+          "text": "Am, F, C, G, one bar each, played by eight voices of the Subtractive Synth Voice block. Open Chords' piano roll in the side panel to change them."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            290.0
+          ],
+          "size": [
+            466.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "group",
+        "config": {
+          "def": "euclidean-drummer"
+        },
+        "params": {
+          "hat_pulses": 0,
+          "kick_level": -4.0,
+          "kick_pulses": 4,
+          "kick_steps": 16,
+          "snare_pulses": 0
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            470.0
+          ],
+          "label": "Kick"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "A Euclidean Drummer with only its kick playing: four on the floor. Its out feeds the ducker's sidechain and the Mix."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            470.0
+          ],
+          "size": [
+            240.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "group",
+        "config": {
+          "def": "euclidean-drummer"
+        },
+        "params": {
+          "hat_level": -10.0,
+          "hat_pulses": 4,
+          "hat_rotation": 2,
+          "hat_steps": 16,
+          "kick_pulses": 0,
+          "snare_level": -8.0,
+          "snare_pulses": 2,
+          "snare_rotation": 4,
+          "snare_steps": 16
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            900.0
+          ],
+          "label": "Hats and snare"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "comment",
+        "config": {
+          "text": "The same block again, playing off-beat hats and a snare on 2 and 4. It isn't wired into the sidechain, so it doesn't pump the pad."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            900.0
+          ],
+          "size": [
+            240.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "knob",
+        "config": {
+          "min": 0.0625,
+          "max": 2.0,
+          "unit": "beats"
+        },
+        "params": {
+          "value": 0.25
+        },
+        "ui": {
+          "pos": [
+            580.0,
+            290.0
+          ],
+          "label": "Release (beats)"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "convert",
+        "params": {
+          "op": "beats_to_seconds"
+        },
+        "ui": {
+          "pos": [
+            580.0,
+            450.0
+          ],
+          "label": "Beats to seconds"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "group",
+        "config": {
+          "def": "sidechain-ducker"
+        },
+        "params": {
+          "amount": 12.0,
+          "attack": 0.004,
+          "threshold": -12.0
+        },
+        "ui": {
+          "pos": [
+            860.0,
+            0.0
+          ],
+          "label": "Sidechain Ducker"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "Tempo sync: the release is set in beats and converted to seconds at the song's tempo, so the swell always fills the same part of the beat. Change the tempo in the Project tab and it follows."
+        },
+        "ui": {
+          "pos": [
+            580.0,
+            560.0
+          ],
+          "size": [
+            420.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "d",
+        "kind": "toggle",
+        "params": {
+          "value": true
+        },
+        "ui": {
+          "pos": [
+            860.0,
+            230.0
+          ],
+          "label": "Pump"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            1130.0,
+            0.0
+          ],
+          "label": "Pump on/off"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "mix",
+        "config": {
+          "inputs": 3
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": -4.0,
+          "gain_2": -3.0
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1670.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1940.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Click Pump to switch the ducking off and on and hear the difference.\n• Turn Release down to 0.125 beats for a tight, choppy pump, or up to 0.75 for a slow swell that never quite lets go.\n• Raise the ducker's amount for a deeper dip, or its attack for a softer one.\n• Wire Hats and snare's out into the sidechain instead and hear every hit duck the pad."
+        },
+        "ui": {
+          "pos": [
+            1130.0,
+            290.0
+          ],
+          "size": [
+            520.0,
+            144.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:midi",
+        "to": "3:midi"
+      },
+      {
+        "from": "3:out",
+        "to": "b:in"
+      },
+      {
+        "from": "5:out",
+        "to": "b:sidechain"
+      },
+      {
+        "from": "9:out",
+        "to": "a:in"
+      },
+      {
+        "from": "a:out",
+        "to": "b:release"
+      },
+      {
+        "from": "3:out",
+        "to": "e:a"
+      },
+      {
+        "from": "b:out",
+        "to": "e:b"
+      },
+      {
+        "from": "d:out",
+        "to": "e:select"
+      },
+      {
+        "from": "e:out",
+        "to": "f:in_0"
+      },
+      {
+        "from": "5:out",
+        "to": "f:in_1"
+      },
+      {
+        "from": "7:out",
+        "to": "f:in_2"
+      },
+      {
+        "from": "f:out",
+        "to": "10:in"
+      },
+      {
+        "from": "10:out",
+        "to": "11:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Pad",
+        "rect": [
+          -24.0,
+          -52.0,
+          514.0,
+          446.0
+        ]
+      },
+      {
+        "label": "Kick: the key",
+        "rect": [
+          -24.0,
+          418.0,
+          514.0,
+          397.0
+        ]
+      },
+      {
+        "label": "Groove",
+        "rect": [
+          -24.0,
+          848.0,
+          514.0,
+          397.0
+        ]
+      },
+      {
+        "label": "Ducking in time",
+        "rect": [
+          556.0,
+          -52.0,
+          524.0,
+          732.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "euclidean-drummer": {
+      "name": "Euclidean Drummer",
+      "description": "Three drums playing Euclidean rhythms from one clock: a kick, a snare, and a hi-hat, each spreading its hits as evenly as possible over its own cycle of steps. Give the drums cycles of different lengths and they drift against each other into long, shifting grooves. It plays while the transport runs, in time with the project's tempo.\n\n- `step` is the length of one step in beats (0.25 is sixteenth notes).\n- For each drum (`kick_`, `snare_`, `hat_`): `steps` is the length of its cycle, `pulses` how many hits are spread over it, and `rotation` how many steps later the pattern starts. 4 pulses in 16 steps is four on the floor, 3 in 8 the tresillo, and 5 or 7 in 16 classic syncopated grooves; try a hat cycle of 12 against a kick cycle of 16.\n- `kick_level`, `snare_level`, and `hat_level` set each drum's loudness in decibels (−60 is silent).\n- `out` is the mix, mono. `kick`, `snare`, and `hat` fire a trigger on every hit, to play other sounds too (Samplers, a synth's envelope).\n\nInside: one Clock drives three Euclidean nodes, and each one's trigger starts a synthesized drum. The kick is a sine Oscillator restarted on every hit, its pitch dropping fast from 200 to 45 Hz (an ADSR through an exponential Map) under a longer ADSR for the volume. The snare is white Noise through a highpass Biquad plus a short 185 Hz triangle for the body, balanced by a small Mix. The hi-hat is the same Noise through a 7 kHz highpass with a short envelope. A Mix sets the levels.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "drums",
+        "rhythm",
+        "euclidean",
+        "generative",
+        "instrument"
+      ],
+      "source": "shipped:euclidean-drummer",
+      "inputs": [
+        {
+          "name": "step",
+          "type": "float",
+          "unit": "beats",
+          "default": 0.25,
+          "range": [
+            0.0625,
+            1.0
+          ],
+          "targets": [
+            "1:interval"
+          ]
+        },
+        {
+          "name": "kick_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "2:steps"
+          ]
+        },
+        {
+          "name": "kick_pulses",
+          "type": "int",
+          "default": 5,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "2:pulses"
+          ]
+        },
+        {
+          "name": "kick_rotation",
+          "type": "int",
+          "default": 0,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "2:rotation"
+          ]
+        },
+        {
+          "name": "snare_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "3:steps"
+          ]
+        },
+        {
+          "name": "snare_pulses",
+          "type": "int",
+          "default": 2,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "3:pulses"
+          ]
+        },
+        {
+          "name": "snare_rotation",
+          "type": "int",
+          "default": 4,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "3:rotation"
+          ]
+        },
+        {
+          "name": "hat_steps",
+          "type": "int",
+          "default": 16,
+          "range": [
+            1.0,
+            32.0
+          ],
+          "targets": [
+            "4:steps"
+          ]
+        },
+        {
+          "name": "hat_pulses",
+          "type": "int",
+          "default": 7,
+          "range": [
+            0.0,
+            32.0
+          ],
+          "targets": [
+            "4:pulses"
+          ]
+        },
+        {
+          "name": "hat_rotation",
+          "type": "int",
+          "default": 0,
+          "range": [
+            0.0,
+            31.0
+          ],
+          "targets": [
+            "4:rotation"
+          ]
+        },
+        {
+          "name": "kick_level",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_0"
+          ]
+        },
+        {
+          "name": "snare_level",
+          "type": "float",
+          "unit": "db",
+          "default": -9.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_1"
+          ]
+        },
+        {
+          "name": "hat_level",
+          "type": "float",
+          "unit": "db",
+          "default": -12.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "15:gain_2"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "15:out"
+        },
+        {
+          "name": "kick",
+          "type": "trigger",
+          "source": "2:trigger"
+        },
+        {
+          "name": "snare",
+          "type": "trigger",
+          "source": "3:trigger"
+        },
+        {
+          "name": "hat",
+          "type": "trigger",
+          "source": "4:trigger"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "clock",
+            "params": {
+              "duty": 0.5
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Kick rhythm"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ],
+              "label": "Snare rhythm"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "euclidean",
+            "ui": {
+              "pos": [
+                250.0,
+                1340.0
+              ],
+              "label": "Hi-hat rhythm"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.06,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Kick pitch drop"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "map",
+            "params": {
+              "curve": "exponential",
+              "in_max": 1.0,
+              "in_min": 0.0,
+              "out_max": 200.0,
+              "out_min": 45.0
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "45 to 200 Hz"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Kick"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.45,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                300.0
+              ],
+              "label": "Kick volume"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ],
+              "label": "Kick VCA"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "noise",
+            "params": {
+              "color": "white",
+              "gain": -6.0,
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "b",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.18,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Snare noise volume"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 1500.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "Snare highpass"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Snare noise VCA"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.07,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                980.0
+              ],
+              "label": "Snare body volume"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "oscillator",
+            "params": {
+              "freq": 185.0,
+              "shape": "triangle",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                980.0
+              ],
+              "label": "Snare body"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                980.0
+              ],
+              "label": "Snare body VCA"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": 0.0,
+              "gain_1": -6.0
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                680.0
+              ],
+              "label": "Snare"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.05,
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                1340.0
+              ],
+              "label": "Hi-hat volume"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "biquad",
+            "params": {
+              "cutoff": 7000.0,
+              "mode": "highpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                1340.0
+              ],
+              "label": "Hi-hat highpass"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                1340.0
+              ],
+              "label": "Hi-hat"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "mix",
+            "config": {
+              "inputs": 3
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "2:clock"
+          },
+          {
+            "from": "1:trigger",
+            "to": "3:clock"
+          },
+          {
+            "from": "1:trigger",
+            "to": "4:clock"
+          },
+          {
+            "from": "2:trigger",
+            "to": "5:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "8:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "7:start"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "6:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "7:out",
+            "to": "9:a"
+          },
+          {
+            "from": "8:out",
+            "to": "9:b"
+          },
+          {
+            "from": "3:trigger",
+            "to": "b:on"
+          },
+          {
+            "from": "3:trigger",
+            "to": "e:on"
+          },
+          {
+            "from": "3:trigger",
+            "to": "f:start"
+          },
+          {
+            "from": "a:out",
+            "to": "c:in"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "b:out",
+            "to": "d:b"
+          },
+          {
+            "from": "f:out",
+            "to": "10:a"
+          },
+          {
+            "from": "e:out",
+            "to": "10:b"
+          },
+          {
+            "from": "d:out",
+            "to": "11:in_0"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in_1"
+          },
+          {
+            "from": "4:trigger",
+            "to": "12:on"
+          },
+          {
+            "from": "a:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:a"
+          },
+          {
+            "from": "12:out",
+            "to": "14:b"
+          },
+          {
+            "from": "9:out",
+            "to": "15:in_0"
+          },
+          {
+            "from": "11:out",
+            "to": "15:in_1"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in_2"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Kick",
+            "rect": [
+              226.0,
+              -40.0,
+              1244.0,
+              638.0
+            ]
+          },
+          {
+            "label": "Snare",
+            "rect": [
+              -24.0,
+              640.0,
+              1494.0,
+              660.0
+            ]
+          },
+          {
+            "label": "Hi-hat",
+            "rect": [
+              226.0,
+              1300.0,
+              994.0,
+              338.0
+            ]
+          }
+        ]
+      }
+    },
+    "sidechain-ducker": {
+      "name": "Sidechain Ducker",
+      "description": "Turns `in` down while another signal, the `sidechain`, is loud: music that dips under a voice-over, or a pad that pumps with the kick drum. Both inputs take mono or stereo.\n\n- `in` (audio): the signal that gets turned down.\n- `sidechain` (audio): the signal that does the turning down. It is only listened to, never heard; mix it in separately if you want to hear it.\n- `threshold` (dB): how loud the sidechain must get to duck `in`. The ducking lets go once the sidechain falls 6 dB below it.\n- `amount` (dB): how far `in` drops while the sidechain is loud.\n- `attack` (seconds): how quickly `in` dips when the sidechain gets loud (about 63 % of the dip in this time).\n- `release` (seconds): how quickly `in` comes back afterwards, measured the same way; longer releases make a slower swell, short ones a tight pump.\n\nInside: an Envelope Follower (instant attack, 10 ms release) measures the sidechain's peak level in decibels, and a Compare with 6 dB of hysteresis decides whether it counts as loud. A Switch picks 0 dB or minus `amount`, and a Smooth glides between them, falling with the attack time and rising with the release time, into the Gain on `in`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "dynamics",
+        "sidechain",
+        "ducking",
+        "mixing"
+      ],
+      "source": "shipped:sidechain-ducker",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "6:in"
+          ]
+        },
+        {
+          "name": "sidechain",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "threshold",
+          "type": "float",
+          "unit": "db",
+          "default": -30.0,
+          "range": [
+            -60.0,
+            0.0
+          ],
+          "targets": [
+            "2:b"
+          ]
+        },
+        {
+          "name": "amount",
+          "type": "float",
+          "unit": "db",
+          "default": 12.0,
+          "range": [
+            0.0,
+            48.0
+          ],
+          "targets": [
+            "3:in"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.01,
+          "range": [
+            0.0,
+            0.5
+          ],
+          "targets": [
+            "5:fall"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.3,
+          "range": [
+            0.0,
+            2.0
+          ],
+          "targets": [
+            "5:rise"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "6:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak",
+              "release": 0.01
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Sidechain level"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "compare",
+            "params": {
+              "hysteresis": 6.0,
+              "op": "greater"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ],
+              "label": "Loud?"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "unary",
+            "params": {
+              "op": "negate"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "switch",
+            "config": {
+              "type": "float"
+            },
+            "params": {
+              "a": 0.0
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "5",
+            "kind": "smooth",
+            "params": {
+              "mode": "exponential"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "6",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                880.0,
+                160.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:level_db",
+            "to": "2:a"
+          },
+          {
+            "from": "2:out",
+            "to": "4:select"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:gain"
+          }
+        ]
+      }
+    },
+    "subtractive-synth-voice": {
+      "name": "Subtractive Synth Voice",
+      "description": "One voice of a classic subtractive synth: two detuned sawtooth oscillators, a resonant ladder filter swept by an envelope, and the same envelope on the volume. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one and wire MIDI into its `midi` input for a polyphonic synth that plays chords, pads, leads, and basses.\n\n- `cutoff` (Hz) is where the filter sits while the envelope is at rest; `resonance` (0 to 1) adds a peak there, and near 1 the filter starts to whistle.\n- `env_amount` (octaves) is how far the envelope opens the filter above `cutoff` at its peak: 3 means three octaves (eight times the frequency). Negative values close the filter instead.\n- `attack`, `decay`, and `release` (seconds) and `sustain` (0 to 1) shape the envelope. It sweeps the filter and sets the volume at once, so a short decay with a low sustain makes a pluck, and a slow attack makes a pad.\n- `detune` (cents) pulls the two oscillators apart, one up and one down by half of it, for a thicker, beating sound; 0 makes them one.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. Half of `detune`, in semitones, becomes a frequency ratio (Convert) that divides one Oscillator's frequency and multiplies the other's. A Mix adds the two saws at −9 dB each, and a 24 dB per octave Ladder filters them. An ADSR follows the gate: multiplied by `env_amount` it is an offset in octaves, 2 raised to it multiplies `cutoff`, and the envelope times velocity drives the VCA, a Math multiply on the filtered sound, followed by a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "subtractive",
+        "polyphonic",
+        "filter"
+      ],
+      "source": "shipped:subtractive-synth-voice",
+      "inputs": [
+        {
+          "name": "cutoff",
+          "type": "float",
+          "unit": "hz",
+          "default": 500.0,
+          "range": [
+            20.0,
+            20000.0
+          ],
+          "targets": [
+            "f:a"
+          ]
+        },
+        {
+          "name": "resonance",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:resonance"
+          ]
+        },
+        {
+          "name": "env_amount",
+          "type": "float",
+          "default": 3.0,
+          "range": [
+            -4.0,
+            8.0
+          ],
+          "targets": [
+            "d:b"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.5,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "c:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.3,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "c:release"
+          ]
+        },
+        {
+          "name": "detune",
+          "type": "float",
+          "default": 12.0,
+          "range": [
+            0.0,
+            100.0
+          ],
+          "targets": [
+            "2:a"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "b:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "b:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "b": 0.005,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Half the detune (st)"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "convert",
+            "params": {
+              "op": "semitones_to_ratio"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                140.0
+              ],
+              "label": "Detune ratio"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Lower pitch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                140.0
+              ],
+              "label": "Upper pitch"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Saw A"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                320.0
+              ],
+              "label": "Saw B"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": -9.0,
+              "gain_1": -9.0
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "ladder",
+            "params": {
+              "drive": 0.0,
+              "mode": "lp24"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Octaves above cutoff"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "math",
+            "params": {
+              "a": 2.0,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "2^octaves"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Filter cutoff"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                840.0
+              ],
+              "label": "Volume"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "1:freq",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "5:a"
+          },
+          {
+            "from": "3:out",
+            "to": "5:b"
+          },
+          {
+            "from": "4:out",
+            "to": "6:freq"
+          },
+          {
+            "from": "5:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "6:out",
+            "to": "8:in_0"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in_1"
+          },
+          {
+            "from": "8:out",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:gate",
+            "to": "c:gate"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "d:out",
+            "to": "e:b"
+          },
+          {
+            "from": "e:out",
+            "to": "f:b"
+          },
+          {
+            "from": "f:out",
+            "to": "9:cutoff"
+          },
+          {
+            "from": "c:out",
+            "to": "10:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "10:b"
+          },
+          {
+            "from": "10:out",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Two detuned saws",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              680.0
+            ]
+          },
+          {
+            "label": "Filter and VCA",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              228.0
+            ]
+          },
+          {
+            "label": "Envelope: filter sweep and volume",
+            "rect": [
+              226.0,
+              640.0,
+              1244.0,
+              344.0
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
