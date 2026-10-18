@@ -51,6 +51,27 @@ pub fn number(node: &NodeInstance, spec: &SocketSpec) -> f64 {
         .unwrap_or(0.0)
 }
 
+/// A stored number kept within the node's `min`/`max` config, the way a
+/// Number node puts it out. Either bound may be missing (so the socket's
+/// range, which needs both, can't say); a reversed pair is swapped, and an
+/// `Int` number's bounds round to whole numbers.
+pub fn bounded_number(node: &NodeInstance, spec: &SocketSpec) -> f64 {
+    let v = number(node, spec);
+    let int = spec.ty == SignalType::Int;
+    let bound = |key: &str| {
+        let b = node.config.get(key)?.as_f64().filter(|b| b.is_finite())?;
+        Some(if int { b.round() } else { b })
+    };
+    let (mut lo, mut hi) = (bound("min"), bound("max"));
+    if let (Some(a), Some(b)) = (lo, hi)
+        && a > b
+    {
+        (lo, hi) = (Some(b), Some(a));
+    }
+    let v = lo.map_or(v, |lo| v.max(lo));
+    hi.map_or(v, |hi| v.min(hi))
+}
+
 /// The selected choice's name.
 pub fn choice(node: &NodeInstance, spec: &SocketSpec) -> String {
     let idx = ac_core::param_value(spec, node.params.get(spec.name.as_ref()));
@@ -95,6 +116,24 @@ pub fn normalized(v: f64, spec: &SocketSpec) -> Option<f32> {
         None => (v - a) / (b - a),
     };
     Some(t.clamp(0.0, 1.0) as f32)
+}
+
+/// Where a value's fill starts within its range, 0..1: at zero for a
+/// linear range that spans it (a −12..12 detune fills from the middle),
+/// otherwise at the bottom.
+pub fn zero_point(spec: &SocketSpec) -> f32 {
+    match spec.range {
+        Some((a, b)) if a < 0.0 && b > 0.0 && is_log(spec).is_none() => {
+            normalized(0.0, spec).unwrap_or(0.0)
+        }
+        _ => 0.0,
+    }
+}
+
+/// A value at position `t` (0..1) of a socket's range, linear or log as
+/// the socket is drawn; `None` without a range.
+pub fn at_position(t: f64, spec: &SocketSpec) -> Option<f64> {
+    denormalize(t, spec)
 }
 
 fn denormalize(t: f64, spec: &SocketSpec) -> Option<f64> {
@@ -595,6 +634,49 @@ mod tests {
         assert!(fine < 40.0);
         assert_eq!(dragged(440.0, 10_000.0, 100.0, &f, false, false), 20_000.0);
         assert_eq!(normalized(20_000.0, &f), Some(1.0));
+    }
+
+    #[test]
+    fn fills_start_at_zero_for_bipolar_ranges() {
+        let detune = SocketSpec::float("d", Unit::Semitones, 0.0).range(-12.0, 12.0);
+        assert_eq!(zero_point(&detune), 0.5);
+        assert_eq!(zero_point(&freq()), 0.0);
+        let level = SocketSpec::float("l", Unit::Generic, 0.0).range(0.0, 1.0);
+        assert_eq!(zero_point(&level), 0.0);
+        assert_eq!(zero_point(&SocketSpec::float("u", Unit::Generic, 0.0)), 0.0);
+        // Positions map back through the same scale.
+        assert_eq!(at_position(0.25, &detune), Some(-6.0));
+        let mid = at_position(0.5, &freq()).unwrap();
+        assert!((mid - 632.45).abs() < 1.0, "{mid}");
+        assert_eq!(
+            at_position(0.5, &SocketSpec::float("u", Unit::Generic, 0.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn numbers_read_within_their_bounds() {
+        let node = |config: serde_json::Value, v: Value| {
+            let mut n = NodeInstance::new(ac_core::NodeId(1), "number");
+            n.config = config;
+            n.params.insert("value".into(), v);
+            n
+        };
+        let f = SocketSpec::float("value", Unit::Generic, 0.0);
+        let n = node(serde_json::json!({"min": 5}), Value::Float(1.0));
+        assert_eq!(bounded_number(&n, &f), 5.0);
+        let n = node(serde_json::json!({"min": 5}), Value::Float(1e9));
+        assert_eq!(bounded_number(&n, &f), 1e9);
+        let n = node(serde_json::json!({"min": 3, "max": -3}), Value::Float(7.0));
+        assert_eq!(bounded_number(&n, &f), 3.0);
+        let n = node(serde_json::json!({"max": "big"}), Value::Float(7.0));
+        assert_eq!(bounded_number(&n, &f), 7.0);
+        let i = SocketSpec::int("value", 0);
+        let n = node(
+            serde_json::json!({"type": "int", "max": 2.6}),
+            Value::Int(9),
+        );
+        assert_eq!(bounded_number(&n, &i), 3.0);
     }
 
     #[test]

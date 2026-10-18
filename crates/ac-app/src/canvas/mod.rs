@@ -11,6 +11,7 @@ mod interact;
 pub mod live;
 mod menu;
 mod paint;
+pub mod piano;
 pub mod scene;
 pub mod view;
 pub mod widgets;

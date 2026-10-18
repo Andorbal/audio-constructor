@@ -398,6 +398,31 @@ impl Document {
         true
     }
 
+    /// Set several unwired inputs of one node that move together (an XY
+    /// Pad's `x` and `y`). A gesture's changes coalesce into one undo step
+    /// for the lot, however they interleave. Returns whether any changed.
+    pub fn set_params(&mut self, id: NodeId, values: &[(&str, Value)], now: f64) -> bool {
+        let Some(node) = self.graph().node(id) else {
+            return false;
+        };
+        if values
+            .iter()
+            .all(|(s, v)| node.params.get(*s).is_some_and(|old| old == v))
+        {
+            return false;
+        }
+        let names: Vec<&str> = values.iter().map(|(s, _)| *s).collect();
+        let key = format!("param:{:?}:{id}:{}", self.current_def(), names.join("+"));
+        self.checkpoint_coalesced("Change value", &key, now);
+        if let Some(n) = self.graph_mut_raw().node_mut(id) {
+            for (s, v) in values {
+                n.params.insert(s.to_string(), v.clone());
+            }
+        }
+        self.changed(false);
+        true
+    }
+
     /// Change one key of a node's config from an editor that reports
     /// changes every frame while dragged: one undo step per key and gesture.
     /// Returns whether it changed.
@@ -566,6 +591,25 @@ mod tests {
                 .contains_key("gain")
         );
         assert_eq!(d.undo_label(), Some("Add"));
+    }
+
+    #[test]
+    fn inputs_set_together_are_one_step() {
+        let (mut d, r) = doc();
+        let id = d.edit(&r, "Add", |g, ctx| {
+            edit::add_node(g, ctx, "xy_pad", ac_core::empty_config(), [0.0, 0.0])
+        });
+        let xy = |x: f64, y: f64| [("x", Value::Float(x)), ("y", Value::Float(y))];
+        assert!(d.set_params(id, &xy(0.1, 0.2), 1.0));
+        assert!(d.set_params(id, &xy(0.3, 0.2), 1.1));
+        assert!(d.set_params(id, &xy(0.3, 0.9), 1.2));
+        assert!(!d.set_params(id, &xy(0.3, 0.9), 1.3), "nothing changed");
+        let params = |d: &Document| d.project.graph.node(id).unwrap().params.clone();
+        assert_eq!(params(&d).get("y"), Some(&Value::Float(0.9)));
+        assert!(d.undo());
+        assert!(params(&d).is_empty(), "the whole drag was one step");
+        assert_eq!(d.undo_label(), Some("Add"));
+        assert!(!d.set_params(NodeId(999), &xy(0.0, 0.0), 2.0));
     }
 
     #[test]

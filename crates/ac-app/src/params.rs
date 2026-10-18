@@ -23,6 +23,26 @@ pub fn set(
     }
 }
 
+/// Set several unwired inputs of one node that one gesture moves together
+/// (an XY Pad's `x` and `y`): one undo step for all of them. Nothing is
+/// sent when none of them changed.
+pub fn set_many(
+    doc: &mut Document,
+    engine: &mut EngineHandle,
+    id: NodeId,
+    values: &[(&str, Value)],
+    now: f64,
+) {
+    if !doc.set_params(id, values, now) {
+        return;
+    }
+    for path in doc.all_node_paths(id) {
+        for (socket, value) in values {
+            engine.set_param(&path, socket, value.clone());
+        }
+    }
+}
+
 /// Press an unwired trigger input's button.
 pub fn fire(doc: &Document, engine: &mut EngineHandle, id: NodeId, socket: &str) {
     for path in doc.all_node_paths(id) {
