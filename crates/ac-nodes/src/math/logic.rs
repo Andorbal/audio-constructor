@@ -148,4 +148,22 @@ mod tests {
         // Clamps to the last op, `nor`.
         assert_eq!(h.run(1).float("out")[0], 0.0);
     }
+
+    #[test]
+    fn same_output_at_any_block_size() {
+        let a: Vec<f32> = (0..1_000).map(|i| ((i / 7) % 2) as f32).collect();
+        let b: Vec<f32> = (0..1_000).map(|i| ((i / 13) % 2) as f32).collect();
+        let render = |block: usize| {
+            let mut h =
+                Harness::with_resources::<Logic>(json!({}), 48_000.0, block, &ac_core::NoResources);
+            h.set_samples("a", a.clone())
+                .set_samples("b", b.clone())
+                .set("op", "xor");
+            h.run(1_000).float("out").to_vec()
+        };
+        let one = render(1);
+        assert_eq!(one[7], 1.0);
+        assert_eq!(one, render(64));
+        assert_eq!(one, render(512));
+    }
 }

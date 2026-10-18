@@ -219,4 +219,22 @@ mod tests {
         let sig = Convert::describe(&json!({}));
         assert_eq!(sig.outputs[OUT].unit, Unit::Ratio);
     }
+
+    #[test]
+    fn same_output_at_any_block_size() {
+        let x: Vec<f32> = (0..1_000)
+            .map(|i| 40.0 + (i as f32 * 0.05).sin() * 30.0)
+            .collect();
+        for op in OPS {
+            let render = |block: usize| {
+                let mut h =
+                    Harness::with_resources::<Convert>(json!({}), 48_000.0, block, &NoResources);
+                h.set_samples("in", x.clone()).set("op", *op);
+                h.run(1_000).float("out").to_vec()
+            };
+            let one = render(1);
+            assert_eq!(one, render(64), "{op}");
+            assert_eq!(one, render(512), "{op}");
+        }
+    }
 }

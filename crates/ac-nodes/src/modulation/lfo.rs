@@ -1,6 +1,6 @@
 use ac_core::{
-    Config, ConfigExt, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate, Signature, SocketSpec,
-    Unit, node,
+    Config, ConfigExt, FloatIn, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate, Signature,
+    SocketSpec, Unit, node,
 };
 use ac_dsp::osc::{self, Shape, wrap01};
 use ac_dsp::rng::Rng;
@@ -209,36 +209,23 @@ impl Node for Lfo {
             (k, p, bpc.abs() * t.tempo.samples_per_beat_at(t.position))
         } else {
             let retriggers = io.inputs.triggers(RETRIGGER);
-            if retriggers.first() == Some(&0) {
+            // Retriggers on frame 0 apply before the block's value is read.
+            let at_zero = retriggers.iter().take_while(|&&r| r == 0).count();
+            if at_zero > 0 {
                 self.restart();
             }
             let (whole, p) = split(self.phase + offset);
             let k = self.cycle.wrapping_add(whole);
-            // Advance to the next block, restarting at the last retrigger.
-            let from = match retriggers.last() {
-                Some(&r) if (r as usize) < frames && r > 0 => {
-                    self.restart();
-                    r as usize
-                }
-                _ => 0,
-            };
-            let advance = if rate.is_varying() {
-                (from..frames)
-                    .map(|i| osc::increment(rate.at(i).into(), sr))
-                    .sum()
-            } else {
-                osc::increment(rate.first().into(), sr) * (frames - from) as f64
-            };
-            let mut next = self.phase + advance;
-            // Absorb rounding so a cycle that ends on a block boundary
-            // (0.1 + 0.1 + ... = 0.9999999999999999) wraps there.
-            let nearest = next.round();
-            if (next - nearest).abs() < 1e-9 {
-                next = nearest;
+            // Run the phase on to the next block, restarting at each later
+            // retrigger (offsets past the block count as its last frame).
+            let mut pos = 0;
+            for &r in &retriggers[at_zero..] {
+                let r = (r as usize).clamp(pos, frames.saturating_sub(1));
+                self.advance(&rate, pos, r, sr);
+                self.restart();
+                pos = r;
             }
-            let whole = next.floor();
-            self.cycle = self.cycle.wrapping_add(whole as i64);
-            self.phase = wrap01(next - whole);
+            self.advance(&rate, pos, frames, sr);
             let inc = osc::increment(rate.first().into(), sr).abs();
             (k, p, if inc > 0.0 { 1.0 / inc } else { f64::INFINITY })
         };
@@ -273,6 +260,30 @@ impl Node for Lfo {
 }
 
 impl Lfo {
+    /// Hz mode: move the phase on over frames `from..to` of this block.
+    fn advance(&mut self, rate: &FloatIn, from: usize, to: usize, sr: f64) {
+        if to <= from {
+            return;
+        }
+        let advance = if rate.is_varying() {
+            (from..to)
+                .map(|i| osc::increment(rate.at(i).into(), sr))
+                .sum()
+        } else {
+            osc::increment(rate.first().into(), sr) * (to - from) as f64
+        };
+        let mut next = self.phase + advance;
+        // Absorb rounding so a cycle that ends on a block boundary
+        // (0.1 + 0.1 + ... = 0.9999999999999999) wraps there.
+        let nearest = next.round();
+        if (next - nearest).abs() < 1e-9 {
+            next = nearest;
+        }
+        let whole = next.floor();
+        self.cycle = self.cycle.wrapping_add(whole as i64);
+        self.phase = wrap01(next - whole);
+    }
+
     /// Retrigger: back to phase 0, starting a new cycle (a new random value).
     fn restart(&mut self) {
         if self.phase != 0.0 {
@@ -482,6 +493,28 @@ mod tests {
                     h.run(640).float("out").iter().all(|v| v.is_finite()),
                     "{unit} {shape}"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn phase_keeps_time_at_any_block_size() {
+        // Blocks of 1, 64, and 512 all start a block every 512 frames; the
+        // values there must agree, retrigger and modulated rate included.
+        let rate: Vec<f32> = (0..8_192)
+            .map(|i| 3.0 + (i % 1_000) as f32 * 0.01)
+            .collect();
+        let render = |block: usize| {
+            let mut h = Harness::with_resources::<Lfo>(json!({}), 48_000.0, block, &NoResources);
+            h.set_samples("rate", rate.clone())
+                .set("shape", "smooth_random")
+                .triggers("retrigger", &[1_030, 1_100, 5_000]);
+            blocks(h.run(8_192).float("out"), 512)
+        };
+        let one = render(1);
+        for other in [render(64), render(512)] {
+            for (a, b) in one.iter().zip(&other) {
+                assert!((a - b).abs() < 1e-5, "{one:?}\n{other:?}");
             }
         }
     }

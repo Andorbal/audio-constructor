@@ -344,4 +344,34 @@ mod tests {
         assert_eq!(one, render(64));
         assert_eq!(one, render(512));
     }
+
+    #[test]
+    fn non_finite_values_come_out_as_zero() {
+        let mut h = Harness::new::<Switch>(json!({}));
+        h.set_samples("a", vec![f32::NAN, 1.0, 2.0])
+            .set_samples("b", vec![5.0, f32::INFINITY, 3.0])
+            .set_samples("select", vec![0.0, 1.0, f32::NAN]);
+        // A NaN gate reads as false, so the last sample takes `a`.
+        assert_eq!(h.run(3).float("out"), vec![0.0, 0.0, 2.0]);
+    }
+
+    #[test]
+    fn reset_jumps_to_the_current_side_without_a_fade() {
+        let mut h = Harness::new::<Switch>(json!({ "type": "audio" }));
+        h.set_audio("a", vec![vec![1.0; 256]])
+            .set_audio("b", vec![vec![-1.0; 256]])
+            .set("select", false);
+        h.run(64);
+        h.reset();
+        h.set("select", true);
+        assert_eq!(h.run(64).audio("out")[0][0], -1.0);
+
+        let mut h = Harness::new::<Switch>(json!({ "type": "midi" }));
+        h.midi("a", &[(0, on(60))]).set("select", false);
+        h.run(64);
+        h.reset();
+        h.set("select", true);
+        // The reset forgot the held note, so nothing is released.
+        assert!(h.run(64).midi("out").is_empty());
+    }
 }
