@@ -580,6 +580,80 @@ pub fn meter_bar(painter: &Painter, bar: Rect, zoom: f32, c: MeterChannel, alpha
 }
 
 /// The scope: the ring, aligned on the last trigger when there is one.
+/// Lowest level an analyzer bar shows, in dB.
+pub const ANALYZER_FLOOR_DB: f32 = -96.0;
+
+/// Bar height for a band level: 0 at the floor, 1 at 0 dB.
+pub fn analyzer_height(db: f32) -> f32 {
+    if db.is_nan() {
+        return 0.0;
+    }
+    ((db - ANALYZER_FLOOR_DB) / -ANALYZER_FLOOR_DB).clamp(0.0, 1.0)
+}
+
+/// The Analyzer's bands (dB, lowest first) as bars over a log frequency
+/// axis from 20 Hz to Nyquist, with lines every 24 dB and at 100 Hz, 1 kHz,
+/// and 10 kHz. Returns whether anything is above the floor (so the canvas
+/// keeps repainting).
+pub fn analyzer(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    bands: &[f32],
+    sample_rate: f64,
+    alpha: f32,
+) -> bool {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::SCOPE_BG, alpha),
+    );
+    let grid = theme::fade(theme::SCOPE_GRID, alpha);
+    for db in [-24.0, -48.0, -72.0] {
+        let y = rect.max.y - analyzer_height(db) * rect.height();
+        painter.line_segment(
+            [pos2(rect.min.x, y), pos2(rect.max.x, y)],
+            Stroke::new(1.0, grid),
+        );
+    }
+    let nyquist = (sample_rate / 2.0).max(40.0);
+    let span = (nyquist / 20.0).ln();
+    for hz in [100.0, 1_000.0, 10_000.0] {
+        if hz < nyquist {
+            let x = rect.min.x + ((hz / 20.0f64).ln() / span) as f32 * rect.width();
+            painter.line_segment(
+                [pos2(x, rect.min.y), pos2(x, rect.max.y)],
+                Stroke::new(1.0, theme::fade(grid, 0.7)),
+            );
+        }
+    }
+    let n = bands.len().max(1);
+    let w = rect.width() / n as f32;
+    let mut any = false;
+    for (k, &db) in bands.iter().enumerate() {
+        let h = analyzer_height(db);
+        if h <= 0.0 {
+            continue;
+        }
+        any = true;
+        let x0 = rect.min.x + k as f32 * w;
+        let bar = Rect::from_min_max(
+            pos2(x0 + (w * 0.15).min(1.0), rect.max.y - h * rect.height()),
+            pos2(x0 + w - (w * 0.15).min(1.0), rect.max.y),
+        );
+        // Meter colors near full scale.
+        let c = if db > -6.0 {
+            theme::METER_HIGH
+        } else if db > -18.0 {
+            theme::METER_MID
+        } else {
+            theme::METER_LOW
+        };
+        painter.rect_filled(bar, 0.0, theme::fade(c, alpha));
+    }
+    any
+}
+
 pub fn scope(
     painter: &Painter,
     rect: Rect,
@@ -935,5 +1009,21 @@ mod tests {
         assert_eq!(pts[0], on_circle(c, 10.0, knob_angle(0.0)));
         // A zero-length arc is still a valid line.
         assert_eq!(arc(c, 10.0, 1.0, 1.0).len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod analyzer_tests {
+    use super::*;
+
+    #[test]
+    fn bar_heights_span_the_floor_to_full_scale() {
+        assert_eq!(analyzer_height(0.0), 1.0);
+        assert_eq!(analyzer_height(6.0), 1.0);
+        assert_eq!(analyzer_height(ANALYZER_FLOOR_DB), 0.0);
+        assert_eq!(analyzer_height(-120.0), 0.0);
+        assert_eq!(analyzer_height(f32::NAN), 0.0);
+        assert_eq!(analyzer_height(f32::NEG_INFINITY), 0.0);
+        assert!((analyzer_height(-48.0) - 0.5).abs() < 1e-6);
     }
 }

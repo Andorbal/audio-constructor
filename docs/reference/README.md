@@ -31,6 +31,12 @@ node. Edit the node's source, not these files.
 | [Biquad](filters.md#biquad) | Filters | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Delay](time.md#delay) | Time | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Reverse](time.md#reverse) | Time | Plays its input backwards. |
+| [Band Split](spectral.md#band-split) | Spectral | Splits a signal into frequency bands, one output per band, that add back up to the original. |
+| [FFT](spectral.md#fft) | Spectral | Turns audio into a stream of spectra: a short-time Fourier transform of `in`, one frame every hop. |
+| [IFFT](spectral.md#ifft) | Spectral | Turns a stream of spectra back into audio by overlap-adding inverse transforms. |
+| [Pitch Detect](spectral.md#pitch-detect) | Spectral | Follows the pitch of a monophonic sound: frequency, nearest note, how sure it is, and a trigger when a new note starts. |
+| [Spectral Gate](spectral.md#spectral-gate) | Spectral | Silences the bins of a spectrum that fall below a threshold, leaving the louder ones: a noise gate per frequency. |
+| [Spectral Shift](spectral.md#spectral-shift) | Spectral | Moves every partial of a spectrum to a new frequency: `frequency × scale + shift`. |
 | [Accumulate](math.md#accumulate) | Math & Logic | Adds `in` to a running total on every `trigger`. |
 | [Clamp](math.md#clamp) | Math & Logic | Keeps `in` between `min` and `max`. |
 | [Compare](math.md#compare) | Math & Logic | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
@@ -59,8 +65,10 @@ node. Edit the node's source, not these files.
 | [Clock Divide](triggers.md#clock-divide) | Triggers & Gates | Passes every Nth trigger. |
 | [Clock Multiply](triggers.md#clock-multiply) | Triggers & Gates | Fills the gap between incoming triggers with evenly spaced ones. |
 | [Euclidean](triggers.md#euclidean) | Triggers & Gates | Steps through a Euclidean rhythm: `pulses` hits spread as evenly as possible over `steps`. |
+| [Frequency Trigger](triggers.md#frequency-trigger) | Triggers & Gates | Fires when there is enough energy in a frequency band, or when a pitch enters a range. |
 | [Gate to Trigger](triggers.md#gate-to-trigger) | Triggers & Gates | Fires a trigger where a gate turns on, turns off, or both. |
 | [Latch](triggers.md#latch) | Triggers & Gates | Remembers an on/off state that triggers set, reset, and flip. |
+| [Onset](triggers.md#onset) | Triggers & Gates | Fires a trigger at the start of each new sound: drum hits, plucked notes, consonants. A transient detector based on spectral flux. |
 | [Probability](triggers.md#probability) | Triggers & Gates | Lets each trigger through with a chance. |
 | [Threshold Trigger](triggers.md#threshold-trigger) | Triggers & Gates | Fires a trigger when a level rises above a threshold. |
 | [Timer](triggers.md#timer) | Triggers & Gates | Counts the time since `start`, and fires `done` once `duration` has passed. |
@@ -86,6 +94,7 @@ node. Edit the node's source, not these files.
 | [Slider](controls.md#slider) | Controls | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | Controls | An on/off switch. |
 | [XY Pad](controls.md#xy-pad) | Controls | A square pad you drag a point around on: two values at once, plus a gate while you touch it. |
+| [Analyzer](display.md#analyzer) | Display | A spectrum analyzer: shows how loud each part of the frequency range is, and passes the signal through unchanged so it can sit inline. |
 | [Meter](display.md#meter) | Display | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Display | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | Display | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |

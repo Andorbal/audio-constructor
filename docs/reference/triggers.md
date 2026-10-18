@@ -213,6 +213,58 @@ hi-hat, and turn `rotation` until the groove sits right.
 | `gate` | Bool | High from a hit until the next clock. |
 | `step` | Int | The step played last. |
 
+<a id="frequency-trigger"></a>
+## Frequency Trigger
+
+Kind: `frequency_trigger` · Also found by: band, detector, pitch, range, kick, sidechain, threshold
+
+Fires when there is enough energy in a frequency band, or when a
+pitch enters a range.
+
+Config `mode` picks what it listens to:
+
+- `"band"` (default): the first channel of `in` is filtered to the
+  band from `low` to `high` Hz (4th-order Butterworth highpass and
+  lowpass, 24 dB per octave outside the band) and its level is
+  followed with a mean-square detector averaging over 10 ms, or one
+  period of `low` if that is longer. The level reads in dB where a
+  full-scale sine is 0 dB. The condition is met when the level rises
+  to `threshold` and stays met until it falls below `threshold −
+  hysteresis`, so a level hovering at the threshold doesn't chatter.
+  `low` and `high` are read once per block, kept between 10 Hz and
+  just under half the sample rate, and swapped if reversed.
+- `"pitch"`: `freq` is a frequency in Hz, usually wired from
+  `PitchDetect`. `condition` chooses `within` (`low` ≤ `freq` ≤
+  `high`), `above` (`freq` > `high`), or `below` (`freq` < `low`).
+  A `freq` of 0 or less (no pitch yet), or NaN, never meets the
+  condition. Inputs are read every sample, so an audio-rate `freq`
+  is followed exactly.
+
+`trigger` fires on the sample the condition becomes true; `gate` is
+high while it holds.
+
+**Try this:** in band mode, set `low` 40 and `high` 120 Hz on a drum
+loop and wire `trigger` into an `ADSR` that ducks a pad: a kick
+sidechain. In pitch mode, wire `PitchDetect`'s `freq` in with
+`condition` above 400 Hz to switch effects on only for high notes.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to listen to (first channel). |
+| `low` | Float (Hz) | 200 | 20 … 20000 | Bottom of the band. |
+| `high` | Float (Hz) | 2000 | 20 … 20000 | Top of the band. |
+| `threshold` | Float (dB) | -30 | -80 … 0 | Band level that fires the trigger. |
+| `hysteresis` | Float (dB) | 3 | 0 … 24 | How far the level must fall before it can fire again. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger` | Trigger | Fires when the condition becomes true. |
+| `gate` | Bool | High while the condition holds. |
+
 <a id="gate-to-trigger"></a>
 ## Gate to Trigger
 
@@ -278,6 +330,58 @@ so each loud hit switches an effect in or out.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `out` | Bool | The latch's state. |
+
+<a id="onset"></a>
+## Onset
+
+Kind: `onset` · Also found by: transient, attack, beat, hit, drum, detector, spectral flux
+
+Fires a trigger at the start of each new sound: drum hits, plucked
+notes, consonants. A transient detector based on spectral flux.
+
+The first channel of `in` is analyzed in short overlapping frames
+(about 21 ms, a quarter of that apart). For each frame the node adds
+up how much louder every frequency got since the previous frame, on
+a logarithmic scale, so a new sound counts wherever it lands in the
+spectrum while fading sounds don't. A frame whose rise is a local
+peak and stands well out from the average of the last 40 ms or so is
+an onset, so steady noise and held notes don't fire.
+The trigger is then placed at the sample where the sound's energy
+jumps, not just at the frame.
+
+- `sensitivity` (0..1) sets how far a rise must stand out: higher
+  finds softer onsets (and more false ones). 0.5 suits drums and
+  plucked instruments; near 1, even busy noise fires.
+- `min_interval` (seconds) is the shortest gap between triggers;
+  onsets closer than that to the previous one are ignored.
+- `strength` is how strong the latest onset was, 0..1, held until
+  the next one: handy as a velocity.
+
+Finding an onset needs a little of what follows it, so triggers come
+out a fixed `frame / 2 + hop` samples after the onset (768 samples,
+16 ms, at 44.1 or 48 kHz). The node reports that as its latency, so
+the engine delays a parallel dry path by the same amount and the
+triggers line up with the audio. `sensitivity` and `min_interval`
+are read at each frame. NaN or infinite samples count as silence.
+
+**Try this:** wire a drum loop into Onset and `trigger` into an
+`ADSR` gating a noise burst or a sampled clap to layer a sound on
+every hit; use `strength` to scale its level.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to listen to (first channel). |
+| `sensitivity` | Float | 0.5 | 0 … 1 | Higher finds softer onsets. |
+| `min_interval` | Float (s) | 0.05 | 0 … 1 | Shortest time between triggers. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger` | Trigger | Fires at each onset. |
+| `strength` | Float | How strong the latest onset was, 0..1. |
 
 <a id="probability"></a>
 ## Probability

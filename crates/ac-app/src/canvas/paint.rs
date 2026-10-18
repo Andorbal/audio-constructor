@@ -1018,6 +1018,15 @@ impl Canvas {
                     self.live.active = true;
                 }
             }
+            Body::Analyzer => {
+                let bands: Vec<f32> = (0..ac_nodes::display::analyzer::TELEMETRY_BANDS)
+                    .map(|k| live.node_value(n.id, k).unwrap_or(f32::NEG_INFINITY))
+                    .collect();
+                let rate = io.engine.options().sample_rate;
+                if super::bodies::analyzer(painter, rect, z, &bands, rate, alpha) {
+                    self.live.active = true;
+                }
+            }
             Body::Readout => {
                 let text = match live.node_value(n.id, 0) {
                     Some(v) if v.is_nan() => "NaN".to_string(),

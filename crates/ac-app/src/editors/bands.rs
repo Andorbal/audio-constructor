@@ -19,25 +19,23 @@ pub const MIN_RATIO: f64 = 1.06;
 const DEFAULT: [f64; 2] = [200.0, 2000.0];
 const GRAB: f32 = 6.0;
 
-/// The edges in `config`: repaired, sorted, and spaced.
+/// The edges in `config`, read as the node reads them (a bare number is
+/// one edge, an empty list one band, anything else the default), then
+/// sorted and spaced.
 pub fn parse(config: &Config) -> Vec<f64> {
-    let mut edges: Vec<f64> = config
-        .get("edges")
-        .and_then(|v| v.as_array())
-        .map(|a| {
-            a.iter()
-                .filter_map(serde_json::Value::as_f64)
-                .filter(|f| f.is_finite())
-                .map(|f| f.clamp(MIN_HZ, MAX_HZ))
-                .collect()
-        })
-        .unwrap_or_else(|| DEFAULT.to_vec());
+    let raw: Vec<f64> = match config.get("edges") {
+        Some(serde_json::Value::Array(a)) => a
+            .iter()
+            .filter_map(serde_json::Value::as_f64)
+            .filter(|f| f.is_finite())
+            .collect(),
+        Some(serde_json::Value::Number(n)) => n.as_f64().into_iter().collect(),
+        _ => DEFAULT.to_vec(),
+    };
+    let mut edges: Vec<f64> = raw.into_iter().map(|f| f.clamp(MIN_HZ, MAX_HZ)).collect();
     edges.sort_by(f64::total_cmp);
     edges.dedup_by(|b, a| *b < *a * MIN_RATIO);
     edges.truncate(MAX_EDGES);
-    if edges.is_empty() {
-        edges = DEFAULT.to_vec();
-    }
     edges
 }
 
@@ -82,9 +80,9 @@ pub fn add_edge(edges: &mut Vec<f64>, hz: f64) -> Option<usize> {
     Some(i)
 }
 
-/// Merge the bands beside edge `i`; one edge always stays.
+/// Merge the bands beside edge `i` (with no edges left, one band remains).
 pub fn remove_edge(edges: &mut Vec<f64>, i: usize) -> bool {
-    if edges.len() <= 1 || i >= edges.len() {
+    if i >= edges.len() {
         return false;
     }
     edges.remove(i);
@@ -244,7 +242,9 @@ mod tests {
             parse(&json!({"edges": [5000, 3, 400]})),
             [20.0, 400.0, 5000.0]
         );
-        assert_eq!(parse(&json!({"edges": []})), DEFAULT);
+        assert!(parse(&json!({"edges": []})).is_empty(), "one band");
+        assert_eq!(parse(&json!({"edges": 300})), [300.0]);
+        assert_eq!(parse(&json!({"edges": "x"})), DEFAULT);
         let many: Vec<f64> = (0..30).map(|k| 30.0 * 1.2f64.powi(k)).collect();
         assert_eq!(parse(&json!({ "edges": many })).len(), MAX_EDGES);
         assert_eq!(to_value(&[123.456]), json!([123.5]));
@@ -268,7 +268,10 @@ mod tests {
         assert_eq!(add_edge(&mut e, 610.0), None, "too close");
         assert!(remove_edge(&mut e, 1));
         assert!(remove_edge(&mut e, 0));
-        assert!(!remove_edge(&mut e, 0), "one edge stays");
+        assert!(remove_edge(&mut e, 0));
+        assert!(e.is_empty(), "one band");
+        assert!(!remove_edge(&mut e, 0));
+        assert_eq!(add_edge(&mut e, 1000.0), Some(0));
         let mut full: Vec<f64> = (0..MAX_EDGES)
             .map(|k| 30.0 * 1.5f64.powi(k as i32))
             .collect();

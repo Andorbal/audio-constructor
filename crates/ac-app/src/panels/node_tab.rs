@@ -39,6 +39,11 @@ enum Kind {
     Lines,
     /// An array of numbers, edited as a comma-separated list.
     Numbers,
+    /// A number picked from a list (stored as a number, shown as text).
+    NumberChoice {
+        choices: &'static [&'static str],
+        default: &'static str,
+    },
     /// A whole number that may be negative (an index, where −1 means none).
     Index {
         min: i64,
@@ -51,6 +56,10 @@ enum Kind {
     },
     File,
 }
+
+/// FFT sizes the spectral nodes offer (others are rounded to a power of two).
+const FFT_SIZES: &[&str] = &["256", "512", "1024", "2048", "4096", "8192", "16384"];
+const WINDOWS: &[&str] = &["hann", "hamming", "blackman", "rectangular"];
 
 /// Signal types `Select` and `Switch` route.
 const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi"];
@@ -293,6 +302,93 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             Kind::Choice {
                 choices: &["peak", "lufs"],
                 default: "peak",
+            },
+        )],
+        "fft" => vec![
+            f(
+                "size",
+                "Size",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+            f(
+                "overlap",
+                "Overlap",
+                Kind::NumberChoice {
+                    choices: &["1", "2", "4", "8"],
+                    default: "4",
+                },
+            ),
+            f(
+                "window",
+                "Window",
+                Kind::Choice {
+                    choices: WINDOWS,
+                    default: "hann",
+                },
+            ),
+        ],
+        "ifft" => vec![f(
+            "window",
+            "Window (match the FFT)",
+            Kind::Choice {
+                choices: WINDOWS,
+                default: "hann",
+            },
+        )],
+        "band_split" => vec![
+            f(
+                "mode",
+                "Split with",
+                Kind::Choice {
+                    choices: &["crossover", "fft"],
+                    default: "crossover",
+                },
+            ),
+            f(
+                "size",
+                "FFT size (fft mode)",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+        ],
+        "pitch_detect" => vec![
+            f(
+                "window",
+                "Window (samples)",
+                Kind::NumberChoice {
+                    choices: FFT_SIZES,
+                    default: "2048",
+                },
+            ),
+            f(
+                "hop",
+                "Hop (samples)",
+                Kind::Count {
+                    min: 16,
+                    max: 16_384,
+                    default: 256,
+                },
+            ),
+        ],
+        "analyzer" => vec![f(
+            "size",
+            "FFT size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "4096",
+            },
+        )],
+        "frequency_trigger" => vec![f(
+            "mode",
+            "Listen for",
+            Kind::Choice {
+                choices: &["band", "pitch"],
+                default: "band",
             },
         )],
         "midi_cc" => vec![f(
@@ -1082,6 +1178,24 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         {
                             set_config(io, id, f.key, v.into());
                         }
+                    }
+                    Kind::NumberChoice { choices, default } => {
+                        let cur = node
+                            .config
+                            .get(f.key)
+                            .and_then(serde_json::Value::as_f64)
+                            .map_or_else(|| (*default).to_string(), |v| format!("{v}"));
+                        egui::ComboBox::from_id_salt(("cfg", id, f.key))
+                            .selected_text(&cur)
+                            .show_ui(ui, |ui| {
+                                for c in *choices {
+                                    if ui.selectable_label(cur == *c, *c).clicked()
+                                        && let Ok(v) = c.parse::<u64>()
+                                    {
+                                        set_config(io, id, f.key, v.into());
+                                    }
+                                }
+                            });
                     }
                     Kind::Numbers => {
                         let stored: Vec<f64> = node

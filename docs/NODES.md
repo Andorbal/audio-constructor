@@ -114,12 +114,12 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `FFT` | P2 | `in: Audio` → `spectrum: Spectrum`; config: size, window, overlap. Reports latency. |
-| `IFFT` | P2 | `Spectrum` → `Audio` with overlap-add. |
+| `FFT` | P2 | `in: Audio` (first channel) → `spectrum: Spectrum`; config: size, window, overlap. Reports `size − 1` samples of latency, which the engine carries through Spectrum wires so dry paths line up. |
+| `IFFT` | P2 | `Spectrum` → `Audio` with least-squares overlap-add, exact at overlap 2 and up; `window` config must match the FFT's. |
 | `BandSplit` | P2 | N outputs (config: band edges, editable in the node), each the input filtered to one band. Implemented as crossover filters by default (phase-coherent, low latency) with an FFT mode option. Multiband compression is `BandSplit` + N compressor blocks + `Mix`. |
-| `SpectralGate` | P2 | Zero bins below a threshold; `threshold`, `smoothing`. |
-| `SpectralShift` | P2 | Shift/scale bin frequencies. |
-| `PitchDetect` | P2 | `in: Audio` → `freq: Float(Hz)`, `confidence: Float`, `note: Int`, `onset: Trigger`. Guitar-to-synth. |
+| `SpectralGate` | P2 | Turn down bins below `threshold` (absolute dB per bin) to `floor`, gliding over `smoothing`. |
+| `SpectralShift` | P2 | Shift (`shift`, Hz) and scale (`scale`, ratio) bin frequencies with a peak-locked phase vocoder. |
+| `PitchDetect` | P2 | `in: Audio` → `freq: Float(Hz)`, `confidence: Float`, `note: Int`, `onset: Trigger` (YIN; `min_freq`, `max_freq`, `threshold`). Guitar-to-synth. |
 | `SpectralFreeze` | P3 | Hold a spectral frame. |
 
 ## Math and logic
@@ -166,7 +166,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Button` (see Controls) | P1 | Manual trigger. |
 | `ThresholdTrigger` | P2 | Fires when `in` (a level, usually from `EnvelopeFollower`) rises above `threshold` (with `hysteresis`), or stays above for `hold: Float(Seconds)`. Outputs `trigger`, `gate`, `release: Trigger`. |
 | `FrequencyTrigger` | P2 | Fires when energy in a band (`low`, `high`) exceeds `threshold`, or when `PitchDetect`'s frequency is above/below/within a range. Outputs `trigger`, `gate`. |
-| `Onset` | P2 | Transient detector (spectral flux); `sensitivity`. Out: `trigger`, `strength: Float`. |
+| `Onset` | P2 | Transient detector (spectral flux); `sensitivity`, `min_interval`. Out: `trigger` (placed at the attack, with fixed latency), `strength: Float`. |
 | `ClockDivide` | P2 | Pass every Nth trigger; `offset`. |
 | `ClockMultiply` | P2 | Passes each trigger and fills in `multiply − 1` more, evenly spaced by the last interval between incoming ones. |
 | `TriggerDelay` | P2 | Delay each trigger by `time` (seconds, or beats with config `unit`). |
@@ -218,7 +218,7 @@ Panels (UX.md) to make a performance surface.
 | `Meter` | P1 | Peak/RMS with hold; also passes `in` through to `out` so it can sit inline. |
 | `Scope` | P1 | Oscilloscope on `Audio`/`Float`, with `trigger` input for stable display; passes through. |
 | `Readout` | P1 | Shows the current value of any `Float`/`Int`/`Bool` input. |
-| `Analyzer` | P2 | Spectrum analyzer display. |
+| `Analyzer` | P2 | Spectrum analyzer display: 64 log-spaced bands from 20 Hz to Nyquist in dB, falling by 20 dB every `decay`; passes `in` through unchanged. |
 | `Spectrogram` | P3 | Scrolling spectrogram. |
 
 ## Utility
