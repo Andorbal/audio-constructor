@@ -20,8 +20,8 @@ one file per take.
 3. Press `R` (Transport ▸ Record) or the record button in the transport
    bar. The transport starts if it was stopped, and every Record node
    whose `arm` input is on (the default) records until you press `R`
-   again. The record button stays lit while recording is on; stopping the
-   transport with `Space` doesn't turn it off.
+   again or stop the transport (`Space`), which ends the take. The record
+   button stays lit while recording is on.
 
 Each take lands in the project's `assets/` folder as a 32-bit float WAV
 named after the Record node's label, numbered `-001`, `-002`, and so on

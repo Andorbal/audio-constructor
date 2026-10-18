@@ -61,6 +61,9 @@ fixes and smaller changes.
 
 ### Fixed
 
+- Stopping the transport (`Space` or the stop button) now ends recording,
+  as a bound Stop button already did, so a take ends when you stop instead
+  of running on until you press `R` again.
 - Gamepads are numbered from 1 in the Devices tab, `audioc devices`, and
   `audioc run`, as a Gamepad node's `pad` setting and bindings ("Pad 1")
   count them. They were listed from 0, one less than the number to use.
