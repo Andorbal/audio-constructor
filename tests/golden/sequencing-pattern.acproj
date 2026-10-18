@@ -1,0 +1,321 @@
+{
+  "schema_version": 1,
+  "name": "Pattern drums and a quantized line",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "interval": 0.25
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "pattern",
+        "config": {
+          "steps": 8,
+          "rows": 2,
+          "cells": [
+            "x...x.x.",
+            "..x.xx.x"
+          ]
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "config": {
+          "pure": true
+        },
+        "params": {
+          "freq": 0.7,
+          "shape": "triangle",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "map",
+        "params": {
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 70.0,
+          "out_min": 50.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "scale_quantize",
+        "params": {
+          "root": "A",
+          "scale": "minor_pentatonic"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "note_to_midi",
+        "params": {
+          "velocity": 0.9
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "midi_note",
+        "ui": {
+          "pos": [
+            800.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.005,
+          "decay": 0.1,
+          "release": 0.05,
+          "sustain": 0.5
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            500.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "oscillator",
+        "params": {
+          "freq": 55.0,
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            -200.0
+          ]
+        }
+      },
+      {
+        "id": "12",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.0,
+          "decay": 0.15,
+          "release": 0.0,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            -100.0
+          ]
+        }
+      },
+      {
+        "id": "14",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "15",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            1600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "16",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:trigger",
+        "to": "2:clock"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:note"
+      },
+      {
+        "from": "2:gate_1",
+        "to": "6:gate"
+      },
+      {
+        "from": "6:midi",
+        "to": "7:midi"
+      },
+      {
+        "from": "7:freq",
+        "to": "8:freq"
+      },
+      {
+        "from": "7:gate",
+        "to": "9:gate"
+      },
+      {
+        "from": "8:out",
+        "to": "10:a"
+      },
+      {
+        "from": "9:out",
+        "to": "10:b"
+      },
+      {
+        "from": "2:trigger_0",
+        "to": "12:on"
+      },
+      {
+        "from": "11:out",
+        "to": "13:a"
+      },
+      {
+        "from": "12:out",
+        "to": "13:b"
+      },
+      {
+        "from": "10:out",
+        "to": "14:a"
+      },
+      {
+        "from": "13:out",
+        "to": "14:b"
+      },
+      {
+        "from": "14:out",
+        "to": "15:in"
+      },
+      {
+        "from": "15:out",
+        "to": "16:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
