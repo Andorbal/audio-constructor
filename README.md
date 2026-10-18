@@ -4,9 +4,11 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: Phase 1 (foundation) is built: the engine, 32 nodes, the command
-> line, and the desktop editor. See [docs/ROADMAP.md](docs/ROADMAP.md) for
-> where things stand and what still needs a human with audio hardware.
+> Status: Phase 1 (foundation) is built: the engine, the command line, and
+> the desktop editor. Phase 2 is under way: polyphony, nodes that bake their
+> whole input, latency compensation, and multi-core processing are in. See
+> [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
+> needs a human with audio hardware.
 
 ![The Start example playing: an oscillator through a gain, meter, and scope to the output, with live meters and a flowing wire](docs/images/editor-start.png)
 
@@ -117,6 +119,7 @@ preview).
 audioc render examples/subtractive-synth.acproj -o synth.wav   # offline render (16/24/32f WAV)
 audioc run examples/guitar-pedalboard.acproj                    # live, headless; Ctrl+C stops
 audioc run examples/start.acproj --null --duration 5            # same, without audio hardware
+audioc run big-patch.acproj --threads 4                         # spread the patch over 4 cores
 audioc devices                                                  # audio and MIDI devices
 audioc latency                                                  # round trip via a loopback cable
 audioc validate my.acproj                                       # compile report

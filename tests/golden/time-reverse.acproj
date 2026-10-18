@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "name": "Reverse, baked",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "interval": 1.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.002,
+          "decay": 0.15,
+          "release": 0.05,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "oscillator",
+        "params": {
+          "freq": 330.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            180.0,
+            180.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            360.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "reverse",
+        "config": {
+          "segment": 0.5
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.4,
+          "mix": 0.4,
+          "time": 0.125
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            900.0,
+            80.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:gate",
+        "to": "2:gate"
+      },
+      {
+        "from": "3:out",
+        "to": "4:a"
+      },
+      {
+        "from": "2:out",
+        "to": "4:b"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      }
+    ]
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

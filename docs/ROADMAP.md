@@ -157,11 +157,42 @@ scheduling, shareable blocks, and a dozen example projects that show what
 the tool is for.
 
 ### M2.1 Engine depth
-- [ ] `Voices` group instancing and the `Voice` node; voice stealing policies.
-- [ ] Causality analysis, disabled badges, background baking with invalidation; offline multi-pass rendering for whole-input nodes.
-- [ ] Latency compensation across merge points; `Latency` and `Info` nodes.
-- [ ] Multi-core scheduler with real-time worker pool; per-core load telemetry; stress tests under `audioc bench`.
-- [ ] `Buffer` and `Spectrum` signal types; `Record` emits a `Buffer`.
+- [x] `Voices` group instancing and the `Voice` node; voice stealing policies.
+- [x] Causality analysis, disabled badges, background baking with invalidation; offline multi-pass rendering for whole-input nodes.
+- [x] Latency compensation across merge points; `Latency` and `Info` nodes.
+- [x] Multi-core scheduler with real-time worker pool; per-core load telemetry; stress tests under `audioc bench`.
+- [x] `Buffer` and `Spectrum` signal types; `Record` emits a `Buffer`.
+
+*Verified:* `cargo test -p ac-engine --test phase2` (20 tests, all under the
+allocation guard): compensation lines up merging audio and sample-rate
+float paths at blocks 1/64/1000, survives recompiles without a dropout, and
+probes report path latency; whole-input nodes bake first offline (blocks
+1/64/256), stay silent live until a background job finishes and then
+stream the bake, are disabled (with an Info diagnostic) behind Audio In but
+bake offline from the render's input, rebake on upstream edits while the
+old bake plays, bake nested nodes in order, and drop stale results; 8
+parallel chains and a 16-voice `Voices` synth render bit-identically with
+and without a 1- or 3-worker pool, and per-core load is published;
+Spectrum frames keep their offsets and shapes through a pass-through node
+at blocks 1/5/64, mistyped Spectrum wires are reported, and Buffer handles
+persist across blocks; Voices count notes, fan inputs out to every voice
+(also through `set_param`), steal or ignore notes, and namespace their
+paths. `cargo test -p ac-nodes` (Voices allocation and stealing, sustain,
+broadcast, Voice gate dips on retrigger, Reverse slices, Latency, Info,
+Record's buffer output), `cargo test -p ac-engine --lib pool` (every job
+runs exactly once over 2000 rounds), `cargo test -p ac-io` (the disk
+recorder hands each take back as a buffer and releases it once unused; the
+background baker bakes and debounces parameter changes),
+`cargo test -p ac-app` (a palette Voices node gets a body that sounds,
+groups toggle polyphony, hidden sockets stay hidden). Three golden projects
+(`time-reverse`, `sequencing-voices`, `utility-latency`) pass the golden
+and live-vs-offline determinism checks. `audioc bench --threads 4` on a
+4-core VM: 1000 oscillators 2.4× faster, the 16-voice synth 2.0×, parallel
+chains 1.6×, the serial effect chain 1.1×; on one thread the branch is
+within noise of `main` on the same machine (+1 % to +10 %). The badges were
+checked in a screenshot under Xvfb. Needs a human: worker threads on real
+devices at 128 frames (xruns with `--threads` vs without), and real-time
+priority for workers on macOS and Windows (only Linux asks for it).
 
 ### M2.2 Nodes
 - [ ] Every node in NODES.md marked **P2**, in category order: Generators, Level/Dynamics, Filters, Time, Spectral, Math, Modulation, Triggers, Sequencing, Controls, Display, I/O, Utility.

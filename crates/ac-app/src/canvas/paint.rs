@@ -1007,6 +1007,19 @@ impl Canvas {
                 });
             }
         }
+        if n.kind == ac_core::VOICES_KIND
+            && let Some(node) = io.doc.graph().node(n.id)
+        {
+            let voices = node.config.get_u64_or("voices", 8).clamp(1, 64);
+            out.push(Badge {
+                icon: icons::STACK,
+                color: theme::TEXT_MUTED,
+                tip: format!(
+                    "Polyphonic: the inside runs once per voice ({voices} voices), and notes \
+                     from `midi` are shared out among them."
+                ),
+            });
+        }
         if let Some((_, state)) = io.report.stats.whole_input.iter().find(|(p, _)| *p == path) {
             out.push(whole_input_badge(state, io.engine.is_baking(&path)));
         }
