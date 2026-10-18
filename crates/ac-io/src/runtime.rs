@@ -755,9 +755,60 @@ mod tests {
         fn reset(&mut self) {}
     }
 
+    node! {
+        kind: "t_control_echo",
+        name: "Control Echo",
+        category: Utility,
+        keywords: [],
+        /// Adds each control event's value to device output 0 at its offset,
+        /// and sends it as OSC `/echo` to the `to` address in its config.
+        /// Try this: nothing.
+        pub struct ControlEcho {
+            to: Option<std::net::SocketAddr>,
+        }
+    }
+
+    impl Node for ControlEcho {
+        fn meta() -> NodeMeta {
+            Self::base_meta().host_output()
+        }
+        fn describe(_: &Config) -> Signature {
+            Signature::new().input(ac_core::SocketSpec::float(
+                "unused",
+                ac_core::Unit::Generic,
+                0.0,
+            ))
+        }
+        fn new(config: &Config, _: &PrepareCtx) -> Self {
+            use ac_core::ConfigExt;
+            ControlEcho {
+                to: config.get_str_or("to", "").parse().ok(),
+            }
+        }
+        fn process(&mut self, _: &ProcessCtx, io: &mut Io) {
+            let controls = io.host.controls();
+            if let Some(out) = io.host.output_channel(0) {
+                for e in controls {
+                    if let Some(s) = out.get_mut(e.offset as usize) {
+                        *s += e.value;
+                    }
+                }
+            }
+            if let Some(to) = self.to {
+                for e in controls {
+                    if let Some(m) = ac_core::OscMessage::new(e.offset, to, "/echo", &[e.value]) {
+                        io.host.send_osc(m);
+                    }
+                }
+            }
+        }
+        fn reset(&mut self) {}
+    }
+
     fn registry() -> Arc<Registry> {
         let mut r = ac_nodes::registry();
         r.register::<MidiMarks>();
+        r.register::<ControlEcho>();
         Arc::new(r)
     }
 
@@ -1029,6 +1080,133 @@ mod tests {
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
         assert!(back.ports.midi_out.is_some());
+    }
+
+    #[test]
+    fn control_events_reach_the_engine_and_osc_reaches_the_network() {
+        use crate::control::ControlInputs;
+        use crate::osc_out::OscOutput;
+        use ac_core::{Control, Key};
+
+        let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let to = socket.local_addr().unwrap();
+        let mut p = Project::default();
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(1), "t_control_echo")
+                .with_config(json!({ "to": to.to_string() })),
+        );
+        let (_h, processor) = engine(p, Arc::new(ac_core::NoResources), 1024);
+        let (mut inputs, controls) = ControlInputs::new();
+        let mut keys = inputs.sender("keys").unwrap();
+        let (osc, osc_queue) = OscOutput::new();
+        let (mut core, ctl) = CallbackCore::new(CoreParts {
+            processor,
+            counters: Arc::new(StreamCounters::default()),
+            sample_rate: RATE,
+            in_channels: 0,
+            out_channels: 2,
+            input_ring: None,
+            ports: EventPorts {
+                controls: Some(controls),
+                osc_out: Some(osc_queue),
+                ..EventPorts::default()
+            },
+            promote: false,
+        });
+        // Longer than a chunk, so events are rebased into the second one.
+        let frames = CHUNK_FRAMES + 1_000;
+        let rate = f64::from(RATE);
+        let t = clock::now_ns() + 1_000_000_000;
+        let block_ns = frames as f64 * 1e9 / rate;
+        let at = |off: usize| (t as f64 - block_ns + (off as f64 + 0.5) * 1e9 / rate) as u64;
+        let space = Control::Key(Key::from_name("Space").unwrap());
+        keys.send_at(at(100), space, 1.0);
+        keys.send_at(at(CHUNK_FRAMES + 500), space, 0.5);
+        let mut out = vec![0.0; frames];
+        core.run_at(t, frames, |chunk, n, off| {
+            out[off..off + n].copy_from_slice(&chunk[..n]);
+        });
+        let hits: Vec<(usize, f32)> = (0..frames)
+            .filter(|&i| out[i] != 0.0)
+            .map(|i| (i, out[i]))
+            .collect();
+        assert_eq!(hits, [(100, 1.0), (CHUNK_FRAMES + 500, 0.5)]);
+        // Both echoes go out over UDP, in order, after their time.
+        let mut buf = [0u8; 256];
+        let mut got = Vec::new();
+        for _ in 0..2 {
+            let (n, _) = socket.recv_from(&mut buf).unwrap();
+            let when = clock::now_ns();
+            let (_, p) = rosc::decoder::decode_udp(&buf[..n]).unwrap();
+            let rosc::OscPacket::Message(m) = p else {
+                panic!("not a message");
+            };
+            assert_eq!(m.addr, "/echo");
+            got.push((when, m.args));
+        }
+        assert_eq!(got[0].1, [rosc::OscType::Float(1.0)]);
+        assert_eq!(got[1].1, [rosc::OscType::Float(0.5)]);
+        assert!(got[0].0 >= t, "one block after the callback");
+        drop(core);
+        let back = ctl.returned.try_recv().unwrap();
+        assert!(back.ports.controls.is_some() && back.ports.osc_out.is_some());
+        assert_eq!(osc.sent(), 2);
+        assert_eq!(inputs.dropped(), 0);
+    }
+
+    #[test]
+    fn the_null_stream_carries_controls_end_to_end() {
+        use crate::control::ControlInputs;
+        use ac_core::{Control, GamepadButton};
+
+        let socket = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let to = socket.local_addr().unwrap();
+        let mut p = Project::default();
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(1), "t_control_echo")
+                .with_config(json!({ "to": to.to_string() })),
+        );
+        let (_h, processor) = engine(p, Arc::new(ac_core::NoResources), 256);
+        let (mut inputs, controls) = ControlInputs::new();
+        let mut pad = inputs.sender("gamepads").unwrap();
+        let (osc, osc_queue) = crate::osc_out::OscOutput::new();
+        let host = Box::new(crate::null::NullAudio::new(RATE, 256, 0, 2));
+        let stream = host
+            .start_with(
+                processor,
+                EventPorts {
+                    controls: Some(controls),
+                    osc_out: Some(osc_queue),
+                    ..EventPorts::default()
+                },
+            )
+            .unwrap();
+        let south = Control::GamepadButton {
+            pad: 0,
+            button: GamepadButton::South,
+        };
+        assert!(pad.send(south, 0.75));
+        // The paced null stream picks it up, the node echoes it, and the
+        // OSC sender delivers it.
+        let mut buf = [0u8; 256];
+        let (n, _) = socket.recv_from(&mut buf).unwrap();
+        let (_, p) = rosc::decoder::decode_udp(&buf[..n]).unwrap();
+        let rosc::OscPacket::Message(m) = p else {
+            panic!("not a message");
+        };
+        assert_eq!(
+            (m.addr.as_str(), m.args),
+            ("/echo", vec![rosc::OscType::Float(0.75)])
+        );
+        let back = stream.stop().expect("stopped");
+        assert!(back.ports.controls.is_some() && back.ports.osc_out.is_some());
+        assert_eq!(osc.sent(), 1);
     }
 
     #[test]
