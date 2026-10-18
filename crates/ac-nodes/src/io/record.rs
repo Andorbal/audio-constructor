@@ -25,12 +25,19 @@ node! {
     /// The `channels` config sets how many channels are written (2 by
     /// default); a mono signal into a stereo Record is written to both.
     ///
+    /// `buffer` holds the last finished take (up to ten minutes of it) as
+    /// soon as it is safely on disk, so a recording can feed a `Sampler`
+    /// right away. It is empty until the first take finishes, and where
+    /// recording isn't available.
+    ///
     /// **Try this:** wire an `Audio In` into `in` and press record on the
     /// transport to capture a take in time with the song, or wire a
     /// `Button`'s `trigger` and `release` into `start` and `stop` for a
     /// hold-to-record pedal.
     pub struct Record {
         sink: Option<Box<dyn RecordSink>>,
+        /// The last finished take, from the sink.
+        buffer: Option<std::sync::Arc<ac_core::AudioData>>,
         sample_rate: f64,
         /// Started by the `start` trigger and not yet stopped.
         manual: bool,
@@ -46,6 +53,7 @@ const STOP: usize = 3;
 
 const RECORDING: usize = 0;
 const LENGTH: usize = 1;
+const BUFFER: usize = 2;
 
 /// Files are written by the host, so there's no device limit; this only
 /// keeps a typo from asking for thousands of channels.
@@ -91,6 +99,7 @@ impl Node for Record {
                     .rate(Rate::Block)
                     .doc("Duration of the current or last take."),
             )
+            .output(SocketSpec::buffer("buffer").doc("The last finished take."))
     }
 
     fn new(config: &Config, ctx: &PrepareCtx) -> Self {
@@ -102,6 +111,7 @@ impl Node for Record {
         });
         Record {
             sink,
+            buffer: None,
             sample_rate: if ctx.sample_rate > 0.0 {
                 ctx.sample_rate
             } else {
@@ -140,9 +150,14 @@ impl Node for Record {
             self.take_frames = self.take_frames.saturating_add(ctx.frames as u64);
         }
 
+        if let Some(b) = self.sink.as_deref_mut().and_then(|s| s.take_buffer()) {
+            // The sink keeps its own handle, so the old one isn't freed here.
+            self.buffer = Some(b);
+        }
         let length = (self.take_frames as f64 / self.sample_rate) as f32;
         io.outputs.set_bool(RECORDING, self.recording);
         io.outputs.set_float(LENGTH, length);
+        io.outputs.set_buffer(BUFFER, self.buffer.as_ref());
         let dropped = self.sink.as_deref().map_or(0, |s| s.dropped());
         io.telemetry.set(0, if self.recording { 1.0 } else { 0.0 });
         io.telemetry.set(1, length);
@@ -192,6 +207,10 @@ mod tests {
 
     struct FakeSink {
         calls: Log,
+        frames: usize,
+        ready: Option<Arc<ac_core::AudioData>>,
+        /// Handles kept off the audio thread, as real sinks must.
+        keep: Vec<Arc<ac_core::AudioData>>,
     }
 
     impl RecordSink for FakeSink {
@@ -199,6 +218,7 @@ mod tests {
             self.calls.lock().unwrap().push(Call::Start);
         }
         fn write(&mut self, audio: &AudioIn<'_>) {
+            self.frames += audio.frames();
             self.calls.lock().unwrap().push(Call::Write {
                 frames: audio.frames(),
                 channels: audio.channels(),
@@ -206,9 +226,19 @@ mod tests {
         }
         fn stop(&mut self) {
             self.calls.lock().unwrap().push(Call::Stop);
+            let take = Arc::new(ac_core::AudioData {
+                sample_rate: 48_000,
+                channels: vec![vec![0.5; self.frames]],
+            });
+            self.keep.push(take.clone());
+            self.ready = Some(take);
+            self.frames = 0;
         }
         fn dropped(&self) -> u64 {
             7
+        }
+        fn take_buffer(&mut self) -> Option<Arc<ac_core::AudioData>> {
+            self.ready.take()
         }
     }
 
@@ -222,6 +252,9 @@ mod tests {
             ));
             Some(Box::new(FakeSink {
                 calls: self.calls.clone(),
+                frames: 0,
+                ready: None,
+                keep: Vec::new(),
             }))
         }
     }
@@ -471,5 +504,23 @@ mod tests {
         assert_eq!(ch(json!({"channels": 1})), Channels::Fixed(1));
         assert_eq!(ch(json!({"channels": 0})), Channels::Fixed(1));
         assert_eq!(ch(json!({"channels": 500})), Channels::Fixed(16));
+    }
+
+    #[test]
+    fn finished_takes_come_out_as_buffers() {
+        let res = FakeRecorder::default();
+        let mut h = Harness::with_resources::<Record>(json!({}), 48_000.0, 64, &res);
+        h.set_audio("in", vec![vec![0.1; 1_000]])
+            .set("arm", false)
+            .triggers("start", &[0])
+            .triggers("stop", &[256]);
+        let out = h.run(512);
+        let buf = out.buffer("buffer").expect("a take");
+        assert_eq!(buf.frames(), 256);
+        assert_eq!(buf.channels[0][0], 0.5);
+        // No take yet: no buffer.
+        let res = FakeRecorder::default();
+        let mut h = Harness::with_resources::<Record>(json!({}), 48_000.0, 64, &res);
+        assert!(h.run(128).buffer("buffer").is_none());
     }
 }

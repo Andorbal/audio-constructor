@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use ac_core::{Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
 use ac_io::{
-    AudioConfig, AudioHost, AudioStream, CpalAudio, Latency, LatencyError, MidiInputs,
-    MidiReceiver, MidiSelect, NullAudio, StreamInfo, StreamStats,
+    AudioConfig, AudioHost, AudioStream, Baker, CpalAudio, Latency, LatencyError, MidiInputs,
+    MidiReceiver, MidiSelect, NullAudio, StreamInfo, StreamStats, worker_pool,
 };
 
 /// Rate and buffer of the null stream when there's no device.
@@ -62,6 +62,8 @@ pub struct EngineHost {
     /// Document engine revision last sent.
     pub synced_revision: u64,
     mode_off: bool,
+    /// Bakes whole-input nodes in the background.
+    pub baker: Baker,
 }
 
 fn engine_at(
@@ -134,6 +136,7 @@ impl EngineHost {
             latency: LatencyState::Idle,
             synced_revision: 0,
             mode_off: host.is_none(),
+            baker: Baker::new(),
         };
         let midi_rx = if matches!(mode, AudioMode::Device(_)) {
             let (mut inputs, rx) = MidiInputs::new();
@@ -155,10 +158,11 @@ impl EngineHost {
     fn run(
         &mut self,
         host: Box<dyn AudioHost>,
-        processor: Processor,
+        mut processor: Processor,
         midi: Option<MidiReceiver>,
         project: &Project,
     ) {
+        processor.set_workers(worker_pool(self.config.threads));
         let is_null = host.info().host == "null";
         match host.start(processor, midi) {
             Ok(s) => {
@@ -245,6 +249,15 @@ impl EngineHost {
         self.synced_revision = revision;
     }
 
+    /// Whether a whole-input node at `path` is being baked right now.
+    pub fn bake_state(&self, path: &ac_core::NodePath) -> Option<ac_engine::WholeState> {
+        self.handle
+            .bakes()
+            .iter()
+            .find(|b| &b.path == path)
+            .map(|b| b.state.clone())
+    }
+
     /// New assets or recorder: rebuild nodes with them.
     pub fn set_resources(&mut self, project: &Project, resources: Arc<dyn Resources>) {
         // The handle recompiles from its own copy of the project; make it current first.
@@ -255,9 +268,12 @@ impl EngineHost {
     }
 
     /// Per-frame upkeep: drop retired graphs and MIDI ports, rescan MIDI
-    /// now and then, and pick up a latency result.
+    /// now and then, bake whole-input nodes, and pick up a latency result.
     pub fn tick(&mut self) {
         self.handle.collect_garbage();
+        if self.baker.poll(&mut self.handle) {
+            self.report = self.handle.report().clone();
+        }
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();
             if self.last_rescan.elapsed() > MIDI_RESCAN {

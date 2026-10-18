@@ -197,9 +197,20 @@ fn from_signature(sig: Signature) -> Sockets {
         ty: s.ty,
         spec: Some(s),
     };
+    // Hidden sockets are wired by the compiler only.
     Sockets {
-        inputs: sig.inputs.into_iter().map(conv).collect(),
-        outputs: sig.outputs.into_iter().map(conv).collect(),
+        inputs: sig
+            .inputs
+            .into_iter()
+            .filter(|s| !s.hidden)
+            .map(conv)
+            .collect(),
+        outputs: sig
+            .outputs
+            .into_iter()
+            .filter(|s| !s.hidden)
+            .map(conv)
+            .collect(),
     }
 }
 
@@ -212,7 +223,7 @@ pub fn classify(
     if node.kind == REROUTE_KIND {
         return NodeClass::Reroute;
     }
-    if node.kind == GROUP_KIND {
+    if node.kind == GROUP_KIND || node.kind == ac_core::VOICES_KIND {
         return match node.group_def() {
             Some(d) if defs.contains_key(&d) => NodeClass::Group(d),
             Some(d) => NodeClass::Missing(format!("group definition `{d}` is missing")),

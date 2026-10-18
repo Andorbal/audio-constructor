@@ -60,6 +60,25 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                     .desired_width(160.0),
             );
             ui.end_row();
+            let cores = status.core_loads();
+            if cores.len() > 1 {
+                ui.label("Per core");
+                ui.vertical(|ui| {
+                    for (k, c) in cores.iter().enumerate() {
+                        let name = if k == 0 {
+                            "audio".to_string()
+                        } else {
+                            format!("worker {k}")
+                        };
+                        ui.add(
+                            egui::ProgressBar::new(c.clamp(0.0, 1.0))
+                                .text(format!("{name} {:.0} %", c * 100.0))
+                                .desired_width(160.0),
+                        );
+                    }
+                });
+                ui.end_row();
+            }
             ui.label("Xruns");
             let x = status.total_xruns();
             ui.colored_label(
@@ -290,6 +309,32 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                 }
                             }
                         });
+                    ui.end_row();
+                    ui.label("Engine threads");
+                    let threads = draft.threads.max(1);
+                    egui::ComboBox::from_id_salt("audio-threads")
+                        .selected_text(if threads == 1 {
+                            "1 (audio thread only)".to_string()
+                        } else {
+                            format!("{threads}")
+                        })
+                        .show_ui(ui, |ui| {
+                            for t in 1..=ac_io::available_threads() {
+                                let label = if t == 1 {
+                                    "1 (audio thread only)".to_string()
+                                } else {
+                                    format!("{t}")
+                                };
+                                if ui.selectable_label(threads == t, label).clicked() {
+                                    draft.threads = t;
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text(
+                            "Run independent parts of the patch (voices, parallel chains) \
+                             side by side. Extra threads keep a core busy while playing.",
+                        );
                     ui.end_row();
                     if let Some(e) = &h.error {
                         ui.label("");

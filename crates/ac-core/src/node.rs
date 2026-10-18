@@ -264,6 +264,15 @@ pub trait RecordSink: Send {
     fn dropped(&self) -> u64 {
         0
     }
+
+    /// A finished take's audio, once, for sinks that keep takes in memory
+    /// (`Record` outputs it as a `Buffer`). The sink must keep a handle of
+    /// its own to every buffer it returns, off the audio thread, until no one
+    /// else holds it, so the audio thread never drops the last one
+    /// (DECISIONS D53).
+    fn take_buffer(&mut self) -> Option<Arc<AudioData>> {
+        None
+    }
 }
 
 /// Host-provided services available while preparing nodes. The engine never

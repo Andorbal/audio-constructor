@@ -194,6 +194,10 @@ pub struct AudioConfig {
     pub sample_rate: Option<u32>,
     /// [`DEFAULT_BUFFER`] when `None` (or the device default if that isn't supported).
     pub buffer_size: Option<u32>,
+    /// Threads running the engine: the audio thread plus `threads - 1`
+    /// real-time workers ([`crate::worker_pool`]). 0 and 1 both mean the
+    /// audio thread alone.
+    pub threads: usize,
 }
 
 /// Index of the name that matches `wanted`: exact (ignoring case) first,

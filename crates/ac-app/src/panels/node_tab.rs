@@ -161,6 +161,50 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             },
         )],
         "clip" => vec![f("file", "File", Kind::File)],
+        "voices" => vec![
+            f(
+                "voices",
+                "Voices",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 8,
+                },
+            ),
+            f(
+                "steal",
+                "When all are busy",
+                Kind::Choice {
+                    choices: ac_nodes::sequencing::voices::STEAL_CHOICES,
+                    default: "oldest",
+                },
+            ),
+        ],
+        "reverse" => vec![f(
+            "segment",
+            "Slice (s, 0 = all)",
+            Kind::Number { default: 0.0 },
+        )],
+        "latency" => vec![
+            f(
+                "samples",
+                "Samples",
+                Kind::Count {
+                    min: 0,
+                    max: 960_000,
+                    default: 0,
+                },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 32,
+                    default: 2,
+                },
+            ),
+        ],
         _ => vec![],
     }
 }
@@ -413,6 +457,19 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             .small()
             .color(theme::TEXT_MUTED),
         );
+        let mut poly = node.kind == ac_core::VOICES_KIND;
+        if ui
+            .checkbox(&mut poly, "Polyphonic (one copy per voice)")
+            .on_hover_text(
+                "Runs the inside once per voice and shares notes from the `midi` input \
+                 among the copies. Put a Voice node inside to read each copy's note.",
+            )
+            .changed()
+        {
+            io.doc.edit(io.registry, "Polyphonic", |g, _| {
+                edit::group::set_polyphonic(g, id, poly);
+            });
+        }
         if !def.description.is_empty() {
             markdown::show(ui, &def.description);
         }

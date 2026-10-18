@@ -107,6 +107,11 @@ disk couldn't keep up.
 The `channels` config sets how many channels are written (2 by
 default); a mono signal into a stereo Record is written to both.
 
+`buffer` holds the last finished take (up to ten minutes of it) as
+soon as it is safely on disk, so a recording can feed a `Sampler`
+right away. It is empty until the first take finishes, and where
+recording isn't available.
+
 **Try this:** wire an `Audio In` into `in` and press record on the
 transport to capture a take in time with the song, or wire a
 `Button`'s `trigger` and `release` into `start` and `stop` for a
@@ -127,4 +132,5 @@ hold-to-record pedal.
 | --- | --- | --- |
 | `recording` | Bool | True while a take runs. |
 | `length` | Float (s) | Duration of the current or last take. |
+| `buffer` | Buffer | The last finished take. |
 

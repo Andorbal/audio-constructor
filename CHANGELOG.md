@@ -41,6 +41,19 @@ their whole input, latency compensation, and the use of every core.
   same output as on one core, and per-core load is reported.
 - **Spectrum and Buffer signal types**, for FFT frames and shared audio
   buffers, with their own socket colors and square sockets.
+- **Record** has a `buffer` output holding the last finished take, so a
+  recording can be played back straight away.
+- **Editor**: a Voices node from the palette comes with a playable synth
+  voice inside, any group can be made polyphonic from the Node tab, and
+  double-clicking a Voices node edits its body. Node headers show when a
+  node is disabled, baking, or baked, and how much latency it adds. The
+  Project tab shows the output latency, and the Devices tab sets the number
+  of engine threads and shows the load on each.
+- **Command line**: `audioc run --threads N` runs the engine on several
+  cores and bakes whole-input nodes in the background; `audioc validate`
+  lists disabled nodes, latency, and compensation; `audioc bench --threads N`
+  shows the multi-core speedup on two new stress projects (parallel chains
+  and a 16-voice polyphonic synth).
 
 ## [0.1.0] - 2026-10-17
 
