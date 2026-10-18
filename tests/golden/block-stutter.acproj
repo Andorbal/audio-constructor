@@ -1,0 +1,407 @@
+{
+  "schema_version": 1,
+  "name": "Block: Stutter",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 1.0,
+          "op": "modulo"
+        },
+        "ui": {
+          "pos": [
+            240.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "out_max": 880.0,
+          "out_min": 220.0
+        },
+        "ui": {
+          "pos": [
+            480.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            960.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "clock",
+        "params": {
+          "interval": 2.0,
+          "offset": 1.0
+        },
+        "ui": {
+          "pos": [
+            720.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "group",
+        "config": {
+          "def": "stutter"
+        },
+        "params": {
+          "division": 0.25,
+          "length": 1.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ],
+          "label": "Stutter"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1440.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:beat",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:freq"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "7:in"
+      },
+      {
+        "from": "6:trigger",
+        "to": "7:trigger"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "stutter": {
+      "name": "Stutter",
+      "description": "Beat-repeat: on a trigger, or while `hold` is on, the slice of audio that starts at that moment repeats over and over in time with the beat, then the input comes back. Mono or stereo; the output has as many channels as the input.\n\n- `in`: the signal to stutter.\n- `division` (beats): the length of the repeated slice, at the project tempo; 0.25 is a sixteenth note, 0.5 an eighth, 1 a quarter note. Read when a stutter starts (up to 2 seconds).\n- `trigger`: starts a stutter that lasts `length`. A trigger during a stutter makes it last `length` from that trigger, on the same slice.\n- `length` (beats): how long a triggered stutter lasts, counting the first pass of the slice. With `length` 1 and `division` 0.25 you hear the slice four times.\n- `hold`: stutters for as long as it is on, as well.\n- `out`: the input, or the repeating slice.\n\nExactly: when a stutter starts (a trigger, or `hold` turning on), the slice's first pass is the input itself, playing live. One `division` later the Freeze takes that slice, the last `division` of audio, and loops it until the stutter ends (`length` after the last trigger and `hold` off), when the input fades back in over 5 ms. A stutter shorter than one `division` doesn't loop at all. Trigger on the beat (from a `Clock`) to keep the repeats on the grid.\n\nInside: Trigger to Gate (in beats) stretches `trigger` into a gate `length` long, and Logic ors it with `hold`. Its rising edge, delayed by one `division` (Trigger Delay, in beats), sets a Latch, and any edge of the gate resets it; Logic ands the Latch with the gate so a stutter that ends early never loops. That drives `hold` on a Freeze whose `size` is `division` converted to seconds at the current tempo.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "rhythm",
+        "glitch",
+        "repeat",
+        "loop",
+        "effect"
+      ],
+      "source": "shipped:stutter",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "9:in"
+          ]
+        },
+        {
+          "name": "division",
+          "type": "float",
+          "unit": "beats",
+          "default": 0.25,
+          "range": [
+            0.0625,
+            2.0
+          ],
+          "targets": [
+            "5:time",
+            "8:in"
+          ]
+        },
+        {
+          "name": "trigger",
+          "type": "trigger",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "length",
+          "type": "float",
+          "unit": "beats",
+          "default": 1.0,
+          "range": [
+            0.25,
+            4.0
+          ],
+          "targets": [
+            "1:length"
+          ]
+        },
+        {
+          "name": "hold",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "2:a"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "9:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "trigger_to_gate",
+            "config": {
+              "unit": "beats"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                160.0
+              ],
+              "label": "Stutter length"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                160.0
+              ],
+              "label": "Hold or trigger"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "gate_to_trigger",
+            "params": {
+              "edge": "both"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "Any edge"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "gate_to_trigger",
+            "params": {
+              "edge": "rising"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                160.0
+              ],
+              "label": "Start"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "trigger_delay",
+            "config": {
+              "unit": "beats"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                160.0
+              ],
+              "label": "After one slice"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "latch",
+            "ui": {
+              "pos": [
+                960.0,
+                160.0
+              ],
+              "label": "Looping"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "logic",
+            "params": {
+              "op": "and"
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                160.0
+              ],
+              "label": "Loop now"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "convert",
+            "params": {
+              "op": "beats_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                360.0
+              ],
+              "label": "Slice (s)"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "freeze",
+            "params": {
+              "position": 0.0
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:gate",
+            "to": "2:b"
+          },
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "2:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:set"
+          },
+          {
+            "from": "3:out",
+            "to": "6:reset"
+          },
+          {
+            "from": "6:out",
+            "to": "7:a"
+          },
+          {
+            "from": "2:out",
+            "to": "7:b"
+          },
+          {
+            "from": "7:out",
+            "to": "9:hold"
+          },
+          {
+            "from": "8:out",
+            "to": "9:size"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

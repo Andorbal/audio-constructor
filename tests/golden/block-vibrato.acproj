@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "name": "Block: Vibrato",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "oscillator",
+        "params": {
+          "freq": 440.0,
+          "shape": "sine",
+          "start": "load"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            220.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "group",
+        "config": {
+          "def": "vibrato"
+        },
+        "params": {
+          "depth": 0.5,
+          "rate": 5.0
+        },
+        "ui": {
+          "pos": [
+            440.0,
+            0.0
+          ],
+          "label": "Vibrato"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            660.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "vibrato": {
+      "name": "Vibrato",
+      "description": "Wobbles the pitch up and down, like a singer's vibrato or a warped tape, with none of the dry signal left in. Mono or stereo; the output has as many channels as the input.\n\n- `in`: the signal.\n- `rate` (Hz): wobbles per second; 4 to 7 Hz sounds like a voice or a violin.\n- `depth` (semitones): how far the pitch swings either way at its peaks; 0.1 is 10 cents, a subtle shimmer, 0.5 a quarter tone, 1 a whole semitone up and down. It holds at any `rate`: the patch works out the delay sweep that gives this pitch swing.\n- `out`: the wobbling signal. It runs a few milliseconds late on average (half the sweep plus 0.5 ms), as any vibrato made from a delay does.\n\nInside: a `pure` sine Oscillator at `rate` sweeps the `time` of a Delay with no feedback and `mix` at 1. A delay that changes at speed v (seconds per second) shifts the pitch by a ratio of 1 − v, and a sine sweep of total width W at rate f peaks at v = π·f·W, so the Math nodes turn `depth` into a ratio (Convert), subtract 1, and divide by π × `rate` to get W. A Map places the sweep between 0.5 ms and 0.5 ms + W.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "modulation",
+        "vibrato",
+        "pitch",
+        "delay",
+        "effect"
+      ],
+      "source": "shipped:vibrato",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "8:in"
+          ]
+        },
+        {
+          "name": "rate",
+          "type": "float",
+          "unit": "hz",
+          "default": 5.0,
+          "range": [
+            0.5,
+            12.0
+          ],
+          "targets": [
+            "6:freq",
+            "3:a"
+          ]
+        },
+        {
+          "name": "depth",
+          "type": "float",
+          "unit": "semitones",
+          "default": 0.3,
+          "range": [
+            0.0,
+            2.0
+          ],
+          "targets": [
+            "1:in"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "8:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "convert",
+            "params": {
+              "op": "semitones_to_ratio"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                300.0
+              ],
+              "label": "Pitch ratio"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "b": 1.0,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                300.0
+              ],
+              "label": "Ratio − 1"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "math",
+            "params": {
+              "b": 3.141592654,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                440.0
+              ],
+              "label": "π × rate"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "Sweep (s)"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "b": 0.0005,
+              "op": "add"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Longest"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                0.0
+              ],
+              "label": "LFO"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_min": 0.0005
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "8",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.25
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:a"
+          },
+          {
+            "from": "2:out",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "4:out",
+            "to": "5:a"
+          },
+          {
+            "from": "6:out",
+            "to": "7:in"
+          },
+          {
+            "from": "5:out",
+            "to": "7:out_max"
+          },
+          {
+            "from": "7:out",
+            "to": "8:time"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}
