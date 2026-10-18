@@ -13,6 +13,20 @@ fixes and smaller changes.
 
 ## [0.5.1] - 2026-10-18
 
+### Fixed
+
+- The Node tab now has settings for OSC In (address, arguments) and OSC
+  Out (host, port, address, arguments). Both nodes kept these in config,
+  but the tab had no rows for them, so a fresh node could only listen to
+  `/fader/1` and could not be pointed at a control surface. The address
+  field shows the default the node uses, and a setting the node can't
+  work with (an address without a leading `/`, a host that isn't an IP
+  address) is called out under the settings.
+- Text settings in the Node tab (an OSC address, a Comment's text, a File
+  Out path) keep what you've typed until you leave the field. They were
+  redrawn from the project every frame, so what was typed was lost before
+  it could be saved.
+
 ### Changed
 
 - The Devices tab's OSC section and the OSC In node's help now say what to

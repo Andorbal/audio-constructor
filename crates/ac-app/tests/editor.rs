@@ -7,7 +7,7 @@ use ac_app::{AppOptions, EditorApp};
 use ac_core::{Endpoint, GROUP_KIND, NodeId, NodeInstance, Project, Value, Wire};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use serde_json::json;
 
 fn harness(project: Option<Project>) -> Harness<'static, EditorApp> {
@@ -608,6 +608,57 @@ fn the_devices_tab_turns_osc_listening_on_and_off() {
     h.get_by_label("Listen on UDP port").click();
     steps(&mut h, 3);
     assert!(h.state().engine.osc_in.is_none());
+}
+
+#[test]
+fn the_node_tab_edits_osc_settings_and_flags_a_bad_address() {
+    // OSC In and OSC Out keep their address, host, and port in config, so
+    // the Node tab must offer them (a node with no settings row can't be
+    // pointed at a control surface).
+    let mut p = Project::default();
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(1), "osc_in").at(0.0, 0.0));
+    let mut out = NodeInstance::new(NodeId(2), "osc_out").at(320.0, 0.0);
+    out.config = serde_json::json!({"address": "no slash"});
+    p.graph.nodes.push(out);
+    let mut h = harness(Some(p));
+    {
+        let app = h.state_mut();
+        app.doc.selection = [NodeId(1)].into();
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Node;
+    }
+    steps(&mut h, 3);
+    let _ = h.get_by_label("SETTINGS");
+    let _ = h.get_by_label("Address");
+    let _ = h.get_by_label("Arguments");
+    assert!(h.query_by_label("Host").is_none(), "OSC In has no host");
+    assert!(
+        h.query_by_label_contains("The OSC address must start with")
+            .is_none(),
+        "the default address is fine"
+    );
+    // Typing an address stores it on focus loss, so the node is rebuilt.
+    // The help quotes the default too; the field is the text input.
+    h.get_all_by_value("/fader/1")
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::TextInput)
+        .expect("an address field")
+        .click();
+    steps(&mut h, 1);
+    // The caret lands at the end of the default; Enter gives up focus.
+    h.event(Event::Text("/3".into()));
+    steps(&mut h, 1);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    steps(&mut h, 3);
+    let addr = h.state().document().graph().node(NodeId(1)).unwrap().config["address"].clone();
+    assert_eq!(addr, serde_json::json!("/fader/1/3"));
+
+    h.state_mut().doc.selection = [NodeId(2)].into();
+    steps(&mut h, 3);
+    let _ = h.get_by_label("Host");
+    let _ = h.get_by_label("Port");
+    let _ = h.get_by_label_contains("The OSC address must start with");
 }
 
 #[test]

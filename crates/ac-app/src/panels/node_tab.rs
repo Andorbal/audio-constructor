@@ -37,6 +37,11 @@ enum Kind {
     Text {
         multiline: bool,
     },
+    /// One line of text with a default the node uses while the key is
+    /// absent (shown in the field, so what's seen is what runs).
+    Line {
+        default: &'static str,
+    },
     /// An array of strings, edited one per line.
     Lines,
     /// An array of numbers, edited as a comma-separated list.
@@ -515,6 +520,58 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 Kind::Count {
                     min: 1,
                     max: 2,
+                    default: 1,
+                },
+            ),
+        ],
+        "osc_in" => vec![
+            f(
+                "address",
+                "Address",
+                Kind::Line {
+                    default: ac_nodes::io::osc_in::DEFAULT_ADDRESS,
+                },
+            ),
+            f(
+                "args",
+                "Arguments",
+                Kind::Count {
+                    min: 1,
+                    max: ac_core::control::OSC_ARGS_MAX as i64,
+                    default: 1,
+                },
+            ),
+        ],
+        "osc_out" => vec![
+            f(
+                "host",
+                "Host",
+                Kind::Line {
+                    default: ac_nodes::io::osc_out::DEFAULT_HOST,
+                },
+            ),
+            f(
+                "port",
+                "Port",
+                Kind::Count {
+                    min: 1,
+                    max: 65535,
+                    default: ac_nodes::io::osc_out::DEFAULT_PORT as i64,
+                },
+            ),
+            f(
+                "address",
+                "Address",
+                Kind::Line {
+                    default: ac_nodes::io::osc_out::DEFAULT_ADDRESS,
+                },
+            ),
+            f(
+                "args",
+                "Arguments",
+                Kind::Count {
+                    min: 1,
+                    max: ac_core::control::OSC_ARGS_MAX as i64,
                     default: 1,
                 },
             ),
@@ -1164,6 +1221,47 @@ fn apply_editor(
     }
 }
 
+/// A text field whose draft lives in egui's memory while it has focus, so
+/// the document (and the engine behind it) isn't rewritten on every
+/// keystroke and the text survives the next frame's redraw from the
+/// document. Returns the text when focus leaves it changed.
+fn draft_text(
+    ui: &mut egui::Ui,
+    field_id: egui::Id,
+    stored: &str,
+    multiline: bool,
+) -> Option<String> {
+    let focused = ui.memory(|m| m.has_focus(field_id));
+    let mut text = if focused {
+        ui.data(|d| d.get_temp::<String>(field_id))
+            .unwrap_or_else(|| stored.to_string())
+    } else {
+        stored.to_string()
+    };
+    let r = if multiline {
+        ui.add(
+            egui::TextEdit::multiline(&mut text)
+                .id(field_id)
+                .desired_rows(4)
+                .desired_width(f32::INFINITY),
+        )
+    } else {
+        ui.add(
+            egui::TextEdit::singleline(&mut text)
+                .id(field_id)
+                .desired_width(f32::INFINITY),
+        )
+    };
+    if r.lost_focus() {
+        ui.data_mut(|d| d.remove_temp::<String>(field_id));
+        return (text != stored).then_some(text);
+    }
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(field_id, text));
+    }
+    None
+}
+
 fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
     let key = key.to_string();
     io.doc.edit(io.registry, "Change setting", |g, _| {
@@ -1249,17 +1347,16 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             });
                     }
                     Kind::Text { multiline } => {
-                        let mut t = node.config.get_str_or(f.key, "").to_string();
-                        let r = if *multiline {
-                            ui.add(
-                                egui::TextEdit::multiline(&mut t)
-                                    .desired_rows(4)
-                                    .desired_width(f32::INFINITY),
-                            )
-                        } else {
-                            ui.text_edit_singleline(&mut t)
-                        };
-                        if r.lost_focus() && t != node.config.get_str_or(f.key, "") {
+                        let stored = node.config.get_str_or(f.key, "");
+                        let field = egui::Id::unique(("cfg", id, f.key));
+                        if let Some(t) = draft_text(ui, field, stored, *multiline) {
+                            set_config(io, id, f.key, t.into());
+                        }
+                    }
+                    Kind::Line { default } => {
+                        let stored = node.config.get_str_or(f.key, default);
+                        let field = egui::Id::unique(("cfg", id, f.key));
+                        if let Some(t) = draft_text(ui, field, stored, false) {
                             set_config(io, id, f.key, t.into());
                         }
                     }
@@ -1446,10 +1543,10 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             set_config(io, id, &k, v);
                         }
                     }
-                    serde_json::Value::String(mut s) => {
-                        let before = s.clone();
-                        if ui.text_edit_singleline(&mut s).lost_focus() && s != before {
-                            set_config(io, id, &k, s.into());
+                    serde_json::Value::String(s) => {
+                        let field = egui::Id::unique(("cfg", id, k.as_str()));
+                        if let Some(t) = draft_text(ui, field, &s, false) {
+                            set_config(io, id, &k, t.into());
                         }
                     }
                     other => {
@@ -1463,6 +1560,15 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                 ui.end_row();
             }
         });
+    // The OSC nodes check their settings when built; say what they found.
+    let problem = match node.kind.as_str() {
+        "osc_in" => ac_nodes::io::osc_in::problem(&node.config),
+        "osc_out" => ac_nodes::io::osc_out::problem(&node.config),
+        _ => None,
+    };
+    if let Some(m) = problem {
+        ui.colored_label(theme::WARNING, format!("{} {m}", icons::WARNING));
+    }
 }
 
 /// Selected interface card: list and rename its sockets.

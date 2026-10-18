@@ -57,7 +57,7 @@ node! {
     }
 }
 
-const DEFAULT_ADDRESS: &str = "/fader/1";
+pub const DEFAULT_ADDRESS: &str = "/fader/1";
 
 /// The address (trimmed, valid) and argument count from config, repaired.
 fn setup(config: &Config) -> (Option<&str>, usize) {
