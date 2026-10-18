@@ -160,13 +160,16 @@ pub enum Gesture {
         /// The socket the end has snapped to, and since when.
         snap: Option<(NodeId, String, f64)>,
     },
+    /// Dragging a value: sideways for fields and sliders, up and down for
+    /// knobs (`vertical`). `width` is the travel that sweeps the range.
     DragValue {
         node: NodeId,
         socket: String,
         spec: SocketSpec,
         start: f64,
-        origin_x: f32,
+        origin: Pos2,
         width: f32,
+        vertical: bool,
     },
     Cut {
         points: Vec<Pos2>,
@@ -196,6 +199,35 @@ pub enum Gesture {
         node: NodeId,
         since: f64,
     },
+    /// A Keyboard key held down; dragging across the keys moves it.
+    HoldKey {
+        node: NodeId,
+        key: usize,
+        since: f64,
+    },
+    /// An XY Pad held down: the point follows the pointer. `touch`: the
+    /// pad holds `touched` (it isn't wired).
+    HoldPad {
+        node: NodeId,
+        since: f64,
+        touch: bool,
+    },
+}
+
+impl Gesture {
+    /// The input a hold gesture keeps down, and since when.
+    fn held(&self) -> Option<(NodeId, String, f64)> {
+        match self {
+            Gesture::HoldButton { node, since } => Some((*node, "pressed".into(), *since)),
+            Gesture::HoldKey { node, key, since } => Some((*node, piano::key_socket(*key), *since)),
+            Gesture::HoldPad {
+                node,
+                since,
+                touch: true,
+            } => Some((*node, "touched".into(), *since)),
+            _ => None,
+        }
+    }
 }
 
 /// Typing into a field on the canvas.
@@ -233,11 +265,13 @@ struct Ghost {
     died: f64,
 }
 
-/// A Button released too soon after it was pressed: the release waits so
-/// the engine sees the press for at least a block.
+/// A held input (a Button, a Keyboard key, an XY Pad's `touched`) let go
+/// too soon after it was pressed: the release waits so the engine sees the
+/// press for at least a block.
 #[derive(Clone, Debug)]
 struct PendingRelease {
     node: NodeId,
+    socket: String,
     at: f64,
 }
 
@@ -494,7 +528,19 @@ impl Canvas {
                 self.hint = None;
                 true
             }
-            _ => {
+            g => {
+                // A held control lets go (after its minimum hold) rather
+                // than staying down in the engine.
+                if let Some((node, socket, since)) = g.held() {
+                    self.releases.push(PendingRelease {
+                        node,
+                        socket,
+                        at: since + interact::MIN_HOLD,
+                    });
+                }
+                if matches!(g, Gesture::HoldPad { .. } | Gesture::DragValue { .. }) {
+                    doc.end_coalescing();
+                }
                 self.hint = None;
                 true
             }
@@ -616,14 +662,47 @@ impl Canvas {
         crate::params::set(io.doc, io.engine, id, socket, value, now);
     }
 
+    /// Several inputs of one node changed by one gesture (an XY Pad's `x`
+    /// and `y`): one undo step for them together.
+    fn send_params(io: &mut CanvasIo, id: NodeId, values: &[(&str, Value)], now: f64) {
+        crate::params::set_many(io.doc, io.engine, id, values, now);
+    }
+
     fn fire(io: &mut CanvasIo, id: NodeId, socket: &str) {
         crate::params::fire(io.doc, io.engine, id, socket);
     }
 
-    /// A Button's `pressed` goes straight to the engine: a momentary press
-    /// isn't a project change.
-    fn press_button(io: &mut CanvasIo, id: NodeId, down: bool) {
-        crate::params::momentary(io.doc, io.engine, id, "pressed", Value::Bool(down));
+    /// Held inputs (a Button's `pressed`, a Keyboard's keys, an XY Pad's
+    /// `touched`) go straight to the engine: holding a control down isn't
+    /// a project change, and playing a keyboard leaves no undo steps.
+    fn hold(io: &mut CanvasIo, id: NodeId, socket: &str, down: bool) {
+        crate::params::momentary(io.doc, io.engine, id, socket, Value::Bool(down));
+    }
+
+    /// Inputs the canvas is holding down for the engine on `node` right
+    /// now (a pressed Button, a played Keyboard key, a touched XY Pad),
+    /// including releases still waiting out the minimum hold.
+    pub fn held_inputs(&self, node: NodeId) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .gesture
+            .held()
+            .filter(|h| h.0 == node)
+            .map(|h| h.1)
+            .into_iter()
+            .collect();
+        for r in &self.releases {
+            if r.node == node && !out.contains(&r.socket) {
+                out.push(r.socket.clone());
+            }
+        }
+        out
+    }
+
+    /// Screen rectangle of a node's widget body in the last drawn frame
+    /// (tests).
+    pub fn body_screen_rect(&self, node: NodeId) -> Option<Rect> {
+        let s = self.last_scene.as_ref()?;
+        Some(self.transform().rect_to_screen(s.node(node)?.body?.1))
     }
 
     /// Main entry: draw the canvas into `rect` and handle its input.
@@ -671,15 +750,13 @@ impl Canvas {
         self.handle_view_input(ui, &response, dt);
 
         // Releases held back so a quick tap still reaches the engine.
-        let due: Vec<NodeId> = self
-            .releases
-            .iter()
-            .filter(|r| r.at <= now)
-            .map(|r| r.node)
-            .collect();
-        self.releases.retain(|r| r.at > now);
-        for node in due {
-            Self::press_button(io, node, false);
+        let (due, waiting): (Vec<PendingRelease>, Vec<PendingRelease>) =
+            std::mem::take(&mut self.releases)
+                .into_iter()
+                .partition(|r| r.at <= now);
+        self.releases = waiting;
+        for r in due {
+            Self::hold(io, r.node, &r.socket, false);
         }
         if !self.releases.is_empty() {
             ui.ctx().request_repaint();
@@ -859,7 +936,7 @@ impl Canvas {
                         continue;
                     }
                     let Some(spec) = &s.spec else { continue };
-                    if n.body.and_then(|(b, _)| b.controls()) == Some(s.name.as_str()) {
+                    if n.body.is_some_and(|(b, _)| b.drives(&s.name)) {
                         continue;
                     }
                     let f = t.rect_to_screen(field_rect(s));
@@ -996,5 +1073,16 @@ pub fn accepts(pending: &PendingWire, n: &NodeView, s: &scene::SocketView) -> bo
 
 /// Nodes of a body kind that need the pointer for themselves.
 pub fn body_is_control(b: Body) -> bool {
-    matches!(b, Body::Button | Body::Toggle | Body::Slider | Body::Clip)
+    matches!(
+        b,
+        Body::Button
+            | Body::Toggle
+            | Body::Slider
+            | Body::Knob
+            | Body::XyPad
+            | Body::Keyboard
+            | Body::Number
+            | Body::Dropdown
+            | Body::Clip
+    )
 }
