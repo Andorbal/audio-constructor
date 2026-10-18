@@ -25,8 +25,9 @@ node! {
     /// is always finite. An int `out` changes once per block.
     ///
     /// **Try this:** make an `int` Number from 1 to 16 and wire it into a
-    /// `Euclidean`'s `pulses`, then type new counts while it plays; or use a
-    /// float Number for an exact tempo-free delay time.
+    /// `Euclidean`'s `pulses`, then type new counts while it plays; or wire a
+    /// float Number into an `Oscillator`'s `freq` to tune it to the exact
+    /// hertz you type.
     pub struct Number {
         int: bool,
         min: f64,

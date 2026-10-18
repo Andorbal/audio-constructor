@@ -32,10 +32,10 @@ node! {
     /// the transport is playing; restarting the transport stops it and sets
     /// `elapsed` back to 0.
     ///
-    /// **Try this:** wire a `Button` into `start` and `running` into a
-    /// `Gain`'s level through a `Map` for a sound that plays for exactly
-    /// `duration`, or wire `progress` into a filter's cutoff (through a
-    /// `Map`) for a sweep that takes as long as you like.
+    /// **Try this:** wire a `Button` into `start` and `running` into an
+    /// `ADSR`'s `gate` for a note that lasts exactly `duration` however you
+    /// press, or wire `progress` through a `Map` into a `Biquad`'s `cutoff`
+    /// for a sweep that takes as long as you like.
     pub struct Timer {
         rate: f64,
         running: bool,

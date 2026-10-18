@@ -9,7 +9,7 @@ node! {
     kind: "xy_pad",
     name: "XY Pad",
     category: Controls,
-    keywords: ["xy", "pad", "touch", "joystick", "2d", "kaoss", "surface", "trackpad"],
+    keywords: ["xy", "pad", "touch", "joystick", "2d", "vector", "surface", "trackpad"],
     /// A square pad you drag a point around on: two values at once, plus a
     /// gate while you touch it.
     ///
