@@ -570,6 +570,44 @@ fn play_keys_send_keys_to_the_patch_instead_of_running_shortcuts() {
 }
 
 #[test]
+fn the_devices_tab_turns_osc_listening_on_and_off() {
+    let mut h = harness(Some(two_nodes()));
+    let free = std::net::UdpSocket::bind("0.0.0.0:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    {
+        let app = h.state_mut();
+        app.engine.osc_port = free;
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Devices;
+    }
+    steps(&mut h, 3);
+    assert!(h.state().engine.osc_in.is_none(), "off until asked");
+    let _ = h.get_by_label("GAMEPADS");
+    let _ = h.get_by_label("COMPUTER KEYS");
+    h.get_by_label("Listen on UDP port").click();
+    steps(&mut h, 3);
+    assert_eq!(h.state().engine.osc_in.as_ref().map(|l| l.port()), Some(free));
+    let _ = h.get_by_label_contains(&format!(":{free}"));
+    // Something arrives: the tab counts it.
+    let tx = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+    tx.send_to(b"/go\0,\0\0\0", ("127.0.0.1", free)).unwrap();
+    let t0 = std::time::Instant::now();
+    while h.state().engine.osc_in.as_ref().unwrap().stats().messages < 1
+        && t0.elapsed() < std::time::Duration::from_secs(5)
+    {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    steps(&mut h, 2);
+    let _ = h.get_by_label_contains("1 messages");
+    h.get_by_label("Listen on UDP port").click();
+    steps(&mut h, 3);
+    assert!(h.state().engine.osc_in.is_none());
+}
+
+#[test]
 fn play_keys_leave_text_fields_their_typing() {
     let mut p = Project::default();
     p.graph
