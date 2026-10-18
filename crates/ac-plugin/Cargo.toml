@@ -38,3 +38,7 @@ nice-plug = { version = "0.4.2", default-features = false, features = ["vst3"] }
 [dev-dependencies]
 # A real CLAP host for the integration tests: loads the built plugin.
 clack-host = "0.2"
+clack-extensions = { version = "0.2", features = ["clack-host", "params", "state"] }
+# The VST3 smoke test opens the same library and asks its factory.
+libloading = "0.8"
+vst3 = "0.3"
