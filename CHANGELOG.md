@@ -13,6 +13,10 @@ fixes and smaller changes.
 
 ## [0.10.0] - 2026-10-19
 
+Audio Constructor now runs inside other music software as a plugin: a
+project becomes an effect or an instrument, the host automates its macros
+and saves it with the session, and the editor opens in the plugin's window.
+
 ### Added
 
 - **Audio Constructor as a plugin**: one library holds two plugins, in
