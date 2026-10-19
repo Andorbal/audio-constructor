@@ -57,6 +57,7 @@ pub mod library;
 pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
+pub mod monitor;
 pub mod null;
 pub mod osc;
 pub mod osc_out;
@@ -78,11 +79,14 @@ pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use gamepad::{GamepadError, GamepadInfo, Gamepads, list_gamepads};
 pub use latency::{Latency, LatencyError, find_delay};
 pub use library::{Library, LibraryBlock, Update, shipped_blocks};
-pub use midi::{MidiInputs, MidiPortInfo, MidiReceiver, MidiSelect, MidiSender, block_offset};
+pub use midi::{
+    MidiInputs, MidiPortInfo, MidiReceiver, MidiSeen, MidiSelect, MidiSender, block_offset,
+};
 pub use midi_file::{midi_file_bytes, write_midi_file};
 pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
+pub use monitor::{RECENT_MESSAGES, Recent};
 pub use null::{NullAudio, NullHost, NullStream};
-pub use osc::{DEFAULT_OSC_PORT, OscInput, OscStats};
+pub use osc::{DEFAULT_OSC_PORT, OscInput, OscSeen, OscStats};
 pub use osc_out::{OscOutQueue, OscOutput};
 pub use pack::{PACK_EXTENSION, PackReport, unpack, unpack_beside, write_pack};
 pub use project_file::{load_project, save_project};

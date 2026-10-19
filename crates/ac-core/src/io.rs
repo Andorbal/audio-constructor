@@ -23,6 +23,7 @@ use crate::events::MidiEvent;
 use crate::node::AudioData;
 use crate::signal::{AutoTrigger, Rate};
 use crate::spectrum::{EMPTY_SPECTRUM, SpectrumBuf};
+use crate::text::TextBuf;
 
 /// The value a `Buffer` wire holds: a shared handle to audio, or nothing.
 ///
@@ -53,6 +54,7 @@ pub struct Local<'a> {
     pub midi: &'a [Vec<MidiEvent>],
     pub spectra: &'a [SpectrumBuf],
     pub buffers: &'a [BufferRef],
+    pub texts: &'a [TextBuf],
 }
 
 /// Element `k` of the shared values, or of the chain's own when `k` has the
@@ -86,6 +88,14 @@ pub enum IntSrc {
     Int(u32),
 }
 
+/// Where a `Text` input reads from: a slot in the text table, holding
+/// either the typed value (fixed at compile time) or a wired output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextSrc {
+    Const(u32),
+    Wired(u32),
+}
+
 /// Where a `Trigger` input reads from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TriggerSrc {
@@ -113,6 +123,7 @@ pub enum InputSlot {
     Midi(Option<u32>),
     Spectrum(Option<u32>),
     Buffer(Option<u32>),
+    Text(TextSrc),
     /// Nothing (e.g. an unresolved `Any` socket).
     None,
 }
@@ -135,6 +146,7 @@ pub enum OutputSlot {
     Midi(u32),
     Spectrum(u32),
     Buffer(u32),
+    Text(u32),
     None,
 }
 
@@ -328,6 +340,7 @@ pub struct Inputs<'a> {
     pub midi: &'a [Vec<MidiEvent>],
     pub spectra: &'a [SpectrumBuf],
     pub buffers: &'a [BufferRef],
+    pub texts: &'a [TextBuf],
     pub auto: AutoFlags,
     /// What steps before this one in its chain produced ([`LOCAL`] indices).
     pub local: Local<'a>,
@@ -469,10 +482,22 @@ impl<'a> Inputs<'a> {
         }
     }
 
+    /// A `Text` input: the typed value, or the wired output's value this
+    /// block. Empty for anything else.
+    pub fn text(&self, i: usize) -> &'a TextBuf {
+        match self.slot(i) {
+            InputSlot::Text(TextSrc::Const(k) | TextSrc::Wired(k)) => {
+                pick(self.texts, self.local.texts, k).unwrap_or(&TextBuf::EMPTY)
+            }
+            _ => &TextBuf::EMPTY,
+        }
+    }
+
     /// True if a wire feeds this input.
     pub fn is_wired(&self, i: usize) -> bool {
         match self.slot(i) {
             InputSlot::Float(FloatSrc::Param(_)) | InputSlot::Int(IntSrc::Param(_)) => false,
+            InputSlot::Text(TextSrc::Const(_)) => false,
             InputSlot::Trigger(TriggerSrc::Unwired { .. }) | InputSlot::Midi(None) => false,
             InputSlot::Spectrum(None) | InputSlot::Buffer(None) => false,
             InputSlot::Audio { count, .. } => count > 0 && !self.is_silence_audio(i),
@@ -690,6 +715,7 @@ pub struct Outputs<'a> {
     pub midi: &'a mut [Vec<MidiEvent>],
     pub spectra: &'a mut [SpectrumBuf],
     pub buffers: &'a mut [BufferRef],
+    pub texts: &'a mut [TextBuf],
 }
 
 impl Outputs<'_> {
@@ -738,6 +764,23 @@ impl Outputs<'_> {
             && let Some(o) = self.ints.get_mut(k as usize)
         {
             *o = v;
+        }
+    }
+
+    /// A `Text` output, to write into (it keeps last block's value until
+    /// cleared or overwritten).
+    pub fn text(&mut self, i: usize) -> Option<&mut TextBuf> {
+        match self.slot(i) {
+            OutputSlot::Text(k) => self.texts.get_mut(k as usize),
+            _ => None,
+        }
+    }
+
+    /// Set a `Text` output.
+    pub fn set_text(&mut self, i: usize, s: &str) {
+        if let Some(t) = self.text(i) {
+            t.clear();
+            t.push_str(s);
         }
     }
 
@@ -1100,6 +1143,8 @@ mod tests {
             InputSlot::Trigger(TriggerSrc::Wired(LOCAL)),
             InputSlot::Audio { start: 2, count: 1 },
             InputSlot::Float(FloatSrc::Sample(LOCAL | 7)),
+            InputSlot::Text(TextSrc::Wired(LOCAL)),
+            InputSlot::Text(TextSrc::Wired(0)),
         ];
         let inputs = Inputs {
             slots: &slots,
@@ -1113,12 +1158,14 @@ mod tests {
             midi: &[],
             spectra: &[],
             buffers: &[],
+            texts: &[TextBuf::new("pool")],
             auto: AutoFlags::default(),
             local: Local {
                 scalars: &[8.0],
                 ints: &[9],
                 samples: &local,
                 triggers: &[vec![2]],
+                texts: &[TextBuf::new("chain")],
                 ..Local::default()
             },
         };
@@ -1129,11 +1176,13 @@ mod tests {
         assert_eq!(inputs.float(2).first(), 8.0);
         assert_eq!(inputs.int(3), 6);
         assert_eq!(inputs.triggers(4), &[2]);
+        assert_eq!(inputs.text(7), "chain");
+        assert_eq!(inputs.text(8), "pool");
         // Silence stays the pool's buffer 0 and still reads as unwired;
         // a chain input is wired.
         assert!(!inputs.is_wired(5));
         assert!(inputs.is_wired(0));
         // Out of range reads as silence, never a panic.
-        assert_eq!(inputs.float(6).at(0), 0.0);
+        assert_eq!(inputs.float(9).at(0), 0.0);
     }
 }

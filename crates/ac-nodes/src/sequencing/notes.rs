@@ -265,6 +265,7 @@ mod tests {
                 midi: &mut midi,
                 spectra: &mut [],
                 buffers: &mut [],
+                texts: &mut [],
             };
             let mut tx = Sender::new(outputs.midi(0));
             f(&mut tx);

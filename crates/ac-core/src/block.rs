@@ -337,11 +337,12 @@ mod tests {
             "the file doesn't say where it came from"
         );
         let text = b.to_json();
-        assert!(text.contains("\"schema_version\": 1"));
+        let current = format!("\"schema_version\": {}", crate::project::SCHEMA_VERSION);
+        assert!(text.contains(&current));
         assert!(text.contains("\"version\": 3"));
         assert_eq!(Block::from_json(&text).unwrap(), b);
         assert!(matches!(
-            Block::from_json(&text.replace("\"schema_version\": 1", "\"schema_version\": 99")),
+            Block::from_json(&text.replace(&current, "\"schema_version\": 99")),
             Err(LoadError::TooNew { .. })
         ));
         assert!(Block::from_json("{").is_err());

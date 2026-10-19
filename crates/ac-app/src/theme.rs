@@ -125,13 +125,13 @@ pub struct Palette {
     pub header_base: Color32,
     pub header_mix: f32,
     /// Signal type colors, in [`TYPE_ORDER`].
-    pub types: [Color32; 9],
+    pub types: [Color32; 10],
     /// Category header colors, in `Category::ALL` order.
     pub categories: [Color32; 13],
 }
 
 /// The order of [`Palette::types`].
-pub const TYPE_ORDER: [SignalType; 9] = [
+pub const TYPE_ORDER: [SignalType; 10] = [
     SignalType::Audio,
     SignalType::Float,
     SignalType::Int,
@@ -140,6 +140,7 @@ pub const TYPE_ORDER: [SignalType; 9] = [
     SignalType::Midi,
     SignalType::Spectrum,
     SignalType::Buffer,
+    SignalType::Text,
     SignalType::Any,
 ];
 
@@ -227,6 +228,7 @@ pub const DARK: Palette = Palette {
         Color32::from_rgb(0xA9, 0x8B, 0xF0),
         Color32::from_rgb(0x4F, 0xD1, 0xD9),
         Color32::from_rgb(0xC8, 0xA8, 0x78),
+        Color32::from_rgb(0xE8, 0xDF, 0xC0),
         Color32::from_rgb(0x9A, 0xA0, 0xA8),
     ],
     categories: [
@@ -331,6 +333,7 @@ pub const LIGHT: Palette = Palette {
         Color32::from_rgb(0x7A, 0x55, 0xD6),
         Color32::from_rgb(0x13, 0x8A, 0x94),
         Color32::from_rgb(0x9A, 0x74, 0x44),
+        Color32::from_rgb(0x8E, 0x7E, 0x4A),
         Color32::from_rgb(0x7A, 0x81, 0x8C),
     ],
     categories: [
@@ -645,12 +648,12 @@ pub const KEY_LABEL: Color32 = Color32::from_rgb(0x6A, 0x70, 0x7A);
 /// Signal type colors (UX.md socket table, deepened in the light theme).
 /// `Any` (reroutes before they connect) is a neutral grey.
 pub fn type_color(ty: SignalType) -> Color32 {
-    let i = TYPE_ORDER.iter().position(|t| *t == ty).unwrap_or(8);
+    let i = TYPE_ORDER.iter().position(|t| *t == ty).unwrap_or(9);
     palette().types[i]
 }
 
 /// Socket shape: stream types are circles, events diamonds, and data
-/// handles (Spectrum, Buffer) squares (the colorblind-safe channel).
+/// handles (Spectrum, Buffer) and text squares (the colorblind-safe channel).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SocketShape {
     Circle,
@@ -661,7 +664,7 @@ pub enum SocketShape {
 pub fn socket_shape(ty: SignalType) -> SocketShape {
     if ty.is_event() {
         SocketShape::Diamond
-    } else if ty.is_data() {
+    } else if ty.is_data() || ty == SignalType::Text {
         SocketShape::Square
     } else {
         SocketShape::Circle

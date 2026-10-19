@@ -153,6 +153,21 @@ pub struct PanelIo<'a> {
     pub now: f64,
 }
 
+/// Set one config key on a node, as one undo step ("Change setting").
+pub(crate) fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
+    let key = key.to_string();
+    io.doc.edit(io.registry, "Change setting", |g, _| {
+        if let Some(n) = g.node_mut(id) {
+            if !n.config.is_object() {
+                n.config = ac_core::empty_config();
+            }
+            if let Some(obj) = n.config.as_object_mut() {
+                obj.insert(key, value);
+            }
+        }
+    });
+}
+
 impl SidePanel {
     pub fn show(&mut self, ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.add_space(6.0);

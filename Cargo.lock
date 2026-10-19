@@ -20,7 +20,7 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
 name = "ac-app"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "ac-cli"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -57,7 +57,7 @@ dependencies = [
 
 [[package]]
 name = "ac-core"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -65,7 +65,7 @@ dependencies = [
 
 [[package]]
 name = "ac-dsp"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "realfft",
@@ -74,7 +74,7 @@ dependencies = [
 
 [[package]]
 name = "ac-engine"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-nodes",
@@ -85,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "ac-io"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-engine",
@@ -106,7 +106,7 @@ dependencies = [
 
 [[package]]
 name = "ac-nodes"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -116,7 +116,7 @@ dependencies = [
 
 [[package]]
 name = "ac-plugin"
-version = "0.8.0"
+version = "0.10.0"
 dependencies = [
  "ac-core",
  "ac-engine",
@@ -134,7 +134,7 @@ dependencies = [
 
 [[package]]
 name = "ac-web"
-version = "0.8.0"
+version = "0.10.0"
 
 [[package]]
 name = "accesskit"

@@ -188,6 +188,7 @@ Keep the type set small. Each type has a fixed socket/wire color (see UX.md).
 | `Midi` | list of MIDI events (note on/off, CC, pitch bend, aftertouch, channel) with sample offsets | event |
 | `Spectrum` | the FFT frames that completed during the block, each stamped with its sample offset; complex bins `re, im` | frame |
 | `Buffer` | shared, immutable handle to an audio buffer (clip, recording) | constant |
+| `Text` | a short string (an OSC address, a label): up to 128 bytes of UTF-8 kept inline (`TextBuf`), so the audio thread copies and compares it without allocating | constant or per-block |
 
 ### Rates
 
@@ -195,7 +196,10 @@ A `Float` or `Bool` input can be fed at three rates, and the engine decides
 which at compile time:
 
 - **Const**: the input is unwired; its value comes from `params`. Changing it
-  from the UI goes through the parameter queue, not a recompile.
+  from the UI goes through the parameter queue, not a recompile. (A `Text`
+  input is the exception: the queue carries numbers, so editing typed text
+  recompiles, with node state carried over, and the node reads the new text
+  on its next block.)
 - **Block**: one value per block. Produced by UI controls, transport values,
   smoothed parameters, and anything else that doesn't need audio-rate
   resolution.
@@ -560,7 +564,9 @@ without either feature.
 - OSC via rosc: a UDP listener on a chosen port (off until asked for) turns
   every argument of every message into a control event, stamped on arrival
   (bundles flattened, time tags ignored); OSC out sends from a sender
-  thread (D87).
+  thread (D87). The listener and each MIDI port also keep the newest
+  messages, with addresses and port names as text, in a mutex-guarded log
+  for the editor's Devices tab (D115); the engine never reads it.
 - The computer keyboard is a control source like any other: with Play keys
   on, the editor sends key presses and releases into its own ring instead
   of running shortcuts (D88).
