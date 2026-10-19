@@ -128,8 +128,12 @@ impl Canvas {
                     _ => {}
                 }
             }
-            if io.calm {
+            if io.calm || io.reduce_motion {
                 look.level = 0.0;
+            }
+            if io.reduce_motion {
+                // No flashing on event wires either.
+                look.pulse_age = None;
             }
             wires::paint(
                 &mut shapes,
@@ -178,6 +182,9 @@ impl Canvas {
             );
         }
 
+        self.paint_focus(painter, scene);
+        self.paint_keyboard_wire(painter, scene, now);
+
         // The wire being dragged, on top.
         if let Gesture::Wire { pending, snap, .. } = &self.gesture
             && let Some(p) = self.pointer
@@ -199,7 +206,11 @@ impl Canvas {
                         .node(*node)
                         .and_then(|n| n.socket(socket, pending.from.is_some()))
                 {
-                    let k = super::ease(((now - since) as f32) / theme::SNAP_SECONDS);
+                    let k = if io.reduce_motion {
+                        1.0
+                    } else {
+                        super::ease(((now - since) as f32) / theme::SNAP_SECONDS)
+                    };
                     end = p + (t.to_screen(s.pos) - p) * k;
                 }
                 let (a, b) = if pending.from.is_some() {
@@ -246,6 +257,86 @@ impl Canvas {
         }
         self.paint_minimap(painter, scene, io.doc);
         self.paint_overlay(painter, io);
+    }
+
+    /// The keyboard's focus ring: around the focused card, or the focused
+    /// socket, drawn over everything so nothing hides it, in the theme's
+    /// focus color (twice as thick in High Contrast).
+    fn paint_focus(&self, painter: &Painter, scene: &Scene) {
+        if !self.focus_visible {
+            return;
+        }
+        let Some(f) = &self.focus else { return };
+        let t = self.transform();
+        let width = 2.0 * theme::outline_width();
+        let stroke = Stroke::new(width, theme::focus_ring());
+        match f {
+            super::Focus::Node(id) => {
+                let Some(n) = scene.node(*id) else { return };
+                let card = t.rect_to_screen(n.rect);
+                let r = if n.class == Class::Reroute {
+                    theme::REROUTE_RADIUS * self.view.zoom.max(0.5) + 4.0
+                } else {
+                    theme::NODE_RADIUS * self.view.zoom + 4.0
+                };
+                painter.rect_stroke(
+                    card.expand(4.0),
+                    theme::radius(r),
+                    stroke,
+                    StrokeKind::Outside,
+                );
+            }
+            super::Focus::Socket { node, name, input } => {
+                let Some(s) = scene.node(*node).and_then(|n| n.socket(name, *input)) else {
+                    return;
+                };
+                let r = theme::SOCKET_RADIUS * self.view.zoom.max(0.6) + 4.0;
+                painter.circle_stroke(t.to_screen(s.pos), r, stroke);
+            }
+        }
+    }
+
+    /// A wire started from the keyboard, from its socket to wherever the
+    /// focus is.
+    fn paint_keyboard_wire(&self, painter: &Painter, scene: &Scene, now: f64) {
+        let Some(pending) = self.keyboard_wire() else {
+            return;
+        };
+        let t = self.transform();
+        let z = self.view.zoom;
+        let fixed = pending
+            .from
+            .as_ref()
+            .or(pending.to.as_ref())
+            .and_then(|e| {
+                scene
+                    .node(e.node)
+                    .and_then(|n| n.socket(&e.socket, pending.from.is_none()))
+            })
+            .map(|s| t.to_screen(s.pos));
+        let (Some(fixed), Some(end)) = (fixed, self.keyboard_wire_end(scene)) else {
+            return;
+        };
+        let (a, b) = if pending.from.is_some() {
+            (fixed, end)
+        } else {
+            (end, fixed)
+        };
+        let mut out = Vec::new();
+        wires::paint(
+            &mut out,
+            wires::bezier(a, b, z),
+            WireLook {
+                color: theme::type_color(pending.ty),
+                width: (theme::WIRE_WIDTH * z.sqrt()).max(1.5),
+                glow: true,
+                alpha: 0.8,
+                level: 0.0,
+                pulse_age: None,
+                time: now as f32,
+            },
+        );
+        painter.extend(out);
     }
 
     /// Breadcrumb, gesture hint, zoom readout.

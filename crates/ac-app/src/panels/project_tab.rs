@@ -47,31 +47,29 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
                         .font(theme::mono_font(theme::FONT_VALUE))
                         .color(theme::text_muted()),
                 );
-                if ui
-                    .small_button(format!(
-                        "{}  {}",
-                        icons::ARROWS_CLOCKWISE,
-                        tr("project-update")
-                    ))
-                    .on_hover_text(tr_args(
-                        "project-update-tip",
-                        &[("source", u.source.to_string().into())],
-                    ))
-                    .clicked()
+                if icons::spoken(ui.small_button(format!(
+                    "{}  {}",
+                    icons::ARROWS_CLOCKWISE,
+                    tr("project-update")
+                )))
+                .on_hover_text(tr_args(
+                    "project-update-tip",
+                    &[("source", u.source.to_string().into())],
+                ))
+                .clicked()
                 {
                     io.requests.push(PanelRequest::UpdateBlock(u.def.clone()));
                 }
                 ui.end_row();
             }
         });
-    if ui
-        .button(format!(
-            "{}  {}",
-            icons::ARROWS_CLOCKWISE,
-            tr("project-update-all")
-        ))
-        .on_hover_text(tr("project-update-all-tip"))
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::ARROWS_CLOCKWISE,
+        tr("project-update-all")
+    )))
+    .on_hover_text(tr("project-update-all-tip"))
+    .clicked()
     {
         io.requests.push(PanelRequest::UpdateAllBlocks);
     }
@@ -187,7 +185,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                     .small()
                     .color(theme::text_muted()),
             );
-            ui.label("");
+            ui.allocate_space(egui::Vec2::ZERO);
             ui.end_row();
             for (i, seg) in tempo.iter_mut().enumerate() {
                 if i == 0 {
@@ -243,15 +241,14 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                     seg.time_sig[1] = den;
                 });
                 if i > 0
-                    && ui
-                        .small_button(icons::X)
+                    && icons::spoken(ui.small_button(icons::X))
                         .on_hover_text(tr("project-remove-tempo-change"))
                         .accessible_name(tr("project-remove-tempo-change"))
                         .clicked()
                 {
                     remove = Some(i);
                 } else if i == 0 {
-                    ui.label("");
+                    ui.allocate_space(egui::Vec2::ZERO);
                 }
                 ui.end_row();
             }
@@ -260,13 +257,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         tempo.remove(i);
         changed = true;
     }
-    if ui
-        .button(format!(
-            "{}  {}",
-            icons::PLUS,
-            tr("project-add-tempo-change")
-        ))
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::PLUS,
+        tr("project-add-tempo-change")
+    )))
+    .clicked()
     {
         let last = tempo.last().cloned().unwrap_or_default();
         tempo.push(TempoSegment {
@@ -379,15 +375,18 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.horizontal(|ui| {
             match issue {
                 Some(AssetIssue::Missing { reason, .. }) => {
-                    ui.colored_label(theme::error(), icons::FILE_X)
-                        .on_hover_text(reason);
+                    let r = ui.colored_label(theme::error(), icons::FILE_X);
+                    icons::picture(&r, reason);
+                    r.on_hover_text(reason);
                 }
                 Some(AssetIssue::Changed { .. }) => {
-                    ui.colored_label(theme::warning(), icons::WARNING)
-                        .on_hover_text(tr("project-file-changed"));
+                    let r = ui.colored_label(theme::warning(), icons::WARNING);
+                    icons::picture(&r, &tr("project-file-changed"));
+                    r.on_hover_text(tr("project-file-changed"));
                 }
                 None => {
-                    ui.colored_label(theme::ok(), icons::FILE_AUDIO);
+                    let r = ui.colored_label(theme::ok(), icons::FILE_AUDIO);
+                    icons::picture(&r, &tr("project-file-found"));
                 }
             }
             ui.add(

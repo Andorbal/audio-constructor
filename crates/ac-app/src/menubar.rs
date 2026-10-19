@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use ac_core::{Category, Registry};
 use egui::RichText;
+use egui::accesskit::{Role, Toggled};
 
 use crate::actions::Action;
 use crate::files::Recent;
@@ -45,6 +46,8 @@ pub struct MenuState<'a> {
     pub side_panel: bool,
     pub timing: bool,
     pub minimap: bool,
+    /// View ▸ Reduce Motion is on.
+    pub reduce_motion: bool,
     /// The panels are shown instead of the canvas.
     pub panels: bool,
     pub playing: bool,
@@ -63,8 +66,34 @@ pub struct MenuState<'a> {
     pub can_quit: bool,
 }
 
-fn entry(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, icon: &str, enabled: bool) {
-    entry_labeled(ui, out, action, icon, &action.label(), enabled);
+fn entry(
+    ui: &mut egui::Ui,
+    out: &mut Vec<MenuCommand>,
+    action: Action,
+    icon: &str,
+    enabled: bool,
+) -> egui::Response {
+    entry_labeled(ui, out, action, icon, &action.label(), enabled)
+}
+
+/// A submenu whose label may start with an icon, which screen readers
+/// leave out.
+fn submenu(ui: &mut egui::Ui, label: String, add: impl FnOnce(&mut egui::Ui)) {
+    icons::spoken(ui.menu_button(label, add).response);
+}
+
+/// An entry with a check mark when on: checked or not to screen readers
+/// (one of several choices for `radio`), rather than a check mark's code
+/// point.
+fn checked(r: &egui::Response, on: bool, radio: bool) {
+    r.ctx.accesskit_node_builder(r.id, |n| {
+        n.set_role(if radio {
+            Role::MenuItemRadio
+        } else {
+            Role::MenuItemCheckBox
+        });
+        n.set_toggled(if on { Toggled::True } else { Toggled::False });
+    });
 }
 
 fn entry_labeled(
@@ -74,21 +103,24 @@ fn entry_labeled(
     icon: &str,
     label: &str,
     enabled: bool,
-) {
+) -> egui::Response {
     let mut b = egui::Button::new(format!("{icon}  {label}"));
     if let Some(sc) = action.shortcut() {
         b = b
             .shortcut_text(RichText::new(ui.ctx().format_shortcut(&sc)).color(theme::text_muted()));
     }
-    if ui.add_enabled(enabled, b).clicked() {
+    let r = icons::spoken(ui.add_enabled(enabled, b));
+    if r.clicked() {
         out.push(MenuCommand::Run(action));
         ui.close();
     }
+    r
 }
 
 fn toggle(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, on: bool) {
     let icon = if on { icons::CHECK } else { "    " };
-    entry(ui, out, action, icon, true);
+    let r = entry(ui, out, action, icon, true);
+    checked(&r, on, false);
 }
 
 /// View ▸ Theme: the built-in themes, the person's own (warning about
@@ -101,7 +133,8 @@ fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
         } else {
             "    "
         };
-        let mut r = ui.button(format!("{icon}  {}", choice.label()));
+        let mut r = icons::spoken(ui.button(format!("{icon}  {}", choice.label())));
+        checked(&r, s.theme == choice, true);
         if let Some(note) = note {
             r = r.on_hover_text(note);
         }
@@ -183,15 +216,17 @@ fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
 pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
     let mut out = Vec::new();
     egui::MenuBar::new().ui(ui, |ui| {
-        ui.label(
+        let logo = ui.label(
             RichText::new(format!("{} ", icons::WAVEFORM))
                 .size(17.0)
                 .color(theme::type_color(ac_core::SignalType::Audio)),
         );
-        ui.menu_button(tr("menu-file"), |ui| {
+        icons::picture(&logo, "Audio Constructor");
+        submenu(ui, tr("menu-file"), |ui| {
             entry(ui, &mut out, Action::New, icons::FILE_PLUS, true);
             entry(ui, &mut out, Action::Open, icons::FOLDER_OPEN, true);
-            ui.menu_button(
+            submenu(
+                ui,
                 format!(
                     "{}  {}",
                     icons::CLOCK_COUNTER_CLOCKWISE,
@@ -220,13 +255,12 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                             ui.close();
                         }
                         if !exists
-                            && ui
-                                .small_button(format!(
-                                    "{}  {}",
-                                    icons::X,
-                                    tr("menu-remove-from-list")
-                                ))
-                                .clicked()
+                            && icons::spoken(ui.small_button(format!(
+                                "{}  {}",
+                                icons::X,
+                                tr("menu-remove-from-list")
+                            )))
+                            .clicked()
                         {
                             out.push(MenuCommand::ForgetRecent(p.clone()));
                         }
@@ -240,7 +274,8 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                     }
                 },
             );
-            ui.menu_button(
+            submenu(
+                ui,
                 format!("{}  {}", icons::BOOK_OPEN, tr("menu-examples")),
                 |ui| {
                     if s.examples.is_empty() {
@@ -265,7 +300,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 entry(ui, &mut out, Action::Quit, icons::SIGN_OUT, true);
             }
         });
-        ui.menu_button(tr("menu-edit"), |ui| {
+        submenu(ui, tr("menu-edit"), |ui| {
             let undo = s.undo.map_or_else(
                 || Action::Undo.label(),
                 |l| tr_args("menu-undo-named", &[("what", l.into())]),
@@ -332,7 +367,8 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 !s.panels,
             );
             ui.add_enabled_ui(sel && !s.panels, |ui| {
-                ui.menu_button(
+                submenu(
+                    ui,
                     format!("{}  {}", icons::ALIGN_LEFT, Action::ArrangeMenu.label()),
                     |ui| {
                         if let Some(sc) = Action::ArrangeMenu.shortcut() {
@@ -361,10 +397,11 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             ui.separator();
             entry(ui, &mut out, Action::Pin, icons::PUSH_PIN, sel && !s.panels);
         });
-        ui.menu_button(tr("menu-view"), |ui| {
+        submenu(ui, tr("menu-view"), |ui| {
             toggle(ui, &mut out, Action::ToggleSidePanel, s.side_panel);
             toggle(ui, &mut out, Action::ShowTiming, s.timing);
             toggle(ui, &mut out, Action::Minimap, s.minimap);
+            toggle(ui, &mut out, Action::ReduceMotion, s.reduce_motion);
             ui.separator();
             toggle(ui, &mut out, Action::TogglePanels, s.panels);
             entry(
@@ -380,41 +417,48 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::ZoomIn, icons::PLUS, true);
             entry(ui, &mut out, Action::ZoomOut, icons::MINUS, true);
             ui.separator();
-            ui.menu_button(
+            submenu(
+                ui,
                 format!("{}  {}", icons::CIRCLE_HALF, tr("menu-theme")),
                 |ui| {
                     theme_menu(ui, &mut out, s);
                 },
             );
-            ui.menu_button(format!("{}  {}", icons::GLOBE, tr("menu-language")), |ui| {
-                for l in LanguageChoice::ALL {
-                    let icon = if s.language == l {
-                        icons::CHECK
-                    } else {
-                        "    "
-                    };
-                    if ui.button(format!("{icon}  {}", l.label())).clicked() {
-                        out.push(MenuCommand::SetLanguage(l));
-                        ui.close();
+            submenu(
+                ui,
+                format!("{}  {}", icons::GLOBE, tr("menu-language")),
+                |ui| {
+                    for l in LanguageChoice::ALL {
+                        let icon = if s.language == l {
+                            icons::CHECK
+                        } else {
+                            "    "
+                        };
+                        let r = icons::spoken(ui.button(format!("{icon}  {}", l.label())));
+                        checked(&r, s.language == l, true);
+                        if r.clicked() {
+                            out.push(MenuCommand::SetLanguage(l));
+                            ui.close();
+                        }
                     }
-                }
-            });
-            ui.menu_button(
+                },
+            );
+            submenu(
+                ui,
                 format!("{}  {}", icons::TEXT_AA, tr("menu-ui-scale")),
                 |ui| {
                     for step in UI_SCALES {
                         let on = (s.ui_scale - step).abs() < 1e-3;
                         let icon = if on { icons::CHECK } else { "    " };
-                        if ui
-                            .button(format!(
-                                "{icon}  {}",
-                                tr_args(
-                                    "menu-ui-scale-step",
-                                    &[("percent", format!("{:.0}", step * 100.0).into())]
-                                )
-                            ))
-                            .clicked()
-                        {
+                        let r = icons::spoken(ui.button(format!(
+                            "{icon}  {}",
+                            tr_args(
+                                "menu-ui-scale-step",
+                                &[("percent", format!("{:.0}", step * 100.0).into())]
+                            )
+                        )));
+                        checked(&r, on, true);
+                        if r.clicked() {
                             out.push(MenuCommand::SetUiScale(step));
                             ui.close();
                         }
@@ -434,7 +478,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 true,
             );
         });
-        ui.menu_button(tr("menu-add"), |ui| {
+        submenu(ui, tr("menu-add"), |ui| {
             entry(ui, &mut out, Action::AddNode, icons::MAGNIFYING_GLASS, true);
             ui.separator();
             for cat in Category::ALL {
@@ -446,7 +490,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 if entries.is_empty() {
                     continue;
                 }
-                ui.menu_button(i18n::category(cat), |ui| {
+                submenu(ui, i18n::category(cat), |ui| {
                     for e in entries {
                         if ui
                             .button(e.meta.name)
@@ -480,7 +524,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                     .color(theme::text_faint()),
             );
         });
-        ui.menu_button(tr("menu-transport"), |ui| {
+        submenu(ui, tr("menu-transport"), |ui| {
             let play = if s.playing {
                 tr("menu-stop")
             } else {
@@ -494,7 +538,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             ui.separator();
             toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });
-        ui.menu_button(tr("menu-help"), |ui| {
+        submenu(ui, tr("menu-help"), |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);
             entry(ui, &mut out, Action::NodeHelp, icons::BOOK_OPEN, true);
             ui.separator();

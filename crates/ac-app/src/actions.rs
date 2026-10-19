@@ -70,6 +70,8 @@ pub enum Action {
     ToggleSidePanel,
     ShowTiming,
     Minimap,
+    /// No fades, eases, or flowing wires (View ▸ Reduce Motion).
+    ReduceMotion,
 
     Pin,
     TogglePanels,
@@ -171,6 +173,7 @@ impl Action {
         Action::ToggleSidePanel,
         Action::ShowTiming,
         Action::Minimap,
+        Action::ReduceMotion,
         Action::Pin,
         Action::TogglePanels,
         Action::PerformanceMode,
@@ -239,6 +242,7 @@ impl Action {
             Action::ToggleSidePanel => tr("action-toggle-side-panel"),
             Action::ShowTiming => tr("action-show-timing"),
             Action::Minimap => tr("action-minimap"),
+            Action::ReduceMotion => tr("action-reduce-motion"),
             Action::Pin => tr("action-pin"),
             Action::TogglePanels => tr("action-toggle-panels"),
             Action::PerformanceMode => tr("action-performance-mode"),
@@ -280,7 +284,8 @@ impl Action {
             Action::Frame => sc(CMD, Key::J),
             Action::Group => sc(CMD, Key::G),
             Action::Ungroup => sc(CMD_ALT, Key::G),
-            Action::EnterLeaveGroup => sc(NONE, Key::Tab),
+            // Tab moves the keyboard between cards (D183).
+            Action::EnterLeaveGroup => sc(CMD, Key::Enter),
             Action::Portal => sc(SHIFT, Key::P),
             Action::AutoLayout => sc(CMD, Key::L),
             // `Alt+A` is Select None (D101).
@@ -309,6 +314,7 @@ impl Action {
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
             Action::Minimap => sc(SHIFT, Key::M),
+            Action::ReduceMotion => None,
             Action::Pin => sc(NONE, Key::P),
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
@@ -365,6 +371,7 @@ impl Action {
                 | Action::UiScaleUp
                 | Action::UiScaleDown
                 | Action::UiScaleReset
+                | Action::ReduceMotion
                 | Action::Shortcuts
                 | Action::About
         )
@@ -451,10 +458,13 @@ mod tests {
             for_key(Key::Tab, Modifiers::CTRL),
             Some(Action::TogglePanels)
         );
+        // Tab is the canvas's focus; groups open with Ctrl+Enter.
+        assert_eq!(for_key(Key::Tab, Modifiers::NONE), None);
         assert_eq!(
-            for_key(Key::Tab, Modifiers::NONE),
+            for_key(Key::Enter, Modifiers::CTRL),
             Some(Action::EnterLeaveGroup)
         );
+        assert_eq!(for_key(Key::Enter, Modifiers::NONE), None);
         assert_eq!(
             for_key(Key::F11, Modifiers::NONE),
             Some(Action::PerformanceMode)

@@ -545,8 +545,16 @@ impl Canvas {
         }
         io.doc.move_nodes(&moves);
 
-        // Dropping one unwired node onto a wire splices it in.
+        // Dropping one unwired node onto a wire splices it in. Moved with
+        // the arrows, it's the card's middle that has to be on the wire.
         *insert = None;
+        let probe = match (self.grab_keys, ids.first(), moves.first()) {
+            (true, Some(id), Some((_, p))) => {
+                let size = scene.node(*id).map_or(egui::Vec2::ZERO, |n| n.rect.size());
+                t.to_screen(pos2(p[0], p[1]) + size / 2.0)
+            }
+            _ => pointer,
+        };
         if ids.len() == 1 && !edit::is_virtual(ids[0]) {
             let id = ids[0];
             let graph = io.doc.display_graph();
@@ -562,7 +570,7 @@ impl Canvas {
                         t.to_screen(w.to),
                         self.view.zoom,
                     );
-                    let dist = super::wires::distance(&super::wires::flatten(&c), pointer);
+                    let dist = super::wires::distance(&super::wires::flatten(&c), probe);
                     if dist < 14.0 && best.as_ref().is_none_or(|b| dist < b.0) {
                         best = Some((dist, w.wire.clone()));
                     }
@@ -576,11 +584,12 @@ impl Canvas {
         }
     }
 
-    fn finish_move(&mut self, io: &mut CanvasIo) {
+    pub(super) fn finish_move(&mut self, io: &mut CanvasIo) {
         let Gesture::Move { ids, insert, .. } = std::mem::replace(&mut self.gesture, Gesture::Idle)
         else {
             return;
         };
+        self.grab_keys = false;
         self.hint = None;
         if let Some(w) = insert {
             let id = ids[0];
@@ -752,7 +761,7 @@ impl Canvas {
         }
     }
 
-    fn click(
+    pub(super) fn click(
         &mut self,
         io: &mut CanvasIo,
         scene: &Scene,

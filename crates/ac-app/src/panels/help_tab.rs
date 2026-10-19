@@ -140,8 +140,7 @@ fn index(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
 /// A node kind's reference.
 fn page(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str, e: &NodeEntry) {
     let m = &e.meta;
-    if ui
-        .small_button(format!("{}  {}", icons::ARROW_LEFT, tr("help-all-nodes")))
+    if icons::spoken(ui.small_button(format!("{}  {}", icons::ARROW_LEFT, tr("help-all-nodes"))))
         .clicked()
     {
         view.kind = None;
@@ -323,6 +322,8 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
                     false,
                     RichText::new(format!("{}  {}", icons::STACK, d.name)).color(theme::accent()),
                 )
+                // The icon tells a block from an example on screen.
+                .accessible_name(tr_args("help-block-link", &[("name", (&d.name).into())]))
                 .on_hover_ui(|ui| {
                     ui.set_max_width(340.0);
                     if !d.description.is_empty() {
@@ -354,6 +355,7 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
                     RichText::new(format!("{}  {}", icons::FOLDER_OPEN, ex.name))
                         .color(theme::accent()),
                 )
+                .accessible_name(tr_args("help-example-link", &[("name", (&ex.name).into())]))
                 .on_hover_text(tr("help-open-example"));
             if r.clicked() {
                 io.requests.push(PanelRequest::OpenExample(ex.path.clone()));

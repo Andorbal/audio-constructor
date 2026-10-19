@@ -24,6 +24,8 @@ use crate::edit::pins;
 use crate::i18n::{tr, tr_args};
 use crate::{icons, theme};
 
+mod access;
+
 /// Narrowest grid cell (points); the grid fits as many columns as the
 /// width takes. Performance mode uses bigger cells, for touch.
 const CELL_WIDTH: f32 = 150.0;
@@ -139,6 +141,8 @@ pub struct PerformView {
     scroll: f32,
     /// The cards drawn last frame (tests read these).
     pub cells: Vec<Cell>,
+    /// The Button that Space is holding down (access.rs).
+    key_hold: Option<NodeId>,
 }
 
 impl PerformView {
@@ -158,6 +162,7 @@ impl PerformView {
         self.rename = None;
         self.scroll = 0.0;
         self.cells.clear();
+        self.key_hold = None;
     }
 
     /// Escape: close a popup or a field, or let go of a control. Returns
@@ -308,42 +313,44 @@ impl PerformView {
                 self.start_rename(i, &name);
             }
             tab.context_menu(|ui| {
-                if ui
-                    .button(format!("{}  {}", icons::PENCIL, tr("perform-rename")))
+                if icons::spoken(ui.button(format!("{}  {}", icons::PENCIL, tr("perform-rename"))))
                     .clicked()
                 {
                     self.start_rename(i, &name);
                     ui.close();
                 }
-                let left = ui.add_enabled(
+                let left = icons::spoken(ui.add_enabled(
                     i > 0,
                     egui::Button::new(format!(
                         "{}  {}",
                         icons::ARROW_LEFT,
                         tr("perform-move-left")
                     )),
-                );
+                ));
                 if left.clicked() {
                     self.move_panel(io, i, i - 1);
                     ui.close();
                 }
-                let right = ui.add_enabled(
+                let right = icons::spoken(ui.add_enabled(
                     i + 1 < n,
                     egui::Button::new(format!(
                         "{}  {}",
                         icons::CARET_RIGHT,
                         tr("perform-move-right")
                     )),
-                );
+                ));
                 if right.clicked() {
                     self.move_panel(io, i, i + 1);
                     ui.close();
                 }
                 ui.separator();
-                if ui
-                    .button(format!("{}  {}", icons::TRASH, tr("perform-delete-panel")))
-                    .on_hover_text(tr("perform-delete-panel-tip"))
-                    .clicked()
+                if icons::spoken(ui.button(format!(
+                    "{}  {}",
+                    icons::TRASH,
+                    tr("perform-delete-panel")
+                )))
+                .on_hover_text(tr("perform-delete-panel-tip"))
+                .clicked()
                 {
                     io.doc.edit_panels(&tr("undo-delete-panel"), |p, _| {
                         pins::remove_panel(p, i);
@@ -356,12 +363,11 @@ impl PerformView {
                 }
             });
         }
-        let add = ui
-            .add(
-                egui::Button::new(RichText::new(icons::PLUS).size(15.0)).frame_when_inactive(false),
-            )
-            .on_hover_text(tr("perform-new-panel"))
-            .accessible_name(tr("perform-new-panel"));
+        let add = icons::spoken(ui.add(
+            egui::Button::new(RichText::new(icons::PLUS).size(15.0)).frame_when_inactive(false),
+        ))
+        .on_hover_text(tr("perform-new-panel"))
+        .accessible_name(tr("perform-new-panel"));
         if add.clicked() {
             let (i, name) = io.doc.edit_panels(&tr("undo-new-panel"), |p, _| {
                 let i = pins::add_panel(p, "");
@@ -371,13 +377,12 @@ impl PerformView {
             self.start_rename(i, &name);
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let perform = ui
-                .add(egui::Button::new(format!(
-                    "{}  {}",
-                    icons::CORNERS_OUT,
-                    tr("perform-perform")
-                )))
-                .on_hover_text(tr("perform-perform-tip"));
+            let perform = icons::spoken(ui.add(egui::Button::new(format!(
+                "{}  {}",
+                icons::CORNERS_OUT,
+                tr("perform-perform")
+            ))))
+            .on_hover_text(tr("perform-perform-tip"));
             if perform.clicked() {
                 self.set_fullscreen(ui.ctx(), true);
             }
@@ -488,20 +493,21 @@ impl PerformView {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let exit = ui
-                    .add(
+                let exit = icons::spoken(
+                    ui.add(
                         egui::Button::new(
                             RichText::new(format!("{}  {}", icons::CORNERS_IN, tr("perform-exit")))
                                 .size(theme::FONT_UI),
                         )
                         .min_size(vec2(0.0, 32.0)),
-                    )
-                    .on_hover_text(tr("perform-exit-tip"));
+                    ),
+                )
+                .on_hover_text(tr("perform-exit-tip"));
                 if exit.clicked() {
                     actions.push(Action::PerformanceMode);
                 }
-                let keys = ui
-                    .add(
+                let keys = icons::spoken(
+                    ui.add(
                         egui::Button::new(RichText::new(icons::KEYBOARD).size(20.0).color(
                             if play_keys {
                                 theme::accent()
@@ -511,13 +517,14 @@ impl PerformView {
                         ))
                         .selected(play_keys)
                         .min_size(vec2(40.0, 32.0)),
-                    )
-                    .on_hover_text(if play_keys {
-                        tr("perform-play-keys-on")
-                    } else {
-                        tr("perform-play-keys-off")
-                    })
-                    .accessible_name(tr("transport-play-keys"));
+                    ),
+                )
+                .on_hover_text(if play_keys {
+                    tr("perform-play-keys-on")
+                } else {
+                    tr("perform-play-keys-off")
+                })
+                .accessible_name(tr("transport-play-keys"));
                 if keys.clicked() {
                     actions.push(Action::PlayKeys);
                 }
@@ -534,6 +541,7 @@ impl PerformView {
             egui::Id::unique("panel-grid"),
             Sense::click_and_drag(),
         );
+        self.name_grid(io, &response);
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 0.0, theme::canvas_bg());
         let dt = self.live.begin_frame(now);
@@ -713,6 +721,8 @@ impl PerformView {
                 StrokeKind::Inside,
             );
         }
+
+        self.accessibility(ui, io, &scene, &live, now);
 
         // Popups and fields over the grid.
         if let Some((node, at)) = self.choice {

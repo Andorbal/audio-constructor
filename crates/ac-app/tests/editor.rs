@@ -193,14 +193,14 @@ fn group_and_enter() {
         assert_eq!(def.graph.nodes.len(), 2);
         assert_eq!(def.graph.wires.len(), 1);
     }
-    // Tab goes inside the selected group; Tab again comes back out.
-    press(&mut h, Modifiers::NONE, Key::Tab);
+    // Ctrl+Enter goes inside the selected group, and again comes back out.
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
     assert_eq!(h.state().document().scope.len(), 1);
     assert_eq!(h.state().document().graph().nodes.len(), 2);
     // Inside, the group's interface is drawn as cards with sockets.
     let scene = h.state().canvas.last_scene.as_ref().unwrap();
     assert!(scene.node(ac_app::edit::GROUP_IN).is_some());
-    press(&mut h, Modifiers::NONE, Key::Tab);
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
     assert!(h.state().document().scope.is_empty());
     // Ungroup restores the two nodes and their wire.
     press(

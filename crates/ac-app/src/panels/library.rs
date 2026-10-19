@@ -227,14 +227,13 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
         block_row(ui, io, b);
     }
     ui.add_space(4.0);
-    if ui
-        .button(format!(
-            "{}  {}",
-            icons::DOWNLOAD_SIMPLE,
-            tr("library-import")
-        ))
-        .on_hover_text(tr("library-import-tip"))
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::DOWNLOAD_SIMPLE,
+        tr("library-import")
+    )))
+    .on_hover_text(tr("library-import-tip"))
+    .clicked()
     {
         io.requests.push(PanelRequest::ImportBlockFile);
     }
@@ -327,8 +326,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
         io.requests.push(PanelRequest::Add(c.clone()));
     }
     resp.context_menu(|ui| {
-        if ui
-            .button(format!("{}  {}", icons::PLUS, tr("library-add-to-canvas")))
+        if icons::spoken(ui.button(format!("{}  {}", icons::PLUS, tr("library-add-to-canvas"))))
             .clicked()
         {
             io.requests.push(PanelRequest::Add(c.clone()));
@@ -340,8 +338,7 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
                     .small()
                     .color(theme::text_muted()),
             );
-        } else if ui
-            .button(format!("{}  {}", icons::TRASH, tr("library-remove")))
+        } else if icons::spoken(ui.button(format!("{}  {}", icons::TRASH, tr("library-remove"))))
             .clicked()
         {
             io.requests

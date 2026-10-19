@@ -687,7 +687,84 @@ impl EditorApp {
     fn apply_settings(&self, ctx: &egui::Context) {
         let (look, _) = self.themes.look(&self.settings.prefs.theme);
         theme::set_look(ctx, look);
+        self.apply_motion(ctx);
         ctx.set_zoom_factor(self.settings.prefs.ui_scale);
+    }
+
+    /// egui's own animations (collapsing sections, scrolling, menus) off
+    /// with Reduce Motion, at egui's usual speed otherwise.
+    fn apply_motion(&self, ctx: &egui::Context) {
+        let time = if self.settings.prefs.reduce_motion {
+            0.0
+        } else {
+            egui::Style::default().animation_time
+        };
+        ctx.all_styles_mut(|s| s.animation_time = time);
+    }
+
+    /// View ▸ Reduce Motion: no fades, eases, flowing wires, or flashes,
+    /// from now on, and remembered.
+    pub fn set_reduce_motion(&mut self, ctx: &egui::Context, on: bool, now: f64) {
+        self.settings.set_reduce_motion(on);
+        self.apply_motion(ctx);
+        self.say(
+            if on {
+                tr("status-reduce-motion-on")
+            } else {
+                tr("status-reduce-motion-off")
+            },
+            now,
+        );
+    }
+
+    /// F6: the keyboard moves between the canvas and the side panel (from
+    /// the panel, Tab goes on through its widgets as usual).
+    fn switch_region(&mut self, ctx: &egui::Context) {
+        let focused = ctx.memory(|m| m.focused());
+        let on_canvas = self.canvas.owns_focus(ctx) || focused.is_none();
+        if on_canvas && self.side.open && !self.perform.shown {
+            if let Some(id) = self.side.focus_target {
+                self.canvas.drop_keyboard(ctx);
+                ctx.memory_mut(|m| m.request_focus(id));
+            }
+            return;
+        }
+        if let Some(id) = focused {
+            ctx.memory_mut(|m| m.surrender_focus(id));
+        }
+        if self.canvas.focus.is_none() {
+            self.canvas.key(crate::canvas::KeyCmd::Step(1));
+        }
+        self.canvas.take_keyboard();
+    }
+
+    /// A key the canvas handles itself (keys.rs), if this is one.
+    fn canvas_key(&self, key: Key, m: egui::Modifiers) -> Option<crate::canvas::KeyCmd> {
+        use crate::canvas::{KeyCmd, NUDGE};
+        let plain = !m.any();
+        let step = if m.shift {
+            NUDGE * 5.0
+        } else if m.command || m.ctrl {
+            1.0
+        } else {
+            NUDGE
+        };
+        let arrow = |d: egui::Vec2| (!m.alt).then_some(KeyCmd::Nudge(d * step));
+        match key {
+            Key::Tab if plain => Some(KeyCmd::Step(1)),
+            Key::Tab if m.shift_only() => Some(KeyCmd::Step(-1)),
+            Key::Enter if plain => Some(KeyCmd::Activate),
+            Key::Enter if m.shift_only() => Some(KeyCmd::Extend),
+            Key::ArrowDown if m.alt && !m.shift && !m.command => Some(KeyCmd::SocketStep(1)),
+            Key::ArrowUp if m.alt && !m.shift && !m.command => Some(KeyCmd::SocketStep(-1)),
+            Key::ArrowLeft => arrow(vec2(-1.0, 0.0)),
+            Key::ArrowRight => arrow(vec2(1.0, 0.0)),
+            Key::ArrowUp => arrow(vec2(0.0, -1.0)),
+            Key::ArrowDown => arrow(vec2(0.0, 1.0)),
+            Key::F10 if m.shift_only() => Some(KeyCmd::Menu),
+            Key::F2 if plain && self.canvas.socket_focused() => Some(KeyCmd::EditValue),
+            _ => None,
+        }
     }
 
     /// The person's own themes, as View ▸ Theme lists them.
@@ -833,7 +910,8 @@ impl EditorApp {
         theme::follow(&ctx);
         // The canvas is keyboard-driven: with nothing focused, Tab and the
         // arrow keys belong to it, not to egui's focus navigation.
-        if ctx.memory(|m| m.focused().is_none()) {
+        // While a card or socket has the keyboard (D183), the same goes.
+        if ctx.memory(|m| m.focused().is_none()) || self.canvas.owns_focus(&ctx) {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
         self.track_selection();
@@ -875,6 +953,7 @@ impl EditorApp {
                     calm,
                     timing: self.show_timing.then_some(&self.timing),
                     bound: &self.bound,
+                    reduce_motion: self.settings.prefs.reduce_motion,
                     events: Vec::new(),
                 };
                 self.canvas.show(ui, &mut io);
@@ -929,6 +1008,7 @@ impl EditorApp {
                     side_panel: self.side.open,
                     timing: self.show_timing,
                     minimap: self.canvas.minimap,
+                    reduce_motion: self.settings.prefs.reduce_motion,
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
@@ -1037,6 +1117,7 @@ impl EditorApp {
         let report = &self.engine.report;
         let missing = &self.missing;
         let bound = &self.bound;
+        let reduce_motion = self.settings.prefs.reduce_motion;
         let events = self.doc.at_root(|doc| {
             let mut io = CanvasIo {
                 can_record,
@@ -1048,6 +1129,7 @@ impl EditorApp {
                 calm,
                 timing: None,
                 bound,
+                reduce_motion,
                 events: Vec::new(),
             };
             perform.show(ui, &mut io, now);
@@ -1088,9 +1170,9 @@ impl EditorApp {
                 if ui.small_button(tr("status-clip-from-take")).clicked() {
                     self.clip_from_take(&take, now);
                 }
-                if ui
-                    .small_button(icons::X)
+                if icons::spoken(ui.small_button(icons::X))
                     .on_hover_text(tr("status-dismiss"))
+                    .accessible_name(tr("status-dismiss"))
                     .clicked()
                     && !self.takes.is_empty()
                 {
@@ -1164,9 +1246,11 @@ impl EditorApp {
                     icons::SPEAKER_SLASH
                 };
                 let text = format!("{icon} {}", self.engine.describe());
-                let r = ui.add(
-                    egui::Button::new(RichText::new(text).small().color(theme::text_muted()))
-                        .frame(false),
+                let r = icons::spoken(
+                    ui.add(
+                        egui::Button::new(RichText::new(text).small().color(theme::text_muted()))
+                            .frame(false),
+                    ),
                 );
                 if r.on_hover_text(tr("status-audio-settings")).clicked() {
                     self.side.open = true;
@@ -1175,8 +1259,8 @@ impl EditorApp {
                 let n = self.engine.report.diagnostics.len();
                 if n > 0 {
                     let errors = self.engine.report.has_errors();
-                    let r = ui
-                        .add(
+                    let r = icons::spoken(
+                        ui.add(
                             egui::Button::new(
                                 RichText::new(format!("{} {n}", icons::WARNING))
                                     .small()
@@ -1187,8 +1271,11 @@ impl EditorApp {
                                     }),
                             )
                             .frame(false),
-                        )
-                        .on_hover_text(tr_args("status-problems", &[("count", n.into())]));
+                        ),
+                    )
+                    .on_hover_text(tr_args("status-problems", &[("count", n.into())]))
+                    // The button shows a count; it says what's counted.
+                    .accessible_name(tr_args("status-problems", &[("count", n.into())]));
                     if r.clicked() {
                         self.side.open = true;
                         self.side.tab = Tab::Problems;
@@ -1392,7 +1479,9 @@ impl EditorApp {
     // ------------------------------------------------------------ input
 
     fn handle_keys(&mut self, ctx: &egui::Context, now: f64) {
-        let typing = ctx.egui_wants_keyboard_input()
+        // A card or socket with the keyboard isn't typing: its keys are the
+        // canvas's.
+        let typing = (ctx.egui_wants_keyboard_input() && !self.canvas.owns_focus(ctx))
             || self.canvas.is_typing()
             || self.palette.open
             || self.find.open
@@ -1483,6 +1572,10 @@ impl EditorApp {
                     if modal {
                         continue;
                     }
+                    if key == Key::F6 && pressed && !self.perform.fullscreen {
+                        self.switch_region(ctx);
+                        continue;
+                    }
                     if key == Key::Escape && pressed {
                         if self.palette.open || self.find.open {
                             continue; // they handle it
@@ -1498,7 +1591,10 @@ impl EditorApp {
                             }
                             continue;
                         }
-                        self.canvas.cancel(&mut self.doc);
+                        if !self.canvas.cancel(&mut self.doc) {
+                            // Nothing to cancel: the focus ring goes.
+                            self.canvas.drop_keyboard(ctx);
+                        }
                         continue;
                     }
                     // Space plays on release, so Space+drag can pan instead.
@@ -1518,6 +1614,13 @@ impl EditorApp {
                         continue;
                     }
                     if !pressed {
+                        continue;
+                    }
+                    if !typing
+                        && !self.perform.shown
+                        && let Some(cmd) = self.canvas_key(key, modifiers)
+                    {
+                        self.canvas.key(cmd);
                         continue;
                     }
                     let action = match key {
@@ -1997,6 +2100,7 @@ impl EditorApp {
         let id = id?;
         self.doc.selection = [id].into();
         self.canvas.mark_born(&[id], now);
+        self.canvas.focus_added(id);
         self.last_added = vec![id];
         Some(id)
     }
@@ -2274,6 +2378,10 @@ impl EditorApp {
             Action::UiScaleReset => self.set_ui_scale(ctx, 1.0, now),
             Action::ToggleSidePanel => self.side.open = !self.side.open,
             Action::Minimap => self.canvas.minimap = !self.canvas.minimap,
+            Action::ReduceMotion => {
+                let on = !self.settings.prefs.reduce_motion;
+                self.set_reduce_motion(ctx, on, now);
+            }
             Action::Portal => match self.canvas.toggle_portal(&mut self.doc, &reg, now) {
                 Ok(text) => self.say(text, now),
                 Err(text) => self.warn(text, now),

@@ -42,6 +42,38 @@ fixes and smaller changes.
   fit. The choice is remembered. Node names and node help stay in English
   for now. [docs/TRANSLATING.md](docs/TRANSLATING.md) says how to add a
   language.
+- **The canvas from the keyboard**: Tab and Shift+Tab move a focus ring
+  from card to card, left to right the way the signal flows, and the
+  selection follows (Shift+Enter keeps a card selected while you move
+  on). Alt+↓ and Alt+↑ step through a card's sockets; Enter on a socket
+  picks up a wire, and Enter on another card or socket connects it. F2
+  on an input types its value, the arrow keys move what's selected (or
+  look around when nothing is), Shift+F10 opens the right-click menu,
+  and F6 moves between the canvas and the side panel. A node added from
+  the palette takes the focus, so a patch can be built without the mouse.
+- **Screen readers** can find and use everything: each card says its
+  name, kind, how many inputs and outputs it has, and whether it's
+  selected; each socket says its type and what it's wired to or set to;
+  on a panel, a knob or slider is a slider with its value, a toggle a
+  switch, and a meter says its peak. Menu entries with a check mark say
+  they're checked, and icons are never read out. A screen reader's
+  activate selects a card, and its increment, decrement, and set value
+  turn a panel's knobs.
+- **Panels from the keyboard**: Tab reaches every card. ↑ and ↓ (or ← and
+  →) turn a knob or slider by a hundredth of its range, a tenth with
+  Shift or Page Up and Page Down; Home and End go to its ends; Enter types
+  a value, opens a dropdown, or flips a toggle; and Space holds a button
+  down for as long as you hold it. In the panel view, Delete unpins the
+  focused card, and + and − resize it.
+- **View ▸ Reduce Motion**: no fades, eases, flowing wires, or flashes on
+  events, and the view jumps where it would glide. The choice is
+  remembered.
+
+### Changed
+
+- **Enter / Leave Group is now Ctrl+Enter** (it was Tab, which now moves
+  the keyboard from node to node). Double-clicking a group still goes
+  inside.
 
 ## [0.10.0] - 2026-10-19
 

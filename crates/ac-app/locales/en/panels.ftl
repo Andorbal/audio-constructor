@@ -247,6 +247,8 @@ project-schedule-stats = { $steps } steps in { $chains } chains, { $waves } wave
 project-schedule-tip = A chain's steps run in order on one core; the chains of one wave can run on different cores (Devices tab).
 project-no-audio-files = No audio files. Clip nodes add them.
 project-file-changed = The file changed since it was added (its content hash differs).
+# What a screen reader says for a file the project found.
+project-file-found = Found
 project-relative-paths = Relative paths resolve against { $folder }
 project-save-to-copy = Save the project to copy its audio files into its assets folder.
 ## Bindings (the Project, Node, and Devices tabs)
@@ -295,6 +297,9 @@ help-unused = No block or example uses it yet. Build something with it and save 
 help-blocks = Blocks
 help-click-to-add = Click to add it to the canvas.
 help-examples = Examples
+# What a screen reader says for a link to a block or an example.
+help-block-link = { $name }, block
+help-example-link = { $name }, example
 help-open-example = Open this example (as a new, untitled project)
 bindings-transport-target = Transport: { $action }
 bindings-missing-node = missing node { $node }

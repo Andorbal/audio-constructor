@@ -12,6 +12,7 @@ use ac_app::settings::AppSettings;
 use ac_app::theme::{self, ThemeChoice};
 use ac_app::{AppOptions, EditorApp};
 use ac_core::{GROUP_KIND, NodeId, NodeInstance, Project};
+use egui::accesskit::Role;
 use egui::{Key, Modifiers};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
@@ -202,12 +203,14 @@ fn click_exact(h: &mut Harness<'static, EditorApp>, label: &str) {
     steps(h, 3);
 }
 
+/// A block's link in the help, as a screen reader says it (the icon
+/// tells blocks and examples apart on screen).
 fn block_link(name: &str) -> String {
-    format!("{}  {name}", icons::STACK)
+    format!("{name}, block")
 }
 
 fn example_link(name: &str) -> String {
-    format!("{}  {name}", icons::FOLDER_OPEN)
+    format!("{name}, example")
 }
 
 #[test]
@@ -253,7 +256,18 @@ fn the_node_tab_and_the_menu_open_the_same_help() {
     assert_eq!(h.state().side.tab, Tab::Node);
     // The Node tab shows the tip and a button to the full reference.
     let _ = h.get_by_label_contains("Try this");
-    click_exact(&mut h, &format!("{}  Help", icons::BOOK_OPEN));
+    // The Node tab's Help button (the menu bar's comes first).
+    let help = h
+        .query_all_by_role_and_label(Role::Button, "Help")
+        .last()
+        .unwrap();
+    help.scroll_to_me();
+    steps(&mut h, 3);
+    h.query_all_by_role_and_label(Role::Button, "Help")
+        .last()
+        .unwrap()
+        .click();
+    steps(&mut h, 3);
     assert_eq!(h.state().side.tab, Tab::Help);
     assert_eq!(h.state().side.help.kind.as_deref(), Some("oscillator"));
     // Help ▸ Node Help with nothing selected lists every node.

@@ -50,8 +50,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
         };
         ui.label(RichText::new(format!("{icon} {}", b.source.label())).color(theme::text_strong()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .small_button(icons::X)
+            if icons::spoken(ui.small_button(icons::X))
                 .on_hover_text(tr("bindings-remove"))
                 .accessible_name(tr_args(
                     "bindings-remove-named",
@@ -282,14 +281,13 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
 /// transport bindings, and learning one.
 pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mut TransportAction) {
     section(ui, &tr("section-transport-buttons"));
-    if ui
-        .button(format!(
-            "{}  {}",
-            icons::GAME_CONTROLLER,
-            tr("bindings-add-gamepad-transport")
-        ))
-        .on_hover_text(tr("bindings-add-gamepad-transport-tip"))
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::GAME_CONTROLLER,
+        tr("bindings-add-gamepad-transport")
+    )))
+    .on_hover_text(tr("bindings-add-gamepad-transport-tip"))
+    .clicked()
     {
         let n = bindings::add_all(
             io.doc,
@@ -314,8 +312,7 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
             })
             .response
             .accessible_name(tr("bindings-transport-action"));
-        if ui
-            .button(format!("{}  {}", icons::LINK, tr("canvas-bind")))
+        if icons::spoken(ui.button(format!("{}  {}", icons::LINK, tr("canvas-bind"))))
             .on_hover_text(tr("bindings-learn-transport-tip"))
             .clicked()
         {

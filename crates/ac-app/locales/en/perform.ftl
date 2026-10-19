@@ -21,3 +21,21 @@ perform-nothing-pinned = Nothing pinned to { $panel } yet
 perform-nothing-pinned-hint = Select controls or displays on the canvas (sliders, knobs, buttons, the keyboard, meters, scopes) and press P, or right-click one and pin it here.
 perform-missing-node = Missing node
 perform-no-widget = no widget to show
+
+## What screen readers say about the panels.
+
+a11y-panel =
+    { $count ->
+        [one] Panel { $panel }, { $count } control
+       *[other] Panel { $panel }, { $count } controls
+    }
+# A card's header button: "Shrink Cutoff".
+a11y-panel-button = { $button } { $card }
+a11y-panel-shrink = Shrink
+a11y-panel-grow = Grow
+a11y-panel-unpin = Unpin
+# A meter's reading: "peak -12.5 dB".
+a11y-peak = peak { $db } dB
+a11y-silent = silent
+a11y-recording = recording
+a11y-not-recording = not recording

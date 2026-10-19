@@ -97,3 +97,48 @@ pub const HEADPHONES: &str = "\u{E2A6}";
 pub const GAUGE: &str = "\u{E628}";
 pub const HAND_TAP: &str = "\u{EC90}";
 pub const CUBE: &str = "\u{E1DA}";
+
+/// An icon that only decorates the words beside it, hidden from screen
+/// readers (they would read its code point).
+pub fn decoration(r: &egui::Response) {
+    r.ctx.accesskit_node_builder(r.id, |n| n.set_hidden());
+}
+
+/// An icon that means something on its own, as a picture with a name for
+/// screen readers (a file's state, the logo).
+pub fn picture(r: &egui::Response, name: &str) {
+    r.ctx.accesskit_node_builder(r.id, |n| {
+        n.set_role(egui::accesskit::Role::Image);
+        n.set_label(name);
+        n.clear_value();
+    });
+}
+
+/// Whether `c` is an icon (the icon font's Private Use Area).
+pub fn is_icon(c: char) -> bool {
+    ('\u{E000}'..='\u{F8FF}').contains(&c)
+}
+
+/// `text` without its icons, as a screen reader should say it.
+pub fn words(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for word in text.split(is_icon).map(str::trim).filter(|w| !w.is_empty()) {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(word);
+    }
+    out
+}
+
+/// A widget labelled "icon  words" says only the words to screen readers
+/// (they'd read the icon's code point).
+pub fn spoken(r: egui::Response) -> egui::Response {
+    r.ctx
+        .accesskit_node_builder(r.id, |n| match n.label().map(words) {
+            Some(label) if label.is_empty() => n.clear_label(),
+            Some(label) => n.set_label(label),
+            None => {}
+        });
+    r
+}

@@ -311,14 +311,14 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
     ui.add_space(4.0);
     let can_measure = io.engine.is_running() && !io.engine.is_null() && info.in_channels > 0;
-    let r = ui.add_enabled(
+    let r = icons::spoken(ui.add_enabled(
         can_measure && io.engine.latency != LatencyState::Running,
         egui::Button::new(format!(
             "{}  {}",
             icons::TIMER,
             tr("devices-measure-latency")
         )),
-    );
+    ));
     if r.clicked() {
         io.engine.measure_latency();
     }
@@ -514,7 +514,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                         .on_hover_text(tr("devices-threads-tip"));
                     ui.end_row();
                     if let Some(e) = &h.error {
-                        ui.label("");
+                        ui.allocate_space(egui::Vec2::ZERO);
                         ui.colored_label(theme::warning(), e);
                         ui.end_row();
                     }
@@ -523,19 +523,16 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
     ui.horizontal(|ui| {
         let changed = state.draft.as_ref() != Some(&io.engine.config) || io.engine.is_null();
-        if ui
-            .add_enabled(
-                !hosts.is_empty() && changed,
-                egui::Button::new(format!("{}  {}", icons::CHECK, tr("devices-apply"))),
-            )
-            .clicked()
+        if icons::spoken(ui.add_enabled(
+            !hosts.is_empty() && changed,
+            egui::Button::new(format!("{}  {}", icons::CHECK, tr("devices-apply"))),
+        ))
+        .clicked()
             && let Some(d) = state.draft.clone()
         {
             io.requests.push(PanelRequest::SwitchAudio(d));
         }
-        if ui
-            .button(format!("{}  {}", icons::REDO, tr("devices-refresh")))
-            .clicked()
+        if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-refresh")))).clicked()
         {
             state.hosts = Some(ac_io::enumerate());
         }
@@ -611,8 +608,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                         .request_repaint_after(std::time::Duration::from_millis(250));
                 }
             }
-            if ui
-                .button(format!("{}  {}", icons::REDO, tr("devices-rescan")))
+            if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-rescan"))))
                 .clicked()
             {
                 io.engine.rescan_midi();
@@ -683,10 +679,7 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
             );
         }
     }
-    if ui
-        .button(format!("{}  {}", icons::REDO, tr("devices-refresh")))
-        .clicked()
-    {
+    if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-refresh")))).clicked() {
         state.midi_outputs = None;
         io.engine.rescan_midi();
     }
@@ -970,11 +963,12 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
     if report.diagnostics.is_empty() {
         ui.add_space(16.0);
         ui.vertical_centered(|ui| {
-            ui.label(
+            let icon = ui.label(
                 RichText::new(icons::CHECK_CIRCLE)
                     .size(30.0)
                     .color(theme::ok()),
             );
+            icons::decoration(&icon);
             ui.label(RichText::new(tr("problems-none")).color(theme::text_muted()));
         });
         return;
@@ -1002,7 +996,7 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal_top(|ui| {
-                    ui.colored_label(color, icon);
+                    icons::decoration(&ui.colored_label(color, icon));
                     ui.vertical(|ui| {
                         ui.label(RichText::new(text).small().color(theme::text_muted()));
                         ui.label(&d.message);

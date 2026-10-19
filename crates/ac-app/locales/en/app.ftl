@@ -279,3 +279,5 @@ theme-file-unknown-color-near = unknown color "{ $field }" (ignored, did you mea
 theme-file-bad-color = "{ $field }": { $value } isn't a color like "#RRGGBB" or "#RRGGBBAA" (kept the base's)
 theme-file-too-big = is { $kb } KB, too big to be a theme
 theme-file-unreadable = couldn't be read ({ $error })
+status-reduce-motion-on = Reduce Motion on: no fades, eases, flowing wires, or flashes
+status-reduce-motion-off = Reduce Motion off

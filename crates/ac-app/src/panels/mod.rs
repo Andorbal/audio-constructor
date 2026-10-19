@@ -113,6 +113,8 @@ pub struct SidePanel {
     pub devices: DevicesState,
     /// What the Help tab shows.
     pub help: HelpView,
+    /// The shown tab's button: where F6 puts the keyboard in the panel.
+    pub focus_target: Option<egui::Id>,
 }
 
 impl Default for SidePanel {
@@ -125,6 +127,7 @@ impl Default for SidePanel {
             label_edit: None,
             devices: DevicesState::default(),
             help: HelpView::default(),
+            focus_target: None,
         }
     }
 }
@@ -239,6 +242,9 @@ impl SidePanel {
                 r.widget_info(|| {
                     egui::WidgetInfo::selected(egui::Role::Tab, true, selected, &name)
                 });
+                if selected {
+                    self.focus_target = Some(r.id);
+                }
                 if r.clicked() {
                     self.tab = tab;
                 }

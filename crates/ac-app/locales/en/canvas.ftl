@@ -146,3 +146,51 @@ error-group-inside-itself = can't paste a group inside itself
 error-group-definition-missing = group definition `{ $def }` is missing
 error-group-no-definition = group node has no definition
 error-unknown-kind = unknown node kind `{ $kind }`
+
+## The canvas to screen readers
+
+a11y-canvas =
+    { $count ->
+        [one] Node canvas, { $count } node
+       *[other] Node canvas, { $count } nodes
+    }
+a11y-canvas-group =
+    { $count ->
+        [one] Node canvas inside { $group }, { $count } node
+       *[other] Node canvas inside { $group }, { $count } nodes
+    }
+# A card: "Bass, Oscillator, 6 inputs, 1 output".
+a11y-node =
+    { $title }, { $kind }, { $inputs ->
+        [one] { $inputs } input
+       *[other] { $inputs } inputs
+    }, { $outputs ->
+        [one] { $outputs } output
+       *[other] { $outputs } outputs
+    }
+a11y-node-plain =
+    { $title }, { $inputs ->
+        [one] { $inputs } input
+       *[other] { $inputs } inputs
+    }, { $outputs ->
+        [one] { $outputs } output
+       *[other] { $outputs } outputs
+    }
+a11y-kind-group = group
+a11y-kind-missing = missing node
+a11y-kind-reroute = reroute
+a11y-kind-portal-sender = portal sender
+a11y-kind-portal-receiver = portal receiver
+a11y-kind-note = note
+a11y-selected = selected
+a11y-muted = muted
+a11y-collapsed = collapsed
+# A socket: "Gain gain: Float input, -6 dB".
+a11y-socket = { $node } { $socket }: { $side }, { $state }
+a11y-input = { $type } input
+a11y-output = { $type } output
+a11y-from = from { $source }
+a11y-to = to { $targets }
+a11y-not-connected = not connected
+hint-keyboard-wire = Wiring from { $node } { $socket }: Tab to a card, Alt+↓ to a socket, Enter connects · Esc cancels
+status-keyboard-wire-nothing = Nothing there takes that wire: pick a socket with Alt+↓ and ↑

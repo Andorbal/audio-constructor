@@ -660,7 +660,7 @@ pub fn choice_popup(
 /// picking it stores, and which one is chosen now. A Dropdown's `value`
 /// lists the labels from its config and stores their index; other choice
 /// inputs list their socket's named choices.
-fn choice_items(
+pub fn choice_items(
     io: &CanvasIo,
     n: &NodeView,
     socket: &str,
@@ -714,6 +714,27 @@ fn pad_values(n: &NodeView, r: Rect, p: Pos2) -> Vec<(&'static str, Value)> {
             Some((name, Value::Float(v)))
         })
         .collect()
+}
+
+/// A Readout's number as it shows it: up to four decimals, no trailing
+/// zeros, and a dash before the first reading.
+pub fn readout_text(v: Option<f32>) -> String {
+    match v {
+        Some(v) if v.is_nan() => "NaN".to_string(),
+        Some(v) if v.is_infinite() => {
+            if v > 0.0 {
+                "∞".into()
+            } else {
+                "-∞".into()
+            }
+        }
+        Some(v) => {
+            let s = format!("{v:.4}");
+            let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
+            if s == "-0" { "0".into() } else { s }
+        }
+        None => "–".into(),
+    }
 }
 
 /// A number as typed text, without its unit (units are accepted back).
@@ -976,22 +997,7 @@ pub fn paint(
             }
         }
         Body::Readout => {
-            let text = match live.node_value(n.id, 0) {
-                Some(v) if v.is_nan() => "NaN".to_string(),
-                Some(v) if v.is_infinite() => {
-                    if v > 0.0 {
-                        "∞".into()
-                    } else {
-                        "-∞".into()
-                    }
-                }
-                Some(v) => {
-                    let s = format!("{v:.4}");
-                    let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-                    if s == "-0" { "0".into() } else { s }
-                }
-                None => "–".into(),
-            };
+            let text = readout_text(live.node_value(n.id, 0));
             bodies::readout(painter, rect, z, &text, alpha);
         }
         Body::Clip => {

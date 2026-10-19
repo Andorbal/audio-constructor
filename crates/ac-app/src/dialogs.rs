@@ -190,11 +190,12 @@ pub fn confirm_discard(ctx: &egui::Context, title: &str) -> Option<Confirm> {
     let r = egui::Modal::new(egui::Id::unique("confirm-discard")).show(ctx, |ui| {
         ui.set_width(380.0);
         ui.horizontal(|ui| {
-            ui.label(
+            let icon = ui.label(
                 RichText::new(icons::WARNING)
                     .size(24.0)
                     .color(theme::warning()),
             );
+            icons::decoration(&icon);
             ui.vertical(|ui| {
                 ui.label(
                     RichText::new(tr_args("dialog-save-changes", &[("project", title.into())]))

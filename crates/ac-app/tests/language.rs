@@ -158,7 +158,12 @@ fn every_menu_label_is_translated_in_pseudo() {
             let w = words(&text);
             // Content, not the editor's words: example names, node names,
             // and numbers on their own.
-            if w.is_empty() || skip.contains(&w) || w.chars().all(|c| !c.is_alphabetic()) {
+            // The logo says the product's name, which isn't translated.
+            if w.is_empty()
+                || w == "Audio Constructor"
+                || skip.contains(&w)
+                || w.chars().all(|c| !c.is_alphabetic())
+            {
                 continue;
             }
             checked += 1;

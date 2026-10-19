@@ -779,10 +779,13 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                     .color(theme::text_muted()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(format!("{}  {}", icons::BOOK_OPEN, tr("node-tab-help")))
-                    .on_hover_text(tr("node-tab-help-tip"))
-                    .clicked()
+                if icons::spoken(ui.small_button(format!(
+                    "{}  {}",
+                    icons::BOOK_OPEN,
+                    tr("node-tab-help")
+                )))
+                .on_hover_text(tr("node-tab-help-tip"))
+                .clicked()
                 {
                     io.requests
                         .push(PanelRequest::Help(e.meta.kind.to_string()));
@@ -826,16 +829,20 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         *label_edit = Some((id, current.clone()));
     }
     if let Some((_, text)) = label_edit.as_mut() {
-        let r = ui.add(
-            egui::TextEdit::singleline(text)
-                .id(field_id)
-                .hint_text(if portal.is_some() {
-                    tr("node-tab-portal-name")
-                } else {
-                    tr_args("node-tab-label-hint", &[("name", (&name).into())])
-                })
-                .desired_width(f32::INFINITY),
-        );
+        let hint = if portal.is_some() {
+            tr("node-tab-portal-name")
+        } else {
+            tr_args("node-tab-label-hint", &[("name", (&name).into())])
+        };
+        let r = ui
+            .add(
+                egui::TextEdit::singleline(text)
+                    .id(field_id)
+                    .hint_text(&hint)
+                    .desired_width(f32::INFINITY),
+            )
+            // The hint is all that says what the field is for.
+            .accessible_name(hint);
         if r.lost_focus() && text.trim() != current {
             let label = text.trim().to_string();
             if portal.is_some() {
@@ -862,13 +869,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             });
         }
         if let NodeClass::Group(_) = class
-            && ui
-                .button(format!(
-                    "{}  {}",
-                    icons::ARROW_SQUARE_IN,
-                    tr("node-tab-enter-group")
-                ))
-                .clicked()
+            && icons::spoken(ui.button(format!(
+                "{}  {}",
+                icons::ARROW_SQUARE_IN,
+                tr("node-tab-enter-group")
+            )))
+            .clicked()
         {
             io.doc.enter_group(id);
         }
@@ -1054,13 +1060,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         if let Some(tip) = e.meta.tip() {
             super::help_tab::tip_box(ui, &tip);
         }
-        if ui
-            .link(format!(
-                "{}  {}",
-                icons::BOOK_OPEN,
-                tr("node-tab-help-link")
-            ))
-            .clicked()
+        if icons::spoken(ui.link(format!(
+            "{}  {}",
+            icons::BOOK_OPEN,
+            tr("node-tab-help-link")
+        )))
+        .clicked()
         {
             io.requests
                 .push(PanelRequest::Help(e.meta.kind.to_string()));
@@ -1178,32 +1183,30 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         .into_iter()
         .find(|u| &u.def == d);
     ui.horizontal_wrapped(|ui| {
-        if ui
-            .button(format!(
-                "{}  {}",
-                icons::TRAY_ARROW_DOWN,
-                tr("node-tab-save-to-library")
-            ))
-            .on_hover_text(tr("node-tab-save-to-library-tip"))
-            .clicked()
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::TRAY_ARROW_DOWN,
+            tr("node-tab-save-to-library")
+        )))
+        .on_hover_text(tr("node-tab-save-to-library-tip"))
+        .clicked()
         {
             io.requests.push(PanelRequest::SaveBlock(d.clone()));
         }
         if let Some(u) = update
-            && ui
-                .button(format!(
-                    "{}  {}",
-                    icons::ARROWS_CLOCKWISE,
-                    tr_args(
-                        "node-tab-update-from-library",
-                        &[
-                            ("from", u.from.to_string().into()),
-                            ("to", u.to.to_string().into()),
-                        ],
-                    )
-                ))
-                .on_hover_text(tr("node-tab-update-from-library-tip"))
-                .clicked()
+            && icons::spoken(ui.button(format!(
+                "{}  {}",
+                icons::ARROWS_CLOCKWISE,
+                tr_args(
+                    "node-tab-update-from-library",
+                    &[
+                        ("from", u.from.to_string().into()),
+                        ("to", u.to.to_string().into()),
+                    ],
+                )
+            )))
+            .on_hover_text(tr("node-tab-update-from-library-tip"))
+            .clicked()
         {
             io.requests.push(PanelRequest::UpdateBlock(d.clone()));
         }
@@ -1213,11 +1216,12 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
 fn empty_state(ui: &mut egui::Ui, io: &PanelIo) {
     ui.add_space(20.0);
     ui.vertical_centered(|ui| {
-        ui.label(
+        let icon = ui.label(
             RichText::new(icons::CUBE)
                 .size(34.0)
                 .color(theme::text_faint()),
         );
+        icons::decoration(&icon);
         ui.label(RichText::new(tr("node-tab-nothing-selected")).color(theme::text_muted()));
         ui.add_space(6.0);
         let hint = if io.doc.graph().nodes.is_empty() {
@@ -1319,8 +1323,7 @@ fn param_widget(
             }
         }
         widgets::Field::Fire => {
-            if ui
-                .button(format!("{} {}", icons::LIGHTNING, tr("node-tab-fire")))
+            if icons::spoken(ui.button(format!("{} {}", icons::LIGHTNING, tr("node-tab-fire"))))
                 .clicked()
             {
                 params::fire(io.doc, &mut io.engine.handle, id, &socket);
@@ -1384,13 +1387,12 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
     let open_id = egui::Id::unique(("node-editor-window", id));
     let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
     ui.horizontal(|ui| {
-        if ui
-            .button(format!(
-                "{}  {}",
-                icons::ARROW_SQUARE_OUT,
-                tr("node-tab-larger-editor")
-            ))
-            .clicked()
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::ARROW_SQUARE_OUT,
+            tr("node-tab-larger-editor")
+        )))
+        .clicked()
         {
             open = !open;
         }
@@ -1916,8 +1918,7 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
                     .small()
                     .color(theme::type_color(ty)),
             );
-            if ui
-                .small_button(icons::X)
+            if icons::spoken(ui.small_button(icons::X))
                 .on_hover_text(tr("node-tab-remove-socket"))
                 .accessible_name(tr_args(
                     "node-tab-remove-named-socket",

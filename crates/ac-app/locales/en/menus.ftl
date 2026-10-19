@@ -105,6 +105,7 @@ action-ui-scale-reset = Interface at 100 %
 action-toggle-side-panel = Side Panel
 action-show-timing = Node Timing
 action-minimap = Minimap
+action-reduce-motion = Reduce Motion
 action-pin = Pin to Panel
 action-toggle-panels = Canvas / Panels
 action-performance-mode = Performance Mode

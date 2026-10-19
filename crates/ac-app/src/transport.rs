@@ -49,14 +49,15 @@ impl TransportState {
         recording: bool,
         actions: &mut Vec<Action>,
     ) {
-        if ui
-            .add(
+        if icons::spoken(
+            ui.add(
                 egui::Button::new(big(icons::SKIP_BACK, false, theme::text()))
                     .min_size(vec2(32.0, 28.0)),
-            )
-            .on_hover_text(tr("transport-go-to-start"))
-            .accessible_name(tr("transport-go-to-start"))
-            .clicked()
+            ),
+        )
+        .on_hover_text(tr("transport-go-to-start"))
+        .accessible_name(tr("transport-go-to-start"))
+        .clicked()
         {
             actions.push(Action::Rewind);
         }
@@ -81,21 +82,22 @@ impl TransportState {
         {
             actions.push(Action::PlayStop);
         }
-        if ui
-            .add(
+        if icons::spoken(
+            ui.add(
                 egui::Button::new(big(icons::RECORD, recording, theme::record()))
                     .selected(recording)
                     .min_size(vec2(32.0, 28.0)),
-            )
-            .on_hover_text(tr("transport-record-tip"))
-            .accessible_name(tr("transport-record"))
-            .clicked()
+            ),
+        )
+        .on_hover_text(tr("transport-record-tip"))
+        .accessible_name(tr("transport-record"))
+        .clicked()
         {
             actions.push(Action::Record);
         }
         let looping = doc.project.settings.loop_region.is_some();
-        if ui
-            .add(
+        if icons::spoken(
+            ui.add(
                 egui::Button::new(RichText::new(icons::REPEAT).size(17.0).color(if looping {
                     theme::accent()
                 } else {
@@ -103,10 +105,11 @@ impl TransportState {
                 }))
                 .selected(looping)
                 .min_size(vec2(32.0, 28.0)),
-            )
-            .on_hover_text(tr("transport-loop"))
-            .accessible_name(tr("transport-loop"))
-            .clicked()
+            ),
+        )
+        .on_hover_text(tr("transport-loop"))
+        .accessible_name(tr("transport-loop"))
+        .clicked()
         {
             actions.push(Action::ToggleLoop);
         }
@@ -151,8 +154,8 @@ impl TransportState {
                 self.transport_buttons(ui, doc, playing, recording, &mut actions);
             }
             if engine.keys_reach_engine()
-                && ui
-                    .add(
+                && icons::spoken(
+                    ui.add(
                         egui::Button::new(RichText::new(icons::KEYBOARD).size(17.0).color(
                             if play_keys {
                                 theme::accent()
@@ -162,20 +165,21 @@ impl TransportState {
                         ))
                         .selected(play_keys)
                         .min_size(vec2(32.0, 28.0)),
-                    )
-                    .on_hover_text({
-                        let sc = Action::PlayKeys
-                            .shortcut()
-                            .map(|s| ui.ctx().format_shortcut(&s))
-                            .unwrap_or_default();
-                        if play_keys {
-                            tr_args("transport-play-keys-on-tip", &[("shortcut", sc.into())])
-                        } else {
-                            tr_args("transport-play-keys-tip", &[("shortcut", sc.into())])
-                        }
-                    })
-                    .accessible_name(tr("transport-play-keys"))
-                    .clicked()
+                    ),
+                )
+                .on_hover_text({
+                    let sc = Action::PlayKeys
+                        .shortcut()
+                        .map(|s| ui.ctx().format_shortcut(&s))
+                        .unwrap_or_default();
+                    if play_keys {
+                        tr_args("transport-play-keys-on-tip", &[("shortcut", sc.into())])
+                    } else {
+                        tr_args("transport-play-keys-tip", &[("shortcut", sc.into())])
+                    }
+                })
+                .accessible_name(tr("transport-play-keys"))
+                .clicked()
             {
                 actions.push(Action::PlayKeys);
             }
@@ -429,13 +433,11 @@ impl TransportState {
 
 /// Canvas or panels, and performance mode (right to left).
 fn view_switch(ui: &mut egui::Ui, panels: bool, actions: &mut Vec<Action>) {
-    let perform = ui
-        .add(
-            egui::Button::new(RichText::new(icons::CORNERS_OUT).size(16.0))
-                .min_size(vec2(30.0, 28.0)),
-        )
-        .on_hover_text(tr("transport-performance-tip"))
-        .accessible_name(Action::PerformanceMode.label());
+    let perform = icons::spoken(ui.add(
+        egui::Button::new(RichText::new(icons::CORNERS_OUT).size(16.0)).min_size(vec2(30.0, 28.0)),
+    ))
+    .on_hover_text(tr("transport-performance-tip"))
+    .accessible_name(Action::PerformanceMode.label());
     if perform.clicked() {
         actions.push(Action::PerformanceMode);
     }
@@ -456,7 +458,10 @@ fn view_switch(ui: &mut egui::Ui, panels: bool, actions: &mut Vec<Action>) {
         let b = egui::Button::new(RichText::new(format!("{icon}  {label}")).size(theme::FONT_UI))
             .selected(panels == on)
             .min_size(vec2(0.0, 28.0));
-        if ui.add(b).on_hover_text(tip).clicked() && panels != on {
+        let r = ui.add(b);
+        // A switch between two views: each is a tab, the one shown selected.
+        r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, true, panels == on, &label));
+        if r.on_hover_text(tip).clicked() && panels != on {
             actions.push(Action::TogglePanels);
         }
     }
