@@ -11,6 +11,42 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.8.0] - 2026-10-18
+
+Matching a control surface no longer means guessing: the Devices tab shows
+what your devices actually send, and OSC nodes finally have their settings
+in the Node tab.
+
+### Added
+
+- **Last messages** in the Devices tab. Under MIDI inputs, the newest
+  messages from each port ("CC 74 = 127 · ch 1", "Note on C4 · vel 100 ·
+  ch 1"); under OSC, the newest messages with their address exactly as the
+  sender wrote it and their arguments. Both lists show each message's age,
+  newest first, and clear with a button. Click an OSC address to copy it,
+  or select an OSC In and press **Use** beside a message to set the node's
+  address to it. A surface whose layout you'd rather not edit can be
+  matched from what it already sends.
+
+### Fixed
+
+- An OSC In's or OSC Out's address and host fields in the Node tab show
+  the default the node uses instead of an empty box, and a setting the
+  node can't work with (an address without a leading `/`, a host that
+  isn't an IP address or `localhost`) is called out under the settings.
+- Text settings in the Node tab (an OSC address, a Comment's text, a File
+  Out path) keep what you've typed until you leave the field. They were
+  redrawn from the project every frame, so what was typed was lost before
+  it could be saved.
+
+### Changed
+
+- The Devices tab's OSC section and the OSC In node's help now say what to
+  check when no messages arrive: the surface's host and port, and the
+  phone or tablet's local-network permission for its app, which silently
+  stops every packet when refused. The node's help also notes that most
+  surfaces name controls by page and name (`/1/fader1`) and that the
+  address match is exact.
 ## [0.7.0] - 2026-10-18
 
 The end of Phase 2: fourteen example projects to learn from, a user guide,
@@ -508,6 +544,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.8.0]: https://github.com/Andorbal/audio-constructor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Andorbal/audio-constructor/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0

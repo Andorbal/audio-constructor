@@ -31,6 +31,18 @@ node! {
     /// network port to listen on. Restarting the transport keeps the last
     /// values, the way the control surface still shows them.
     ///
+    /// **Nothing arriving?** The host's Devices tab counts every message
+    /// the port receives. If that count stays at 0 while the surface's
+    /// host and port are right, the sender's device is usually holding the
+    /// packets: phones and tablets ask once whether an app may use the
+    /// local network, and an app that was refused sends nothing and shows
+    /// no error. Allow it in the device's privacy settings and reopen the
+    /// app. If the count climbs but this node stays at 0, the `address`
+    /// differs from what the surface sends; most surfaces name a control
+    /// by page and name, as in `/1/fader1`, a multi-fader or button grid
+    /// adds each strip's or cell's index, as in `/fader/1/3`, and the
+    /// match is exact.
+    ///
     /// OSC In is a live source: nodes that need their whole input before
     /// they can play are disabled downstream of it.
     ///
@@ -47,7 +59,7 @@ node! {
     }
 }
 
-const DEFAULT_ADDRESS: &str = "/fader/1";
+pub const DEFAULT_ADDRESS: &str = "/fader/1";
 
 /// The address (trimmed, valid) and argument count from config, repaired.
 fn setup(config: &Config) -> (Option<&str>, usize) {

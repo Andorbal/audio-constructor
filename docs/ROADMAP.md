@@ -329,6 +329,9 @@ render, and how the Library tab feels with a large library.
 - [x] Gamepad (gilrs), KeyboardIn, OSC in/out nodes; binding/learn UI for MIDI, keys, gamepad; transport bindings.
 - [x] ASIO build (feature `asio`) documented and tested on Windows; JACK on Linux.
 - [x] Panels: pin nodes, multiple panels, full-screen performance mode.
+- [x] Devices tab lists the last OSC and MIDI messages received, with
+  addresses as the sender wrote them; Use sets a selected OSC In's address
+  (D115).
 
 *Verified:* keys, gamepads, and OSC reach the engine as `ControlEvent`s,
 like MIDI: one ring per source, one block late, with a sample offset.
@@ -350,6 +353,8 @@ Device layer (`cargo test -p ac-io`):
   panic.
 - OSC out reaches its target one block late, in order, and a full queue
   drops and counts.
+- The listener's message log keeps each message's address and arguments
+  as text (floats trimmed to four decimals), newest 64, and clears.
 
 Nodes (`cargo test -p ac-nodes`):
 - Unit tests next to each node check sample-accurate changes, state held
@@ -434,7 +439,7 @@ Needs manual verification (in the PR):
 - [x] Node help with "try this" tips and links to blocks.
 
 *Verified:* the editor's colors now come from a palette (DARK and LIGHT),
-switched per UI thread. DECISIONS D101–D110 record the choices. Each part
+switched per UI thread. DECISIONS D115–D110 record the choices. Each part
 is covered as follows.
 
 Canvas editing (unit tests in `crates/ac-app/src/edit/`):

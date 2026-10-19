@@ -227,7 +227,13 @@ A resizable panel (`N` toggles) with tabs:
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
   xrun counter, per-core load, OSC (a checkbox and port to listen on, 9000
   unless changed and off until turned on; the address to send to; what has
-  arrived and what OSC Out nodes sent), and transport buttons.
+  arrived and what OSC Out nodes sent), and transport buttons. Under MIDI
+  inputs and under OSC, **Last messages** lists the newest messages the
+  ports received ("CC 74 = 127 · ch 1", `/fader/1/3 0.5`), newest first
+  with their age, so a control's number or address is read off the list
+  rather than guessed. Click an OSC address to copy it; with one OSC In
+  selected, **Use** beside each address sets that node's address. Clear
+  empties a list (D115).
 - **Problems**: compile errors and disabled nodes, click to jump.
 - **Help**: a node's reference (`F1`, D110): its name and category, what
   it does, its "Try this" tip in a highlighted box, every socket with its

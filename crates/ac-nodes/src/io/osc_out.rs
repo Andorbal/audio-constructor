@@ -53,9 +53,9 @@ node! {
     }
 }
 
-const DEFAULT_HOST: &str = "127.0.0.1";
-const DEFAULT_PORT: u16 = 9000;
-const DEFAULT_ADDRESS: &str = "/fader/1";
+pub const DEFAULT_HOST: &str = "127.0.0.1";
+pub const DEFAULT_PORT: u16 = 9000;
+pub const DEFAULT_ADDRESS: &str = "/fader/1";
 const DEFAULT_INTERVAL: f64 = 0.02;
 const MIN_INTERVAL: f64 = 0.001;
 const MAX_INTERVAL: f64 = 60.0;

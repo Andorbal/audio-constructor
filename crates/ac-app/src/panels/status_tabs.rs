@@ -384,6 +384,58 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
             if m.dropped() > 0 {
                 ui.colored_label(theme::warning(), format!("{} events dropped", m.dropped()));
             }
+            if !connected.is_empty() {
+                // What each port last sent, to find a knob's controller
+                // number or a pad's note without guessing.
+                let seen = m.recent();
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Last messages")
+                            .small()
+                            .color(theme::text_muted()),
+                    );
+                    if !seen.is_empty() && ui.small_button("Clear").clicked() {
+                        m.clear_recent();
+                    }
+                });
+                if seen.is_empty() {
+                    ui.label(
+                        RichText::new("None yet. Play or turn something.")
+                            .color(theme::text_muted()),
+                    );
+                } else {
+                    let now = ac_io::clock::now_ns();
+                    let one_port = connected.len() == 1;
+                    egui::ScrollArea::vertical()
+                        .id_salt("midi-recent")
+                        .max_height(180.0)
+                        .show(ui, |ui| {
+                            for e in seen.iter().rev() {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(midi_text(&e.msg))
+                                            .font(theme::mono_font(theme::FONT_SMALL)),
+                                    );
+                                    if !one_port {
+                                        ui.label(
+                                            RichText::new(&e.port)
+                                                .small()
+                                                .color(theme::text_muted()),
+                                        );
+                                    }
+                                    ui.label(
+                                        RichText::new(age_text(now, e.time_ns))
+                                            .small()
+                                            .color(theme::text_faint()),
+                                    );
+                                });
+                            }
+                        });
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(250));
+                }
+            }
             if ui.button(format!("{}  Rescan", icons::REDO)).clicked() {
                 io.engine.rescan_midi();
             }
@@ -452,6 +504,66 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     }
 }
 
+/// The one selected node, if it's an OSC In: the Use buttons' target.
+fn selected_osc_in(io: &PanelIo) -> Option<ac_core::NodeId> {
+    let mut ids = io.doc.selection.iter();
+    let id = *ids.next()?;
+    if ids.next().is_some() {
+        return None;
+    }
+    (io.doc.graph().node(id)?.kind == "osc_in").then_some(id)
+}
+
+/// How long ago `t_ns` was, for the message lists.
+fn age_text(now_ns: u64, t_ns: u64) -> String {
+    let s = now_ns.saturating_sub(t_ns) as f64 / 1e9;
+    if s < 1.0 {
+        "now".to_string()
+    } else if s < 60.0 {
+        format!("{s:.0} s ago")
+    } else {
+        format!("{:.0} min ago", s / 60.0)
+    }
+}
+
+/// A MIDI message as people read it ("Note on C4 · vel 100 · ch 1").
+fn midi_text(msg: &ac_core::MidiMsg) -> String {
+    use ac_core::MidiMsg;
+    use ac_core::binding::note_name;
+    let ch = |c: u8| format!("ch {}", u16::from(c) + 1);
+    match *msg {
+        MidiMsg::NoteOn {
+            channel,
+            note,
+            velocity,
+        } => format!(
+            "Note on {} · vel {velocity} · {}",
+            note_name(note),
+            ch(channel)
+        ),
+        MidiMsg::NoteOff { channel, note, .. } => {
+            format!("Note off {} · {}", note_name(note), ch(channel))
+        }
+        MidiMsg::ControlChange {
+            channel,
+            controller,
+            value,
+        } => format!("CC {controller} = {value} · {}", ch(channel)),
+        MidiMsg::PitchBend { channel, value } => format!("Pitch bend {value} · {}", ch(channel)),
+        MidiMsg::ChannelPressure { channel, value } => {
+            format!("Pressure {value} · {}", ch(channel))
+        }
+        MidiMsg::PolyPressure {
+            channel,
+            note,
+            value,
+        } => format!("Pressure {} {value} · {}", note_name(note), ch(channel)),
+        MidiMsg::ProgramChange { channel, program } => {
+            format!("Program {program} · {}", ch(channel))
+        }
+    }
+}
+
 /// Gamepads, OSC in and out, and the computer keys.
 fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
     let muted = |ui: &mut egui::Ui, t: &str| {
@@ -513,12 +625,13 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
     }
     if let Some(l) = io.engine.osc_in.as_ref() {
         let port = l.port();
+        let st = l.stats();
+        let seen = l.recent();
         let to = match ac_io::osc::local_ip() {
             Some(ip) => format!("Send to {ip}:{port}"),
             None => format!("Send to this computer, port {port}"),
         };
         ui.label(RichText::new(to).color(theme::text_strong()));
-        let st = l.stats();
         let mut line = format!("{} messages", st.messages);
         if st.malformed > 0 {
             line.push_str(&format!(" · {} not OSC", st.malformed));
@@ -527,9 +640,83 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             line.push_str(&format!(" · {} dropped", st.dropped));
         }
         ui.label(RichText::new(line).small().color(theme::text_muted()));
+        if st.packets == 0 {
+            // The usual silent failure: a phone or tablet refused the app's
+            // local-network permission, so nothing ever leaves the device.
+            ui.label(
+                RichText::new(
+                    "Nothing yet? Check the surface's host and port, and that the \
+                     device lets its app use the local network (a phone or tablet \
+                     asks once; if refused, the app sends nothing and shows no error).",
+                )
+                .small()
+                .color(theme::text_muted()),
+            );
+        }
+        // The newest messages as the surface wrote them, so an address can
+        // be read off (or handed to a selected OSC In) instead of guessed.
+        let target = selected_osc_in(io);
+        let mut use_address: Option<String> = None;
+        let mut clear = false;
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Last messages")
+                    .small()
+                    .color(theme::text_muted()),
+            );
+            if !seen.is_empty() && ui.small_button("Clear").clicked() {
+                clear = true;
+            }
+        });
+        if seen.is_empty() {
+            muted(ui, "None yet. Move a control on the surface.");
+        } else {
+            if target.is_some() {
+                muted(ui, "Use sets the selected OSC In's address.");
+            }
+            let now = ac_io::clock::now_ns();
+            egui::ScrollArea::vertical()
+                .id_salt("osc-recent")
+                .max_height(180.0)
+                .show(ui, |ui| {
+                    for m in seen.iter().rev() {
+                        ui.horizontal(|ui| {
+                            if target.is_some() && ui.small_button("Use").clicked() {
+                                use_address = Some(m.address.clone());
+                            }
+                            let addr = ui.add(
+                                egui::Label::new(
+                                    RichText::new(&m.address)
+                                        .font(theme::mono_font(theme::FONT_SMALL)),
+                                )
+                                .sense(egui::Sense::click()),
+                            );
+                            if addr.on_hover_text("Click to copy").clicked() {
+                                ui.ctx().copy_text(m.address.clone());
+                            }
+                            if !m.args.is_empty() {
+                                ui.label(RichText::new(m.args.join("  ")).small());
+                            }
+                            ui.label(
+                                RichText::new(age_text(now, m.time_ns))
+                                    .small()
+                                    .color(theme::text_faint()),
+                            );
+                        });
+                    }
+                });
+        }
+        if clear && let Some(l) = io.engine.osc_in.as_ref() {
+            l.clear_recent();
+        }
+        if let (Some(id), Some(address)) = (target, use_address) {
+            super::set_config(io, id, "address", address.into());
+        }
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(250));
     }
+
     match io.engine.osc_out.as_ref() {
         None => muted(ui, "OSC Out is off (no device runtime)."),
         Some(o) => {
@@ -658,4 +845,43 @@ fn node_name(io: &PanelIo, path: &ac_core::NodePath) -> String {
         }
     }
     parts.join(" › ")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_core::MidiMsg;
+
+    #[test]
+    fn midi_messages_read_as_people_do() {
+        let on = MidiMsg::NoteOn {
+            channel: 0,
+            note: 60,
+            velocity: 100,
+        };
+        assert_eq!(midi_text(&on), "Note on C4 · vel 100 · ch 1");
+        let cc = MidiMsg::ControlChange {
+            channel: 9,
+            controller: 74,
+            value: 127,
+        };
+        assert_eq!(midi_text(&cc), "CC 74 = 127 · ch 10");
+        let bend = MidiMsg::PitchBend {
+            channel: 15,
+            value: -8192,
+        };
+        assert_eq!(midi_text(&bend), "Pitch bend -8192 · ch 16");
+    }
+
+    #[test]
+    fn ages_round_to_what_matters() {
+        assert_eq!(age_text(1_000, 500), "now");
+        assert_eq!(age_text(3_000_000_000, 500_000_000), "2 s ago"); // 2.5 s rounds half to even
+        assert_eq!(age_text(130_000_000_000, 0), "2 min ago");
+        assert_eq!(
+            age_text(0, 10),
+            "now",
+            "a stamp from the future never underflows"
+        );
+    }
 }
