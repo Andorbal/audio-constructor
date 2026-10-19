@@ -781,8 +781,9 @@ fn blocks_packs_and_libraries_come_from_links() {
         a.document().project.name == "Their Song"
     });
     let opened = h.state().document().path.clone().unwrap();
-    assert_eq!(opened, dir.join("downloads/song/song.acproj"));
-    assert!(dir.join("downloads/song.acpack").is_file());
+    let downloads = dir.join("downloads");
+    assert_eq!(opened, downloads.join("song").join("song.acproj"));
+    assert!(downloads.join("song.acpack").is_file());
 
     // Insecure and broken links are reported.
     h.state_mut()
