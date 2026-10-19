@@ -26,3 +26,6 @@ pub mod wire;
 
 #[cfg(all(target_arch = "wasm32", feature = "worklet"))]
 mod worklet_abi;
+
+#[cfg(all(target_arch = "wasm32", feature = "ui"))]
+mod page;

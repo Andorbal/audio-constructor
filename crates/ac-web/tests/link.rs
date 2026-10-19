@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use ac_app::audio::{AudioMode, HostAudio};
+use ac_app::audio::HostAudio;
 use ac_app::{AppOptions, EditorApp};
 use ac_core::{AudioData, MidiEvent, MidiMsg, NodePath, Project, Value};
 use ac_engine::{Engine, EngineOptions, GraphEdit, HostIo};
@@ -79,10 +79,12 @@ fn assets(editor: &EditorApp) -> Vec<(String, Arc<AudioData>)> {
 
 impl<'a> Web<'a> {
     fn new(b: &'a Buffers, project: Project) -> Web<'a> {
-        let mut editor = EditorApp::embedded(AppOptions {
-            audio: AudioMode::Hosted(audio()),
-            ..AppOptions::headless()
-        });
+        // As the page makes it: the page runs the audio and keeps the files.
+        let mut editor = EditorApp::embedded(AppOptions::web(
+            audio(),
+            1,
+            ac_app::settings::AppSettings::in_memory(),
+        ));
         editor.load_project(project, None);
         let mirror = editor
             .take_processor()

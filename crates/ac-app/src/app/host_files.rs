@@ -103,6 +103,17 @@ impl EditorApp {
         self.host_files
     }
 
+    /// Show `text` in the status line, as a warning or not (a host telling
+    /// the person something: a download that failed, a device that left).
+    pub fn notify(&mut self, text: impl Into<String>, warning: bool) {
+        let now = self.clock.last;
+        if warning {
+            self.warn(text, now);
+        } else {
+            self.say(text, now);
+        }
+    }
+
     /// File dialogs, when the host keeps the files.
     pub(super) fn host_file_dialog(&mut self, purpose: FilePurpose, now: f64) {
         match purpose {

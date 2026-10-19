@@ -240,7 +240,7 @@ fn exporting_renders_into_a_wav_for_the_host() {
     run(&mut app, Action::ExportWav);
     let (name, bytes, kind, _, _) = save_request(&mut app);
     assert_eq!(kind, SaveKind::Wav);
-    assert_eq!(name, "tone.wav");
+    assert_eq!(name, "Tone.wav");
     let audio = ac_io::wav::read_wav_bytes(&bytes).unwrap();
     assert_eq!(audio.frames(), 4_800);
 }

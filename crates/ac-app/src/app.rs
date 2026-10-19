@@ -2544,8 +2544,8 @@ impl EditorApp {
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
         // A new project starts from scratch: transport at zero, every node
         // rebuilt (new resources carry no state over). The device stays open.
-        // A host's transport is the host's.
-        if !self.is_hosted() {
+        // A plugin host's transport is the host's; a page's is the editor's.
+        if !self.is_hosted() || self.host_files {
             self.engine.handle.stop();
             self.engine.handle.set_recording(false);
             self.engine.handle.seek(0);
