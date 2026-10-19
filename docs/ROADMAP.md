@@ -666,9 +666,49 @@ request.
 - [ ] Projects open from and save to the browser's file API; examples load from the site.
 
 ### M3.4 Engine extras
-- [ ] Single-sample feedback for strongly connected components.
+- [x] Single-sample feedback for strongly connected components.
 - [ ] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
 - [ ] Native PipeWire backend if the shims prove limiting.
+
+*Verified:* each part is covered as follows.
+
+Single-sample feedback (DECISIONS D140): a Feedback node with `delay` set
+to `sample` makes the compiler run its strongly connected component as one
+loop step, one sample at a time (`crates/ac-engine/src/loops.rs`).
+- `cargo test -p ac-engine --test loops`:
+  - a loop through a Delay of `d` samples comes round every `d + 1`
+    samples (block mode: `d` + the block), and two sample-mode Feedback
+    nodes in one loop add a sample each;
+  - the loop is bit-identical at block sizes 1, 2, 7, 64, 333, and 1024,
+    and on 1, 2, and 4 threads, live matching offline;
+  - MIDI and triggers from outside reach a member on their own sample,
+    and a trigger leaves the loop on its sample, at every block size;
+  - a parameter moved while playing ramps sample by sample, the same at
+    block sizes 1, 8, 64, and 256;
+  - the loop keeps ringing through a recompile (state carries over), a
+    muted member passes through, and a Scope inside the loop records
+    every sample;
+  - each voice of a Voices node gets its own loop;
+  - a sample loop inside a block loop keeps both delays, and a sample
+    Feedback on no cycle delays by one sample;
+  - FFT and IFFT, or a whole-input node, inside the loop are reported on
+    each node and on the Feedback, and the loop keeps one block of delay;
+    a cycle with no Feedback beside it is still an error; a nonsense
+    `delay` value means a block. Nothing panics, and every block runs
+    under the allocation guard.
+- Golden `utility-feedback-sample`: a Karplus-Strong string whose loop is
+  218.2 samples long. A test measures it at 220.0 Hz (within 0.5 Hz) at
+  block sizes 32, 256, and 1024; with a block of delay the same patch
+  plays near 100 Hz at 256 and higher at 32. The golden is
+  block-independent; no existing golden hash changed.
+- `audioc bench` (release, 128-frame blocks, 10 s per project, best of 3,
+  five runs of the base and the new build alternated on the same 4-vCPU
+  VM, which other jobs shared): no project got slower beyond run-to-run
+  spread. Real-time ratios, base → new, best of five: oscillators-1000
+  3.12 → 3.26, effect-chain-200 3.87 → 3.93, mono-synths-16 15.0 → 16.0,
+  parallel-chains-8 8.33 → 8.58, poly-synth-16 25.2 → 23.5 (medians 20.4
+  → 22.6), subtractive-voices-16 10.05 → 10.31, fft-chains-16 24.6 →
+  26.6, pitch-shift-16 7.67 → 8.28, diffuser-16 4.35 → 4.50.
 
 ### M3.5 Product
 - [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.
