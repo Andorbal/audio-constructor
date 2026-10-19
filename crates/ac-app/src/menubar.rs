@@ -100,6 +100,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         ui.menu_button("File", |ui| {
             entry(ui, &mut out, Action::New, icons::FILE_PLUS, true);
             entry(ui, &mut out, Action::Open, icons::FOLDER_OPEN, true);
+            entry(ui, &mut out, Action::ImportFromLink, icons::LINK, true);
             ui.menu_button(
                 format!("{}  Open Recent", icons::CLOCK_COUNTER_CLOCKWISE),
                 |ui| {

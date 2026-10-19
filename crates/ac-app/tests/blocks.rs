@@ -1,14 +1,16 @@
 //! Blocks and sharing in the editor, without a window (egui_kittest):
 //! adding a library block from the palette, saving a group to the library
-//! and updating older copies, opening packs and block files, and
-//! exporting a pack. The library lives in memory unless a test gives it a
+//! and updating older copies, opening packs and block files, exporting
+//! packs and blocks, playing previews, and importing blocks, packs, and
+//! shared libraries from links (served on this machine). The library lives in memory unless a test gives it a
 //! folder.
 
 use std::path::{Path, PathBuf};
 
 use ac_app::actions::Action;
 use ac_app::audio::AudioMode;
-use ac_app::dialogs::FilePurpose;
+use ac_app::dialogs::{BlockToExport, FilePurpose};
+use ac_app::online::{Playing, PreviewKey};
 use ac_app::palette::{self, Candidate};
 use ac_app::panels::Tab;
 use ac_app::{AppOptions, EditorApp};
@@ -188,6 +190,7 @@ fn a_block_with_a_voice_inside_comes_polyphonic() {
     let block = Block {
         def,
         uses: Default::default(),
+        preview: None,
     };
     let source = h.state_mut().library.save_user(block).unwrap();
     let b = h.state().library.get(&source).unwrap().clone();
@@ -489,5 +492,319 @@ fn a_library_folder_keeps_saved_blocks_between_runs() {
         s.starts_with("1 block file in your library couldn't be read"),
         "{s}"
     );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+// ---------------------------------------------------------------- previews and links
+
+/// Step the editor until `done` holds (background work runs in real time),
+/// for at most 30 s.
+fn wait_for(h: &mut Harness<'static, EditorApp>, what: &str, done: impl Fn(&EditorApp) -> bool) {
+    let t0 = std::time::Instant::now();
+    while !done(h.state()) {
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(30),
+            "timed out waiting for {what} (status: {})",
+            status(h)
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        h.run_steps(1);
+    }
+}
+
+/// An editor with its library in `dir`, and downloads and cached previews
+/// in folders of the test's own.
+fn harness_with_library(dir: &Path) -> Harness<'static, EditorApp> {
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(
+        &ctx,
+        AppOptions {
+            audio: AudioMode::Null,
+            library: Some(dir.join("blocks")),
+            ..AppOptions::headless()
+        },
+    );
+    app.online.download_dir = Some(dir.join("downloads"));
+    app.online.cache_dir = Some(dir.join("cache"));
+    // Tall, so the Library tab's shared libraries fit without scrolling.
+    let mut h = Harness::builder()
+        .with_size(egui::vec2(1400.0, 1600.0))
+        .with_max_steps(64)
+        .with_step_dt(1.0 / 30.0)
+        .with_accessibility_check(false)
+        .build_ui_state(|ui, app: &mut EditorApp| app.ui(ui), app);
+    h.run_steps(4);
+    h
+}
+
+#[test]
+fn a_block_preview_plays_over_the_patch_and_stops() {
+    let mut h = harness(None);
+    let key = PreviewKey::Library(BlockSource::new(Origin::Shipped, "tremolo"));
+    h.state_mut().toggle_preview(key.clone(), 0.0);
+    assert_eq!(*h.state().preview_state(), Playing::Loading(key.clone()));
+    wait_for(&mut h, "the preview to render", |a| {
+        matches!(a.preview_state(), Playing::Playing(..))
+    });
+    let Playing::Playing(_, id) = h.state().preview_state().clone() else {
+        unreachable!()
+    };
+    wait_for(&mut h, "the stream to play it", |a| {
+        a.engine.audition_playing() == Some(id)
+    });
+    // The same button stops it.
+    h.state_mut().toggle_preview(key.clone(), 0.0);
+    assert_eq!(*h.state().preview_state(), Playing::Idle);
+    wait_for(&mut h, "it to stop", |a| {
+        a.engine.audition_playing().is_none()
+    });
+    // Again: the rendered preview was kept, so it starts at once.
+    h.state_mut().toggle_preview(key.clone(), 0.0);
+    assert!(matches!(h.state().preview_state(), Playing::Playing(k, _) if *k == key));
+    h.state_mut().toggle_preview(key, 0.0);
+
+    // A block with nothing to hear says so.
+    let mut def = GroupDef::new("Silent");
+    def.graph.nodes.push(NodeInstance::new(NodeId(1), "gain"));
+    let quiet = h
+        .state_mut()
+        .library
+        .save_user(Block {
+            def,
+            uses: Default::default(),
+            preview: None,
+        })
+        .unwrap();
+    h.state_mut()
+        .toggle_preview(PreviewKey::Library(quiet), 0.0);
+    assert!(status(&h).contains("no audio output"), "{}", status(&h));
+    assert_eq!(*h.state().preview_state(), Playing::Idle);
+}
+
+#[test]
+fn export_block_file_writes_the_block_and_its_preview() {
+    let dir = temp("export-block");
+    let mut h = harness(Some(with_instance(fx_def(&[]))));
+    select_instance(&mut h);
+    h.get_by_label_contains("Export block file").click();
+    steps(&mut h, 2);
+    let prompt = h.state_mut().prompt_mut().expect("a path prompt");
+    assert_eq!(
+        prompt.purpose,
+        FilePurpose::ExportBlock(BlockToExport::Def(GroupId("fx".into())))
+    );
+    assert!(prompt.text.ends_with("my-fx.acblock"), "{}", prompt.text);
+    let out = dir.join("my-fx.acblock");
+    prompt.text = out.display().to_string();
+    steps(&mut h, 1);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    wait_for(&mut h, "the export", |a| a.online.exporting == 0);
+    let s = status(&h);
+    assert!(
+        s.starts_with("Exported My Fx to") && s.ends_with("with its preview"),
+        "{s}"
+    );
+    let block = Block::from_json(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    let wav = std::fs::read(dir.join("my-fx.preview.wav")).unwrap();
+    assert_eq!(
+        block.preview.unwrap().sha256,
+        ac_io::hash::sha256_hex(&wav),
+        "the block records its preview"
+    );
+    // A library block exports from its row's menu the same way.
+    h.state_mut().export_block_to(
+        &BlockToExport::Library(BlockSource::new(Origin::Shipped, "chorus")),
+        dir.join("chorus"),
+        0.0,
+    );
+    wait_for(&mut h, "the second export", |a| a.online.exporting == 0);
+    assert!(dir.join("chorus.acblock").is_file() && dir.join("chorus.preview.wav").is_file());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Serve the files in `dir` under `/lib/` on this machine; returns the base.
+fn serve(dir: &Path) -> String {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let dir = dir.to_path_buf();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            let _ = reader.read_line(&mut first);
+            let mut line = String::new();
+            while reader.read_line(&mut line).unwrap_or(0) > 0 && line != "\r\n" {
+                line.clear();
+            }
+            let body = first
+                .split(' ')
+                .nth(1)
+                .and_then(|p| p.strip_prefix("/lib/"))
+                .filter(|f| !f.contains(['/', '\\']) && !f.starts_with('.'))
+                .and_then(|f| std::fs::read(dir.join(f)).ok());
+            let response = match body {
+                Some(b) => {
+                    let mut r = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        b.len()
+                    )
+                    .into_bytes();
+                    r.extend_from_slice(&b);
+                    r
+                }
+                None => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .to_vec(),
+            };
+            let _ = stream.write_all(&response);
+        }
+    });
+    base
+}
+
+/// A shared folder of two of someone's blocks (with previews), its index,
+/// and a pack.
+fn shared_folder(dir: &Path) {
+    let registry = std::sync::Arc::new(ac_nodes::registry());
+    for (id, name) in [("their-fx", "Their Fx"), ("their-echo", "Their Echo")] {
+        let mut d = fx_def(&[]);
+        d.name = name.into();
+        let block = Block::from_project(&with_instance(d), &GroupId("fx".into())).unwrap();
+        ac_io::export_block(
+            block,
+            &dir.join(format!("{id}.acblock")),
+            Some(registry.clone()),
+        )
+        .unwrap();
+    }
+    let b = ac_io::index::build_index(dir, &registry, Some("Shared Things"), None).unwrap();
+    assert!(b.problems.is_empty(), "{:?}", b.problems);
+    ac_io::index::write_index(dir, &b.index).unwrap();
+    let mut p = with_instance(fx_def(&[]));
+    p.name = "Their Song".into();
+    let work = dir.join("work");
+    std::fs::create_dir_all(&work).unwrap();
+    ac_io::save_project(&work.join("song.acproj"), &p).unwrap();
+    ac_io::write_pack(
+        &work.join("song.acproj"),
+        &dir.join("song.acpack"),
+        &registry,
+    )
+    .unwrap();
+}
+
+#[test]
+fn blocks_packs_and_libraries_come_from_links() {
+    let dir = temp("links");
+    let shared = dir.join("shared");
+    std::fs::create_dir_all(&shared).unwrap();
+    shared_folder(&shared);
+    let base = serve(&shared);
+    let mut h = harness_with_library(&dir);
+
+    // File ▸ Import from Link… with a block's link.
+    let ctx = h.ctx.clone();
+    h.state_mut().run(&ctx, Action::ImportFromLink, 0.0);
+    steps(&mut h, 2);
+    h.state_mut()
+        .online
+        .link_dialog
+        .as_mut()
+        .expect("the dialog")
+        .text = format!("{base}/lib/their-fx.acblock");
+    steps(&mut h, 1);
+    h.get_by_label("Import").click();
+    steps(&mut h, 2);
+    assert!(h.state().online.link_dialog.is_none());
+    wait_for(&mut h, "the block", |a| a.online.importing.is_empty());
+    assert_eq!(
+        status(&h),
+        "Imported Their Fx into your library with its preview"
+    );
+    let fx = BlockSource::new(Origin::Imported, "their-fx");
+    let got = h.state().library.get(&fx).expect("imported").clone();
+    assert_eq!(
+        std::fs::read(got.preview_path().unwrap()).unwrap(),
+        std::fs::read(shared.join("their-fx.preview.wav")).unwrap()
+    );
+
+    // A library's link (its folder) adds it to the Library tab.
+    h.state_mut().import_link(&format!("{base}/lib/"), 0.0);
+    wait_for(&mut h, "the library", |a| a.online.importing.is_empty());
+    let link = format!("{base}/lib/index.json");
+    assert_eq!(
+        h.state().settings().prefs.libraries,
+        std::slice::from_ref(&link)
+    );
+    assert!(status(&h).starts_with("Added the library Shared Things (2 blocks)"));
+    assert_eq!(h.state().side.tab, Tab::Library);
+    // Searching narrows shared libraries too (and keeps them on screen).
+    h.state_mut().side.library_query = "their".into();
+    steps(&mut h, 3);
+    assert!(h.query_by_label_contains("Shared Things  (2)").is_some());
+    // The block already imported shows as installed; the other installs.
+    assert!(h.query_by_label_contains("Installed").is_some());
+    h.get_by_label("Install").click();
+    steps(&mut h, 2);
+    wait_for(&mut h, "the install", |a| {
+        a.online
+            .library(&link)
+            .is_some_and(|l| l.installing.is_empty())
+            && a.library
+                .get(&BlockSource::new(Origin::Imported, "their-echo"))
+                .is_some()
+    });
+    let echo = BlockSource::new(Origin::Imported, "their-echo");
+    assert!(
+        h.state()
+            .library
+            .get(&echo)
+            .unwrap()
+            .preview_path()
+            .is_some()
+    );
+
+    // Its previews download once into the cache folder, and play.
+    let key = PreviewKey::Remote {
+        link: link.clone(),
+        id: "their-echo".into(),
+    };
+    h.state_mut().toggle_preview(key, 0.0);
+    wait_for(&mut h, "the remote preview", |a| {
+        matches!(a.preview_state(), Playing::Playing(..))
+    });
+    let cached = std::fs::read_dir(dir.join("cache")).unwrap().count();
+    assert_eq!(cached, 1);
+
+    // A pack's link is saved to the download folder and opened.
+    h.state_mut()
+        .import_link(&format!("{base}/lib/song.acpack"), 0.0);
+    wait_for(&mut h, "the pack", |a| {
+        a.document().project.name == "Their Song"
+    });
+    let opened = h.state().document().path.clone().unwrap();
+    let downloads = dir.join("downloads");
+    assert_eq!(opened, downloads.join("song").join("song.acproj"));
+    assert!(downloads.join("song.acpack").is_file());
+
+    // Insecure and broken links are reported.
+    h.state_mut()
+        .import_link("http://example.org/x.acblock", 0.0);
+    wait_for(&mut h, "the refusal", |a| a.online.importing.is_empty());
+    let s = status(&h);
+    assert!(
+        s.starts_with("Couldn't import from the link") && s.contains("https"),
+        "{s}"
+    );
+
+    // Removing the library forgets its link; its blocks stay.
+    h.state_mut().side.tab = Tab::Library;
+    steps(&mut h, 2);
+    h.get_by_label_contains("Remove").click();
+    steps(&mut h, 2);
+    assert!(h.state().online.libraries.is_empty(), "{}", status(&h));
+    assert!(h.state().settings().prefs.libraries.is_empty());
+    assert!(h.state().library.get(&echo).is_some());
     let _ = std::fs::remove_dir_all(dir);
 }

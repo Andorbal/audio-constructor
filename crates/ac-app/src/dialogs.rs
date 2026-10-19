@@ -21,6 +21,17 @@ pub enum FilePurpose {
     ExportPack,
     /// A block file to add to the library.
     ImportBlock,
+    /// Where to write a block file (and its preview, beside it).
+    ExportBlock(BlockToExport),
+}
+
+/// Which block an export writes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlockToExport {
+    /// A group definition in the project.
+    Def(ac_core::GroupId),
+    /// A block in the library.
+    Library(ac_core::BlockSource),
 }
 
 impl FilePurpose {
@@ -33,6 +44,7 @@ impl FilePurpose {
             FilePurpose::Locate(_) => "Locate missing file",
             FilePurpose::ExportPack => "Export pack",
             FilePurpose::ImportBlock => "Import block file",
+            FilePurpose::ExportBlock(_) => "Export block",
         }
     }
 
@@ -40,7 +52,10 @@ impl FilePurpose {
     fn saving(&self) -> bool {
         matches!(
             self,
-            FilePurpose::SaveAs | FilePurpose::Export | FilePurpose::ExportPack
+            FilePurpose::SaveAs
+                | FilePurpose::Export
+                | FilePurpose::ExportPack
+                | FilePurpose::ExportBlock(_)
         )
     }
 }
@@ -70,7 +85,9 @@ pub fn native(
         FilePurpose::SaveAs => d.add_filter("Audio Constructor project", &["acproj"]),
         FilePurpose::Export => d.add_filter("WAV audio", &["wav"]),
         FilePurpose::ExportPack => d.add_filter("Audio Constructor pack", &["acpack"]),
-        FilePurpose::ImportBlock => d.add_filter("Audio Constructor block", &["acblock"]),
+        FilePurpose::ImportBlock | FilePurpose::ExportBlock(_) => {
+            d.add_filter("Audio Constructor block", &["acblock"])
+        }
         FilePurpose::ChooseClip(_) | FilePurpose::Locate(_) => {
             d.add_filter("WAV audio", &["wav", "wave"])
         }

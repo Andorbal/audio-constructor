@@ -153,6 +153,9 @@ pub struct EngineHost {
     /// The project the engine should run next, waiting for the host
     /// (while `in_host`).
     outgoing: Option<Project>,
+    /// Plays block previews over the patch (not when a host runs the
+    /// processor: its audio thread doesn't mix them).
+    audition: Option<ac_io::Audition>,
 }
 
 fn engine_at(
@@ -255,6 +258,7 @@ impl EngineHost {
             hosted,
             in_host: false,
             outgoing: None,
+            audition: None,
         };
         let mut ports = if me.device_sources {
             EventPorts {
@@ -276,6 +280,9 @@ impl EngineHost {
         };
         // The computer keys work in every mode (tests play them too).
         ports.controls = Some(me.new_controls());
+        if me.hosted.is_none() {
+            ports.audition = Some(me.new_audition());
+        }
         match host {
             Some(h) => me.run(h, processor, ports, project),
             None if me.hosted.is_some() => {
@@ -395,6 +402,8 @@ impl EngineHost {
         self.info = audio.info();
         self.hosted = Some(audio);
         self.idle = None;
+        // The host's audio thread doesn't play previews.
+        self.audition = None;
         self.mode_off = false;
         self.device_error = None;
         self.latency = LatencyState::Idle;
@@ -417,6 +426,24 @@ impl EngineHost {
             self.set_osc_in(osc);
         }
         rx
+    }
+
+    fn new_audition(&mut self) -> ac_io::AuditionTap {
+        let (player, tap) = ac_io::audition();
+        self.audition = Some(player);
+        tap
+    }
+
+    /// What plays block previews over the patch, and the rate it plays
+    /// at. `None` when a host runs the processor.
+    pub fn audition(&mut self) -> Option<(&mut ac_io::Audition, u32)> {
+        let rate = self.info.sample_rate;
+        self.audition.as_mut().map(|a| (a, rate))
+    }
+
+    /// The id of the preview playing, if one is.
+    pub fn audition_playing(&self) -> Option<u64> {
+        self.audition.as_ref().and_then(ac_io::Audition::playing)
     }
 
     fn new_osc_output(&mut self) -> ac_io::OscOutQueue {
@@ -586,6 +613,9 @@ impl EngineHost {
         } else if first_device && let Some(inputs) = self.controls.as_mut() {
             self.gamepads = inputs.sender("gamepads").ok().map(Gamepads::start);
         }
+        if ports.audition.is_none() {
+            ports.audition = Some(self.new_audition());
+        }
         let same_rate = host.info().sample_rate == self.info.sample_rate;
         let processor = match processor {
             Some(p) if same_rate => p,
@@ -667,6 +697,9 @@ impl EngineHost {
         }
         if let Some(c) = self.controls.as_mut() {
             c.collect_garbage();
+        }
+        if let Some(a) = self.audition.as_mut() {
+            a.collect_garbage();
         }
         // Only device setups have ports to find (null MIDI is virtual).
         if self.device_sources && self.last_rescan.elapsed() > MIDI_RESCAN {
@@ -777,6 +810,9 @@ impl EngineHost {
             osc_out: None,
         };
         p.process(&mut io);
+        if let Some(a) = self.idle_ports.audition.as_mut() {
+            a.mix(&mut out, ch, frames);
+        }
         self.handle.collect_garbage();
     }
 }

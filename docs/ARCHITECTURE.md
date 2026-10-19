@@ -603,6 +603,44 @@ without either feature.
   version: the definition is replaced, instance parameters carry over by
   socket name, and wires to sockets the new version lacks are dropped
   (DECISIONS D79–D80).
+- **Block previews**: `<id>.preview.wav` beside a block file, a 5 s,
+  48 kHz, 16-bit render of the block playing, which the block file
+  records as `preview: {file, sha256}` (a record of the file, not part of
+  the definition: projects don't copy it, and blocks that differ only
+  there are the same block). `ac_io::preview` builds a small project
+  around the block, an Audio Out on its first audio output and the
+  preview phrase (`crates/ac-io/src/preview/phrase.acblock`, two bars of
+  drums, chords, and an arpeggio from ordinary nodes, seeded noise), wired
+  by what the block takes: audio inputs get the phrase (the first of
+  several the music, the rest the drums), a Voices block the chords,
+  other MIDI inputs the arpeggio, trigger inputs the drum hits, and a
+  `gate`/`freq` pair on a sound maker the arpeggio. It renders offline at
+  a fixed rate, block size, and seed, so a preview is golden-testable by
+  hash (every shipped block's is) (D190). `audioc block-export` and the
+  editor's Export block file… write a block with its preview; the editor
+  plays previews over the patch through an audition tap the device
+  callback mixes in after the engine, lock-free (D193, D194).
+- **Shared libraries**: a folder of block files and their previews with
+  an `index.json`: `format` `audio-constructor/library`, `version` 1,
+  `name`, `description`, and `blocks`, each with `id`, `name`,
+  `version`, `description`, `tags`, `author`, `schema_version`, `file`,
+  `size`, `sha256`, and an optional `preview` (`file`, `size`,
+  `sha256`). Links are relative to the index (percent-encoded), so the
+  folder works on any static host; hashes are SHA-256. `audioc
+  library-index` writes it, compiling every block and leaving out the
+  ones that don't load; readers skip entries they can't use and refuse a
+  newer `version` (D191).
+- **Imports from links** (`ac_io::remote`, downloads through
+  `ac_io::net`: https only, except on this machine, and size-limited): a
+  link to an `.acblock` is a block, to an `.acpack` a pack, and anything
+  else a library index (a folder link means its `index.json`) or, failing
+  that, whatever the bytes are. A library's blocks and previews must
+  match its index's size and SHA-256 before they're kept. Blocks are
+  imported exactly as block files are (D83, `imported:` ids, the preview
+  kept beside the block); packs open as pack files do. The editor keeps
+  the libraries it lists as links in its settings and caches their
+  previews by hash in the platform cache folder; `audioc block-import`
+  imports into the editor's library unless told another (D192, D194).
 - **Assets**: audio clips are referenced by relative path plus content hash.
   Recordings land in `<project>/assets/` by default. `audioc pack` bundles a
   project and its assets into a zip (`.acpack`) for sharing: a

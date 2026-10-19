@@ -24,6 +24,7 @@ use ac_core::{ControlEvent, MidiEvent, OSC_OUT_CAPACITY, OscMessage};
 use ac_engine::{EngineStatus, HostIo, Processor};
 use rtrb::{Consumer, Producer, RingBuffer};
 
+use crate::audition::AuditionTap;
 use crate::clock;
 use crate::control::{ControlReceiver, MAX_CONTROLS_PER_CALLBACK};
 use crate::convert::deinterleave_parts;
@@ -197,6 +198,8 @@ pub struct EventPorts {
     pub controls: Option<ControlReceiver>,
     /// Where `OscOut` nodes' messages go.
     pub osc_out: Option<OscOutQueue>,
+    /// A recording to play over the engine's output (a block preview).
+    pub audition: Option<AuditionTap>,
 }
 
 impl EventPorts {
@@ -678,6 +681,11 @@ impl CallbackCore {
                         }
                         None => output.fill(0.0),
                     }
+                    // A preview plays over the patch (never over a probe,
+                    // which listens for its own click).
+                    if let Some(a) = self.ports.audition.as_mut() {
+                        a.mix(&mut self.output[..oc * n], oc, n);
+                    }
                 }
                 write(&self.output[..oc * n], n, done);
                 done += n;
@@ -924,6 +932,26 @@ mod tests {
     }
 
     #[test]
+    fn an_audition_plays_over_the_engine_output() {
+        let (_h, p) = engine(passthrough(), Arc::new(ac_core::NoResources), 64);
+        let (mut core, _ctl, mut tx, _counters) = core(p, 64, None);
+        let (mut player, tap) = crate::audition::audition();
+        core.ports.audition = Some(tap);
+        let id = player.play(vec![vec![0.25; 100]], 1.0).unwrap();
+        let mut out = vec![0.0; 2 * 64];
+        // The engine's input isn't primed yet, so only the clip sounds.
+        push_frames(&mut tx, 0, 64);
+        run(&mut core, 64, &mut out);
+        assert!(out.iter().all(|&s| s == 0.25), "{out:?}");
+        assert_eq!(player.playing(), Some(id));
+        run(&mut core, 64, &mut out);
+        assert!(out[..36].iter().all(|&s| s == 0.25));
+        assert!(out[36..64].iter().all(|&s| s != 0.25));
+        assert_eq!(player.playing(), None);
+        player.collect_garbage();
+    }
+
+    #[test]
     fn dry_and_flooded_rings_count_xruns() {
         let (h, p) = engine(passthrough(), Arc::new(ac_core::NoResources), 64);
         let (mut core, _ctl, mut tx, counters) = core(p, 64, None);
@@ -1153,6 +1181,12 @@ mod tests {
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
         assert!(back.ports.controls.is_some() && back.ports.osc_out.is_some());
+        // The sender counts a message just after it goes out, so the second
+        // can arrive here a moment before it's counted (a busy machine).
+        let t0 = std::time::Instant::now();
+        while osc.sent() < 2 && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert_eq!(osc.sent(), 2);
         assert_eq!(inputs.dropped(), 0);
     }

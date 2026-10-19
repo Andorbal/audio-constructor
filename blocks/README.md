@@ -13,5 +13,10 @@ editor can offer an update when a newer version ships.
 - Every block has a golden project, `tests/golden/block-<id>.acproj`, that
   plays it; `cargo test -p ac-cli --test golden` checks both that the
   render matches and that the project's copy of the block is this file's.
+- Every block's preview (what the Library tab's play button plays; see
+  DECISIONS D190) is golden-tested too: `cargo test -p ac-cli --test
+  previews` renders them all and compares them with
+  `tests/golden/block-previews.json`. A change to a block changes its
+  preview's hash; regenerate with `GOLDEN_UPDATE=1` and review the diff.
 - Format: ARCHITECTURE §12. Files are canonical JSON (`audioc fmt` keeps
   them that way).

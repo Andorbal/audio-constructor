@@ -47,6 +47,7 @@
 
 pub mod assets;
 pub mod audio;
+pub mod audition;
 pub mod clock;
 pub mod control;
 pub mod convert;
@@ -54,6 +55,8 @@ pub mod convert;
 pub mod crash;
 pub mod engine_threads;
 pub mod gamepad;
+pub mod hash;
+pub mod index;
 pub mod latency;
 pub mod library;
 pub mod midi;
@@ -66,9 +69,11 @@ pub mod null;
 pub mod osc;
 pub mod osc_out;
 pub mod pack;
+pub mod preview;
 pub mod priority;
 pub mod project_file;
 pub mod record;
+pub mod remote;
 pub mod rings;
 pub mod runtime;
 #[cfg(not(target_arch = "wasm32"))]
@@ -80,6 +85,7 @@ pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
     AudioConfig, CpalAudio, DeviceInfo, HostInfo, InputChoice, RunningAudio, enumerate,
 };
+pub use audition::{Audition, AuditionTap, audition};
 pub use control::{ControlError, ControlInputs, ControlReceiver, ControlSender};
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use gamepad::{GamepadError, GamepadInfo, Gamepads, list_gamepads};
@@ -95,12 +101,13 @@ pub use null::{NullAudio, NullHost, NullStream};
 pub use osc::{DEFAULT_OSC_PORT, OscInput, OscSeen, OscStats};
 pub use osc_out::{OscOutQueue, OscOutput};
 pub use pack::{PACK_EXTENSION, PackReport, unpack, unpack_beside, write_pack};
+pub use preview::{Exported, Preview, export_block, render_preview};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{
     AudioError, AudioHost, AudioStream, EventPorts, StartError, Stopped, StreamInfo, StreamStats,
 };
-pub use wav::{BitDepth, read_wav, write_wav};
+pub use wav::{BitDepth, read_wav, wav_bytes, write_wav};
 
 // Unit tests run under the allocation guard, so a real-time path that
 // allocates (inside `assert_no_alloc`) aborts the test run.

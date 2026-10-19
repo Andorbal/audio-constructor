@@ -238,6 +238,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
                 midi_out: Some(midi_out_queue),
                 controls: Some(controls_rx),
                 osc_out: Some(osc_out_queue),
+                ..EventPorts::default()
             },
         )
         .map_err(|e| anyhow!("{e}\nhint: try another `--buffer-size`, or `--null`"))?;

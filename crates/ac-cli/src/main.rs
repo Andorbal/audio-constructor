@@ -65,6 +65,12 @@ enum Command {
     Blocks(blocks::BlocksArgs),
     /// Update projects' copies of library blocks to the library's versions.
     BlockUpdate(blocks::UpdateArgs),
+    /// Write a group (or a block file) as a block file to share, with a preview beside it.
+    BlockExport(blocks::ExportArgs),
+    /// Import blocks, packs, or a whole library from a link.
+    BlockImport(blocks::ImportArgs),
+    /// Write the `index.json` that shares a folder of blocks from a web host.
+    LibraryIndex(blocks::IndexArgs),
     /// Bundle a project and its audio files into one `.acpack` to share.
     Pack(blocks::PackArgs),
     /// Unpack an `.acpack` into a folder.
@@ -112,6 +118,9 @@ fn main() -> ExitCode {
         Command::Bench(args) => bench::run(args),
         Command::Blocks(args) => blocks::list(args),
         Command::BlockUpdate(args) => blocks::update(args),
+        Command::BlockExport(args) => blocks::export(args),
+        Command::BlockImport(args) => blocks::import(args),
+        Command::LibraryIndex(args) => blocks::index(args),
         Command::Pack(args) => blocks::pack(args),
         Command::Unpack(args) => blocks::unpack(args),
         Command::Version { check } => version(check),

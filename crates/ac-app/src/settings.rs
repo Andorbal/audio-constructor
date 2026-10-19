@@ -1,4 +1,5 @@
-//! The editor's own settings (theme, UI scale), kept in `settings.json` in
+//! The editor's own settings (theme, UI scale, the update check, crash
+//! reports, the shared libraries added by link), kept in `settings.json` in
 //! the platform config folder next to the recent list. They belong to the
 //! person, not to a project, so they never travel with project files.
 
@@ -37,6 +38,9 @@ pub struct Prefs {
     pub skip_version: String,
     /// Offer crash reports at start (D174).
     pub crash_prompt: bool,
+    /// Shared libraries the Library tab lists, by their index's link, in
+    /// the order they were added (DECISIONS D194).
+    pub libraries: Vec<String>,
 }
 
 impl Default for Prefs {
@@ -48,6 +52,7 @@ impl Default for Prefs {
             last_update_check: 0,
             skip_version: String::new(),
             crash_prompt: true,
+            libraries: Vec::new(),
         }
     }
 }
@@ -158,6 +163,23 @@ impl AppSettings {
         }
     }
 
+    /// Remember a shared library's link (once).
+    pub fn add_library(&mut self, link: &str) {
+        if !self.prefs.libraries.iter().any(|l| l == link) {
+            self.prefs.libraries.push(link.to_string());
+            self.save();
+        }
+    }
+
+    /// Forget a shared library's link.
+    pub fn remove_library(&mut self, link: &str) {
+        let before = self.prefs.libraries.len();
+        self.prefs.libraries.retain(|l| l != link);
+        if self.prefs.libraries.len() != before {
+            self.save();
+        }
+    }
+
     pub fn set_crash_prompt(&mut self, on: bool) {
         if self.prefs.crash_prompt != on {
             self.prefs.crash_prompt = on;
@@ -211,6 +233,14 @@ fn parse(text: &str) -> Prefs {
     }
     if let Some(b) = map.get("crash_prompt").and_then(serde_json::Value::as_bool) {
         prefs.crash_prompt = b;
+    }
+    if let Some(list) = map.get("libraries").and_then(serde_json::Value::as_array) {
+        for l in list.iter().filter_map(serde_json::Value::as_str) {
+            let l = l.trim();
+            if !l.is_empty() && !prefs.libraries.iter().any(|x| x == l) {
+                prefs.libraries.push(l.to_string());
+            }
+        }
     }
     prefs.sanitized()
 }
@@ -272,5 +302,8 @@ mod tests {
         assert_eq!(p.update_checks, UpdateChecks::Ask);
         assert_eq!(p.last_update_check, 0);
         assert!(p.crash_prompt);
+        let p = parse(r#"{"libraries": ["https://a/index.json", 3, " ", "https://a/index.json"]}"#);
+        assert_eq!(p.libraries, ["https://a/index.json"]);
+        assert!(parse(r#"{"libraries": "nope"}"#).libraries.is_empty());
     }
 }
