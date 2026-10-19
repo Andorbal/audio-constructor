@@ -65,6 +65,7 @@ directories.workspace = true
 fluent-bundle = "0.16"
 unic-langid = "0.9"
 sys-locale = "0.3"
+web-time.workspace = true
 # The plugin window: egui on baseview (MIT OR Apache-2.0), with the OpenGL
 # renderer (DECISIONS D125). It needs a logging facade to build; `log` is
 # the one plugin frameworks route to the host's log.

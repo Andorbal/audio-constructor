@@ -1,0 +1,6 @@
+# Cross-origin isolation, which the audio engine's shared memory needs.
+# Hosts that read a _headers file apply these; elsewhere sw.js adds them.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  Cross-Origin-Resource-Policy: same-origin

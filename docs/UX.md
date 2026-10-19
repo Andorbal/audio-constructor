@@ -299,6 +299,12 @@ A resizable panel (`N` toggles) with tabs:
   rescans (**Rescan** for new and changed ones, **Rescan all**), lists the
   folders searched, and lists the plugins that couldn't be opened and why
   (D135).
+  parameter as one gesture the host records) (D127). In a browser the tab
+  shows what the page runs at, the microphone (**Use the microphone**, or
+  the one in use), the MIDI inputs (all heard) and outputs (checked ones
+  get MIDI Out nodes' messages) with their last messages, the gamepads,
+  and, plainly, what a browser can't do: OSC, recording takes to disk,
+  plugins, choosing the output device (D154).
 - **Problems**: compile errors and disabled nodes, click to jump.
 - **Help**: a node's reference (`F1`, D110): its name and category, what
   it does, its "Try this" tip in a highlighted box, every socket with its
@@ -476,7 +482,10 @@ all honor them (DECISIONS D92).
   `docs/guide/examples.md`) and opens one as an untitled copy, so saving
   asks where to put it instead of overwriting the example. Each is a
   working patch and a lesson, from "Start" and "Guitar Pedalboard" to
-  "Build a Keyboard" and "Gamepad Jam".
+  "Build a Keyboard" and "Gamepad Jam". In a browser the examples come
+  from the site, the first page opens Start (or the example its
+  `?example=` names), and File ▸ Open Recent isn't offered: files are
+  opened and saved through the browser (D153).
 - Every node's help has "try this" tips and links to blocks that use it:
   the Help tab (`F1`) shows the tip highlighted and lists, under **Used
   in**, the blocks and examples built with the node. Every node's doc

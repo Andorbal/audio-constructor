@@ -37,7 +37,10 @@ use crate::theme::{self, ThemeChoice};
 use crate::transport::TransportState;
 use crate::user_themes::UserThemes;
 
+mod host_files;
 mod sharing;
+
+pub use host_files::{AudioPurpose, FileRequest, SaveKind};
 
 /// How to start the editor.
 pub struct AppOptions {
@@ -59,6 +62,10 @@ pub struct AppOptions {
     /// Host CLAP and VST3 plugins (the desktop editor; not tests unless
     /// they ask, and not the editor inside a plugin).
     pub plugins: Option<crate::plugins::PluginsConfig>,
+    /// The host keeps the files (the web build, which has no file system
+    /// the editor can reach): file commands become
+    /// [`EditorApp::take_file_requests`], and audio files live in memory.
+    pub host_files: bool,
 }
 
 impl AppOptions {
@@ -74,6 +81,7 @@ impl AppOptions {
             library: None,
             settings: AppSettings::in_memory(),
             plugins: None,
+            host_files: false,
         }
     }
 
@@ -93,14 +101,35 @@ impl AppOptions {
             library: files::default_library_dir(),
             settings: AppSettings::load_default(),
             plugins: None,
+            host_files: false,
+        }
+    }
+
+    /// For a page in a browser: the page runs the audio (`audio`), keeps
+    /// the files ([`EditorApp::take_file_requests`]), and gives the
+    /// shipped examples ([`EditorApp::set_examples`]). Nothing is read
+    /// from or written to disk; the settings live as long as the page
+    /// (or wherever [`AppSettings`] is given).
+    pub fn web(audio: HostAudio, seed: u64, settings: AppSettings) -> AppOptions {
+        AppOptions {
+            audio: AudioMode::Hosted(audio),
+            project: None,
+            start_example: false,
+            recent: Recent::in_memory(),
+            native_dialogs: false,
+            seed,
+            library: None,
+            settings,
+            host_files: true,
+            plugins: None,
         }
     }
 }
 
 /// A seed for node ids that differs from run to run.
 pub fn clock_seed() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .map_or(1, |d| d.as_nanos() as u64)
 }
 
@@ -111,6 +140,9 @@ enum AfterConfirm {
     Open(PathBuf),
     /// A shipped example, opened as an untitled copy.
     OpenExample(PathBuf),
+    /// The project or pack the host handed over (`EditorApp::open_file`),
+    /// waiting in `picked`.
+    OpenPicked,
     Quit,
 }
 
@@ -189,6 +221,19 @@ pub struct EditorApp {
     /// The document's state when the embedding host last heard of it
     /// ([`EditorApp::take_changes`]).
     host_seen: ChangeStamp,
+    /// The host keeps the files (see [`AppOptions::host_files`]).
+    host_files: bool,
+    /// File commands waiting for the host.
+    file_requests: Vec<FileRequest>,
+    /// Audio files held in memory when the host keeps the files, by the
+    /// path the project's nodes use.
+    asset_bank: std::collections::BTreeMap<String, Arc<Vec<u8>>>,
+    /// A file the host handed over, waiting for the unsaved-changes
+    /// question.
+    picked: Option<(String, Vec<u8>)>,
+    /// What to do once the host has saved the document (the
+    /// unsaved-changes question's Save, when the host keeps the files).
+    after_host_save: Option<AfterConfirm>,
     /// The host's automatable parameters, shown in the Devices tab.
     host_controls: Option<Box<dyn HostControls>>,
     /// What the editor asked of a host that keeps the project.
@@ -328,6 +373,7 @@ impl EditorApp {
         };
         let recorder = path
             .as_ref()
+            .filter(|_| !opts.host_files)
             .and_then(|p| ac_io::DiskRecorder::new(&files::project_dir(p)).ok())
             .map(Arc::new);
         let plugins = opts.plugins.clone().map(crate::plugins::Plugins::new);
@@ -406,6 +452,11 @@ impl EditorApp {
             clock: Clock::default(),
             epoch: 0,
             host_seen: (0, 0, 0),
+            host_files: opts.host_files,
+            file_requests: Vec::new(),
+            asset_bank: Default::default(),
+            picked: None,
+            after_host_save: None,
             host_controls: None,
             host_requests: Vec::new(),
             online,
@@ -478,6 +529,12 @@ impl EditorApp {
 
     pub fn document(&self) -> &Document {
         &self.doc
+    }
+
+    /// The audio files the project plays, as loaded (a host running the
+    /// engine elsewhere sends them along with the project).
+    pub fn assets(&self) -> &AssetStore {
+        &self.assets
     }
 
     // ------------------------------------------------------------ hosting
@@ -577,7 +634,11 @@ impl EditorApp {
     /// told about this change by [`EditorApp::take_changes`].
     pub fn load_project(&mut self, project: Project, path: Option<&Path>) {
         let base = path.map_or_else(cwd, files::project_dir);
-        let assets = AssetStore::load_for(&project, &base, &self.registry);
+        let assets = if self.host_files {
+            self.bank_assets_for(&project)
+        } else {
+            AssetStore::load_for(&project, &base, &self.registry)
+        };
         self.load_project_with(project, path, assets);
     }
 
@@ -1086,6 +1147,7 @@ impl EditorApp {
                     registry: &self.registry,
                     can_quit: self.engine.hosted().is_none(),
                     updates,
+                    show_recent: !self.host_files,
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -1468,7 +1530,9 @@ impl EditorApp {
     }
 
     fn reload_assets(&mut self) {
-        self.assets = if self.in_host() {
+        self.assets = if self.host_files {
+            self.reload_bank_assets()
+        } else if self.in_host() {
             // The host holds the files; the editor's copies are what it has.
             with_missing(
                 std::mem::take(&mut self.assets),
@@ -1492,7 +1556,13 @@ impl EditorApp {
     /// Assets and, for a saved project, the recorder writing into its
     /// assets folder (recreated when the project moves).
     fn resources(&mut self) -> Arc<FileResources> {
-        let dir = self.doc.path.as_deref().map(files::project_dir);
+        // A host keeping the files has no folder to record into.
+        let dir = self
+            .doc
+            .path
+            .as_deref()
+            .filter(|_| !self.host_files)
+            .map(files::project_dir);
         let current = self.recorder.as_ref().map(|r| r.assets_dir());
         let wanted = dir.as_ref().map(|d| d.join("assets"));
         if current != wanted {
@@ -2827,6 +2897,11 @@ impl EditorApp {
             }
             AfterConfirm::Open(path) => self.open(&path, now),
             AfterConfirm::OpenExample(path) => self.open_example(&path, now),
+            AfterConfirm::OpenPicked => {
+                if let Some((name, bytes)) = self.picked.take() {
+                    self.open_picked(&name, &bytes);
+                }
+            }
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -2946,6 +3021,11 @@ impl EditorApp {
     /// untitled copy, so saving never overwrites the shipped file. Its
     /// audio files still load from beside it.
     pub fn open_example(&mut self, path: &Path, now: f64) {
+        if self.host_files {
+            self.file_requests
+                .push(FileRequest::Example(path.to_path_buf()));
+            return;
+        }
         if self.in_host() {
             // A plugin's copy lives in the host's state, so the shipped
             // file is never written either way.
@@ -2984,7 +3064,11 @@ impl EditorApp {
 
     /// Show `project` as a new, unsaved document (examples, tests).
     pub fn open_unsaved(&mut self, project: Project) {
-        let assets = AssetStore::load_for(&project, &cwd(), &self.registry);
+        let assets = if self.host_files {
+            self.bank_assets_for(&project)
+        } else {
+            AssetStore::load_for(&project, &cwd(), &self.registry)
+        };
         self.replace_document(project, None, cwd(), assets);
     }
 
@@ -3003,8 +3087,8 @@ impl EditorApp {
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
         // A new project starts from scratch: transport at zero, every node
         // rebuilt (new resources carry no state over). The device stays open.
-        // A host's transport is the host's.
-        if !self.is_hosted() {
+        // A plugin host's transport is the host's; a page's is the editor's.
+        if !self.is_hosted() || self.host_files {
             self.engine.handle.stop();
             self.engine.handle.set_recording(false);
             self.engine.handle.seek(0);
@@ -3026,6 +3110,9 @@ impl EditorApp {
     }
 
     fn save(&mut self, save_as: bool, now: f64) {
+        if self.host_files {
+            return self.host_save(save_as, now);
+        }
         match (&self.doc.path, save_as) {
             (Some(p), false) => {
                 let p = p.clone();
@@ -3128,6 +3215,9 @@ impl EditorApp {
     }
 
     fn file_dialog(&mut self, purpose: FilePurpose, now: f64) {
+        if self.host_files {
+            return self.host_file_dialog(purpose, now);
+        }
         let suggested = match &purpose {
             FilePurpose::SaveAs => Some(
                 self.doc
@@ -3205,17 +3295,20 @@ impl EditorApp {
             FilePurpose::Export => self.export(path, now),
             FilePurpose::ChooseClip(node) => self.assign_clip(node, &path, now),
             FilePurpose::Locate(old) => match self.import_audio(&path) {
-                Ok(a) => {
-                    let reg = self.registry.clone();
-                    let n = self.doc.edit_project(&tr("undo-locate-file"), |p| {
-                        files::relink_asset(p, &reg, &old, &a)
-                    });
-                    self.reload_assets();
-                    self.say(tr_args("status-relinked", &[("count", n.into())]), now);
-                }
+                Ok(a) => self.relink(&old, &a, now),
                 Err(e) => self.warn(e, now),
             },
         }
+    }
+
+    /// Point the nodes using the missing file `old` at `a`.
+    fn relink(&mut self, old: &str, a: &files::ImportedAsset, now: f64) {
+        let reg = self.registry.clone();
+        let n = self.doc.edit_project(&tr("undo-locate-file"), |p| {
+            files::relink_asset(p, &reg, old, a)
+        });
+        self.reload_assets();
+        self.say(tr_args("status-relinked", &[("count", n.into())]), now);
     }
 
     /// An audio file someone picked, ready for a config: copied into the
@@ -3255,41 +3348,44 @@ impl EditorApp {
     /// project has a home).
     pub fn assign_clip(&mut self, node: NodeId, path: &Path, now: f64) {
         match self.import_audio(path) {
-            Ok(a) => {
-                let a2 = a.clone();
-                let reg = self.registry.clone();
-                let assign = |doc: &mut Document| {
-                    doc.edit(&reg, &tr("undo-choose-clip-file"), |g, _| {
-                        if let Some(n) = g.node_mut(node) {
-                            if !n.config.is_object() {
-                                n.config = ac_core::empty_config();
-                            }
-                            if let Some(obj) = n.config.as_object_mut() {
-                                obj.insert("file".into(), a2.file.clone().into());
-                                obj.insert("channels".into(), a2.channels.into());
-                                obj.insert("hash".into(), a2.hash.clone().into());
-                            }
-                        }
-                    })
-                };
-                // A Clip pinned to a panel is a top-level node, whatever
-                // group the canvas is in.
-                if self.doc.graph().node(node).is_some() {
-                    assign(&mut self.doc);
-                } else {
-                    self.doc.at_root(assign);
-                }
-                self.reload_assets();
-                match a.note {
-                    Some(n) => self.say(n, now),
-                    None => self.say(
-                        tr_args("status-clip-plays", &[("file", a.file.into())]),
-                        now,
-                    ),
-                }
-            }
+            Ok(a) => self.assign_clip_asset(node, a, now),
             Err(e) => self.warn(
                 tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                now,
+            ),
+        }
+    }
+
+    /// Give a Clip node the audio file `a`.
+    fn assign_clip_asset(&mut self, node: NodeId, a: files::ImportedAsset, now: f64) {
+        let a2 = a.clone();
+        let reg = self.registry.clone();
+        let assign = |doc: &mut Document| {
+            doc.edit(&reg, &tr("undo-choose-clip-file"), |g, _| {
+                if let Some(n) = g.node_mut(node) {
+                    if !n.config.is_object() {
+                        n.config = ac_core::empty_config();
+                    }
+                    if let Some(obj) = n.config.as_object_mut() {
+                        obj.insert("file".into(), a2.file.clone().into());
+                        obj.insert("channels".into(), a2.channels.into());
+                        obj.insert("hash".into(), a2.hash.clone().into());
+                    }
+                }
+            })
+        };
+        // A Clip pinned to a panel is a top-level node, whatever
+        // group the canvas is in.
+        if self.doc.graph().node(node).is_some() {
+            assign(&mut self.doc);
+        } else {
+            self.doc.at_root(assign);
+        }
+        self.reload_assets();
+        match a.note {
+            Some(n) => self.say(n, now),
+            None => self.say(
+                tr_args("status-clip-plays", &[("file", a.file.into())]),
                 now,
             ),
         }
@@ -3303,6 +3399,9 @@ impl EditorApp {
                     self.save(false, now);
                     if !self.doc.is_dirty() {
                         self.proceed(after, now);
+                    } else if self.host_files {
+                        // The host saves later; go on once it has.
+                        self.after_host_save = Some(after);
                     }
                 }
                 Some(Confirm::Discard) => {

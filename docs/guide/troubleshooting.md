@@ -223,6 +223,11 @@ The next time the editor starts, it says a report was saved and offers:
 
 Your project isn't in a report. If the problem comes from a particular
 project, attach it (or a pack of it) to the issue yourself.
+## In the browser
+
+The browser version has a few problems of its own (a page that isn't
+cross-origin isolated, sound that waits for a click, a blocked
+microphone); see [In the browser](web.md#troubleshooting).
 
 ## Still stuck
 

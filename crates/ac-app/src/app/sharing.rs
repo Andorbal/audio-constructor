@@ -64,6 +64,30 @@ impl EditorApp {
         self.import_block(block, &hint, preview.as_deref(), now);
     }
 
+    /// Add a block someone shared, given the text of its file (called
+    /// `what` in messages), under an id made from `hint` or its name: a host
+    /// that keeps the files hands over their contents (the web build).
+    pub(super) fn import_block_text(&mut self, text: &str, hint: &str, what: &str, now: f64) {
+        let block = match Block::from_json(text) {
+            Ok(b) => b,
+            Err(e) => {
+                return self.warn(
+                    tr_args(
+                        "status-couldnt-read",
+                        &[("path", what.into()), ("error", e.to_string().into())],
+                    ),
+                    now,
+                );
+            }
+        };
+        let hint = if hint.is_empty() {
+            block.def.name.clone()
+        } else {
+            hint.to_string()
+        };
+        self.import_block(block, &hint, None, now);
+    }
+
     /// Import someone else's block (D83's file rules, wherever it came
     /// from) and show where it landed.
     fn import_block(&mut self, block: Block, hint: &str, preview: Option<&[u8]>, now: f64) {
@@ -274,6 +298,9 @@ impl EditorApp {
     /// untitled project is saved first (asking where), and unsaved changes
     /// are saved; then the pack's own Save dialog.
     pub(super) fn export_pack(&mut self, now: f64) {
+        if self.host_files {
+            return self.host_export_pack(now);
+        }
         let Some(path) = self.doc.path.clone() else {
             self.pack_after_save = true;
             self.say(tr("status-save-before-pack"), now);
@@ -350,12 +377,16 @@ impl EditorApp {
 
     /// Write `what` to `path` as a block file with its preview beside it
     /// (rendered in the background).
-    pub fn export_block_to(&mut self, what: &BlockToExport, path: PathBuf, now: f64) {
-        let block = match what {
+    /// The block `what` names, as it would be exported.
+    pub(super) fn block_to_export(&self, what: &BlockToExport) -> Option<Block> {
+        match what {
             BlockToExport::Def(id) => Block::from_project(&self.doc.project, id),
             BlockToExport::Library(source) => self.library.get(source).map(|b| b.block.clone()),
-        };
-        let Some(block) = block else {
+        }
+    }
+
+    pub fn export_block_to(&mut self, what: &BlockToExport, path: PathBuf, now: f64) {
+        let Some(block) = self.block_to_export(what) else {
             return self.warn(tr("status-export-block-gone"), now);
         };
         let path = files::with_extension(path, ac_core::BLOCK_EXTENSION);

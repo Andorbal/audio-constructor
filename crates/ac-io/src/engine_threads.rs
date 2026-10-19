@@ -6,7 +6,9 @@
 use std::collections::VecDeque;
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 use ac_engine::{BakeJob, BakeResult, EngineHandle, RtPool};
 
@@ -21,6 +23,7 @@ struct Queue {
 
 /// Runs bake jobs on a background thread, one at a time, newest first per
 /// node. Call [`Baker::poll`] regularly (every UI frame, or every 100 ms).
+/// Where no thread can start (a browser), each poll bakes one job itself.
 pub struct Baker {
     queue: Arc<Queue>,
     results: mpsc::Receiver<BakeResult>,
@@ -112,7 +115,26 @@ impl Baker {
             }
             self.queue.ready.notify_one();
         }
+        if !self.started {
+            // No thread to bake on (a browser): bake one job here, now.
+            changed |= self.bake_here(handle);
+        }
         changed
+    }
+
+    /// Run the oldest queued job on this thread and install it.
+    fn bake_here(&mut self, handle: &mut EngineHandle) -> bool {
+        let job = self
+            .queue
+            .jobs
+            .lock()
+            .ok()
+            .and_then(|mut q| q.0.pop_front());
+        let Some(job) = job else {
+            return false;
+        };
+        self.outstanding = self.outstanding.saturating_sub(1);
+        handle.finish_bake(job.run())
     }
 
     /// Bakes queued or running.

@@ -1,6 +1,6 @@
 [package]
 name = "ac-web"
-description = "Placeholder for the Phase 3 web build (AudioWorklet host)."
+description = "Audio Constructor in a browser: the engine in an audio worklet, the editor on the page."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,75 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+# The cdylib is a wasm module (`scripts/build_web.py` builds it twice: the
+# page's with `ui`, the audio worklet's with `worklet`); the rlib lets the
+# native tests drive both sides.
+crate-type = ["cdylib", "rlib"]
+
 [lints]
 workspace = true
 
-[dependencies]
+[features]
+default = []
+# The page: the editor on eframe's web target, the browser's devices and
+# files, and the link to the worklet. Builds for wasm32 only.
+ui = [
+    "dep:ac-app",
+    "dep:ac-io",
+    "dep:eframe",
+    "dep:egui",
+    "dep:serde_json",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:js-sys",
+    "dep:web-sys",
+]
+# The audio worklet's module: the engine behind a few exported functions,
+# with no bindings generator (the worklet instantiates it directly).
+worklet = []
 
+[dependencies]
+ac-core.workspace = true
+ac-nodes.workspace = true
+ac-engine.workspace = true
+
+# The page's dependencies (the `ui` feature, on wasm32 only).
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ac-app = { path = "../ac-app", default-features = false, optional = true }
+ac-io = { workspace = true, optional = true }
+# WebGL through glow: it runs wherever WebGL2 does, headless browsers included.
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts"], optional = true }
+egui = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+# Keep in step with the wasm-bindgen CLI `scripts/build_web.py` runs (it
+# checks the version in Cargo.lock).
+wasm-bindgen = { version = "0.2.129", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = [
+    "BeforeUnloadEvent",
+    "Document",
+    "Event",
+    "EventTarget",
+    "Gamepad",
+    "GamepadButton",
+    "HtmlCanvasElement",
+    "MidiAccess",
+    "MidiInput",
+    "MidiInputMap",
+    "MidiMessageEvent",
+    "MidiOptions",
+    "MidiOutput",
+    "MidiOutputMap",
+    "MidiPort",
+    "Navigator",
+    "Storage",
+    "Window",
+] }
+
+[dev-dependencies]
+ac-app = { path = "../ac-app", default-features = false }
+assert_no_alloc.workspace = true
+ac-io.workspace = true
+serde_json.workspace = true

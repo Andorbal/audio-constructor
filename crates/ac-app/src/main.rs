@@ -47,6 +47,7 @@ fn main() -> eframe::Result {
         settings: ac_app::settings::AppSettings::load_default(),
         library: ac_app::files::default_library_dir(),
         plugins: Some(ac_app::plugins::PluginsConfig::desktop()),
+        host_files: false,
     };
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Audio Constructor")

@@ -101,7 +101,9 @@ pub fn write_wav(
     write_samples(w, channels, depth)
 }
 
-/// [`write_wav`] into memory: the file's bytes.
+/// A WAV file of non-interleaved channels, in memory (a host that saves
+/// through something other than a path: the web build's downloads).
+/// Written exactly as [`write_wav`] writes a file.
 pub fn wav_bytes(
     channels: &[Vec<f32>],
     sample_rate: u32,
@@ -201,6 +203,19 @@ mod tests {
                 assert!((a - b).abs() <= tol + 1e-7, "{depth}: {a} vs {b}");
             }
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn bytes_match_the_file() {
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chans = vec![vec![0.25f32, -0.5, 1.0], vec![0.0, 0.125, -1.0]];
+        let p = dir.join("t.wav");
+        write_wav(&p, &chans, 44_100, BitDepth::Pcm24).unwrap();
+        let bytes = wav_bytes(&chans, 44_100, BitDepth::Pcm24).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), bytes);
+        assert_eq!(read_wav_bytes(&bytes).unwrap().channels.len(), 2);
         std::fs::remove_dir_all(&dir).ok();
     }
 

@@ -6,6 +6,9 @@ work.
 
 ## Install
 
+To try it without installing anything, it also runs in a web browser:
+see [In the browser](web.md).
+
 ### Download a release
 
 Each release on the

@@ -73,6 +73,52 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p ac-core -p ac-dsp -p ac-nodes -p ac-engine --target wasm32-unknown-unknown
 
+  web:
+    name: Web build and browser test
+    # Builds the static site (the editor, the audio worklet, the examples),
+    # then opens it in headless Chromium and plays the Start, Pedalboard
+    # (with a fake microphone), and Synth examples (tests/web/e2e.cjs). The
+    # site is uploaded as the `web-site` artifact; pages.yml publishes
+    # main's.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen's command line (the version in Cargo.lock)
+        run: |
+          v=$(python3 -c 'import re; print(re.search(r"name = \"wasm-bindgen\"\nversion = \"([^\"]+)\"", open("Cargo.lock").read()).group(1))')
+          if [ "$(wasm-bindgen --version 2>/dev/null | awk '{print $2}')" != "$v" ]; then
+            cargo install wasm-bindgen-cli --version "$v" --locked
+          fi
+      - name: Clippy on the page's and the worklet's builds
+        run: |
+          cargo clippy -p ac-web --target wasm32-unknown-unknown --features ui -- -D warnings
+          cargo clippy -p ac-web --target wasm32-unknown-unknown --features worklet -- -D warnings
+      - name: Build the site
+        run: python3 scripts/build_web.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and its Chromium
+        working-directory: tests/web
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Play the examples in the browser
+        run: node tests/web/e2e.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-site
+          path: target/web/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-e2e-screenshots
+          path: target/web-e2e/
+          if-no-files-found: ignore
+
   jack:
     name: JACK build (Linux)
     runs-on: ubuntu-latest

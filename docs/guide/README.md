@@ -43,9 +43,12 @@ need them.
 11. [Plugins as nodes](plugins-as-nodes.md): playing the synths and
     effects installed on your computer inside a patch, their windows,
     and what happens when one is missing.
-12. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
+12. [In the browser](web.md): the editor as a web page, with MIDI,
+    gamepads, and the microphone; opening and saving files there; and
+    what a browser can't do.
+13. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
     devices that don't show up, and other problems.
-12. [Themes](themes.md): the built-in themes, including High Contrast,
+14. [Themes](themes.md): the built-in themes, including High Contrast,
     and making your own.
 
 "Try this" boxes like the one below suggest something to do with what a
