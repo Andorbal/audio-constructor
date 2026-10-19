@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "OSC In and Out",
   "settings": {
     "sample_rate": 48000,
@@ -23,8 +23,10 @@
         "id": "1",
         "kind": "osc_in",
         "config": {
-          "address": "/synth/pitch",
           "args": 2
+        },
+        "params": {
+          "address": "/synth/pitch"
         },
         "ui": {
           "pos": [
@@ -64,7 +66,7 @@
       {
         "id": "4",
         "kind": "osc_in",
-        "config": {
+        "params": {
           "address": "/synth/cutoff"
         },
         "ui": {
@@ -105,7 +107,7 @@
       {
         "id": "7",
         "kind": "osc_in",
-        "config": {
+        "params": {
           "address": "/synth/gate"
         },
         "ui": {
@@ -173,7 +175,7 @@
       {
         "id": "c",
         "kind": "osc_in",
-        "config": {
+        "params": {
           "address": "/synth/hit"
         },
         "ui": {
@@ -254,13 +256,13 @@
         "id": "12",
         "kind": "osc_out",
         "config": {
-          "host": "192.168.1.20",
-          "port": 8000,
-          "address": "/meter/level",
           "args": 2
         },
         "params": {
-          "interval": 0.05
+          "address": "/meter/level",
+          "host": "192.168.1.20",
+          "interval": 0.05,
+          "port": 8000
         },
         "ui": {
           "pos": [
@@ -272,13 +274,11 @@
       {
         "id": "13",
         "kind": "osc_out",
-        "config": {
-          "host": "localhost",
-          "port": 9001,
-          "address": "/echo/cutoff"
-        },
         "params": {
-          "on_change": false
+          "address": "/echo/cutoff",
+          "host": "localhost",
+          "on_change": false,
+          "port": 9001
         },
         "ui": {
           "pos": [

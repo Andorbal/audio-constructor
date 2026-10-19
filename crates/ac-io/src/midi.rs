@@ -25,6 +25,7 @@ use std::sync::{Arc, Weak};
 use ac_core::{MidiEvent, MidiMsg};
 
 use crate::clock;
+use crate::monitor::Recent;
 use crate::rings::{ClaimError, RingDrain, RingSet, SourceTx, ring_set};
 
 pub use crate::rings::MAX_SOURCES;
@@ -203,6 +204,16 @@ impl MidiReceiver {
     }
 }
 
+/// A message as a port received it, for the Devices tab.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MidiSeen {
+    /// When it arrived ([`clock::now_ns`]).
+    pub time_ns: u64,
+    /// The port's name.
+    pub port: String,
+    pub msg: MidiMsg,
+}
+
 /// The control-thread end: opens ports and virtual sources.
 pub struct MidiInputs {
     select: MidiSelect,
@@ -211,6 +222,8 @@ pub struct MidiInputs {
     last_error: Option<MidiError>,
     /// The last scan could list ports (the MIDI system is there).
     scan_ok: bool,
+    /// The newest messages from every port, for the editor.
+    recent: Recent<MidiSeen>,
 }
 
 impl fmt::Debug for MidiInputs {
@@ -232,6 +245,7 @@ impl MidiInputs {
             rings,
             last_error: None,
             scan_ok: false,
+            recent: Recent::default(),
         };
         (inputs, MidiReceiver { rings: drain })
     }
@@ -296,16 +310,23 @@ impl MidiInputs {
             .find(|p| p.id() == port.id)
             .ok_or_else(|| MidiError(format!("MIDI port {} disappeared", port.name)))?;
         let (slot, tx) = self.claim_slot()?;
+        let (recent, port_name) = (self.recent.clone(), port.name.clone());
         let conn = input
             .connect(
                 &handle,
                 "audio-constructor-in",
-                |_driver_us, bytes, src: &mut SourceTx<MidiMsg>| {
+                move |_driver_us, bytes, src: &mut SourceTx<MidiMsg>| {
                     // Stamp before anything else; the driver's timestamp is on
                     // a different clock.
                     let t = clock::now_ns();
                     if let Some(msg) = MidiMsg::from_bytes(bytes) {
                         src.push(t, msg);
+                        // After the ring, so the engine is never kept waiting.
+                        recent.push(MidiSeen {
+                            time_ns: t,
+                            port: port_name.clone(),
+                            msg,
+                        });
                     }
                 },
                 tx,
@@ -388,6 +409,18 @@ impl MidiInputs {
     /// didn't (no sequencer, no driver), rescanning won't help.
     pub fn system_available(&self) -> bool {
         self.scan_ok
+    }
+
+    /// The newest messages from the connected ports (up to
+    /// [`crate::monitor::RECENT_MESSAGES`]), oldest first. Virtual sources
+    /// (the computer keyboard, tests) aren't logged; they aren't devices
+    /// anyone needs to identify.
+    pub fn recent(&self) -> Vec<MidiSeen> {
+        self.recent.snapshot()
+    }
+
+    pub fn clear_recent(&self) {
+        self.recent.clear();
     }
 
     pub fn last_error(&self) -> Option<&MidiError> {

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Arpeggiator with a filter sweep",
   "settings": {
     "sample_rate": 48000,

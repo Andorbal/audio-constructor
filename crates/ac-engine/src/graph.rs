@@ -25,7 +25,8 @@ use std::sync::atomic::Ordering;
 use ac_core::{
     AutoFlags, BufferRef, ControlEvent, EngineInfo, HostAccess, InputSlot, Inputs, Io, LOCAL,
     Local, MidiEvent, Node, NodeMeta, NodePath, OscMessage, OutputSlot, Outputs, ParamSlot, Phase,
-    PrepareCtx, ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TransportView,
+    PrepareCtx, ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TextBuf,
+    TransportView,
 };
 
 use crate::pool::{Job, RtPool};
@@ -114,6 +115,7 @@ pub(crate) struct Step {
     pub o_midi: Range,
     pub o_spectra: Range,
     pub o_buffers: Range,
+    pub o_texts: Range,
     /// The chain's own sample buffers, in [`Work`]'s stash: the whole
     /// chain's range on its first step, empty on the rest.
     pub o_stash: Range,
@@ -153,6 +155,8 @@ pub(crate) struct Pool {
     pub midi: Vec<Vec<MidiEvent>>,
     pub spectra: Vec<SpectrumBuf>,
     pub buffers: Vec<BufferRef>,
+    /// Text values; typed values sit here too, never written by a step.
+    pub texts: Vec<TextBuf>,
 }
 
 /// A position in the schedule's output layout: a step, and where its
@@ -169,6 +173,7 @@ pub(crate) struct At {
     pub midi: usize,
     pub spectra: usize,
     pub buffers: usize,
+    pub texts: usize,
     pub stash: usize,
 }
 
@@ -185,6 +190,7 @@ impl At {
                 midi: s.o_midi.0 as usize,
                 spectra: s.o_spectra.0 as usize,
                 buffers: s.o_buffers.0 as usize,
+                texts: s.o_texts.0 as usize,
                 stash: s.o_stash.0 as usize,
             },
             None => At::end(steps, k),
@@ -203,6 +209,7 @@ impl At {
                 midi: s.o_midi.1 as usize,
                 spectra: s.o_spectra.1 as usize,
                 buffers: s.o_buffers.1 as usize,
+                texts: s.o_texts.1 as usize,
                 stash: s.o_stash.1 as usize,
             },
             None => At::default(),
@@ -220,6 +227,7 @@ impl At {
             midi: self.midi.max(o.midi),
             spectra: self.spectra.max(o.spectra),
             buffers: self.buffers.max(o.buffers),
+            texts: self.texts.max(o.texts),
             stash: self.stash.max(o.stash),
         }
     }
@@ -235,6 +243,7 @@ impl At {
             midi: self.midi.saturating_sub(base.midi),
             spectra: self.spectra.saturating_sub(base.spectra),
             buffers: self.buffers.saturating_sub(base.buffers),
+            texts: self.texts.saturating_sub(base.texts),
             stash: self.stash.saturating_sub(base.stash),
         }
     }
@@ -258,6 +267,7 @@ pub(crate) struct Work {
     midi: Vec<Vec<MidiEvent>>,
     spectra: Vec<SpectrumBuf>,
     buffers: Vec<BufferRef>,
+    texts: Vec<TextBuf>,
     stash: Vec<Vec<f32>>,
 }
 
@@ -277,6 +287,7 @@ impl Work {
             midi: (0..size.midi).map(|_| Vec::new()).collect(),
             spectra: (0..size.spectra).map(|_| SpectrumBuf::default()).collect(),
             buffers: vec![None; size.buffers],
+            texts: vec![TextBuf::EMPTY; size.texts],
             stash: (0..size.stash).map(|_| vec![0.0; max_block]).collect(),
         }
     }
@@ -292,6 +303,7 @@ impl Work {
             midi: &mut self.midi,
             spectra: &mut self.spectra,
             buffers: &mut self.buffers,
+            texts: &mut self.texts,
             stash: &mut self.stash,
         }
     }
@@ -308,6 +320,7 @@ struct WorkMut<'w> {
     midi: &'w mut [Vec<MidiEvent>],
     spectra: &'w mut [SpectrumBuf],
     buffers: &'w mut [BufferRef],
+    texts: &'w mut [TextBuf],
     stash: &'w mut [Vec<f32>],
 }
 
@@ -329,6 +342,7 @@ impl<'w> WorkMut<'w> {
         let (m0, m1) = split(self.midi, at.midi);
         let (p0, p1) = split(self.spectra, at.spectra);
         let (b0, b1) = split(self.buffers, at.buffers);
+        let (tx0, tx1) = split(self.texts, at.texts);
         let (x0, x1) = split(self.stash, at.stash);
         (
             WorkMut {
@@ -341,6 +355,7 @@ impl<'w> WorkMut<'w> {
                 midi: m0,
                 spectra: p0,
                 buffers: b0,
+                texts: tx0,
                 stash: x0,
             },
             WorkMut {
@@ -353,6 +368,7 @@ impl<'w> WorkMut<'w> {
                 midi: m1,
                 spectra: p1,
                 buffers: b1,
+                texts: tx1,
                 stash: x1,
             },
         )
@@ -369,6 +385,7 @@ impl<'w> WorkMut<'w> {
             midi: self.midi,
             spectra: self.spectra,
             buffers: self.buffers,
+            texts: self.texts,
             stash: self.stash,
         }
     }
@@ -426,6 +443,7 @@ impl<'w> WorkMut<'w> {
         let (l_midi, midi) = cut(self.midi, from.midi, at.midi, end.midi, chain);
         let (l_spectra, spectra) = cut(self.spectra, from.spectra, at.spectra, end.spectra, chain);
         let (l_buffers, buffers) = cut(self.buffers, from.buffers, at.buffers, end.buffers, chain);
+        let (l_texts, texts) = cut(self.texts, from.texts, at.texts, end.texts, chain);
         (
             WorkMut {
                 nodes,
@@ -437,6 +455,7 @@ impl<'w> WorkMut<'w> {
                 midi,
                 spectra,
                 buffers,
+                texts,
                 stash: &mut [],
             },
             Local {
@@ -447,6 +466,7 @@ impl<'w> WorkMut<'w> {
                 midi: l_midi,
                 spectra: l_spectra,
                 buffers: l_buffers,
+                texts: l_texts,
             },
         )
     }
@@ -476,6 +496,7 @@ pub struct CompiledGraph {
     pub(crate) out_midi: Vec<u32>,
     pub(crate) out_spectra: Vec<u32>,
     pub(crate) out_buffers: Vec<u32>,
+    pub(crate) out_texts: Vec<u32>,
     pub(crate) chan_table: Vec<u32>,
     pub(crate) pool: Pool,
     pub(crate) params: Vec<ParamSlot>,
@@ -820,6 +841,13 @@ impl CompiledGraph {
         for (&g, s) in span(&self.out_ints, a.ints, e.ints).zip(&mut work.ints) {
             *s = pool.ints.get(g as usize).copied().unwrap_or(0);
         }
+        for (&g, s) in span(&self.out_texts, a.texts, e.texts).zip(&mut work.texts) {
+            *s = pool
+                .texts
+                .get(g as usize)
+                .copied()
+                .unwrap_or(TextBuf::EMPTY);
+        }
     }
 
     /// Undo [`Self::move_out`].
@@ -871,6 +899,11 @@ impl CompiledGraph {
         }
         for (&g, s) in span(&self.out_ints, a.ints, e.ints).zip(&work.ints) {
             if let Some(d) = pool.ints.get_mut(g as usize) {
+                *d = *s;
+            }
+        }
+        for (&g, s) in span(&self.out_texts, a.texts, e.texts).zip(&work.texts) {
+            if let Some(d) = pool.texts.get_mut(g as usize) {
                 *d = *s;
             }
         }
@@ -992,6 +1025,7 @@ fn run_step(
                 midi: &pool.midi,
                 spectra: &pool.spectra,
                 buffers: &pool.buffers,
+                texts: &pool.texts,
                 auto,
                 local,
             },
@@ -1005,6 +1039,7 @@ fn run_step(
                 midi: &mut *work.midi,
                 spectra: &mut *work.spectra,
                 buffers: &mut *work.buffers,
+                texts: &mut *work.texts,
             },
             host: HostAccess {
                 input: shared.host_input,
@@ -1114,6 +1149,11 @@ fn socket_telemetry(
                     .and_then(Option::as_ref)
                     .map_or(0.0, |b| b.frames() as f32 / (b.sample_rate.max(1) as f32));
                 (secs, secs, None)
+            }
+            // Value: the text's length, so a meter shows something arriving.
+            OutputSlot::Text(k) => {
+                let n = work.texts.get(k as usize).map_or(0, TextBuf::len) as f32;
+                (n, n, None)
             }
             OutputSlot::None => continue,
         };

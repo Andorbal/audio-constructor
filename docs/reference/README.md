@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-115 nodes in 13 categories.
+117 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -20,7 +20,7 @@ together, read the [user guide](../guide/README.md).
 | [Filters](#filters) | 6 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
 | [Spectral](#spectral) | 6 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
-| [Math & Logic](#math) | 19 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
+| [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 5 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
@@ -130,7 +130,7 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Accumulate](math.md#accumulate) | Adds `in` to a running total on every `trigger`. |
 | [Clamp](math.md#clamp) | Keeps `in` between `min` and `max`. |
 | [Compare](math.md#compare) | Compares `a` with `b` and outputs a `Bool`: true while the comparison holds. |
-| [Constant](math.md#constant) | A fixed `Float`, `Int`, or `Bool` value, set with its inline widget. |
+| [Constant](math.md#constant) | A fixed `Float`, `Int`, `Bool`, or `Text` value, set with its inline widget. |
 | [Convert](math.md#convert) | Converts `in` from one unit to another. |
 | [Counter](math.md#counter) | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
 | [Differentiate](math.md#differentiate) | How fast `in` is changing, in units per second. |
@@ -139,12 +139,14 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Map](math.md#map) | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Combines two values, `a` and `b`, with an arithmetic operation. |
 | [Merge](math.md#merge) | Combines several MIDI or trigger streams into one, so two sources can play one instrument at once. |
+| [Number to Text](math.md#number-to-text) | Writes numbers into a text template: `/fader/{}` with `value` 3 gives `/fader/3`. |
 | [Quantize](math.md#quantize) | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
 | [Random](math.md#random) | A new random value on every `trigger`, held until the next. |
 | [Sample & Hold](math.md#sample-hold) | Samples `in` at each `trigger` and holds that value until the next. |
 | [Select](math.md#select) | Passes on one of several inputs, picked by `index`. |
 | [Smooth](math.md#smooth) | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
 | [Switch](math.md#switch) | Passes on `a` while `select` is false and `b` while it is true. |
+| [Text to Number](math.md#text-to-number) | Reads a number out of text: with the pattern `/fader/{}`, the text `/fader/3` gives 3. |
 | [Unary](math.md#unary) | Applies a one-input function to `in`: trigonometry, exponentials, rounding, and the like. |
 
 <a id="modulation"></a>

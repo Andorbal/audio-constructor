@@ -71,6 +71,7 @@ Shape distinguishes stream from event (and is the colorblind-safe channel).
 | Midi | violet `#A98BF0` | `#7A55D6` | diamond |
 | Spectrum | cyan `#4FD1D9` | `#138A94` | square |
 | Buffer | sand `#C8A878` | `#9A7444` | square |
+| Text | ivory `#E8DFC0` | `#8E7E4A` | square |
 
 Category header colors: I/O red, Generators orange, Level/Dynamics gold,
 Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
@@ -91,7 +92,8 @@ slate.
 
 - Unwired inputs show the right widget for their unit: drag-slider for
   floats (log scale for Hz, dB), dropdown for enums, checkbox for bools, a
-  small button for triggers. Ctrl-drag for fine, Shift-drag for coarse, click
+  small button for triggers, a text field for text (an OSC address; click
+  to type, Enter to keep). Ctrl-drag for fine, Shift-drag for coarse, click
   to type.
 - Wired inputs show the live value in muted text; hover a socket to see it
   large, with rate (const/block/sample) and channel count.
@@ -227,7 +229,13 @@ A resizable panel (`N` toggles) with tabs:
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
   xrun counter, per-core load, OSC (a checkbox and port to listen on, 9000
   unless changed and off until turned on; the address to send to; what has
-  arrived and what OSC Out nodes sent), and transport buttons.
+  arrived and what OSC Out nodes sent), and transport buttons. Under MIDI
+  inputs and under OSC, **Last messages** lists the newest messages the
+  ports received ("CC 74 = 127 · ch 1", `/fader/1/3 0.5`), newest first
+  with their age, so a control's number or address is read off the list
+  rather than guessed. Click an OSC address to copy it; with one OSC In
+  selected, **Use** beside each address sets that node's address. Clear
+  empties a list (D115).
 - **Problems**: compile errors and disabled nodes, click to jump.
 - **Help**: a node's reference (`F1`, D110): its name and category, what
   it does, its "Try this" tip in a highlighted box, every socket with its

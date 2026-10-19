@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Chorus",
   "description": "Thickens a sound into an ensemble: three copies of it, each delayed by a slowly wobbling time, are spread left, right, and center and blended with the original. Mono or stereo in, stereo out.\n\n- `in`: the signal (mono or stereo; the copies are made from its mono sum, the dry part keeps its stereo image).\n- `rate` (Hz): how fast the delays wobble. 0.2 to 1 Hz is a gentle chorus; above 3 Hz it turns into a warble.\n- `depth` (0 to 1): how far they wobble. Each delay sweeps 15 ms ± `depth` × 5 ms, so 0 is a static doubling and 1 sweeps from 10 to 20 ms.\n- `mix` (0 to 1): 0 is only the dry signal, 1 only the three copies; 0.5 is the classic blend. The blend is equal-power, so the loudness holds steady across the range.\n- `out`: the stereo result.\n\nInside: Mid/Side takes the mono sum of the input. Three `pure` sine Oscillators at `rate`, a third of a cycle apart, are mapped from −1..1 onto the shortest and longest delay (worked out from `depth` with Math) and drive the `time` of three Delays with no feedback, so each copy's pitch bends gently up and down out of step with the others. Pans place the copies hard left, hard right, and center, a Mix sums them, and an equal-power Crossfade blends them with the dry input.",
   "version": 1,

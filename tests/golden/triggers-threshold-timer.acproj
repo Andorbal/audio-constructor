@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Threshold and timer",
   "settings": {
     "sample_rate": 48000,

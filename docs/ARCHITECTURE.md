@@ -56,7 +56,7 @@ Contents
 | Serialization | **serde** + JSON | Human-readable, diffable project files. |
 | Lock-free plumbing | **rtrb** (SPSC rings), **arc-swap**, **triple_buffer** | Audio thread never blocks. |
 | Thread priority | **audio_thread_priority** | Real-time scheduling for worker threads. |
-| Plugin build | **nice-plug** (CLAP + VST3) | The maintained, crates.io-published successor of nih-plug (DECISIONS D115). Same engine, host-provided buffers. VST3 through the MIT/Apache `vst3` bindings (D116). |
+| Plugin build | **nice-plug** (CLAP + VST3) | The maintained, crates.io-published successor of nih-plug (DECISIONS D117). Same engine, host-provided buffers. VST3 through the MIT/Apache `vst3` bindings (D118). |
 | Plugin hosting | **clack** (CLAP), **vst3** (VST3) | Phase 3 (M3.2). The plugin build's tests already use clack as their host. |
 | Benchmarks | **criterion** plus an `audioc bench` subcommand | Per-node and whole-graph throughput, tracked over time. |
 | UI tests | **egui_kittest** | Drive the editor without a display; snapshot where a software renderer is available. |
@@ -190,6 +190,7 @@ Keep the type set small. Each type has a fixed socket/wire color (see UX.md).
 | `Midi` | list of MIDI events (note on/off, CC, pitch bend, aftertouch, channel) with sample offsets | event |
 | `Spectrum` | the FFT frames that completed during the block, each stamped with its sample offset; complex bins `re, im` | frame |
 | `Buffer` | shared, immutable handle to an audio buffer (clip, recording) | constant |
+| `Text` | a short string (an OSC address, a label): up to 128 bytes of UTF-8 kept inline (`TextBuf`), so the audio thread copies and compares it without allocating | constant or per-block |
 
 ### Rates
 
@@ -197,7 +198,10 @@ A `Float` or `Bool` input can be fed at three rates, and the engine decides
 which at compile time:
 
 - **Const**: the input is unwired; its value comes from `params`. Changing it
-  from the UI goes through the parameter queue, not a recompile.
+  from the UI goes through the parameter queue, not a recompile. (A `Text`
+  input is the exception: the queue carries numbers, so editing typed text
+  recompiles, with node state carried over, and the node reads the new text
+  on its next block.)
 - **Block**: one value per block. Produced by UI controls, transport values,
   smoothed parameters, and anything else that doesn't need audio-rate
   resolution.
@@ -276,7 +280,7 @@ Transport
   from `PrepareCtx`). Clips are resampled on load if needed.
 - There is no external sync (MIDI clock, network tempo sync) in scope,
   except that the plugin build follows its host's play, stop, and position
-  (§13, DECISIONS D119).
+  (§13, DECISIONS D121).
 
 ## 7. Compilation and scheduling
 
@@ -349,8 +353,9 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   from its target, so it gives the same samples however blocks split it.
 - **Bindings** (D92–D95): the project's bindings (a MIDI controller or
   note, key, gamepad control, OSC address, or a plugin's macro parameter
-  (D117) → an input or a transport action) compile to a table inside the compiled graph, resolved through
-  the same (path, socket) → slot map as parameter changes; bindings to
+  (D119) → an input or a transport action) compile to a table inside the
+  compiled graph, resolved through the same (path, socket) → slot map as
+  parameter changes; bindings to
   missing, wired, or unbindable inputs are compile warnings. Each block,
   the processor matches its MIDI and control events against the table
   (allocation-free, into a preallocated list in offset order) and splits
@@ -567,7 +572,9 @@ without either feature.
 - OSC via rosc: a UDP listener on a chosen port (off until asked for) turns
   every argument of every message into a control event, stamped on arrival
   (bundles flattened, time tags ignored); OSC out sends from a sender
-  thread (D87).
+  thread (D87). The listener and each MIDI port also keep the newest
+  messages, with addresses and port names as text, in a mutex-guarded log
+  for the editor's Devices tab (D115); the engine never reads it.
 - The computer keyboard is a control source like any other: with Play keys
   on, the editor sends key presses and releases into its own ring instead
   of running shortcuts (D88).
@@ -625,28 +632,28 @@ All hosts call the same `Engine`.
   - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
   - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.
   - `audioc fmt` canonicalizes `.acproj` and `.acblock` files.
-- **Plugin** (`ac-plugin`, DECISIONS D115–D121): nice-plug exports two
+- **Plugin** (`ac-plugin`, DECISIONS D117–D123): nice-plug exports two
   plugins from one library, as CLAP and VST3: **Audio Constructor Effect**
   (stereo, mono, or mono-to-stereo audio, with notes in) and **Audio
   Constructor Instrument** (notes in, stereo out, notes out).
   - *Engine hosting.* Activation builds the engine at the host's sample
     rate and largest block and starts the instance's control thread
-    (D120). Each host block goes through `ac_plugin::bridge::Bridge`,
+    (D122). Each host block goes through `ac_plugin::bridge::Bridge`,
     without allocating (debug builds abort if it does): the host's
     channels are copied into channel-major `HostIo` scratch sized at
     activation (a mono bus widened to a pair), host notes and MIDI become
     `MidiEvent`s at their offsets (for MIDI In nodes and MIDI bindings),
     macros that moved become `Control::Macro` events at the start of the
     framework's sub-block, the transport follows the host's
-    (`Processor::follow_transport`, D119), and MIDI Out nodes' messages go
+    (`Processor::follow_transport`, D121), and MIDI Out nodes' messages go
     back to the host. Blocks of any size up to the maximum work; longer
     ones are split. Latency the graph adds is reported to the host.
   - *Parameters.* Sixteen macros (`macro_1` … `macro_16`) are the host's
     parameters; the project's bindings from `Source::Macro` say what each
     drives, with the binding's range and mapping, sample-accurately, and
-    the host's readout shows the value it sets (D117).
+    the host's readout shows the value it sets (D119).
   - *State.* The host saves the macro values and one JSON document: the
-    project, its audio files, and where it came from (D118). Restoring,
+    project, its audio files, and where it came from (D120). Restoring,
     loading a project file, and every edit recompile on the host's main
     thread or the editor's and hot-swap at a block boundary; bad state
     falls back to the default project with a report. New instances start
@@ -659,7 +666,7 @@ All hosts call the same `Engine`.
     pushes project changes with `Session::set_project`, and leaves the
     transport to the host.
   - *Bundles.* `scripts/bundle_plugin.py` builds `Audio Constructor.clap`
-    and `Audio Constructor.vst3` (D121).
+    and `Audio Constructor.vst3` (D123).
 - **Web** (Phase 3, `ac-web`): the engine runs inside an `AudioWorklet`; the
   UI is eframe's web target. The two communicate through `SharedArrayBuffer`
   rings, the same abstraction as native.

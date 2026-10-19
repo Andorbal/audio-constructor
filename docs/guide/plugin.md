@@ -65,9 +65,12 @@ patch.
 - Automation lands on its sample: a macro that moves in the middle of a
   block changes the patch on that sample, smoothed like any input over a
   few milliseconds.
-- To bind a macro, learn it like any control: start learning on an input
-  and move the macro in the host. In a project file, a macro binding's
-  source is `{"type": "macro", "number": 3}`.
+- Macro bindings are saved in the project like any other. In a project
+  file, a macro binding's source is `{"type": "macro", "number": 3}`;
+  `min`, `max`, and `invert` work as for a MIDI controller. Once the
+  editor is in the plugin's window (see
+  [What doesn't work yet](#what-doesnt-work-yet)), you learn one like any
+  control: start learning on an input and move the macro in the host.
 - One macro can drive several inputs, each with its own range: bind it
   more than once.
 
@@ -87,12 +90,7 @@ If a saved state can't be used (it's damaged, or it was saved by a newer
 version of Audio Constructor), the plugin starts with its default project
 instead and says why; it never takes the host down with it.
 
-## Editing the patch
-
-The plugin's window holds the same editor as the app, on the patch the
-plugin is playing. Edits are heard as you make them, as in the app,
-without a gap. Open a project (`.acproj`) there to load it into the
-plugin, with the audio files it uses; New goes back to the default patch.
+## What the host looks after
 
 A few things are the host's job inside a plugin:
 
@@ -106,13 +104,27 @@ A few things are the host's job inside a plugin:
   Audio Out are the track's, MIDI In gets the track's notes, and the
   computer keys, gamepads, and OSC don't reach a plugin.
 
-A few nodes behave differently in a plugin: **Record** doesn't record
-(record the track in your host instead), and **File Out** writes files
-only when `audioc render` renders a project.
-
 ## Performance
 
 The plugin runs the patch on the host's audio thread, at the host's sample
 rate and buffer size, and reports any latency the patch adds (such as a
 lookahead limiter's) so the host can line tracks up. A heavy patch costs
 what it costs in the app; the host's own meter shows it.
+
+## What doesn't work yet
+
+- **The editor in the plugin's window.** It's on its way. Until it
+  arrives, the plugin window is empty (hosts show their own controls for
+  the macros), and a plugin plays its default patch or the patch its
+  session saved: there's no way yet to open one of your own projects in
+  it.
+- **Following the host's tempo.** The patch keeps its project tempo (see
+  above).
+- **Recording.** Record nodes don't record in a plugin, and File Out
+  writes only in `audioc render`; record the track in your host.
+- **A sidechain input.** The Effect has one stereo input; a second input
+  for sidechaining isn't there yet.
+- **Macro names.** Hosts list the macros as Macro 1 to Macro 16 whatever
+  they drive; the readout shows the value.
+- **Downloads.** The release archives don't include the plugin yet, and
+  the bundles aren't signed: build them as in [Install](#install).

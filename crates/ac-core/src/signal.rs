@@ -27,6 +27,11 @@ pub enum SignalType {
     Spectrum,
     /// A shared, immutable handle to recorded or loaded audio.
     Buffer,
+    /// A short string (an OSC address, a label), one value per block, kept
+    /// inline so the audio thread never allocates ([`crate::TextBuf`]).
+    /// Unwired, it's typed into the node and fixed when the graph
+    /// compiles; wired, it's read every block.
+    Text,
     /// Takes the type of whatever is connected (Reroute only).
     Any,
 }
@@ -42,6 +47,7 @@ impl SignalType {
             SignalType::Midi => "Midi",
             SignalType::Spectrum => "Spectrum",
             SignalType::Buffer => "Buffer",
+            SignalType::Text => "Text",
             SignalType::Any => "Any",
         }
     }
@@ -81,9 +87,13 @@ pub enum Conversion {
 }
 
 /// The conversion used to wire `from` into `to`, or `None` if they can't connect.
+/// Text connects only to Text: a number has to go through a `Number to
+/// Text` node, where the format is explicit.
 pub fn conversion(from: SignalType, to: SignalType) -> Option<Conversion> {
     use SignalType::*;
     match (from, to) {
+        (Text, Text) => Some(Conversion::None),
+        (Text, _) | (_, Text) => None,
         (Any, _) | (_, Any) => Some(Conversion::None),
         (a, b) if a == b => Some(Conversion::None),
         (Float, Audio) => Some(Conversion::FloatToAudio),
@@ -258,7 +268,7 @@ impl SocketSpec {
             scale: Scale::Linear,
             choices: &[],
             rate: OutRate::Fixed(match ty {
-                SignalType::Int => Rate::Block,
+                SignalType::Int | SignalType::Text => Rate::Block,
                 _ => Rate::Sample,
             }),
             channels: Channels::Follow,
@@ -312,6 +322,15 @@ impl SocketSpec {
     pub fn buffer(name: impl Into<Cow<'static, str>>) -> Self {
         let mut s = Self::base(name, SignalType::Buffer, Value::Bool(false));
         s.rate = OutRate::Fixed(Rate::Block);
+        s.smooth = false;
+        s
+    }
+
+    /// A `Text` socket: as an input, a text field when unwired (an address,
+    /// a template), read through [`crate::Inputs::text`]; as an output, a
+    /// block-rate string.
+    pub fn text(name: impl Into<Cow<'static, str>>, default: &str) -> Self {
+        let mut s = Self::base(name, SignalType::Text, Value::Text(default.to_string()));
         s.smooth = false;
         s
     }
@@ -518,6 +537,11 @@ mod tests {
         assert_eq!(conversion(Buffer, Audio), None);
         assert_eq!(conversion(Float, Buffer), None);
         assert_eq!(conversion(Buffer, Buffer), Some(Conversion::None));
+        assert_eq!(conversion(Text, Text), Some(Conversion::None));
+        assert_eq!(conversion(Text, Float), None);
+        assert_eq!(conversion(Int, Text), None);
+        assert_eq!(conversion(Any, Text), None);
+        assert_eq!(conversion(Text, Any), None);
     }
 
     #[test]

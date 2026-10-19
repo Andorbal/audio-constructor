@@ -27,7 +27,7 @@ pub const OSC_ADDRESS_MAX: usize = 64;
 pub const OSC_ARGS_MAX: usize = 4;
 /// Macro parameters the plugin build shows its host, `Macro 1` to
 /// `Macro 16` ([`Control::Macro`]). Raising it adds parameters without
-/// breaking saved states or automation (DECISIONS D117).
+/// breaking saved states or automation (DECISIONS D119).
 pub const MACRO_COUNT: usize = 16;
 
 /// A control event stamped with its sample offset inside the current block.
