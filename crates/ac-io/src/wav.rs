@@ -96,9 +96,26 @@ pub fn write_wav(
     sample_rate: u32,
     depth: BitDepth,
 ) -> Result<(), WavError> {
-    let n_ch = channels.len().max(1);
-    let spec = hound::WavSpec {
-        channels: n_ch as u16,
+    let w = hound::WavWriter::create(path, spec(channels, sample_rate, depth))
+        .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
+    write_samples(w, channels, depth)
+}
+
+/// [`write_wav`] into memory: the file's bytes.
+pub fn wav_bytes(
+    channels: &[Vec<f32>],
+    sample_rate: u32,
+    depth: BitDepth,
+) -> Result<Vec<u8>, WavError> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    let w = hound::WavWriter::new(&mut out, spec(channels, sample_rate, depth))?;
+    write_samples(w, channels, depth)?;
+    Ok(out.into_inner())
+}
+
+fn spec(channels: &[Vec<f32>], sample_rate: u32, depth: BitDepth) -> hound::WavSpec {
+    hound::WavSpec {
+        channels: channels.len().max(1) as u16,
         sample_rate,
         bits_per_sample: match depth {
             BitDepth::Pcm16 => 16,
@@ -109,9 +126,15 @@ pub fn write_wav(
             BitDepth::Float32 => hound::SampleFormat::Float,
             _ => hound::SampleFormat::Int,
         },
-    };
-    let mut w = hound::WavWriter::create(path, spec)
-        .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
+    }
+}
+
+fn write_samples<W: std::io::Write + std::io::Seek>(
+    mut w: hound::WavWriter<W>,
+    channels: &[Vec<f32>],
+    depth: BitDepth,
+) -> Result<(), WavError> {
+    let n_ch = channels.len().max(1);
     let frames = channels.first().map_or(0, Vec::len);
     for i in 0..frames {
         for c in 0..n_ch {
@@ -140,6 +163,23 @@ pub fn write_wav(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bytes_in_memory_are_the_file() {
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chans = vec![
+            (0..300)
+                .map(|i| (i as f32 * 0.01).sin())
+                .collect::<Vec<f32>>(),
+        ];
+        let p = dir.join("a.wav");
+        write_wav(&p, &chans, 48_000, BitDepth::Pcm16).unwrap();
+        let bytes = wav_bytes(&chans, 48_000, BitDepth::Pcm16).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), bytes);
+        assert_eq!(read_wav_bytes(&bytes).unwrap().channels[0].len(), 300);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn round_trip_all_depths() {

@@ -19,6 +19,14 @@ fixes and smaller changes.
   desktop's menus.
 - `audio-constructor --version` prints the version without opening a
   window.
+- **Block previews**: `audioc block-export` writes a group from a project
+  (or a block file) as an `.acblock` to share, with a five-second preview
+  beside it, `<name>.preview.wav`. An effect plays a built-in phrase of
+  drums, chords, and an arpeggio through it, an instrument plays the
+  phrase's chords or arpeggio, and a block that plays by itself just
+  plays. The preview is rendered offline, so the same block always gives
+  the same file, and the block file records the preview's name and
+  SHA-256.
 
 ## [0.10.0] - 2026-10-19
 

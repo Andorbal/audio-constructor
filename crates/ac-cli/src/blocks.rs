@@ -196,3 +196,116 @@ pub fn unpack(args: UnpackArgs) -> Result<ExitCode> {
     println!("unpacked → {}", project.display());
     Ok(ExitCode::SUCCESS)
 }
+
+#[derive(Debug, Args)]
+pub struct ExportArgs {
+    /// A project holding the group, or a block file to export again (to
+    /// give it a preview, or a new name).
+    file: PathBuf,
+    /// The group definition to export, by id or name (not needed for a
+    /// block file, or a project with one group).
+    group: Option<String>,
+    /// The block file to write (default: `<name>.acblock` here).
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    /// Don't render a preview beside it.
+    #[arg(long)]
+    no_preview: bool,
+}
+
+/// The definition `want` names in `project` (its id, or its name ignoring
+/// case), or the only one there is.
+fn pick_group(project: &ac_core::Project, want: Option<&str>) -> Result<ac_core::GroupId> {
+    let defs = &project.group_defs;
+    let names = || {
+        defs.iter()
+            .map(|(id, d)| format!("{} ({})", id.0, d.name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match want {
+        Some(w) => defs
+            .keys()
+            .find(|id| id.0 == w)
+            .or_else(|| {
+                defs.iter()
+                    .find(|(_, d)| d.name.eq_ignore_ascii_case(w.trim()))
+                    .map(|(id, _)| id)
+            })
+            .cloned()
+            .ok_or_else(|| {
+                if defs.is_empty() {
+                    anyhow!("the project has no groups")
+                } else {
+                    anyhow!("the project has no group `{w}`; it has: {}", names())
+                }
+            }),
+        None => match defs.len() {
+            0 => Err(anyhow!("the project has no groups")),
+            1 => defs
+                .keys()
+                .next()
+                .cloned()
+                .ok_or_else(|| anyhow!("the project has no groups")),
+            _ => Err(anyhow!("say which group to export: {}", names())),
+        },
+    }
+}
+
+/// `audioc block-export`: a group (or a block file) as a block file to
+/// share, with a preview rendered beside it.
+pub fn export(args: ExportArgs) -> Result<ExitCode> {
+    let is_block = args
+        .file
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case(ac_core::BLOCK_EXTENSION));
+    let block = if is_block {
+        if args.group.is_some() {
+            return Err(anyhow!("a block file holds one block; leave out the group"));
+        }
+        let text = std::fs::read_to_string(&args.file)
+            .map_err(|e| anyhow!("{}: {e}", args.file.display()))?;
+        Block::from_json(&text).map_err(|e| anyhow!("{}: {e}", args.file.display()))?
+    } else {
+        let project = ac_io::load_project(&args.file).map_err(|e| anyhow!(e))?;
+        let id = pick_group(&project, args.group.as_deref())?;
+        Block::from_project(&project, &id).ok_or_else(|| anyhow!("no group `{}`", id.0))?
+    };
+    let out = args.output.unwrap_or_else(|| {
+        PathBuf::from(format!(
+            "{}.{}",
+            ac_core::slug(&block.def.name),
+            ac_core::BLOCK_EXTENSION
+        ))
+    });
+    let registry = (!args.no_preview).then(|| std::sync::Arc::new(ac_nodes::registry()));
+    let name = block.def.name.clone();
+    let e = ac_io::export_block(block, &out, registry).map_err(|e| anyhow!(e))?;
+    println!("exported {name} → {}", e.block.display());
+    if let (Some(path), Some(p)) = (&e.preview, &e.rendered) {
+        let channels = if p.channels.len() == 1 {
+            "mono"
+        } else {
+            "stereo"
+        };
+        println!(
+            "preview → {} ({:.1} s, {channels}, {} Hz)",
+            path.display(),
+            p.seconds(),
+            p.sample_rate
+        );
+        for f in &p.feeds {
+            println!("  {f}");
+        }
+        if p.reduced_db > 0.0 {
+            println!("  turned down {:.1} dB to stay under −1 dBFS", p.reduced_db);
+        }
+        for w in &p.warnings {
+            eprintln!("warning: {w}");
+        }
+    }
+    if let Some(why) = &e.no_preview {
+        eprintln!("warning: no preview: {why}");
+    }
+    Ok(ExitCode::SUCCESS)
+}

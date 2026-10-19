@@ -40,10 +40,14 @@ realfft.workspace = true
 flate2.workspace = true
 crc32fast.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+sha2.workspace = true
 
 # The browser fetches for itself.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq.workspace = true
+# The platform's data and cache folders: the block library, cached previews.
+directories = "6.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # SCHED_FIFO for the ALSA callback thread.
