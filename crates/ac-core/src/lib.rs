@@ -61,8 +61,8 @@ pub use node::{
 pub use panel::{Panel, PanelItem};
 pub use param::{param_text, param_value};
 pub use plugin::{
-    MidiSink, PluginBlock, PluginDesc, PluginEvent, PluginFormat, PluginLoader, PluginParam,
-    PluginPort, PluginProcessor, PluginRequest, PluginTransport,
+    MidiSink, PLUGIN_KIND, PluginBlock, PluginDesc, PluginEvent, PluginFormat, PluginLoader,
+    PluginParam, PluginPort, PluginProcessor, PluginRequest, PluginTransport, project_plugins,
 };
 pub use project::{
     LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View, referenced_assets,

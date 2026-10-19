@@ -27,6 +27,12 @@ fixes and smaller changes.
 - A project with a plugin that isn't installed still opens with its
   sockets and wires; the node plays silence and the compile report says
   which plugin is missing.
+- `audioc plugins` lists the CLAP and VST3 plugins installed on the
+  computer (`--json` for scripts), looking in the standard folders and
+  in `CLAP_PATH` and `VST3_PATH`. Each plugin is opened in a separate
+  process, so one that crashes is listed as failed instead of stopping
+  the scan. `audioc render`, `run`, and `validate` play the plugins a
+  project uses.
 
 ## [0.10.0] - 2026-10-19
 

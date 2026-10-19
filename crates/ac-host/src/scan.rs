@@ -204,9 +204,13 @@ impl Catalog {
     }
 }
 
-/// Where the editor and `audioc` keep the scan cache (`plugins.json` in
-/// the platform cache folder).
+/// Where the editor and `audioc` keep the scan cache: the file
+/// `AC_PLUGIN_CACHE` names, else `plugins.json` in the platform cache
+/// folder.
 pub fn default_cache_path() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("AC_PLUGIN_CACHE") {
+        return Some(PathBuf::from(p));
+    }
     directories::ProjectDirs::from("", "", "Audio Constructor")
         .map(|d| d.cache_dir().join("plugins.json"))
 }

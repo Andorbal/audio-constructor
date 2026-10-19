@@ -283,6 +283,43 @@ impl Node for TCounter {
 }
 
 node! {
+    kind: "t_restored",
+    name: "Restored",
+    category: Utility,
+    keywords: [],
+    /// Counts processed blocks like Counter, keeps config `state` only for
+    /// creation (a state key), and warns with config `warn`. Try this: nothing.
+    pub struct TRestored { n: f32, warn: Option<String> }
+}
+impl Node for TRestored {
+    fn meta() -> NodeMeta {
+        Self::base_meta().state_keys(&["state"])
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new().output(SocketSpec::float("out", Unit::Generic, 0.0).rate(Rate::Block))
+    }
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        TRestored {
+            n: 0.0,
+            warn: config
+                .get("warn")
+                .and_then(|w| w.as_str())
+                .map(str::to_string),
+        }
+    }
+    fn process(&mut self, _: &ProcessCtx, io: &mut Io) {
+        self.n += 1.0;
+        io.outputs.set_float(0, self.n);
+    }
+    fn warning(&self) -> Option<String> {
+        self.warn.clone()
+    }
+    fn reset(&mut self) {
+        self.n = 0.0;
+    }
+}
+
+node! {
     kind: "t_starts",
     name: "Starts",
     category: Generators,
@@ -364,6 +401,7 @@ pub fn registry() -> Registry {
         .register::<TFb>()
         .register::<TCounter>()
         .register::<TStarts>()
+        .register::<TRestored>()
         .register::<TMix>();
     r
 }

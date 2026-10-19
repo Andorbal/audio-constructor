@@ -205,6 +205,27 @@ impl PluginDesc {
     }
 }
 
+/// Registry key of the `Plugin` node.
+pub const PLUGIN_KIND: &str = "plugin";
+
+/// Every plugin a project's `Plugin` nodes describe (in its graph and its
+/// group definitions), each format and id once, in the order found.
+pub fn project_plugins(project: &crate::Project) -> Vec<PluginDesc> {
+    let mut out: Vec<PluginDesc> = Vec::new();
+    let graphs =
+        std::iter::once(&project.graph).chain(project.group_defs.values().map(|d| &d.graph));
+    for g in graphs {
+        for n in g.nodes.iter().filter(|n| n.kind == PLUGIN_KIND) {
+            if let Some(d) = PluginDesc::from_config(&n.config)
+                && !out.iter().any(|o| o.format == d.format && o.id == d.id)
+            {
+                out.push(d);
+            }
+        }
+    }
+    out
+}
+
 /// snake_case of a parameter name, or `param_<id>`.
 fn param_socket_base(name: &str, id: u32) -> String {
     let mut out = String::new();
@@ -462,6 +483,25 @@ mod tests {
         let back: PluginDesc = serde_json::from_value(v).unwrap();
         assert_eq!(back, d);
         assert_eq!(back.label(), "Synth (VST3)");
+    }
+
+    #[test]
+    fn a_projects_plugins_are_listed_once() {
+        let node = |id: u64, plugin: &str| {
+            crate::NodeInstance::new(crate::NodeId(id), PLUGIN_KIND).with_config(json!({
+                "plugin": { "format": "clap", "id": plugin, "name": plugin }
+            }))
+        };
+        let mut p = crate::Project::default();
+        p.graph.nodes = vec![node(1, "a"), node(2, "b"), node(3, "a")];
+        let mut def = crate::GroupDef::new("g");
+        def.graph.nodes = vec![
+            node(4, "c"),
+            crate::NodeInstance::new(crate::NodeId(5), "gain"),
+        ];
+        p.group_defs.insert(crate::GroupId("g".into()), def);
+        let ids: Vec<String> = project_plugins(&p).into_iter().map(|d| d.id).collect();
+        assert_eq!(ids, ["a", "b", "c"]);
     }
 
     #[test]

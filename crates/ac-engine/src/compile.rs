@@ -110,6 +110,18 @@ pub struct CarryLayout {
     max_block: usize,
 }
 
+impl CarryLayout {
+    /// Stop carrying the node whose path displays as `node_key` (and
+    /// anything inside it), so the next compile builds it fresh.
+    pub(crate) fn forget(&mut self, node_key: &str) {
+        let inside = format!("{node_key}/");
+        self.nodes.retain(|p, _| {
+            let s = p.to_string();
+            s != node_key && !s.starts_with(&inside)
+        });
+    }
+}
+
 /// How a runtime parameter value maps to param slots.
 #[derive(Clone, Debug)]
 pub struct ParamTarget {

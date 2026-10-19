@@ -620,6 +620,7 @@ All hosts call the same `Engine`.
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
   - `audioc devices` lists audio devices, MIDI inputs and outputs, and connected gamepads, and says how to receive and send OSC.
+  - `audioc plugins [--json] [--rescan] [--in-process]` lists the CLAP and VST3 plugins in the standard folders (and `CLAP_PATH`, `VST3_PATH`), describing each bundle in a child `audioc scan-bundle` process and caching the result. `render`, `run`, and `validate` host the plugins a project's `Plugin` nodes use (§13, Plugin hosting).
   - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
   - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
   - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.
