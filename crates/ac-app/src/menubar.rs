@@ -27,6 +27,12 @@ pub enum MenuCommand {
     SetTheme(ThemeChoice),
     /// View ▸ UI Scale (1 is 100 %).
     SetUiScale(f32),
+    /// Help ▸ Check for Updates…: ask now.
+    CheckForUpdates,
+    /// Help ▸ Check for Updates Daily.
+    SetUpdateChecks(bool),
+    /// Help ▸ Report a Problem…: the issue form in the browser.
+    ReportProblem,
 }
 
 /// State the menus show (checkmarks, enabled entries, labels).
@@ -50,6 +56,9 @@ pub struct MenuState<'a> {
     pub registry: &'a Registry,
     /// File ▸ Quit is offered (not in a plugin, whose host closes it).
     pub can_quit: bool,
+    /// Help's update entries, with whether daily checks are on; `None` where
+    /// the editor doesn't check for updates (a plugin, the browser).
+    pub updates: Option<bool>,
 }
 
 fn entry(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, icon: &str, enabled: bool) {
@@ -359,6 +368,28 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         ui.menu_button("Help", |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);
             entry(ui, &mut out, Action::NodeHelp, icons::BOOK_OPEN, true);
+            if let Some(daily) = s.updates {
+                ui.separator();
+                if ui
+                    .button(format!("{}  Check for Updates…", icons::ARROWS_CLOCKWISE))
+                    .clicked()
+                {
+                    out.push(MenuCommand::CheckForUpdates);
+                    ui.close();
+                }
+                let mut on = daily;
+                if ui.checkbox(&mut on, "Check for Updates Daily").clicked() {
+                    out.push(MenuCommand::SetUpdateChecks(on));
+                    ui.close();
+                }
+                if ui
+                    .button(format!("{}  Report a Problem…", icons::ARROW_SQUARE_OUT))
+                    .clicked()
+                {
+                    out.push(MenuCommand::ReportProblem);
+                    ui.close();
+                }
+            }
             ui.separator();
             entry(ui, &mut out, Action::About, icons::INFO, true);
         });

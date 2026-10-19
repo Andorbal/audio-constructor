@@ -14,6 +14,10 @@ use ac_app::{AppOptions, EditorApp};
 const ICON: &[u8] = include_bytes!("../../../packaging/icons/icon-256.png");
 
 fn main() -> eframe::Result {
+    // A bug that panics leaves a report, offered at the next start.
+    if let Some(dir) = ac_io::crash::default_dir() {
+        ac_io::crash::install(dir, "audio-constructor");
+    }
     let project = std::env::args_os().nth(1).map(std::path::PathBuf::from);
     if project
         .as_deref()
@@ -49,6 +53,10 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Audio Constructor",
         native,
-        Box::new(move |cc| Ok(Box::new(EditorApp::new(&cc.egui_ctx, opts)))),
+        Box::new(move |cc| {
+            let mut app = EditorApp::new(&cc.egui_ctx, opts);
+            app.enable_product(&cc.egui_ctx, ac_app::product::ProductOptions::desktop());
+            Ok(Box::new(app))
+        }),
     )
 }

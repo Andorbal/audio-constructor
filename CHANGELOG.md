@@ -33,6 +33,20 @@ fixes and smaller changes.
   folder without root (`--uninstall` removes it). Releases list every
   file's SHA-256 in `SHA256SUMS.txt`, and are signed (and on macOS
   notarized) once signing certificates are set up for the project.
+- **Update check.** The editor asks once whether to look for new
+  versions; until you answer, it checks nothing. Checking daily, it asks
+  the project's release page once a day when it starts (sending nothing
+  but the request) and, when a newer version is out, offers its download
+  page, its notes, or to skip that version. **Help ▸ Check for Updates…**
+  asks right away, and **Help ▸ Check for Updates Daily** changes your
+  mind. Nothing is downloaded or installed for you.
+- **Crash reports.** If the editor stopped because of a bug, the next
+  start says so and offers the saved report: **Report…** opens the
+  project's issue form in your browser with it filled in, to read and send
+  yourself, or **Show Report** to see exactly what's in it. Nothing is
+  sent unless you submit the form, and the question can be turned off.
+- **Help ▸ Report a Problem…** opens the issue form with your version and
+  system filled in.
 - `audioc version` prints the version, and `audioc version --check` asks
   whether a newer release is out and where to download it. It sends
   nothing but the request.

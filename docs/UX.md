@@ -422,6 +422,30 @@ all honor them (DECISIONS D92).
 - All canvas actions have keyboard equivalents; the palette is fully
   keyboard driven.
 
+## Updates and crash reports
+
+The desktop editor's only links to the internet are the person's to
+start (D173, D174); a plugin's host and the browser have their own.
+
+- **Updates.** Until the person decides, a small window in the bottom
+  right corner asks once whether to check for new versions (**Check
+  Daily** or **Don't Check**), and nothing is fetched. Checking daily
+  asks the release feed at most once a day at start, on its own thread,
+  and says something only when a newer release is out, in the same corner:
+  **Download** (opens the release page), **What's New** (its notes), **Skip
+  This Version**, **Later**. Help ▸ **Check for Updates…** asks now and
+  always answers (up to date, newer, or why it couldn't check); Help ▸
+  **Check for Updates Daily** switches the daily check. Nothing is ever
+  downloaded or installed by the editor.
+- **Crash reports.** A panic in the editor or `audioc` saves a plain-text
+  report. The next start shows one window: what was saved and that
+  nothing was sent, with **Report…** (the issue form in the browser with
+  the report filled in, for the person to read, add to, and submit),
+  **Show Report**, **Dismiss**, and "Don't offer crash reports again".
+  Every report shown is then marked as offered.
+- Help ▸ **Report a Problem…** opens the issue form with the version and
+  system filled in.
+
 ## Fun, deliberately
 
 - Wires snap into sockets with a short ease and a soft click (sound optional,

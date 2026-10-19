@@ -152,6 +152,21 @@ pub fn fetch(url: &str, limits: Limits) -> Result<Vec<u8>, FetchError> {
     Ok(body)
 }
 
+/// Percent-encodes everything but RFC 3986's unreserved characters, for a
+/// query value.
+pub fn encode_component(text: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(text.len() * 3);
+    for b in text.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(char::from(b));
+        } else {
+            let _ = write!(out, "%{b:02X}");
+        }
+    }
+    out
+}
+
 fn error(e: ureq::Error) -> FetchError {
     match e {
         ureq::Error::StatusCode(code) => FetchError::Status(code),
@@ -196,6 +211,11 @@ mod tests {
         .into_bytes();
         r.extend_from_slice(body);
         r
+    }
+
+    #[test]
+    fn components_are_percent_encoded() {
+        assert_eq!(encode_component("a b&c=d/é~"), "a%20b%26c%3Dd%2F%C3%A9~");
     }
 
     #[test]

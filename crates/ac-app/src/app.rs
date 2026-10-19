@@ -165,6 +165,9 @@ pub struct EditorApp {
     palette_feed: Vec<NodeId>,
     /// Theme and UI scale (View menu), saved as they change.
     settings: AppSettings,
+    /// The update check and crash reports (desktop only, D173, D174).
+    #[cfg(not(target_arch = "wasm32"))]
+    product: Option<crate::product::Product>,
     /// The editor's time, kept from going backwards when it moves to
     /// another context (a reopened plugin window's clock starts at zero).
     clock: Clock,
@@ -218,6 +221,24 @@ impl EditorApp {
         let app = EditorApp::embedded(opts);
         app.apply_settings(ctx);
         app
+    }
+
+    /// Turns on the update check and crash reports (the desktop editor;
+    /// a plugin's host and the browser have their own): offers unseen
+    /// crash reports, and checks for a newer release if it's time.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn enable_product(&mut self, ctx: &egui::Context, opts: crate::product::ProductOptions) {
+        self.product = Some(crate::product::Product::start(
+            opts,
+            &mut self.settings,
+            ctx,
+        ));
+    }
+
+    /// The update check and crash reports, when turned on.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn product(&self) -> Option<&crate::product::Product> {
+        self.product.as_ref()
     }
 
     /// An editor made before anything shows it: a plugin's, which lives as
@@ -317,6 +338,8 @@ impl EditorApp {
             timing: crate::timing::Timings::default(),
             show_shortcuts: false,
             show_about: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            product: None,
             title: String::new(),
             allow_close: false,
             loop_sent: None,
@@ -771,6 +794,7 @@ impl EditorApp {
                     .inner_margin(egui::Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
+                let updates = self.update_menu();
                 let examples = self.side.help.examples();
                 let state = MenuState {
                     undo: self.doc.undo_label(),
@@ -789,6 +813,7 @@ impl EditorApp {
                     examples,
                     registry: &self.registry,
                     can_quit: self.engine.hosted().is_none(),
+                    updates,
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -1543,6 +1568,29 @@ impl EditorApp {
             MenuCommand::OpenExample(p) => self.request(AfterConfirm::OpenExample(p), now),
             MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
             MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
+            #[cfg(not(target_arch = "wasm32"))]
+            MenuCommand::CheckForUpdates => {
+                if let Some(p) = &mut self.product {
+                    p.check(ctx, true);
+                }
+            }
+            MenuCommand::SetUpdateChecks(on) => {
+                use crate::settings::UpdateChecks;
+                let to = if on {
+                    UpdateChecks::Daily
+                } else {
+                    UpdateChecks::Off
+                };
+                self.settings.set_update_checks(to);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            MenuCommand::ReportProblem => {
+                if let Some(p) = &mut self.product {
+                    p.report_problem(ctx);
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            MenuCommand::CheckForUpdates | MenuCommand::ReportProblem => {}
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
                 let feed = self.feed_order();
@@ -2758,6 +2806,20 @@ impl EditorApp {
         }
         dialogs::shortcuts(ctx, &mut self.show_shortcuts);
         dialogs::about(ctx, &mut self.show_about);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(p) = &mut self.product {
+            p.ui(ctx, &mut self.settings);
+        }
+    }
+
+    /// Help's update entries: whether daily checks are on, or `None` where
+    /// the editor doesn't check (a plugin, the browser).
+    fn update_menu(&self) -> Option<bool> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.product.is_some() {
+            return Some(self.settings.prefs.update_checks == crate::settings::UpdateChecks::Daily);
+        }
+        None
     }
 }
 

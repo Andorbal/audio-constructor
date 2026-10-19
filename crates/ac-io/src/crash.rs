@@ -219,11 +219,11 @@ pub fn issue_url(report: &str) -> String {
                 format!("Crash: {short}")
             },
         );
-    let head = format!("{base}{}&body=", encode(&title));
+    let head = format!("{base}{}&body=", crate::net::encode_component(&title));
     let intro = "What were you doing when it stopped?\n\n\n";
     let note = "\n… (cut short; the whole report is in the crashes folder)\n";
     let wrap = |body: &str| format!("{intro}```\n{body}```\n");
-    let full = encode(&wrap(report));
+    let full = crate::net::encode_component(&wrap(report));
     if head.len() + full.len() <= MAX_URL {
         return head + &full;
     }
@@ -232,25 +232,12 @@ pub fn issue_url(report: &str) -> String {
     while !lines.is_empty() {
         lines.pop();
         let body = format!("{}{note}", lines.join("\n"));
-        let encoded = encode(&wrap(&body));
+        let encoded = crate::net::encode_component(&wrap(&body));
         if head.len() + encoded.len() <= MAX_URL {
             return head + &encoded;
         }
     }
     head
-}
-
-/// Percent-encodes everything but unreserved characters (RFC 3986).
-fn encode(text: &str) -> String {
-    let mut out = String::with_capacity(text.len() * 3);
-    for b in text.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
-            out.push(char::from(b));
-        } else {
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
 }
 
 /// The time now in UTC, `2026-10-19 12:34:56 UTC`.

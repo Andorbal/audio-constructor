@@ -272,4 +272,23 @@ The other example projects are in the `examples/` folder:
 
 The [Examples tour](examples.md) says what each one teaches.
 
+## Updates
+
+The first time you start the editor, a small box in the corner asks
+whether to check for new versions. Nothing is checked until you answer:
+
+- **Check Daily**: once a day, when it starts, the editor asks the
+  project's release page whether a newer version is out. It sends nothing
+  but that request: nothing about you, your computer, or your projects.
+  When there is one, the same corner says so: **Download** opens its page
+  in your browser, **What's New** lists the changes, **Skip This Version**
+  stops it mentioning that one, and **Later** asks again tomorrow.
+- **Don't Check**: it never asks the internet anything by itself.
+
+Change your mind under **Help ▸ Check for Updates Daily**. **Help ▸ Check
+for Updates…** asks right away, whatever you chose, and says if you're up
+to date. Nothing is downloaded or installed for you; installing a new
+version is the same as installing the first one. From a terminal,
+`audioc version --check` asks the same question.
+
 Next: [The editor](editor.md).

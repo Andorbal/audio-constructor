@@ -11,6 +11,18 @@ use crate::theme::ThemeChoice;
 /// UI scale steps (View ▸ UI Scale; UX.md "Accessibility and scaling").
 pub const UI_SCALES: [f32; 8] = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
 
+/// Whether the editor looks for a newer release by itself (D173).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateChecks {
+    /// Not decided: the editor asks once, and checks nothing until then.
+    #[default]
+    Ask,
+    /// At most once a day, at start.
+    Daily,
+    Off,
+}
+
 /// What is saved.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -18,6 +30,13 @@ pub struct Prefs {
     pub theme: ThemeChoice,
     /// egui's zoom factor: 1 is 100 %.
     pub ui_scale: f32,
+    pub update_checks: UpdateChecks,
+    /// When the last automatic check ran, in seconds since 1970 (0: never).
+    pub last_update_check: u64,
+    /// A release the person chose to skip: not announced again.
+    pub skip_version: String,
+    /// Offer crash reports at start (D174).
+    pub crash_prompt: bool,
 }
 
 impl Default for Prefs {
@@ -25,6 +44,10 @@ impl Default for Prefs {
         Prefs {
             theme: ThemeChoice::Dark,
             ui_scale: 1.0,
+            update_checks: UpdateChecks::Ask,
+            last_update_check: 0,
+            skip_version: String::new(),
+            crash_prompt: true,
         }
     }
 }
@@ -116,6 +139,32 @@ impl AppSettings {
         }
     }
 
+    pub fn set_update_checks(&mut self, checks: UpdateChecks) {
+        if self.prefs.update_checks != checks {
+            self.prefs.update_checks = checks;
+            self.save();
+        }
+    }
+
+    pub fn set_last_update_check(&mut self, secs: u64) {
+        self.prefs.last_update_check = secs;
+        self.save();
+    }
+
+    pub fn set_skip_version(&mut self, version: &str) {
+        if self.prefs.skip_version != version {
+            self.prefs.skip_version = version.to_string();
+            self.save();
+        }
+    }
+
+    pub fn set_crash_prompt(&mut self, on: bool) {
+        if self.prefs.crash_prompt != on {
+            self.prefs.crash_prompt = on;
+            self.save();
+        }
+    }
+
     /// Write the file. Failing to save settings is not worth interrupting
     /// anyone for; the editor keeps them for this session.
     fn save(&self) {
@@ -144,6 +193,24 @@ fn parse(text: &str) -> Prefs {
     }
     if let Some(s) = map.get("ui_scale").and_then(serde_json::Value::as_f64) {
         prefs.ui_scale = s as f32;
+    }
+    if let Some(u) = map
+        .get("update_checks")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+    {
+        prefs.update_checks = u;
+    }
+    if let Some(t) = map
+        .get("last_update_check")
+        .and_then(serde_json::Value::as_u64)
+    {
+        prefs.last_update_check = t;
+    }
+    if let Some(v) = map.get("skip_version").and_then(serde_json::Value::as_str) {
+        prefs.skip_version = v.to_string();
+    }
+    if let Some(b) = map.get("crash_prompt").and_then(serde_json::Value::as_bool) {
+        prefs.crash_prompt = b;
     }
     prefs.sanitized()
 }
@@ -193,5 +260,17 @@ mod tests {
         assert_eq!(p.theme, ThemeChoice::System);
         assert_eq!(p.ui_scale, 1.0);
         assert_eq!(parse(r#"{"ui_scale": 40}"#).ui_scale, 2.0);
+        let p = parse(
+            r#"{"update_checks": "daily", "last_update_check": 1792413296, "skip_version": "0.15.0", "crash_prompt": false}"#,
+        );
+        assert_eq!(p.update_checks, UpdateChecks::Daily);
+        assert_eq!(p.last_update_check, 1_792_413_296);
+        assert_eq!(p.skip_version, "0.15.0");
+        assert!(!p.crash_prompt);
+        let p =
+            parse(r#"{"update_checks": "hourly", "last_update_check": -1, "crash_prompt": "no"}"#);
+        assert_eq!(p.update_checks, UpdateChecks::Ask);
+        assert_eq!(p.last_update_check, 0);
+        assert!(p.crash_prompt);
     }
 }
