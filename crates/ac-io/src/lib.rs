@@ -47,6 +47,7 @@
 
 pub mod assets;
 pub mod audio;
+pub mod audition;
 pub mod clock;
 pub mod control;
 pub mod convert;
@@ -81,6 +82,7 @@ pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
     AudioConfig, CpalAudio, DeviceInfo, HostInfo, InputChoice, RunningAudio, enumerate,
 };
+pub use audition::{Audition, AuditionTap, audition};
 pub use control::{ControlError, ControlInputs, ControlReceiver, ControlSender};
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use gamepad::{GamepadError, GamepadInfo, Gamepads, list_gamepads};
