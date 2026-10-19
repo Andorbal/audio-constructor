@@ -1181,6 +1181,12 @@ mod tests {
         drop(core);
         let back = ctl.returned.try_recv().unwrap();
         assert!(back.ports.controls.is_some() && back.ports.osc_out.is_some());
+        // The sender counts a message just after it goes out, so the second
+        // can arrive here a moment before it's counted (a busy machine).
+        let t0 = std::time::Instant::now();
+        while osc.sent() < 2 && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert_eq!(osc.sent(), 2);
         assert_eq!(inputs.dropped(), 0);
     }
