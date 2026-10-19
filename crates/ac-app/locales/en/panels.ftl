@@ -22,6 +22,8 @@ section-group-definition = Group definition
 ## The Node tab
 
 node-tab-selected = { $count } nodes selected
+# Under the node's title: its kind as projects store it (`oscillator`), and its id.
+node-tab-kind-id = { $kind } · id { $id }
 node-tab-group = Group
 node-tab-help = Help
 node-tab-help-tip = The node's reference: sockets, tips, and what uses it (F1)
@@ -258,6 +260,8 @@ project-update = Update
 project-update-tip = Take the library's version ({ $source })
 project-update-all = Update all
 project-update-all-tip = Update every block above, as one undo step.
+# A block's update, from the version the project has to the library's.
+project-update-versions = v{ $from } → v{ $to }
 project-name = Name
 project-length = Length
 project-seconds-suffix = { " " }s

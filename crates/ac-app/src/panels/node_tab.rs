@@ -879,9 +879,15 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         }
     });
     ui.label(
-        RichText::new(format!("{} · id {}", node.kind, node.id))
-            .small()
-            .color(theme::text_faint()),
+        RichText::new(tr_args(
+            "node-tab-kind-id",
+            &[
+                ("kind", node.kind.as_str().into()),
+                ("id", node.id.to_string().into()),
+            ],
+        ))
+        .small()
+        .color(theme::text_faint()),
     );
     if let NodeClass::Missing(m) = &class {
         ui.colored_label(theme::warning(), format!("{} {m}", icons::WARNING));
