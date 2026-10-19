@@ -1,6 +1,6 @@
 //! The translation catalogs (docs/TRANSLATING.md): they parse cleanly,
-//! every message the editor's code asks for exists in English, and English
-//! has no message nothing asks for.
+//! every message the editor's code asks for exists in English, English
+//! has no message nothing asks for, and no new text skips the catalogs.
 //!
 //! Message ids are found in the source as the first argument of `tr(…)`
 //! and `tr_args(…)`, always a string literal: an id built at run time
@@ -40,8 +40,9 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 /// `text` without its `#[cfg(test)]` modules (unit tests ask for made-up
-/// ids on purpose), as blank lines so line numbers stay; and the files of
-/// the test modules it declares (`#[cfg(test)] mod tests;`).
+/// ids and show made-up text on purpose), as blank lines so line numbers
+/// stay; and the files of the test modules it declares
+/// (`#[cfg(test)] mod tests;`).
 fn without_tests(text: &str) -> (String, Vec<String>) {
     let mut out = String::with_capacity(text.len());
     let mut files = Vec::new();
@@ -247,4 +248,215 @@ fn the_scan_finds_calls_and_skips_lookalikes() {
             "c-d", &[]) + attr("x-y") + str("z") + tr(name)"#,
     );
     assert_eq!(found, ["a-b", "c-d"]);
+}
+
+// ---------------------------------------------------------------- the guard
+
+/// What counts as untranslated in a guarded call's text argument.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Rule {
+    /// Any literal: the status line only ever shows messages.
+    Any,
+    /// A literal with a letter in it: glyphs, numbers, and `{}` alone
+    /// aren't words.
+    Words,
+}
+
+/// Calls whose text a person reads, and the rule for the string literal
+/// (or `format!` of one) they're given. `button(` covers `small_button(`.
+const GUARDED: &[(&str, Rule)] = &[
+    ("say(", Rule::Any),
+    ("warn(", Rule::Any),
+    ("notify(", Rule::Any),
+    (".label(", Rule::Words),
+    ("RichText::new(", Rule::Words),
+    ("Label::new(", Rule::Words),
+    ("button(", Rule::Words),
+    ("Button::new(", Rule::Words),
+    ("on_hover_text(", Rule::Words),
+    ("on_disabled_hover_text(", Rule::Words),
+    ("heading(", Rule::Words),
+    ("hint_text(", Rule::Words),
+    ("section(ui,", Rule::Words),
+];
+
+/// Literals the guard lets through, by file and text, each with why. A
+/// stale entry fails the test too, so the list stays short and true.
+const ALLOWED: &[(&str, &str)] = &[
+    // A theme file's name and its first note (the note is translated in
+    // user_themes.rs): only punctuation is ours, as with every
+    // "file: problem" line.
+    ("ac-app/src/app.rs", "{}: {note}"),
+    // Two messages joined by the status line's separator.
+    ("ac-app/src/app/sharing.rs", "{text} · {}"),
+    // The shape of a link the Import from Link field takes, not words.
+    ("ac-app/src/app/sharing.rs", "https://…"),
+    // The About box's title: the product's name, which isn't translated.
+    ("ac-app/src/dialogs.rs", "{}  Audio Constructor"),
+];
+
+/// An untranslated literal: where, which call, and its text.
+#[derive(Debug, PartialEq)]
+struct Hit {
+    line: usize,
+    call: &'static str,
+    text: String,
+}
+
+/// The guarded calls in `text` given untranslated literals.
+fn untranslated(text: &str) -> Vec<Hit> {
+    let mut out = Vec::new();
+    for &(call, rule) in GUARDED {
+        let mut from = 0;
+        while let Some(at) = text[from..].find(call) {
+            let start = from + at;
+            from = start + call.len();
+            // `say(` inside another name (`essay(`) isn't the call.
+            let before = text[..start].chars().next_back();
+            if call.starts_with(char::is_alphanumeric) && before.is_some_and(char::is_alphanumeric)
+            {
+                continue;
+            }
+            let Some((value, formatted)) = first_literal(&text[from..]) else {
+                continue;
+            };
+            let words = if formatted {
+                without_placeholders(&value)
+            } else {
+                value.clone()
+            };
+            if rule == Rule::Any || words.chars().any(char::is_alphabetic) {
+                out.push(Hit {
+                    line: text[..start].matches('\n').count() + 1,
+                    call,
+                    text: value,
+                });
+            }
+        }
+    }
+    out.sort_by_key(|h| h.line);
+    out
+}
+
+/// The string literal an argument list starts with, directly or as
+/// `format!("…")` (then `true`), with escapes decoded and Unicode escapes
+/// (icons) dropped.
+fn first_literal(args: &str) -> Option<(String, bool)> {
+    let rest = args.trim_start();
+    let rest = rest.strip_prefix('&').unwrap_or(rest).trim_start();
+    let (rest, formatted) = match rest.strip_prefix("format!(") {
+        Some(r) => (r.trim_start(), true),
+        None => (rest, false),
+    };
+    let mut chars = rest.strip_prefix('"')?.chars().peekable();
+    let mut value = String::new();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => return Some((value, formatted)),
+            '\\' => match chars.next()? {
+                // A Unicode escape is an icon here, not a word.
+                'u' => while chars.next().is_some_and(|c| c != '}') {},
+                // A continued line: the next line's indent isn't text.
+                '\n' => while chars.next_if(|c| c.is_whitespace()).is_some() {},
+                'n' => value.push('\n'),
+                't' => value.push('\t'),
+                other => value.push(other),
+            },
+            _ => value.push(c),
+        }
+    }
+    None
+}
+
+/// A format string without its `{…}` placeholders.
+fn without_placeholders(s: &str) -> String {
+    let mut out = String::new();
+    let mut depth = 0;
+    for c in s.chars() {
+        match c {
+            '{' => depth += 1,
+            '}' if depth > 0 => depth -= 1,
+            _ if depth == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+#[test]
+fn no_text_a_person_reads_skips_the_catalogs() {
+    let mut found = Vec::new();
+    let mut allowed_hits = BTreeSet::new();
+    for (name, text) in sources() {
+        for hit in untranslated(&text) {
+            let allowed = ALLOWED
+                .iter()
+                .position(|(file, lit)| *file == name && *lit == hit.text);
+            match allowed {
+                Some(i) => {
+                    allowed_hits.insert(i);
+                }
+                None => found.push(format!("{name}:{}: {}\"{}\"", hit.line, hit.call, hit.text)),
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "text that doesn't come from the catalogs (docs/TRANSLATING.md: add a \
+         message and use tr or tr_args):\n{}",
+        found.join("\n")
+    );
+    let stale: Vec<String> = ALLOWED
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !allowed_hits.contains(i))
+        .map(|(_, (file, lit))| format!("{file}: \"{lit}\""))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "allowed but no longer there (remove from ALLOWED):\n{}",
+        stale.join("\n")
+    );
+}
+
+#[test]
+fn the_guard_finds_literals_and_skips_messages() {
+    let code = r#"
+        self.say("Saved", now);
+        self.warn(format!("{}: {e}", file), now);
+        ui.label(tr("menu-file"));
+        ui.label("Plugins");
+        ui.label(RichText::new("Running").small());
+        ui.small_button(format!("{}  Rescan", icons::X));
+        ui.label(format!("  {name}"));
+        ui.label("·");
+        ui.add(egui::Button::new("\u{E5DA}"));
+        r.on_hover_text(
+            "Two lines, \
+             one text",
+        );
+        essay("not a call");
+    "#;
+    let hits: Vec<(usize, &str, String)> = untranslated(code)
+        .into_iter()
+        .map(|h| (h.line, h.call, h.text))
+        .collect();
+    assert_eq!(
+        hits,
+        [
+            (2, "say(", "Saved".to_string()),
+            (3, "warn(", "{}: {e}".to_string()),
+            (5, ".label(", "Plugins".to_string()),
+            (6, "RichText::new(", "Running".to_string()),
+            (7, "button(", "{}  Rescan".to_string()),
+            (11, "on_hover_text(", "Two lines, one text".to_string()),
+        ]
+    );
+    // Test modules are left out, and keep the line numbers after them.
+    let (kept, files) = without_tests(
+        "a\n#[cfg(test)]\nmod tests {\n    say(\"x\");\n}\nb\n#[cfg(test)]\nmod more;\n",
+    );
+    assert_eq!(kept.lines().nth(5), Some("b"));
+    assert!(!kept.contains("say"));
+    assert_eq!(files, ["more.rs"]);
 }
