@@ -14,6 +14,7 @@
 //! chosen in the Devices tab (off until turned on). OSC Out nodes send
 //! through a sender thread here.
 
+use crate::i18n::{tr, tr_args};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -758,25 +759,34 @@ impl EngineHost {
     /// A one-line description: "no device (null) · 48000 Hz · 256 frames".
     pub fn describe(&self) -> String {
         let i = &self.info;
+        let rate = |dev: String| {
+            tr_args(
+                "audio-describe",
+                &[
+                    ("device", dev.into()),
+                    ("rate", i.sample_rate.to_string().into()),
+                    ("frames", i.buffer_size.to_string().into()),
+                ],
+            )
+        };
         if let Some(h) = &self.hosted {
-            return format!(
-                "{} · {} Hz · {} frames",
-                h.host, i.sample_rate, i.buffer_size
-            );
+            return rate(h.host.clone());
         }
         if self.stream.is_none() {
-            return "audio off".into();
+            return tr("audio-off");
         }
         let dev = if self.is_null() {
-            "no device (null)".to_string()
+            tr("devices-null")
         } else {
             format!(
                 "{} · {}",
                 i.host,
-                i.output_device.as_deref().unwrap_or("default output")
+                i.output_device
+                    .clone()
+                    .unwrap_or_else(|| tr("audio-default-output"))
             )
         };
-        format!("{dev} · {} Hz · {} frames", i.sample_rate, i.buffer_size)
+        rate(dev)
     }
 
     /// Run the idle processor for one block (tests drive the engine this way

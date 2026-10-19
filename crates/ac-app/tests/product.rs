@@ -93,6 +93,15 @@ fn click(h: &mut Harness<'static, EditorApp>, label: &str) {
     h.run_steps(3);
 }
 
+/// The menu bar's Help menu (the side panel has a Help tab too).
+fn open_help(h: &mut Harness<'static, EditorApp>) {
+    h.query_all_by_role_and_label(egui::accesskit::Role::Button, "Help")
+        .next()
+        .expect("the Help menu")
+        .click();
+    h.run_steps(3);
+}
+
 /// Runs frames until `label` shows (the check runs on its own thread).
 fn wait_for(h: &mut Harness<'static, EditorApp>, label: &str) {
     for _ in 0..300 {
@@ -197,7 +206,7 @@ fn a_skipped_version_stays_quiet_but_help_still_answers() {
     assert_eq!(requests.load(Ordering::SeqCst), 2);
     assert!(h.query_by_label_contains("is out").is_none());
     // Asking from Help shows it anyway.
-    click(&mut h, "Help");
+    open_help(&mut h);
     click(&mut h, "Check for Updates…");
     wait_for(&mut h, "0.99.0 is out");
     std::fs::remove_dir_all(dir).ok();
@@ -210,12 +219,12 @@ fn help_says_when_this_is_the_newest_version() {
     let mut s = settings_at(&dir);
     s.set_update_checks(UpdateChecks::Off);
     let mut h = editor(s, &url, None);
-    click(&mut h, "Help");
+    open_help(&mut h);
     click(&mut h, "Check for Updates…");
     wait_for(&mut h, "You have the newest version, 0.14.0.");
     click(&mut h, "OK");
     // And turning daily checks on from the menu is kept.
-    click(&mut h, "Help");
+    open_help(&mut h);
     click(&mut h, "Check for Updates Daily");
     assert_eq!(settings_at(&dir).prefs.update_checks, UpdateChecks::Daily);
     std::fs::remove_dir_all(dir).ok();
@@ -238,7 +247,7 @@ fn a_failed_check_is_explained_only_when_asked_for() {
         h.query_by_label_contains("Couldn't check").is_none(),
         "quiet when nobody asked"
     );
-    click(&mut h, "Help");
+    open_help(&mut h);
     click(&mut h, "Check for Updates…");
     wait_for(&mut h, "Couldn't check for updates");
     std::fs::remove_dir_all(dir).ok();
@@ -312,7 +321,7 @@ fn report_a_problem_opens_the_issue_form_with_the_version() {
     s.set_update_checks(UpdateChecks::Off);
     let (url, _) = feed(OLDER);
     let mut h = editor(s, &url, None);
-    click(&mut h, "Help");
+    open_help(&mut h);
     click(&mut h, "Report a Problem…");
     let opened = h
         .state()
@@ -337,7 +346,50 @@ fn an_editor_without_the_product_has_no_update_entries() {
         .with_accessibility_check(false)
         .build_ui_state(|ui, app: &mut EditorApp| app.ui(ui), app);
     h.run_steps(4);
-    click(&mut h, "Help");
+    open_help(&mut h);
     assert!(h.query_by_label("Check for Updates…").is_none());
     assert!(h.query_by_label("Check for updates?").is_none());
+}
+
+#[test]
+fn the_update_and_crash_windows_are_answered_from_the_keyboard() {
+    let dir = temp("keys");
+    let crashes = dir.join("crashes");
+    let text = ac_io::crash::format_report(
+        "audioc",
+        "2026-10-19 12:34:56 UTC",
+        "main",
+        "something broke",
+        "crates/x.rs:1:1",
+        "   0: frame\n",
+    );
+    ac_io::crash::save(&crashes, &text).unwrap();
+    let (url, _) = feed(OLDER);
+    let mut h = editor(settings_at(&dir), &url, Some(crashes.clone()));
+    let key = |h: &mut Harness<'static, EditorApp>, k: egui::Key| {
+        h.key_press(k);
+        h.run_steps(3);
+    };
+    // The crash window comes first, with the keyboard on Report….
+    h.get_by_label("Audio Constructor stopped unexpectedly");
+    assert!(h.get_by_label("Report…").is_focused());
+    // Tab to Show Report, then Dismiss, and Enter presses it.
+    key(&mut h, egui::Key::Tab);
+    assert!(h.get_by_label("Show Report").is_focused());
+    key(&mut h, egui::Key::Tab);
+    assert!(h.get_by_label("Dismiss").is_focused());
+    key(&mut h, egui::Key::Enter);
+    assert!(
+        h.query_by_label("Audio Constructor stopped unexpectedly")
+            .is_none()
+    );
+    // Then the update question takes the keyboard.
+    h.run_steps(3);
+    assert!(h.get_by_label("Check Daily").is_focused());
+    key(&mut h, egui::Key::Tab);
+    assert!(h.get_by_label("Don't Check").is_focused());
+    key(&mut h, egui::Key::Space);
+    assert!(h.query_by_label("Check for updates?").is_none());
+    assert_eq!(settings_at(&dir).prefs.update_checks, UpdateChecks::Off);
+    std::fs::remove_dir_all(dir).ok();
 }

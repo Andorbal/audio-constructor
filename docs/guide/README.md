@@ -42,6 +42,8 @@ need them.
     as an effect or an instrument, its macros, and how sessions save it.
 11. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
     devices that don't show up, and other problems.
+12. [Themes](themes.md): the built-in themes, including High Contrast,
+    and making your own.
 
 "Try this" boxes like the one below suggest something to do with what a
 section just explained:

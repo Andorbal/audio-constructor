@@ -14,6 +14,7 @@ use super::view::Transform;
 use super::wires::{self, WireLook};
 use super::{Canvas, CanvasIo, Gesture, Hit, accepts, field_rect, frame_rect, widgets};
 use crate::edit;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -127,8 +128,12 @@ impl Canvas {
                     _ => {}
                 }
             }
-            if io.calm {
+            if io.calm || io.reduce_motion {
                 look.level = 0.0;
+            }
+            if io.reduce_motion {
+                // No flashing on event wires either.
+                look.pulse_age = None;
             }
             wires::paint(
                 &mut shapes,
@@ -177,6 +182,9 @@ impl Canvas {
             );
         }
 
+        self.paint_focus(painter, scene);
+        self.paint_keyboard_wire(painter, scene, now);
+
         // The wire being dragged, on top.
         if let Gesture::Wire { pending, snap, .. } = &self.gesture
             && let Some(p) = self.pointer
@@ -198,7 +206,11 @@ impl Canvas {
                         .node(*node)
                         .and_then(|n| n.socket(socket, pending.from.is_some()))
                 {
-                    let k = super::ease(((now - since) as f32) / theme::SNAP_SECONDS);
+                    let k = if io.reduce_motion {
+                        1.0
+                    } else {
+                        super::ease(((now - since) as f32) / theme::SNAP_SECONDS)
+                    };
                     end = p + (t.to_screen(s.pos) - p) * k;
                 }
                 let (a, b) = if pending.from.is_some() {
@@ -247,6 +259,86 @@ impl Canvas {
         self.paint_overlay(painter, io);
     }
 
+    /// The keyboard's focus ring: around the focused card, or the focused
+    /// socket, drawn over everything so nothing hides it, in the theme's
+    /// focus color (twice as thick in High Contrast).
+    fn paint_focus(&self, painter: &Painter, scene: &Scene) {
+        if !self.focus_visible {
+            return;
+        }
+        let Some(f) = &self.focus else { return };
+        let t = self.transform();
+        let width = 2.0 * theme::outline_width();
+        let stroke = Stroke::new(width, theme::focus_ring());
+        match f {
+            super::Focus::Node(id) => {
+                let Some(n) = scene.node(*id) else { return };
+                let card = t.rect_to_screen(n.rect);
+                let r = if n.class == Class::Reroute {
+                    theme::REROUTE_RADIUS * self.view.zoom.max(0.5) + 4.0
+                } else {
+                    theme::NODE_RADIUS * self.view.zoom + 4.0
+                };
+                painter.rect_stroke(
+                    card.expand(4.0),
+                    theme::radius(r),
+                    stroke,
+                    StrokeKind::Outside,
+                );
+            }
+            super::Focus::Socket { node, name, input } => {
+                let Some(s) = scene.node(*node).and_then(|n| n.socket(name, *input)) else {
+                    return;
+                };
+                let r = theme::SOCKET_RADIUS * self.view.zoom.max(0.6) + 4.0;
+                painter.circle_stroke(t.to_screen(s.pos), r, stroke);
+            }
+        }
+    }
+
+    /// A wire started from the keyboard, from its socket to wherever the
+    /// focus is.
+    fn paint_keyboard_wire(&self, painter: &Painter, scene: &Scene, now: f64) {
+        let Some(pending) = self.keyboard_wire() else {
+            return;
+        };
+        let t = self.transform();
+        let z = self.view.zoom;
+        let fixed = pending
+            .from
+            .as_ref()
+            .or(pending.to.as_ref())
+            .and_then(|e| {
+                scene
+                    .node(e.node)
+                    .and_then(|n| n.socket(&e.socket, pending.from.is_none()))
+            })
+            .map(|s| t.to_screen(s.pos));
+        let (Some(fixed), Some(end)) = (fixed, self.keyboard_wire_end(scene)) else {
+            return;
+        };
+        let (a, b) = if pending.from.is_some() {
+            (fixed, end)
+        } else {
+            (end, fixed)
+        };
+        let mut out = Vec::new();
+        wires::paint(
+            &mut out,
+            wires::bezier(a, b, z),
+            WireLook {
+                color: theme::type_color(pending.ty),
+                width: (theme::WIRE_WIDTH * z.sqrt()).max(1.5),
+                glow: true,
+                alpha: 0.8,
+                level: 0.0,
+                pulse_age: None,
+                time: now as f32,
+            },
+        );
+        painter.extend(out);
+    }
+
     /// Breadcrumb, gesture hint, zoom readout.
     fn paint_overlay(&self, painter: &Painter, io: &CanvasIo) {
         let r = self.screen;
@@ -269,7 +361,7 @@ impl Canvas {
             painter.text(
                 pill.right_center() + vec2(10.0, 0.0),
                 Align2::LEFT_CENTER,
-                "Tab to leave",
+                tr("canvas-leave-hint"),
                 theme::ui_font(theme::FONT_SMALL),
                 theme::text_faint(),
             );
@@ -499,7 +591,7 @@ impl Canvas {
             if !n.collapsed && text_ok {
                 let row = t.rect_to_screen(s.row);
                 let label = if s.is_new_slot() {
-                    "drop to add".to_string()
+                    tr("canvas-drop-to-add")
                 } else {
                     pretty(&s.name)
                 };
@@ -605,13 +697,11 @@ impl Canvas {
         );
         let r = Rect::from_min_size(pos, size);
         painter.galley(pos, galley, color);
+        let args = [("sources", sources.join(", ").into())];
         let tip = if wired {
-            format!(
-                "Bound to {}, but the input is wired, so the binding does nothing.",
-                sources.join(", ")
-            )
+            tr_args("canvas-bound-but-wired", &args)
         } else {
-            format!("Bound to {}", sources.join(", "))
+            tr_args("canvas-bound", &args)
         };
         self.tips.push((r.expand(2.0), tip));
     }
@@ -677,7 +767,7 @@ impl Canvas {
         let z = self.view.zoom;
         let row = t.rect_to_screen(s.row);
         let label = if s.is_new_slot() {
-            "drop to add".to_string()
+            tr("canvas-drop-to-add")
         } else {
             pretty(&s.name)
         };
@@ -903,9 +993,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::QUESTION,
                 color: theme::warning(),
-                tip: format!(
-                    "Missing node: {m}. It's kept in the project and its wires are preserved."
-                ),
+                tip: tr_args("canvas-badge-missing", &[("kind", m.as_str().into())]),
             });
             warnings.clear();
         }
@@ -934,7 +1022,7 @@ impl Canvas {
                 out.push(Badge {
                     icon: icons::FILE_X,
                     color: theme::error(),
-                    tip: format!("File not found: {file}\nLocate it from the Project tab."),
+                    tip: tr_args("canvas-badge-file-missing", &[("file", file.into())]),
                 });
             }
         }
@@ -945,10 +1033,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::STACK,
                 color: theme::text_muted(),
-                tip: format!(
-                    "Polyphonic: the inside runs once per voice ({voices} voices), and notes \
-                     from `midi` are shared out among them."
-                ),
+                tip: tr_args("canvas-badge-voices", &[("count", voices.into())]),
             });
         }
         if let Some((_, state)) = io.report.stats.whole_input.iter().find(|(p, _)| *p == path) {
@@ -965,8 +1050,12 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::TIMER,
                 color: theme::text_muted(),
-                tip: format!(
-                    "Adds {samples} samples ({ms:.1} ms) of latency; parallel paths are delayed to match."
+                tip: tr_args(
+                    "canvas-badge-latency",
+                    &[
+                        ("samples", samples.to_string().into()),
+                        ("ms", format!("{ms:.1}").into()),
+                    ],
                 ),
             });
         }
@@ -976,10 +1065,7 @@ impl Canvas {
                 out.push(Badge {
                     icon: icons::PUSH_PIN,
                     color: theme::accent(),
-                    tip: format!(
-                        "Pinned to {}. Ctrl+Tab shows the panels; right-click to unpin.",
-                        on.join(", ")
-                    ),
+                    tip: tr_args("canvas-badge-pinned", &[("panels", on.join(", ").into())]),
                 });
             }
         }
@@ -987,7 +1073,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::SPEAKER_SLASH,
                 color: theme::text_muted(),
-                tip: "Muted: passes its input through where the types match (M to unmute)".into(),
+                tip: tr("canvas-badge-muted"),
             });
         }
         out
@@ -1006,29 +1092,24 @@ fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
         WholeState::Disabled { sources } => Badge {
             icon: icons::X_CIRCLE,
             color: theme::text_muted(),
-            tip: format!(
-                "Disabled: needs a known input, and {} is live. It plays silence while \
-                 live; offline renders still work.",
-                sources.join(", ")
+            tip: tr_args(
+                "canvas-badge-disabled",
+                &[("sources", sources.join(", ").into())],
             ),
         },
         WholeState::Pending | WholeState::Stale => Badge {
             icon: icons::CLOCK_COUNTER_CLOCKWISE,
             color: theme::warning(),
             tip: match (state, running) {
-                (WholeState::Stale, _) => {
-                    "Baking: something upstream changed; the previous bake plays until \
-                     the new one is ready."
-                        .into()
-                }
-                (_, true) => "Baking: rendering its input in the background.".into(),
-                _ => "Waiting to bake.".into(),
+                (WholeState::Stale, _) => tr("canvas-badge-rebaking"),
+                (_, true) => tr("canvas-badge-baking"),
+                _ => tr("canvas-badge-waiting"),
             },
         },
         WholeState::Baked => Badge {
             icon: icons::CHECK_CIRCLE,
             color: theme::ok(),
-            tip: "Baked: plays a render of its whole input, in time with the transport.".into(),
+            tip: tr("canvas-badge-baked"),
         },
     }
 }

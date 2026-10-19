@@ -12,6 +12,7 @@ use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
 use crate::canvas::PendingWire;
 use crate::document::Document;
 use crate::edit;
+use crate::i18n::{self, tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -176,7 +177,7 @@ pub fn candidates(
             kind: GROUP_KIND.to_string(),
             category: None,
             summary: if def.description.is_empty() {
-                format!("An instance of the group “{}”.", def.name)
+                tr_args("palette-group-instance", &[("name", (&def.name).into())])
             } else {
                 def.description.clone()
             },
@@ -309,12 +310,13 @@ impl Palette {
                                     4.5,
                                     theme::type_color(p.ty),
                                 );
-                                let side = if p.from.is_some() { "take" } else { "feed" };
-                                ui.label(
-                                    RichText::new(format!("Nodes that {side} {}", p.ty.name()))
-                                        .small()
-                                        .color(theme::text_muted()),
-                                );
+                                let args = [("type", p.ty.name().into())];
+                                let text = if p.from.is_some() {
+                                    tr_args("palette-nodes-that-take", &args)
+                                } else {
+                                    tr_args("palette-nodes-that-feed", &args)
+                                };
+                                ui.label(RichText::new(text).small().color(theme::text_muted()));
                             });
                         }
                         if let Some(note) = &self.note {
@@ -327,12 +329,13 @@ impl Palette {
                         let te = egui::TextEdit::singleline(&mut self.query)
                             .id(egui::Id::unique("add-node-query"))
                             .hint_text(format!(
-                                "{}  Search nodes and blocks  (volume, lpf, tremolo…)",
-                                icons::MAGNIFYING_GLASS
+                                "{}  {}",
+                                icons::MAGNIFYING_GLASS,
+                                tr("palette-hint")
                             ))
                             .desired_width(f32::INFINITY)
                             .margin(egui::Margin::symmetric(8, 5));
-                        let r = ui.add(te);
+                        let r = ui.add(te).accessible_name(tr("palette-name"));
                         if self.focus {
                             r.request_focus();
                             self.focus = false;
@@ -342,7 +345,10 @@ impl Palette {
                         }
                         ui.add_space(4.0);
                         if list.is_empty() {
-                            ui.label(RichText::new("Nothing matches.").color(theme::text_muted()));
+                            ui.label(
+                                RichText::new(tr("palette-nothing-matches"))
+                                    .color(theme::text_muted()),
+                            );
                         }
                         egui::ScrollArea::vertical()
                             .max_height(300.0)
@@ -415,14 +421,20 @@ fn row(ui: &mut egui::Ui, c: &Candidate, selected: bool, width: f32) -> egui::Re
         },
     );
     let cat = match (c.category, &c.block) {
-        (Some(cat), _) => cat.name(),
-        (None, Some(_)) => "Block",
-        (None, None) => "Group",
+        (Some(cat), _) => i18n::category(cat),
+        (None, Some(_)) => tr("palette-block"),
+        (None, None) => tr("palette-group"),
     };
+    // One option to screen readers: the node, its category, and what it
+    // does.
+    let spoken = format!("{}, {cat}: {}", c.name, c.summary);
+    resp.widget_info(|| {
+        egui::WidgetInfo::selected(egui::Role::ListBoxOption, true, selected, &spoken)
+    });
     p.text(
         rect.right_center() - vec2(8.0, 0.0),
         Align2::RIGHT_CENTER,
-        cat,
+        &cat,
         theme::ui_font(theme::FONT_SMALL),
         theme::text_muted(),
     );

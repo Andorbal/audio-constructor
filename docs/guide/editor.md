@@ -180,8 +180,9 @@ synth voice, an effect chain, a channel strip.
 
 1. Select the nodes and press `Ctrl+G` (Add ▸ Make Group). Wires that
    crossed the edge of the selection become the group's sockets.
-2. Press `Tab` to go inside (or double-click the group, or right-click ▸
-   Enter Group). Press `Tab` again to come back out.
+2. Double-click the group to go inside (or select it and press
+   `Ctrl+Enter`, or right-click ▸ Enter Group). `Ctrl+Enter` again, or
+   the breadcrumb above the canvas, comes back out.
 3. Inside, the group's inputs and outputs are two cards at the edges. Drag
    a wire to the empty socket on one of them to add a socket. Right-click
    an inner socket ▸ **Expose as Group Input** (or Output) does the same;
@@ -289,16 +290,62 @@ When it's narrow, tabs show only their icons.
 | **Problems** | Everything the patch can't do as wired, and nodes that are disabled while live; click one to jump to the node. The tab shows how many there are |
 | **Help** | A node's reference (`F1`) or the list of every node, with search |
 
-## Theme and size
+## Theme, language, and size
 
-- **View ▸ Theme** picks **Dark** (the default), **Light**, or **Follow
-  System**, which follows your system's light or dark setting while the
-  editor runs.
+- **View ▸ Theme** picks **Dark** (the default), **Light**, **High
+  Contrast** (white on black, strong outlines, and a yellow focus ring),
+  or **Follow System**, which follows your system's light or dark setting
+  while the editor runs. Your own themes, small files in a themes folder,
+  are listed below them; [Themes](themes.md) says how to make one.
+- **View ▸ Language** picks the language of the editor's menus, panels,
+  and messages: **System** (your computer's language if the editor has
+  it, else English), **English**, or **Pseudo**, a made-up language for
+  checking translations (accented letters in brackets). Node names and
+  their help stay in English for now.
 - **View ▸ UI Scale** sizes the whole interface from 75 % to 200 %.
   `Ctrl+=` and `Ctrl+-` step up and down and `Ctrl+0` goes back to 100 %,
   even while typing. The canvas zoom (`+`, `-`, the wheel) is separate.
+- **View ▸ Reduce Motion** turns off the editor's animations: nodes
+  appear and go at once, wires don't ease into sockets or flow, events
+  don't flash, and the view jumps instead of gliding. Meters and scopes
+  still move, since they show the sound.
 
-Both are remembered the next time you start the editor.
+All of them are remembered the next time you start the editor.
+
+## Without the mouse
+
+Everything on the canvas can be done from the keyboard, and screen
+readers can follow it:
+
+- `Tab` and `Shift+Tab` move a focus ring from node to node, left to
+  right the way the signal flows, and the selection follows. `Shift+Enter`
+  keeps the focused node selected while you move on, to select several.
+- `Alt+↓` and `Alt+↑` step through the focused node's sockets: its
+  inputs, then its outputs.
+- `Enter` on a socket picks up a wire; move to another node or socket and
+  press `Enter` again to connect it (on a node, it takes the first socket
+  that fits). `Esc` puts the wire down.
+- `F2` on an input types its value, the same as clicking it.
+- The arrow keys move the selected nodes a grid step (`Shift`: five,
+  `Ctrl`: a little), or look around when nothing is selected. After `G`
+  they move the grab, and `Enter` places it.
+- `Shift+F10` opens the focused node's or socket's right-click menu.
+- `F6` moves the keyboard between the canvas and the side panel. `Esc`
+  with nothing to cancel hides the focus ring.
+- A node added from the palette (`Shift+A`, type, `Enter`) takes the
+  focus.
+
+On a panel, `F6` puts the keyboard on the first card and `Tab` reaches
+each one. The arrow keys turn a knob or slider
+a hundredth of its range at a time (`Shift`, `Page Up`, `Page Down`: a
+tenth), `Home` and `End` go to its ends, `Enter` types a value, opens a
+dropdown, or flips a toggle, and `Space` holds a button down for as long
+as you hold it. In the panel view, `Delete` unpins the focused card, and
+`+` and `-` resize it.
+
+A screen reader hears each node's name, kind, and number of sockets, each
+socket's type and what it's wired to or set to, and each panel control's
+value; activating a node selects it.
 
 ## All shortcuts
 
@@ -327,7 +374,7 @@ The same list is in Help ▸ Keyboard Shortcuts. On macOS, shortcuts with
 | Add Node | `Shift+A` |
 | Frame Selection | `Ctrl+J` |
 | Make Group, Ungroup | `Ctrl+G`, `Ctrl+Alt+G` |
-| Enter / Leave Group | `Tab` |
+| Enter / Leave Group | `Ctrl+Enter` |
 | Node Help | `F1` |
 | Frame All, Frame Selected | `Home`, `.` |
 | Zoom In, Zoom Out | `+`, `-` |

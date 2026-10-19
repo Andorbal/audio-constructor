@@ -1,12 +1,15 @@
-//! The editor's own settings (theme, UI scale, the update check, crash
-//! reports, the shared libraries added by link), kept in `settings.json` in
-//! the platform config folder next to the recent list. They belong to the
-//! person, not to a project, so they never travel with project files.
+//! The editor's own settings (theme, UI scale, language, motion, the
+//! update check, crash reports, the shared libraries added by link), kept
+//! in `settings.json` in the platform config folder next to the recent
+//! list, with the person's own themes in a `themes` folder beside it. They
+//! belong to the person, not to a project, so they never travel with
+//! project files.
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::LanguageChoice;
 use crate::theme::ThemeChoice;
 
 /// UI scale steps (View ▸ UI Scale; UX.md "Accessibility and scaling").
@@ -31,6 +34,10 @@ pub struct Prefs {
     pub theme: ThemeChoice,
     /// egui's zoom factor: 1 is 100 %.
     pub ui_scale: f32,
+    /// View ▸ Language.
+    pub language: LanguageChoice,
+    /// View ▸ Reduce Motion: no fades, flowing wires, or eased moves.
+    pub reduce_motion: bool,
     pub update_checks: UpdateChecks,
     /// When the last automatic check ran, in seconds since 1970 (0: never).
     pub last_update_check: u64,
@@ -48,6 +55,8 @@ impl Default for Prefs {
         Prefs {
             theme: ThemeChoice::Dark,
             ui_scale: 1.0,
+            language: LanguageChoice::System,
+            reduce_motion: false,
             update_checks: UpdateChecks::Ask,
             last_update_check: 0,
             skip_version: String::new(),
@@ -129,9 +138,29 @@ impl AppSettings {
         self.file.as_deref()
     }
 
+    /// The folder of the person's own themes (`themes/` beside the
+    /// settings file), if the settings have a file.
+    pub fn themes_dir(&self) -> Option<PathBuf> {
+        Some(self.file.as_deref()?.parent()?.join("themes"))
+    }
+
     pub fn set_theme(&mut self, theme: ThemeChoice) {
         if self.prefs.theme != theme {
             self.prefs.theme = theme;
+            self.save();
+        }
+    }
+
+    pub fn set_language(&mut self, language: LanguageChoice) {
+        if self.prefs.language != language {
+            self.prefs.language = language;
+            self.save();
+        }
+    }
+
+    pub fn set_reduce_motion(&mut self, on: bool) {
+        if self.prefs.reduce_motion != on {
+            self.prefs.reduce_motion = on;
             self.save();
         }
     }
@@ -207,14 +236,25 @@ fn parse(text: &str) -> Prefs {
         return Prefs::default();
     };
     let mut prefs = Prefs::default();
-    if let Some(t) = map
-        .get("theme")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        prefs.theme = t;
+    // Built-in themes by id, theme files by name; a name that matches no
+    // file shows Dark until one does.
+    if let Some(t) = map.get("theme").and_then(serde_json::Value::as_str) {
+        prefs.theme = ThemeChoice::from_name(t);
     }
     if let Some(s) = map.get("ui_scale").and_then(serde_json::Value::as_f64) {
         prefs.ui_scale = s as f32;
+    }
+    if let Some(l) = map
+        .get("language")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+    {
+        prefs.language = l;
+    }
+    if let Some(r) = map
+        .get("reduce_motion")
+        .and_then(serde_json::Value::as_bool)
+    {
+        prefs.reduce_motion = r;
     }
     if let Some(u) = map
         .get("update_checks")
@@ -275,6 +315,15 @@ mod tests {
         s.set_ui_scale(1.25);
         let again = AppSettings::load_from(Some(file.clone()));
         assert_eq!(again.prefs.theme, ThemeChoice::Light);
+        assert_eq!(s.themes_dir(), Some(dir.join("nested").join("themes")));
+        s.set_language(LanguageChoice::English);
+        s.set_reduce_motion(true);
+        let again = AppSettings::load_from(Some(file.clone()));
+        assert_eq!(again.prefs.language, LanguageChoice::English);
+        assert!(again.prefs.reduce_motion);
+        s.set_theme(ThemeChoice::User("Night Shift".into()));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains(r#""theme": "Night Shift""#), "{text}");
         assert_eq!(again.prefs.ui_scale, 1.25);
         std::fs::remove_dir_all(dir).ok();
     }
@@ -283,13 +332,26 @@ mod tests {
     fn bad_files_give_defaults_field_by_field() {
         assert_eq!(parse("not json"), Prefs::default());
         assert_eq!(parse("[1, 2]"), Prefs::default());
-        let p = parse(r#"{"theme": "sepia", "ui_scale": 1.5}"#);
+        let p = parse(r#"{"theme": 7, "ui_scale": 1.5}"#);
         assert_eq!(p.theme, ThemeChoice::Dark);
         assert_eq!(p.ui_scale, 1.5);
+        // A name that isn't a built-in is a theme file's, kept by name.
+        let p = parse(r#"{"theme": "Sepia"}"#);
+        assert_eq!(p.theme, ThemeChoice::User("Sepia".into()));
+        assert_eq!(
+            parse(r#"{"theme": "high_contrast"}"#).theme,
+            ThemeChoice::HighContrast
+        );
         let p = parse(r#"{"theme": "system", "ui_scale": "big"}"#);
         assert_eq!(p.theme, ThemeChoice::System);
         assert_eq!(p.ui_scale, 1.0);
         assert_eq!(parse(r#"{"ui_scale": 40}"#).ui_scale, 2.0);
+        let p = parse(r#"{"language": "pseudo", "reduce_motion": true}"#);
+        assert_eq!(p.language, LanguageChoice::Pseudo);
+        assert!(p.reduce_motion);
+        let p = parse(r#"{"language": "klingon", "reduce_motion": "yes"}"#);
+        assert_eq!(p.language, LanguageChoice::System);
+        assert!(!p.reduce_motion);
         let p = parse(
             r#"{"update_checks": "daily", "last_update_check": 1792413296, "skip_version": "0.15.0", "crash_prompt": false}"#,
         );

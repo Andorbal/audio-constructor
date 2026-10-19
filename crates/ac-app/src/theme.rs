@@ -128,7 +128,218 @@ pub struct Palette {
     pub types: [Color32; 10],
     /// Category header colors, in `Category::ALL` order.
     pub categories: [Color32; 13],
+    /// The ring around whatever has keyboard focus (a node on the canvas,
+    /// a button), drawn outside it so it never hides what it rings.
+    pub focus_ring: Color32,
+    /// The outline of panel buttons at rest (transparent where buttons are
+    /// told apart by their fill alone).
+    pub button_stroke: Color32,
+    /// Thicker outlines, selection, and focus rings (High Contrast).
+    pub strong_outlines: bool,
 }
+
+impl Palette {
+    /// The names a theme file overrides colors by (docs/guide/themes.md):
+    /// each color field, then `type_<signal>` for [`Palette::types`] and
+    /// `category_<slug>` for [`Palette::categories`]. `dark` and
+    /// `strong_outlines` come from a theme's base and `header_mix` is a
+    /// number, so they aren't here.
+    pub const COLOR_FIELDS: &'static [&'static str] = &[
+        "canvas_bg",
+        "grid_dot",
+        "grid_dot_major",
+        "panel_bg",
+        "well_bg",
+        "border",
+        "node_bg",
+        "node_outline",
+        "node_selected",
+        "node_hover",
+        "widget_bg",
+        "widget_bg_hover",
+        "widget_fill",
+        "widget_fill_hover",
+        "text",
+        "text_strong",
+        "text_muted",
+        "text_faint",
+        "accent",
+        "accent_dim",
+        "error",
+        "warning",
+        "ok",
+        "record",
+        "play",
+        "select_fill",
+        "select_stroke",
+        "cut_line",
+        "reroute_line",
+        "frame_fill",
+        "frame_border",
+        "frame_label",
+        "note_bg",
+        "note_header",
+        "note_text",
+        "meter_low",
+        "meter_mid",
+        "meter_high",
+        "meter_bg",
+        "scope_bg",
+        "scope_grid",
+        "missing_header",
+        "group_header",
+        "window_bg",
+        "faint_bg",
+        "code_bg",
+        "code_text",
+        "button_bg",
+        "button_weak_bg",
+        "button_hover_bg",
+        "button_hover_weak_bg",
+        "button_hover_stroke",
+        "button_active_bg",
+        "button_open_bg",
+        "row_hover",
+        "raised",
+        "raised_hover",
+        "raised_lip",
+        "body_shadow",
+        "toggle_off",
+        "toggle_hover",
+        "socket_edge",
+        "on_accent",
+        "wire_casing",
+        "wire_flash",
+        "breadcrumb_bg",
+        "hint_bg",
+        "node_shadow",
+        "popup_shadow",
+        "header_base",
+        "focus_ring",
+        "button_stroke",
+        "type_audio",
+        "type_float",
+        "type_int",
+        "type_bool",
+        "type_trigger",
+        "type_midi",
+        "type_spectrum",
+        "type_buffer",
+        "type_text",
+        "type_any",
+        "category_io",
+        "category_generators",
+        "category_level",
+        "category_filters",
+        "category_time",
+        "category_spectral",
+        "category_math",
+        "category_modulation",
+        "category_triggers",
+        "category_sequencing",
+        "category_controls",
+        "category_display",
+        "category_utility",
+    ];
+
+    /// The color a theme file calls `name`, to override it.
+    pub fn color_mut(&mut self, name: &str) -> Option<&mut Color32> {
+        if let Some(ty) = name.strip_prefix("type_") {
+            let i = TYPE_NAMES.iter().position(|n| *n == ty)?;
+            return self.types.get_mut(i);
+        }
+        if let Some(slug) = name.strip_prefix("category_") {
+            let i = Category::ALL.iter().position(|c| c.slug() == slug)?;
+            return self.categories.get_mut(i);
+        }
+        Some(match name {
+            "canvas_bg" => &mut self.canvas_bg,
+            "grid_dot" => &mut self.grid_dot,
+            "grid_dot_major" => &mut self.grid_dot_major,
+            "panel_bg" => &mut self.panel_bg,
+            "well_bg" => &mut self.well_bg,
+            "border" => &mut self.border,
+            "node_bg" => &mut self.node_bg,
+            "node_outline" => &mut self.node_outline,
+            "node_selected" => &mut self.node_selected,
+            "node_hover" => &mut self.node_hover,
+            "widget_bg" => &mut self.widget_bg,
+            "widget_bg_hover" => &mut self.widget_bg_hover,
+            "widget_fill" => &mut self.widget_fill,
+            "widget_fill_hover" => &mut self.widget_fill_hover,
+            "text" => &mut self.text,
+            "text_strong" => &mut self.text_strong,
+            "text_muted" => &mut self.text_muted,
+            "text_faint" => &mut self.text_faint,
+            "accent" => &mut self.accent,
+            "accent_dim" => &mut self.accent_dim,
+            "error" => &mut self.error,
+            "warning" => &mut self.warning,
+            "ok" => &mut self.ok,
+            "record" => &mut self.record,
+            "play" => &mut self.play,
+            "select_fill" => &mut self.select_fill,
+            "select_stroke" => &mut self.select_stroke,
+            "cut_line" => &mut self.cut_line,
+            "reroute_line" => &mut self.reroute_line,
+            "frame_fill" => &mut self.frame_fill,
+            "frame_border" => &mut self.frame_border,
+            "frame_label" => &mut self.frame_label,
+            "note_bg" => &mut self.note_bg,
+            "note_header" => &mut self.note_header,
+            "note_text" => &mut self.note_text,
+            "meter_low" => &mut self.meter_low,
+            "meter_mid" => &mut self.meter_mid,
+            "meter_high" => &mut self.meter_high,
+            "meter_bg" => &mut self.meter_bg,
+            "scope_bg" => &mut self.scope_bg,
+            "scope_grid" => &mut self.scope_grid,
+            "missing_header" => &mut self.missing_header,
+            "group_header" => &mut self.group_header,
+            "window_bg" => &mut self.window_bg,
+            "faint_bg" => &mut self.faint_bg,
+            "code_bg" => &mut self.code_bg,
+            "code_text" => &mut self.code_text,
+            "button_bg" => &mut self.button_bg,
+            "button_weak_bg" => &mut self.button_weak_bg,
+            "button_hover_bg" => &mut self.button_hover_bg,
+            "button_hover_weak_bg" => &mut self.button_hover_weak_bg,
+            "button_hover_stroke" => &mut self.button_hover_stroke,
+            "button_active_bg" => &mut self.button_active_bg,
+            "button_open_bg" => &mut self.button_open_bg,
+            "row_hover" => &mut self.row_hover,
+            "raised" => &mut self.raised,
+            "raised_hover" => &mut self.raised_hover,
+            "raised_lip" => &mut self.raised_lip,
+            "body_shadow" => &mut self.body_shadow,
+            "toggle_off" => &mut self.toggle_off,
+            "toggle_hover" => &mut self.toggle_hover,
+            "socket_edge" => &mut self.socket_edge,
+            "on_accent" => &mut self.on_accent,
+            "wire_casing" => &mut self.wire_casing,
+            "wire_flash" => &mut self.wire_flash,
+            "breadcrumb_bg" => &mut self.breadcrumb_bg,
+            "hint_bg" => &mut self.hint_bg,
+            "node_shadow" => &mut self.node_shadow,
+            "popup_shadow" => &mut self.popup_shadow,
+            "header_base" => &mut self.header_base,
+            "focus_ring" => &mut self.focus_ring,
+            "button_stroke" => &mut self.button_stroke,
+            _ => return None,
+        })
+    }
+
+    /// The color a theme file calls `name`.
+    pub fn color(&self, name: &str) -> Option<Color32> {
+        let mut p = *self;
+        p.color_mut(name).map(|c| *c)
+    }
+}
+
+/// The names of [`TYPE_ORDER`] in theme files (`type_audio`, …).
+const TYPE_NAMES: [&str; 10] = [
+    "audio", "float", "int", "bool", "trigger", "midi", "spectrum", "buffer", "text", "any",
+];
 
 /// The order of [`Palette::types`].
 pub const TYPE_ORDER: [SignalType; 10] = [
@@ -246,6 +457,9 @@ pub const DARK: Palette = Palette {
         Color32::from_rgb(0x82, 0x88, 0x92),
         Color32::from_rgb(0x62, 0x73, 0x86),
     ],
+    focus_ring: Color32::from_rgb(0x7C, 0xA7, 0xF5),
+    button_stroke: Color32::TRANSPARENT,
+    strong_outlines: false,
 };
 
 /// The light theme: the dark theme's hues, deepened so text, wires, and
@@ -351,58 +565,326 @@ pub const LIGHT: Palette = Palette {
         Color32::from_rgb(0x7A, 0x81, 0x8C),
         Color32::from_rgb(0x5A, 0x6B, 0x80),
     ],
+    focus_ring: Color32::from_rgb(0x25, 0x60, 0xC4),
+    button_stroke: Color32::TRANSPARENT,
+    strong_outlines: false,
 };
 
-/// Which theme the editor shows (View ▸ Theme), kept in the app settings.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// High Contrast: white text on black, at least 7:1 on every surface it
+/// sits on (WCAG AAA), white outlines on cards, buttons, and fields, a
+/// yellow focus ring that is unlike anything else on screen, and socket
+/// colors brightened so each type still reads on black (the tests check).
+pub const HIGH_CONTRAST: Palette = Palette {
+    canvas_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+    grid_dot: Color32::from_rgb(0x40, 0x40, 0x40),
+    grid_dot_major: Color32::from_rgb(0x66, 0x66, 0x66),
+    panel_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+    well_bg: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+    border: Color32::from_rgb(0xC8, 0xC8, 0xC8),
+    node_bg: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+    node_outline: Color32::from_rgb(0xE0, 0xE0, 0xE0),
+    node_selected: Color32::from_rgb(0x00, 0xE5, 0xFF),
+    node_hover: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    widget_bg: Color32::from_rgb(0x14, 0x14, 0x14),
+    widget_bg_hover: Color32::from_rgb(0x26, 0x26, 0x26),
+    widget_fill: Color32::from_rgb(0x1F, 0x4A, 0x80),
+    widget_fill_hover: Color32::from_rgb(0x28, 0x5A, 0x99),
+    text: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    text_strong: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    text_muted: Color32::from_rgb(0xE0, 0xE0, 0xE0),
+    text_faint: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+    accent: Color32::from_rgb(0x66, 0xB2, 0xFF),
+    accent_dim: Color32::from_rgb(0x0A, 0x2A, 0x4D),
+    error: Color32::from_rgb(0xFF, 0x80, 0x80),
+    warning: Color32::from_rgb(0xFF, 0xC7, 0x40),
+    ok: Color32::from_rgb(0x5C, 0xE0, 0x8A),
+    record: Color32::from_rgb(0xFF, 0x60, 0x60),
+    play: Color32::from_rgb(0x5C, 0xE0, 0x8A),
+    select_fill: Color32::from_rgba_unmultiplied_const(0x00, 0xE5, 0xFF, 0x30),
+    select_stroke: Color32::from_rgb(0x00, 0xE5, 0xFF),
+    cut_line: Color32::from_rgb(0xFF, 0x80, 0x80),
+    reroute_line: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    frame_fill: Color32::from_rgba_unmultiplied_const(0xFF, 0xFF, 0xFF, 0x12),
+    frame_border: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+    frame_label: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    note_bg: Color32::from_rgb(0x1A, 0x16, 0x00),
+    note_header: Color32::from_rgb(0x2A, 0x24, 0x00),
+    note_text: Color32::from_rgb(0xFF, 0xF2, 0xB3),
+    meter_low: Color32::from_rgb(0x5C, 0xE0, 0x8A),
+    meter_mid: Color32::from_rgb(0xFF, 0xC7, 0x40),
+    meter_high: Color32::from_rgb(0xFF, 0x80, 0x80),
+    meter_bg: Color32::from_rgb(0x1A, 0x1A, 0x1A),
+    scope_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+    scope_grid: Color32::from_rgb(0x40, 0x40, 0x40),
+    missing_header: Color32::from_rgb(0x8C, 0x1C, 0x1C),
+    group_header: Color32::from_rgb(0x2E, 0x8C, 0x76),
+    dark: true,
+    window_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+    faint_bg: Color32::from_rgb(0x14, 0x14, 0x14),
+    code_bg: Color32::from_rgb(0x1A, 0x1A, 0x1A),
+    code_text: Color32::from_rgb(0xFF, 0xD2, 0x7F),
+    button_bg: Color32::from_rgb(0x14, 0x14, 0x14),
+    button_weak_bg: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+    button_hover_bg: Color32::from_rgb(0x2A, 0x2A, 0x2A),
+    button_hover_weak_bg: Color32::from_rgb(0x26, 0x26, 0x26),
+    button_hover_stroke: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+    button_active_bg: Color32::from_rgb(0x3A, 0x3A, 0x3A),
+    button_open_bg: Color32::from_rgb(0x26, 0x26, 0x26),
+    row_hover: Color32::from_rgb(0x26, 0x26, 0x26),
+    raised: Color32::from_rgb(0x2A, 0x2A, 0x2A),
+    raised_hover: Color32::from_rgb(0x3A, 0x3A, 0x3A),
+    raised_lip: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+    body_shadow: Color32::from_rgb(0x00, 0x00, 0x00),
+    toggle_off: Color32::from_rgb(0x3A, 0x3A, 0x3A),
+    toggle_hover: Color32::from_rgb(0x4A, 0x4A, 0x4A),
+    socket_edge: Color32::from_rgb(0x00, 0x00, 0x00),
+    on_accent: Color32::from_rgb(0x00, 0x00, 0x00),
+    wire_casing: Color32::from_black_alpha(200),
+    wire_flash: Color32::WHITE,
+    breadcrumb_bg: Color32::from_rgb(0x00, 0x33, 0x2B),
+    hint_bg: Color32::from_rgb(0x00, 0x00, 0x00),
+    node_shadow: Color32::TRANSPARENT,
+    popup_shadow: Color32::from_black_alpha(160),
+    header_base: Color32::from_rgb(0x00, 0x00, 0x00),
+    header_mix: 0.36,
+    types: [
+        Color32::from_rgb(0xFF, 0xA9, 0x4D),
+        Color32::from_rgb(0x66, 0xC2, 0xFF),
+        Color32::from_rgb(0x5C, 0xE0, 0x8A),
+        Color32::from_rgb(0xFF, 0x7A, 0xB8),
+        Color32::from_rgb(0xFF, 0xE1, 0x4D),
+        Color32::from_rgb(0xC3, 0xA6, 0xFF),
+        Color32::from_rgb(0x4D, 0xF0, 0xF0),
+        Color32::from_rgb(0xE0, 0xC0, 0x8A),
+        Color32::from_rgb(0xFF, 0xF5, 0xD6),
+        Color32::from_rgb(0xC8, 0xC8, 0xC8),
+    ],
+    categories: [
+        Color32::from_rgb(0xFF, 0x6B, 0x6B),
+        Color32::from_rgb(0xFF, 0x9A, 0x4D),
+        Color32::from_rgb(0xFF, 0xD0, 0x4D),
+        Color32::from_rgb(0x6B, 0xE0, 0x6E),
+        Color32::from_rgb(0x4D, 0xE0, 0xC8),
+        Color32::from_rgb(0x4D, 0xD8, 0xFF),
+        Color32::from_rgb(0x6B, 0xA6, 0xFF),
+        Color32::from_rgb(0x9A, 0x8F, 0xFF),
+        Color32::from_rgb(0xFF, 0xE1, 0x4D),
+        Color32::from_rgb(0xC3, 0x8F, 0xFF),
+        Color32::from_rgb(0xFF, 0x7A, 0xB8),
+        Color32::from_rgb(0xB0, 0xB0, 0xB0),
+        Color32::from_rgb(0x8F, 0xA8, 0xC8),
+    ],
+    focus_ring: Color32::from_rgb(0xFF, 0xD4, 0x00),
+    button_stroke: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+    strong_outlines: true,
+};
+
+/// Which theme the editor shows (View ▸ Theme), kept in the app settings
+/// by name: a built-in theme's id (`dark`, `light`, `high_contrast`,
+/// `system`) or the name of a theme file in the themes folder.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(from = "String", into = "String")]
 pub enum ThemeChoice {
     #[default]
     Dark,
     Light,
+    HighContrast,
     /// The operating system's light or dark mode.
     System,
+    /// A theme file (`themes/*.json` beside the settings), by its name.
+    User(String),
 }
 
 impl ThemeChoice {
-    pub const ALL: [ThemeChoice; 3] = [ThemeChoice::Dark, ThemeChoice::Light, ThemeChoice::System];
+    /// The built-in themes, in the order View ▸ Theme lists them.
+    pub const BUILT_IN: [ThemeChoice; 4] = [
+        ThemeChoice::Dark,
+        ThemeChoice::Light,
+        ThemeChoice::HighContrast,
+        ThemeChoice::System,
+    ];
 
-    pub fn label(self) -> &'static str {
+    /// The name the settings file keeps.
+    pub fn name(&self) -> &str {
+        match self {
+            ThemeChoice::Dark => "dark",
+            ThemeChoice::Light => "light",
+            ThemeChoice::HighContrast => "high_contrast",
+            ThemeChoice::System => "system",
+            ThemeChoice::User(name) => name,
+        }
+    }
+
+    /// The choice a settings file names: a built-in's id, or else a theme
+    /// file's name (which may not exist; showing it falls back to Dark).
+    pub fn from_name(name: &str) -> ThemeChoice {
+        match name {
+            "dark" => ThemeChoice::Dark,
+            "light" => ThemeChoice::Light,
+            "high_contrast" => ThemeChoice::HighContrast,
+            "system" => ThemeChoice::System,
+            other => ThemeChoice::User(other.to_string()),
+        }
+    }
+
+    /// Whether a theme file may take `name`: not a built-in's id or label,
+    /// whatever its case, so a name always means one theme.
+    pub fn is_reserved(name: &str) -> bool {
+        let n = name.trim().to_lowercase();
+        ThemeChoice::BUILT_IN
+            .iter()
+            .any(|t| t.name() == n || t.english_label().to_lowercase() == n)
+    }
+
+    /// The name shown in View ▸ Theme.
+    pub fn label(&self) -> String {
+        use crate::i18n::tr;
+        match self {
+            ThemeChoice::Dark => tr("theme-dark"),
+            ThemeChoice::Light => tr("theme-light"),
+            ThemeChoice::HighContrast => tr("theme-high-contrast"),
+            ThemeChoice::System => tr("theme-system"),
+            ThemeChoice::User(name) => name.clone(),
+        }
+    }
+
+    /// The English name, which a theme file can't take either (whatever
+    /// language the editor shows, a file's name means the same theme).
+    fn english_label(&self) -> &str {
         match self {
             ThemeChoice::Dark => "Dark",
             ThemeChoice::Light => "Light",
+            ThemeChoice::HighContrast => "High Contrast",
             ThemeChoice::System => "Follow System",
-        }
-    }
-
-    fn preference(self) -> egui::ThemePreference {
-        match self {
-            ThemeChoice::Dark => egui::ThemePreference::Dark,
-            ThemeChoice::Light => egui::ThemePreference::Light,
-            ThemeChoice::System => egui::ThemePreference::System,
+            ThemeChoice::User(name) => name,
         }
     }
 }
 
-/// The palette for one of egui's two themes.
-pub fn palette_of(theme: egui::Theme) -> &'static Palette {
-    match theme {
-        egui::Theme::Dark => &DARK,
-        egui::Theme::Light => &LIGHT,
+impl From<String> for ThemeChoice {
+    fn from(name: String) -> ThemeChoice {
+        ThemeChoice::from_name(&name)
     }
 }
 
-/// Show `choice` from now on: egui's visuals switch at once, and so does
-/// the palette (Follow System resolves through the OS's mode).
-pub fn set_choice(ctx: &egui::Context, choice: ThemeChoice) {
-    ctx.set_theme(choice.preference());
+impl From<ThemeChoice> for String {
+    fn from(choice: ThemeChoice) -> String {
+        choice.name().to_string()
+    }
+}
+
+/// What a theme draws with: the palette in egui's dark slot, the one in
+/// its light slot, and which slot shows. egui has two themes, so a dark
+/// palette other than Dark (High Contrast, a dark user theme) takes the
+/// dark slot, and a light one the light slot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Look {
+    pub dark: &'static Palette,
+    pub light: &'static Palette,
+    pub preference: egui::ThemePreference,
+}
+
+impl Default for Look {
+    fn default() -> Self {
+        Look {
+            dark: &DARK,
+            light: &LIGHT,
+            preference: egui::ThemePreference::Dark,
+        }
+    }
+}
+
+impl Look {
+    /// A built-in theme (a user theme's name gives Dark: resolve those
+    /// with [`Look::of`]).
+    pub fn built_in(choice: &ThemeChoice) -> Look {
+        match choice {
+            ThemeChoice::Light => Look {
+                preference: egui::ThemePreference::Light,
+                ..Look::default()
+            },
+            ThemeChoice::HighContrast => Look::of(&HIGH_CONTRAST),
+            ThemeChoice::System => Look {
+                preference: egui::ThemePreference::System,
+                ..Look::default()
+            },
+            ThemeChoice::Dark | ThemeChoice::User(_) => Look::default(),
+        }
+    }
+
+    /// Always `p`, in the slot of its kind.
+    pub fn of(p: &'static Palette) -> Look {
+        if p.dark {
+            Look {
+                dark: p,
+                light: &LIGHT,
+                preference: egui::ThemePreference::Dark,
+            }
+        } else {
+            Look {
+                dark: &DARK,
+                light: p,
+                preference: egui::ThemePreference::Light,
+            }
+        }
+    }
+}
+
+/// Where a context keeps its [`Look`].
+fn look_id() -> egui::Id {
+    egui::Id::unique("audio-constructor-look")
+}
+
+/// Show a built-in theme from now on: egui's visuals switch at once, and
+/// so does the palette (Follow System resolves through the OS's mode).
+pub fn set_choice(ctx: &egui::Context, choice: &ThemeChoice) {
+    set_look(ctx, Look::built_in(choice));
+}
+
+/// Show `look` from now on, in egui's visuals and the palette.
+pub fn set_look(ctx: &egui::Context, look: Look) {
+    ctx.style_mut_of(egui::Theme::Dark, |s| style(s, look.dark));
+    ctx.style_mut_of(egui::Theme::Light, |s| style(s, look.light));
+    ctx.data_mut(|d| d.insert_temp(look_id(), look));
+    ctx.set_theme(look.preference);
     follow(ctx);
+}
+
+/// The look `ctx` shows.
+pub fn look(ctx: &egui::Context) -> Look {
+    ctx.data(|d| d.get_temp::<Look>(look_id()))
+        .unwrap_or_default()
 }
 
 /// Draw with the palette of the theme egui shows. Called at the start of
 /// every frame, so a change of the OS's mode follows too.
 pub fn follow(ctx: &egui::Context) {
-    set_palette(palette_of(ctx.theme()));
+    let look = look(ctx);
+    set_palette(match ctx.theme() {
+        egui::Theme::Dark => look.dark,
+        egui::Theme::Light => look.light,
+    });
+}
+
+/// A palette made at run time (a theme file's), kept for the rest of the
+/// run so it can be drawn with like the built-in ones. Each distinct
+/// palette is kept once, however often the themes are reloaded.
+pub fn intern(p: Palette) -> &'static Palette {
+    static KEPT: std::sync::Mutex<Vec<&'static Palette>> = std::sync::Mutex::new(Vec::new());
+    for built_in in [&DARK, &LIGHT, &HIGH_CONTRAST] {
+        if *built_in == p {
+            return built_in;
+        }
+    }
+    let mut kept = KEPT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(k) = kept.iter().find(|k| ***k == p) {
+        return k;
+    }
+    let leaked: &'static Palette = Box::leak(Box::new(p));
+    kept.push(leaked);
+    leaked
 }
 
 thread_local! {
@@ -636,6 +1118,15 @@ pub fn breadcrumb_bg() -> Color32 {
 pub fn hint_bg() -> Color32 {
     palette().hint_bg
 }
+/// The ring around whatever has keyboard focus.
+pub fn focus_ring() -> Color32 {
+    palette().focus_ring
+}
+/// How thick outlines are drawn (points at 100 % zoom): High Contrast
+/// doubles them.
+pub fn outline_width() -> f32 {
+    if palette().strong_outlines { 2.0 } else { 1.0 }
+}
 
 /// Piano keys look like a piano's in either theme: white and black keys,
 /// hovered, and the octave names on the C keys.
@@ -733,6 +1224,74 @@ pub fn meter_color(db: f32) -> Color32 {
     } else {
         meter_low()
     }
+}
+
+// ---------------------------------------------------------------- contrast
+
+/// WCAG 2 relative luminance of an opaque color.
+fn luminance(c: Color32) -> f64 {
+    let lin = |v: u8| {
+        let v = f64::from(v) / 255.0;
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+}
+
+/// WCAG 2 contrast ratio (1 to 21) of two opaque colors.
+pub fn contrast(a: Color32, b: Color32) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+}
+
+/// A translucent color as it shows over an opaque one (`Color32` is
+/// premultiplied, and egui blends in gamma space).
+pub fn over(top: Color32, under: Color32) -> Color32 {
+    let a = f32::from(top.a()) / 255.0;
+    let ch = |t: u8, u: u8| (f32::from(t) + f32::from(u) * (1.0 - a)).round() as u8;
+    Color32::from_rgb(
+        ch(top.r(), under.r()),
+        ch(top.g(), under.g()),
+        ch(top.b(), under.b()),
+    )
+}
+
+/// The surfaces body text sits on: panels, wells, windows, panel
+/// widgets, the canvas, and node cards (over the canvas).
+pub fn text_surfaces(p: &Palette) -> [(&'static str, Color32); 7] {
+    let opaque = |c: Color32| over(c, p.canvas_bg);
+    [
+        ("panel", opaque(p.panel_bg)),
+        ("well", opaque(p.well_bg)),
+        ("window", opaque(p.window_bg)),
+        ("button", opaque(p.button_bg)),
+        ("widget", opaque(p.widget_bg)),
+        ("canvas", opaque(p.canvas_bg)),
+        ("card", opaque(p.node_bg)),
+    ]
+}
+
+/// The lowest contrast of body text (normal, strong, and muted) on any of
+/// its surfaces, with what it was: what View ▸ Theme warns about for a
+/// theme file under 4.5:1.
+pub fn text_contrast(p: &Palette) -> (f64, String) {
+    let mut worst = (f64::INFINITY, String::new());
+    for (bg_name, bg) in text_surfaces(p) {
+        for (fg_name, fg) in [
+            ("text", p.text),
+            ("text_strong", p.text_strong),
+            ("text_muted", p.text_muted),
+        ] {
+            let r = contrast(over(fg, bg), bg);
+            if r < worst.0 {
+                worst = (r, format!("{fg_name} on {bg_name}"));
+            }
+        }
+    }
+    worst
 }
 
 // ---------------------------------------------------------------- geometry
@@ -926,13 +1485,16 @@ fn style(style: &mut egui::Style, p: &Palette) {
     s.text_edit_width = 160.0;
     s.tooltip_width = 320.0;
     s.menu_width = 220.0;
+    // A scroll bar stays thin until the pointer nears it, but what can be
+    // grabbed is as wide as the smallest button is tall (docs/UX.md
+    // "Accessibility and scaling").
+    s.scroll.bar_width = 14.0;
 
     let v = &mut style.visuals;
     v.override_text_color = None;
     v.dark_mode = p.dark;
     v.panel_fill = p.panel_bg;
     v.window_fill = p.window_bg;
-    v.window_stroke = Stroke::new(1.0, p.border);
     v.window_corner_radius = radius(10.0);
     v.menu_corner_radius = radius(8.0);
     v.window_shadow = popup_shadow_of(p);
@@ -944,11 +1506,15 @@ fn style(style: &mut egui::Style, p: &Palette) {
     v.warn_fg_color = p.warning;
     v.error_fg_color = p.error;
     v.selection.bg_fill = p.accent_dim;
-    v.selection.stroke = Stroke::new(1.0, p.accent);
     v.slider_trailing_fill = true;
     v.striped = false;
     v.indent_has_left_vline = false;
 
+    // High Contrast draws every edge thicker, so outlines and the focus
+    // ring read at a glance.
+    let line = if p.strong_outlines { 2.0 } else { 1.0 };
+    v.window_stroke = Stroke::new(line, p.border);
+    v.selection.stroke = Stroke::new(line, p.accent);
     let w = &mut v.widgets;
     w.noninteractive.bg_fill = p.panel_bg;
     w.noninteractive.weak_bg_fill = p.panel_bg;
@@ -958,20 +1524,26 @@ fn style(style: &mut egui::Style, p: &Palette) {
 
     w.inactive.bg_fill = p.button_bg;
     w.inactive.weak_bg_fill = p.button_weak_bg;
-    w.inactive.bg_stroke = Stroke::NONE;
+    w.inactive.bg_stroke = if p.button_stroke.a() == 0 {
+        Stroke::NONE
+    } else {
+        Stroke::new(1.0, p.button_stroke)
+    };
     w.inactive.fg_stroke = Stroke::new(1.0, p.text);
     w.inactive.corner_radius = radius(WIDGET_RADIUS + 1.0);
 
     w.hovered.bg_fill = p.button_hover_bg;
     w.hovered.weak_bg_fill = p.button_hover_weak_bg;
-    w.hovered.bg_stroke = Stroke::new(1.0, p.button_hover_stroke);
+    w.hovered.bg_stroke = Stroke::new(line, p.button_hover_stroke);
     w.hovered.fg_stroke = Stroke::new(1.5, p.text_strong);
     w.hovered.corner_radius = radius(WIDGET_RADIUS + 1.0);
     w.hovered.expansion = 0.0;
 
     w.active.bg_fill = p.button_active_bg;
     w.active.weak_bg_fill = p.button_active_bg;
-    w.active.bg_stroke = Stroke::new(1.0, p.accent);
+    // egui draws a widget with keyboard focus in its active style, so this
+    // is the focus ring of buttons and fields.
+    w.active.bg_stroke = Stroke::new(line, p.focus_ring);
     w.active.fg_stroke = Stroke::new(1.5, p.text_strong);
     w.active.corner_radius = radius(WIDGET_RADIUS + 1.0);
     w.active.expansion = 0.0;
@@ -1002,51 +1574,12 @@ mod tests {
         }
     }
 
-    const BOTH: [(&str, &Palette); 2] = [("dark", &DARK), ("light", &LIGHT)];
-
-    /// WCAG 2 relative luminance of an opaque color.
-    fn luminance(c: Color32) -> f64 {
-        let lin = |v: u8| {
-            let v = f64::from(v) / 255.0;
-            if v <= 0.04045 {
-                v / 12.92
-            } else {
-                ((v + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
-    }
-
-    /// WCAG 2 contrast ratio (1 to 21).
-    fn contrast(a: Color32, b: Color32) -> f64 {
-        let (la, lb) = (luminance(a), luminance(b));
-        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
-    }
-
-    /// A translucent color as it shows over an opaque one.
-    fn over(top: Color32, under: Color32) -> Color32 {
-        let a = f32::from(top.a()) / 255.0;
-        let ch = |t: u8, u: u8| (f32::from(t) + f32::from(u) * (1.0 - a)).round() as u8;
-        Color32::from_rgb(
-            ch(top.r(), under.r()),
-            ch(top.g(), under.g()),
-            ch(top.b(), under.b()),
-        )
-    }
-
-    /// The surfaces body text sits on: panels, wells, windows, panel
-    /// widgets, the canvas, and node cards (over the canvas).
-    fn surfaces(p: &Palette) -> [(&'static str, Color32); 7] {
-        [
-            ("panel", p.panel_bg),
-            ("well", p.well_bg),
-            ("window", p.window_bg),
-            ("button", p.button_bg),
-            ("widget", p.widget_bg),
-            ("canvas", p.canvas_bg),
-            ("card", over(p.node_bg, p.canvas_bg)),
-        ]
-    }
+    /// Every built-in palette.
+    const ALL: [(&str, &Palette); 3] = [
+        ("dark", &DARK),
+        ("light", &LIGHT),
+        ("high contrast", &HIGH_CONTRAST),
+    ];
 
     fn assert_contrast(theme: &str, what: &str, fg: Color32, bg: Color32, min: f64) {
         let r = contrast(fg, bg);
@@ -1067,12 +1600,12 @@ mod tests {
         assert!((contrast(grey, white) - 4.54).abs() < 0.01);
     }
 
-    /// WCAG AA: body text at least 4.5:1 on every panel and card, in both
-    /// themes. Faint hint text in the light theme at least 3:1.
+    /// WCAG AA: body text at least 4.5:1 on every panel and card, in every
+    /// theme. Faint hint text in the light theme at least 3:1.
     #[test]
     fn body_text_meets_wcag_aa() {
-        for (theme, p) in BOTH {
-            for (bg_name, bg) in surfaces(p) {
+        for (theme, p) in ALL {
+            for (bg_name, bg) in text_surfaces(p) {
                 for (fg_name, fg) in [
                     ("text", p.text),
                     ("strong text", p.text_strong),
@@ -1113,7 +1646,7 @@ mod tests {
                 );
             }
         }
-        for (bg_name, bg) in surfaces(&LIGHT) {
+        for (bg_name, bg) in text_surfaces(&LIGHT) {
             assert_contrast(
                 "light",
                 &format!("faint text on {bg_name}"),
@@ -1124,11 +1657,118 @@ mod tests {
         }
     }
 
+    /// High Contrast holds body text to WCAG AAA (7:1) on everything it
+    /// sits on, titles on every header too, and status colors, links, and
+    /// faint hints to 7:1 and 4.5:1 on panels.
+    #[test]
+    fn high_contrast_text_meets_wcag_aaa() {
+        let p = &HIGH_CONTRAST;
+        let theme = "high contrast";
+        for (bg_name, bg) in text_surfaces(p) {
+            for (fg_name, fg) in [
+                ("text", p.text),
+                ("strong text", p.text_strong),
+                ("muted text", p.text_muted),
+            ] {
+                assert_contrast(theme, &format!("{fg_name} on {bg_name}"), fg, bg, 7.0);
+            }
+            assert_contrast(
+                theme,
+                &format!("faint text on {bg_name}"),
+                p.text_faint,
+                bg,
+                4.5,
+            );
+        }
+        assert!(text_contrast(p).0 >= 7.0, "{:?}", text_contrast(p));
+        for (name, fg) in [
+            ("accent", p.accent),
+            ("error", p.error),
+            ("warning", p.warning),
+            ("ok", p.ok),
+        ] {
+            assert_contrast(theme, &format!("{name} on panel"), fg, p.panel_bg, 7.0);
+        }
+        assert_contrast(theme, "note text", p.note_text, p.note_bg, 7.0);
+        assert_contrast(theme, "frame label", p.frame_label, p.canvas_bg, 7.0);
+        assert_contrast(theme, "inline code", p.code_text, p.code_bg, 7.0);
+        assert_contrast(theme, "text on a slider fill", p.text, p.widget_fill, 7.0);
+        assert_contrast(theme, "text in a selection", p.text, p.accent_dim, 7.0);
+        let _on = Using::palette(p);
+        for (i, c) in p.categories.iter().enumerate() {
+            let header = over(header_fill(*c), p.canvas_bg);
+            assert_contrast(
+                theme,
+                &format!("title on the {} header", Category::ALL[i].name()),
+                p.text_strong,
+                header,
+                7.0,
+            );
+        }
+        for h in [p.missing_header, p.group_header] {
+            assert_contrast(
+                theme,
+                "title on a header",
+                p.text_strong,
+                header_fill(h),
+                7.0,
+            );
+        }
+    }
+
+    /// Outlines and the focus ring are what tell a card or a focused
+    /// widget apart: WCAG's 3:1 for graphics in every theme, and High
+    /// Contrast's outlines much stronger than that.
+    #[test]
+    fn outlines_and_focus_rings_stand_out() {
+        for (theme, p) in ALL {
+            let card = over(p.node_bg, p.canvas_bg);
+            for (bg_name, bg) in [
+                ("canvas", p.canvas_bg),
+                ("card", card),
+                ("panel", p.panel_bg),
+            ] {
+                assert_contrast(
+                    theme,
+                    &format!("focus ring on {bg_name}"),
+                    p.focus_ring,
+                    bg,
+                    3.0,
+                );
+            }
+            assert_contrast(
+                theme,
+                "selected outline on canvas",
+                p.node_selected,
+                p.canvas_bg,
+                3.0,
+            );
+        }
+        let p = &HIGH_CONTRAST;
+        assert!(p.strong_outlines);
+        for (name, c) in [
+            ("node outline", p.node_outline),
+            ("border", p.border),
+            ("button outline", p.button_stroke),
+            ("frame border", p.frame_border),
+        ] {
+            assert_contrast(
+                "high contrast",
+                &format!("{name} on canvas"),
+                c,
+                p.canvas_bg,
+                7.0,
+            );
+        }
+        assert_ne!(p.focus_ring, p.node_selected, "focus and selection differ");
+        assert_ne!(p.focus_ring, p.accent);
+    }
+
     /// Wires and sockets are graphics: WCAG asks 3:1 against what they sit
     /// on (the canvas and node cards).
     #[test]
     fn signal_colors_stand_out_from_the_canvas_and_cards() {
-        for (theme, p) in BOTH {
+        for (theme, p) in ALL {
             for (i, c) in p.types.iter().enumerate() {
                 let ty = TYPE_ORDER[i];
                 assert_contrast(theme, &format!("{ty} on canvas"), *c, p.canvas_bg, 3.0);
@@ -1144,7 +1784,7 @@ mod tests {
         let types = [
             Audio, Float, Int, Bool, Trigger, Midi, Spectrum, Buffer, Any,
         ];
-        for (theme, p) in BOTH {
+        for (theme, p) in ALL {
             let _on = Using::palette(p);
             for (i, a) in types.iter().enumerate() {
                 for b in &types[i + 1..] {
@@ -1156,6 +1796,125 @@ mod tests {
         assert_eq!(socket_shape(Audio), SocketShape::Circle);
         assert_eq!(socket_shape(Spectrum), SocketShape::Square);
         assert_eq!(socket_shape(Buffer), SocketShape::Square);
+    }
+
+    /// In High Contrast, types that share a socket shape are told apart by
+    /// color alone, so they must differ by more than a shade.
+    #[test]
+    fn high_contrast_types_of_one_shape_are_far_apart() {
+        let _on = Using::palette(&HIGH_CONTRAST);
+        let dist = |a: Color32, b: Color32| {
+            let d = |x: u8, y: u8| (f32::from(x) - f32::from(y)).powi(2);
+            (d(a.r(), b.r()) + d(a.g(), b.g()) + d(a.b(), b.b())).sqrt()
+        };
+        for (i, a) in TYPE_ORDER.iter().enumerate() {
+            for b in &TYPE_ORDER[i + 1..] {
+                if socket_shape(*a) == socket_shape(*b) {
+                    let d = dist(type_color(*a), type_color(*b));
+                    assert!(d >= 60.0, "{a} and {b} are only {d:.0} apart");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn theme_files_name_every_color() {
+        let mut names = std::collections::BTreeSet::new();
+        for name in Palette::COLOR_FIELDS {
+            assert!(names.insert(*name), "{name} listed twice");
+            let mut p = DARK;
+            let c = p.color_mut(name).unwrap_or_else(|| panic!("{name}"));
+            *c = Color32::from_rgb(1, 2, 3);
+            assert_ne!(p, DARK, "{name} changes the palette");
+            assert_eq!(p.color(name), Some(Color32::from_rgb(1, 2, 3)));
+        }
+        assert_eq!(DARK.color("type_trigger"), Some(DARK.types[4]));
+        assert_eq!(DARK.color("category_filters"), Some(DARK.categories[3]));
+        assert_eq!(DARK.color("dark"), None);
+        assert_eq!(DARK.color("type_nope"), None);
+        // Every color field of the struct is named: a field added without a
+        // name stops this compiling. Counted: 72 single colors, 10 types,
+        // 13 categories.
+        let Palette {
+            canvas_bg: _,
+            grid_dot: _,
+            grid_dot_major: _,
+            panel_bg: _,
+            well_bg: _,
+            border: _,
+            node_bg: _,
+            node_outline: _,
+            node_selected: _,
+            node_hover: _,
+            widget_bg: _,
+            widget_bg_hover: _,
+            widget_fill: _,
+            widget_fill_hover: _,
+            text: _,
+            text_strong: _,
+            text_muted: _,
+            text_faint: _,
+            accent: _,
+            accent_dim: _,
+            error: _,
+            warning: _,
+            ok: _,
+            record: _,
+            play: _,
+            select_fill: _,
+            select_stroke: _,
+            cut_line: _,
+            reroute_line: _,
+            frame_fill: _,
+            frame_border: _,
+            frame_label: _,
+            note_bg: _,
+            note_header: _,
+            note_text: _,
+            meter_low: _,
+            meter_mid: _,
+            meter_high: _,
+            meter_bg: _,
+            scope_bg: _,
+            scope_grid: _,
+            missing_header: _,
+            group_header: _,
+            dark: _,
+            window_bg: _,
+            faint_bg: _,
+            code_bg: _,
+            code_text: _,
+            button_bg: _,
+            button_weak_bg: _,
+            button_hover_bg: _,
+            button_hover_weak_bg: _,
+            button_hover_stroke: _,
+            button_active_bg: _,
+            button_open_bg: _,
+            row_hover: _,
+            raised: _,
+            raised_hover: _,
+            raised_lip: _,
+            body_shadow: _,
+            toggle_off: _,
+            toggle_hover: _,
+            socket_edge: _,
+            on_accent: _,
+            wire_casing: _,
+            wire_flash: _,
+            breadcrumb_bg: _,
+            hint_bg: _,
+            node_shadow: _,
+            popup_shadow: _,
+            header_base: _,
+            header_mix: _,
+            types: _,
+            categories: _,
+            focus_ring: _,
+            button_stroke: _,
+            strong_outlines: _,
+        } = DARK;
+        assert_eq!(Palette::COLOR_FIELDS.len(), 72 + 10 + 13);
     }
 
     #[test]
@@ -1194,20 +1953,32 @@ mod tests {
     fn choosing_a_theme_switches_egui_and_the_palette() {
         let ctx = egui::Context::default();
         apply(&ctx);
-        set_choice(&ctx, ThemeChoice::Light);
+        set_choice(&ctx, &ThemeChoice::Light);
         let v = ctx.global_style().visuals.clone();
         assert!(!v.dark_mode);
         assert_eq!(v.panel_fill, LIGHT.panel_bg);
         assert_eq!(v.window_fill, LIGHT.window_bg);
         assert_eq!(canvas_bg(), LIGHT.canvas_bg);
-        set_choice(&ctx, ThemeChoice::Dark);
+        set_choice(&ctx, &ThemeChoice::Dark);
         let v = ctx.global_style().visuals.clone();
         assert!(v.dark_mode);
         assert_eq!(v.panel_fill, DARK.panel_bg);
         assert_eq!(canvas_bg(), DARK.canvas_bg);
         // Following the system with no system mode known shows dark.
-        set_choice(&ctx, ThemeChoice::System);
+        set_choice(&ctx, &ThemeChoice::System);
         assert_eq!(ctx.theme(), egui::Theme::Dark);
+        assert_eq!(canvas_bg(), DARK.canvas_bg);
+        // High Contrast takes egui's dark slot, and Dark gets it back.
+        set_choice(&ctx, &ThemeChoice::HighContrast);
+        let v = ctx.global_style().visuals.clone();
+        assert!(v.dark_mode);
+        assert_eq!(v.panel_fill, HIGH_CONTRAST.panel_bg);
+        assert_eq!(v.widgets.active.bg_stroke.color, HIGH_CONTRAST.focus_ring);
+        assert_eq!(canvas_bg(), HIGH_CONTRAST.canvas_bg);
+        follow(&ctx);
+        assert_eq!(canvas_bg(), HIGH_CONTRAST.canvas_bg, "every frame keeps it");
+        set_choice(&ctx, &ThemeChoice::Dark);
+        assert_eq!(ctx.global_style().visuals.panel_fill, DARK.panel_bg);
         assert_eq!(canvas_bg(), DARK.canvas_bg);
         assert!(!ctx.options(|o| o.zoom_with_keyboard), "UI Scale owns zoom");
     }

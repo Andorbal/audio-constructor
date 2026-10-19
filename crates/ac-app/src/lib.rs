@@ -21,6 +21,7 @@ pub mod files;
 pub mod find;
 pub mod help;
 pub mod host;
+pub mod i18n;
 pub mod icons;
 pub mod menubar;
 pub mod online;
@@ -36,6 +37,7 @@ pub mod theme;
 pub mod timing;
 pub mod transport;
 pub mod undo;
+pub mod user_themes;
 
 pub use app::{AppOptions, EditorApp, clock_seed};
 pub use audio::HostAudio;

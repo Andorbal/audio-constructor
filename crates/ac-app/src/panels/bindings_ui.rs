@@ -8,6 +8,7 @@ use egui::RichText;
 use super::{PanelIo, PanelRequest, section};
 use crate::bindings;
 use crate::canvas::widgets;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -49,9 +50,12 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
         };
         ui.label(RichText::new(format!("{icon} {}", b.source.label())).color(theme::text_strong()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .small_button(icons::X)
-                .on_hover_text("Remove this binding")
+            if icons::spoken(ui.small_button(icons::X))
+                .on_hover_text(tr("bindings-remove"))
+                .accessible_name(tr_args(
+                    "bindings-remove-named",
+                    &[("source", b.source.label().into())],
+                ))
                 .clicked()
             {
                 action = RowAction::Remove;
@@ -72,7 +76,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                     });
                     if ui
                         .add(egui::Button::new(text).frame(false))
-                        .on_hover_text("Show the node")
+                        .on_hover_text(tr("bindings-show-node"))
                         .clicked()
                     {
                         action = RowAction::Navigate(node.clone());
@@ -89,10 +93,22 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                 let (lo, hi) = b.range(spec);
                 let (mut lo, mut hi) = (lo, hi);
                 let speed = ((hi - lo).abs() / 200.0).max(0.001);
-                ui.label(RichText::new("from").small().color(theme::text_muted()));
-                let r1 = ui.add(egui::DragValue::new(&mut lo).speed(speed));
-                ui.label(RichText::new("to").small().color(theme::text_muted()));
-                let r2 = ui.add(egui::DragValue::new(&mut hi).speed(speed));
+                let from = ui.label(
+                    RichText::new(tr("bindings-from"))
+                        .small()
+                        .color(theme::text_muted()),
+                );
+                let r1 = ui
+                    .add(egui::DragValue::new(&mut lo).speed(speed))
+                    .labelled_by(from.id);
+                let to = ui.label(
+                    RichText::new(tr("bindings-to"))
+                        .small()
+                        .color(theme::text_muted()),
+                );
+                let r2 = ui
+                    .add(egui::DragValue::new(&mut hi).speed(speed))
+                    .labelled_by(to.id);
                 if r1.changed() {
                     io.doc.edit_binding(index, "min", now, |b| b.min = Some(lo));
                 }
@@ -109,7 +125,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                             .font(theme::mono_font(theme::FONT_SMALL))
                             .color(theme::text_muted()),
                     )
-                    .on_hover_text("Where the control last set it");
+                    .on_hover_text(tr("bindings-last-value"));
                 }
             }
             Some((SignalType::Bool, _)) => {
@@ -121,7 +137,9 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                         for m in [GateMode::Momentary, GateMode::Toggle] {
                             ui.selectable_value(&mut mode, m, mode_label(m));
                         }
-                    });
+                    })
+                    .response
+                    .accessible_name(tr("bindings-mode"));
                 if mode != b.mode {
                     io.doc.edit_binding(index, "mode", now, |b| b.mode = mode);
                     io.doc.end_coalescing();
@@ -130,17 +148,21 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
             }
             Some((SignalType::Trigger, _)) => {
                 ui.label(
-                    RichText::new("fires on press")
+                    RichText::new(tr("bindings-fires-on-press"))
                         .small()
                         .color(theme::text_muted()),
                 );
             }
             _ if matches!(b.target, Target::Transport { .. }) => {
-                ui.label(RichText::new("on press").small().color(theme::text_muted()));
+                ui.label(
+                    RichText::new(tr("bindings-on-press"))
+                        .small()
+                        .color(theme::text_muted()),
+                );
             }
             _ => {
                 ui.label(
-                    RichText::new("does nothing (see Problems)")
+                    RichText::new(tr("bindings-does-nothing"))
                         .small()
                         .color(theme::warning()),
                 );
@@ -150,18 +172,18 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
     action
 }
 
-fn mode_label(m: GateMode) -> &'static str {
+fn mode_label(m: GateMode) -> String {
     match m {
-        GateMode::Momentary => "Momentary",
-        GateMode::Toggle => "Toggle",
+        GateMode::Momentary => tr("bindings-momentary"),
+        GateMode::Toggle => tr("bindings-toggle"),
     }
 }
 
 fn invert_box(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, invert: bool) {
     let mut inv = invert;
     if ui
-        .checkbox(&mut inv, "invert")
-        .on_hover_text("Turn the control around")
+        .checkbox(&mut inv, tr("bindings-invert"))
+        .on_hover_text(tr("bindings-invert-tip"))
         .changed()
     {
         io.doc
@@ -176,7 +198,7 @@ fn apply(io: &mut PanelIo, index: usize, action: RowAction) -> bool {
     match action {
         RowAction::None => false,
         RowAction::Remove => {
-            io.doc.edit_project("Remove binding", |p| {
+            io.doc.edit_project(&tr("undo-remove-binding"), |p| {
                 if index < p.bindings.len() {
                     p.bindings.remove(index);
                 }
@@ -192,16 +214,10 @@ fn apply(io: &mut PanelIo, index: usize, action: RowAction) -> bool {
 
 /// The Project tab's list of every binding.
 pub(super) fn project_section(ui: &mut egui::Ui, io: &mut PanelIo) {
-    section(ui, "Bindings");
+    section(ui, &tr("section-bindings"));
     let n = io.doc.project.bindings.len();
     if n == 0 {
-        ui.label(
-            RichText::new(
-                "No bindings. Right-click an input (or a control's title) and choose Bind… \
-                 to drive it from a MIDI controller, a key, a gamepad, or OSC.",
-            )
-            .color(theme::text_muted()),
-        );
+        ui.label(RichText::new(tr("bindings-none")).color(theme::text_muted()));
         return;
     }
     for i in 0..n {
@@ -229,14 +245,12 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
         .filter(|(_, b)| b.node().is_some_and(|p| paths.contains(p)))
         .map(|(i, _)| i)
         .collect();
-    section(ui, "Bindings");
+    section(ui, &tr("section-bindings"));
     if mine.is_empty() {
         ui.label(
-            RichText::new(
-                "Right-click an unwired input and choose Bind… to drive it from a control.",
-            )
-            .small()
-            .color(theme::text_muted()),
+            RichText::new(tr("bindings-node-none"))
+                .small()
+                .color(theme::text_muted()),
         );
         return;
     }
@@ -245,7 +259,11 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
             Target::Input { node, socket } => {
                 let mut s = crate::canvas::paint_pretty(socket);
                 if *node != entered {
-                    s.push_str(&format!(" (instance {node})"));
+                    s.push(' ');
+                    s.push_str(&tr_args(
+                        "bindings-instance",
+                        &[("instance", node.to_string().into())],
+                    ));
                 }
                 s
             }
@@ -262,24 +280,24 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
 /// The Devices tab's transport buttons: the gamepad preset, the
 /// transport bindings, and learning one.
 pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mut TransportAction) {
-    section(ui, "Transport buttons");
-    if ui
-        .button(format!(
-            "{}  Add gamepad transport buttons",
-            icons::GAME_CONTROLLER
-        ))
-        .on_hover_text("A plays and stops, B stops, X records, on any gamepad.")
-        .clicked()
+    section(ui, &tr("section-transport-buttons"));
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::GAME_CONTROLLER,
+        tr("bindings-add-gamepad-transport")
+    )))
+    .on_hover_text(tr("bindings-add-gamepad-transport-tip"))
+    .clicked()
     {
         let n = bindings::add_all(
             io.doc,
-            "Add transport buttons",
+            &tr("undo-add-transport-buttons"),
             bindings::transport_preset(),
         );
         let msg = if n == 0 {
-            "The gamepad transport buttons are already set up.".to_string()
+            tr("bindings-transport-already")
         } else {
-            format!("Added {n} gamepad transport buttons (A play/stop, B stop, X record).")
+            tr_args("bindings-transport-added", &[("count", n.into())])
         };
         io.requests.push(PanelRequest::Status(msg));
     }
@@ -291,10 +309,11 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
                 for a in TransportAction::ALL {
                     ui.selectable_value(choice, a, a.label());
                 }
-            });
-        if ui
-            .button(format!("{}  Bind…", icons::LINK))
-            .on_hover_text("Press the control (MIDI, key, gamepad, or OSC) that should do this.")
+            })
+            .response
+            .accessible_name(tr("bindings-transport-action"));
+        if icons::spoken(ui.button(format!("{}  {}", icons::LINK, tr("canvas-bind"))))
+            .on_hover_text(tr("bindings-learn-transport-tip"))
             .clicked()
         {
             io.requests
@@ -312,7 +331,7 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
         .collect();
     if list.is_empty() {
         ui.label(
-            RichText::new("No transport buttons yet.")
+            RichText::new(tr("bindings-no-transport"))
                 .small()
                 .color(theme::text_muted()),
         );
@@ -324,7 +343,7 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
         }
     }
     ui.label(
-        RichText::new("Transport buttons are stored in the project, like other bindings.")
+        RichText::new(tr("bindings-transport-stored"))
             .small()
             .color(theme::text_faint()),
     );

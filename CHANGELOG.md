@@ -94,6 +94,68 @@ fixes and smaller changes.
   library or the one `--library` names. Blocks from a library are checked
   against its index and refused if they've changed; `--list` shows what a
   library holds.
+- **High Contrast theme** (View ▸ Theme ▸ High Contrast): white text on
+  black at 7:1 or more on every surface, white outlines on node cards,
+  buttons, and fields, thicker outlines, a yellow ring around whatever has
+  keyboard focus, and socket colors brightened so every type still stands
+  out on black.
+- **Your own themes**: put a small JSON file in the themes folder next to
+  the editor's settings (View ▸ Theme ▸ Open Themes Folder), give it a
+  name and a base (Dark, Light, or High Contrast), and change any of the
+  base's colors by name. Your themes are listed under the built-in ones;
+  Reload Themes picks up edits at once. The editor remembers your choice
+  by name, and shows Dark if the file goes away. The guide's new
+  [Themes](docs/guide/themes.md) chapter lists every color with its value
+  in each built-in theme.
+- A theme file with a mistake never stops the editor: a file it can't use
+  is listed in View ▸ Theme with the reason, a misspelled color name
+  (with a suggestion) or a color that doesn't read is skipped, and a theme
+  whose text would be hard to read (under 4.5:1 contrast) is marked and
+  says which color is the problem.
+- **View ▸ Language**: the editor's menus, panels, tabs, transport bar,
+  dialogs, status messages, and undo names now come from translation
+  catalogs. **System** follows your computer's language when the editor
+  has it (English for now), and **Pseudo** is a made-up language with
+  accented letters, a third more length, and brackets around every
+  message, for checking that nothing was missed and that longer languages
+  fit. The choice is remembered. Node names and node help stay in English
+  for now. [docs/TRANSLATING.md](docs/TRANSLATING.md) says how to add a
+  language.
+- **The canvas from the keyboard**: Tab and Shift+Tab move a focus ring
+  from card to card, left to right the way the signal flows, and the
+  selection follows (Shift+Enter keeps a card selected while you move
+  on). Alt+↓ and Alt+↑ step through a card's sockets; Enter on a socket
+  picks up a wire, and Enter on another card or socket connects it. F2
+  on an input types its value, the arrow keys move what's selected (or
+  look around when nothing is), Shift+F10 opens the right-click menu,
+  and F6 moves between the canvas and the side panel. A node added from
+  the palette takes the focus, so a patch can be built without the mouse.
+- **Screen readers** can find and use everything: each card says its
+  name, kind, how many inputs and outputs it has, and whether it's
+  selected; each socket says its type and what it's wired to or set to;
+  on a panel, a knob or slider is a slider with its value, a toggle a
+  switch, and a meter says its peak. Menu entries with a check mark say
+  they're checked, and icons are never read out. A screen reader's
+  activate selects a card, and its increment, decrement, and set value
+  turn a panel's knobs. A library block's play button says which block it
+  plays, and the update and crash windows take the keyboard when they
+  appear. Scroll bars can be grabbed over a wider strip.
+- **Panels from the keyboard**: F6 puts the keyboard on the first card,
+  and Tab reaches every one. ↑ and ↓ (or ← and
+  →) turn a knob or slider by a hundredth of its range, a tenth with
+  Shift or Page Up and Page Down; Home and End go to its ends; Enter types
+  a value, opens a dropdown, or flips a toggle; and Space holds a button
+  down for as long as you hold it. In the panel view, Delete unpins the
+  focused card, and + and − resize it.
+- **View ▸ Reduce Motion**: no fades, eases, flowing wires, or flashes on
+  events, and the view jumps where it would glide. The choice is
+  remembered.
+
+### Changed
+
+- **Enter / Leave Group is now Ctrl+Enter** (it was Tab, which now moves
+  the keyboard from node to node). Double-clicking a group still goes
+  inside.
 
 ## [0.10.0] - 2026-10-19
 

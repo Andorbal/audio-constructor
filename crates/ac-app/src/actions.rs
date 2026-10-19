@@ -4,6 +4,8 @@
 
 use egui::{Key, KeyboardShortcut, Modifiers};
 
+use crate::i18n::tr;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Action {
     New,
@@ -70,6 +72,8 @@ pub enum Action {
     ToggleSidePanel,
     ShowTiming,
     Minimap,
+    /// No fades, eases, or flowing wires (View ▸ Reduce Motion).
+    ReduceMotion,
 
     Pin,
     TogglePanels,
@@ -172,6 +176,7 @@ impl Action {
         Action::ToggleSidePanel,
         Action::ShowTiming,
         Action::Minimap,
+        Action::ReduceMotion,
         Action::Pin,
         Action::TogglePanels,
         Action::PerformanceMode,
@@ -185,72 +190,74 @@ impl Action {
         Action::About,
     ];
 
-    pub fn label(self) -> &'static str {
+    /// The command's name, as menus and the shortcut list show it.
+    pub fn label(self) -> String {
         match self {
-            Action::New => "New",
-            Action::Open => "Open…",
-            Action::ImportFromLink => "Import from Link…",
-            Action::Save => "Save",
-            Action::SaveAs => "Save As…",
-            Action::ExportWav => "Export WAV…",
-            Action::ExportPack => "Export Pack…",
-            Action::Quit => "Quit",
-            Action::Undo => "Undo",
-            Action::Redo => "Redo",
-            Action::Copy => "Copy",
-            Action::Paste => "Paste",
-            Action::Delete => "Delete",
-            Action::DeleteReconnect => "Delete and Reconnect",
-            Action::Duplicate => "Duplicate",
-            Action::DuplicateWithInputs => "Duplicate with Inputs",
-            Action::SelectAll => "Select All",
-            Action::SelectNone => "Select None",
-            Action::SelectLinked => "Select Linked",
-            Action::Grab => "Move",
-            Action::Rename => "Rename",
-            Action::AddNode => "Add Node…",
-            Action::Frame => "Frame Selection",
-            Action::Group => "Make Group",
-            Action::Ungroup => "Ungroup",
-            Action::EnterLeaveGroup => "Enter / Leave Group",
-            Action::Portal => "Make Portal / Back to Wire",
-            Action::AutoLayout => "Auto-Layout",
-            Action::ArrangeMenu => "Align / Distribute…",
-            Action::AlignLeft => "Align Left",
-            Action::AlignCenter => "Align Center",
-            Action::AlignRight => "Align Right",
-            Action::AlignTop => "Align Top",
-            Action::AlignMiddle => "Align Middle",
-            Action::AlignBottom => "Align Bottom",
-            Action::DistributeHorizontally => "Distribute Horizontally",
-            Action::DistributeVertically => "Distribute Vertically",
-            Action::LazyConnect => "Connect Selected",
-            Action::Find => "Find…",
-            Action::Mute => "Mute",
-            Action::Collapse => "Collapse",
-            Action::HideUnwired => "Hide Unwired Sockets",
-            Action::NodeHelp => "Node Help",
-            Action::FitAll => "Frame All",
-            Action::FitSelection => "Frame Selected",
-            Action::ZoomIn => "Zoom In",
-            Action::ZoomOut => "Zoom Out",
-            Action::UiScaleUp => "Bigger Interface",
-            Action::UiScaleDown => "Smaller Interface",
-            Action::UiScaleReset => "Interface at 100 %",
-            Action::ToggleSidePanel => "Side Panel",
-            Action::ShowTiming => "Node Timing",
-            Action::Minimap => "Minimap",
-            Action::Pin => "Pin to Panel",
-            Action::TogglePanels => "Canvas / Panels",
-            Action::PerformanceMode => "Performance Mode",
-            Action::PlayStop => "Play / Stop",
-            Action::PlayFromStart => "Play from Start",
-            Action::Record => "Record",
-            Action::ToggleLoop => "Loop",
-            Action::Rewind => "Go to Start",
-            Action::PlayKeys => "Play Keys",
-            Action::Shortcuts => "Keyboard Shortcuts",
-            Action::About => "About Audio Constructor",
+            Action::New => tr("action-new"),
+            Action::Open => tr("action-open"),
+            Action::ImportFromLink => tr("action-import-from-link"),
+            Action::Save => tr("action-save"),
+            Action::SaveAs => tr("action-save-as"),
+            Action::ExportWav => tr("action-export-wav"),
+            Action::ExportPack => tr("action-export-pack"),
+            Action::Quit => tr("action-quit"),
+            Action::Undo => tr("action-undo"),
+            Action::Redo => tr("action-redo"),
+            Action::Copy => tr("action-copy"),
+            Action::Paste => tr("action-paste"),
+            Action::Delete => tr("action-delete"),
+            Action::DeleteReconnect => tr("action-delete-reconnect"),
+            Action::Duplicate => tr("action-duplicate"),
+            Action::DuplicateWithInputs => tr("action-duplicate-with-inputs"),
+            Action::SelectAll => tr("action-select-all"),
+            Action::SelectNone => tr("action-select-none"),
+            Action::SelectLinked => tr("action-select-linked"),
+            Action::Grab => tr("action-grab"),
+            Action::Rename => tr("action-rename"),
+            Action::AddNode => tr("action-add-node"),
+            Action::Frame => tr("action-frame"),
+            Action::Group => tr("action-group"),
+            Action::Ungroup => tr("action-ungroup"),
+            Action::EnterLeaveGroup => tr("action-enter-leave-group"),
+            Action::Portal => tr("action-portal"),
+            Action::AutoLayout => tr("action-auto-layout"),
+            Action::ArrangeMenu => tr("action-arrange-menu"),
+            Action::AlignLeft => tr("action-align-left"),
+            Action::AlignCenter => tr("action-align-center"),
+            Action::AlignRight => tr("action-align-right"),
+            Action::AlignTop => tr("action-align-top"),
+            Action::AlignMiddle => tr("action-align-middle"),
+            Action::AlignBottom => tr("action-align-bottom"),
+            Action::DistributeHorizontally => tr("action-distribute-horizontally"),
+            Action::DistributeVertically => tr("action-distribute-vertically"),
+            Action::LazyConnect => tr("action-lazy-connect"),
+            Action::Find => tr("action-find"),
+            Action::Mute => tr("action-mute"),
+            Action::Collapse => tr("action-collapse"),
+            Action::HideUnwired => tr("action-hide-unwired"),
+            Action::NodeHelp => tr("action-node-help"),
+            Action::FitAll => tr("action-fit-all"),
+            Action::FitSelection => tr("action-fit-selection"),
+            Action::ZoomIn => tr("action-zoom-in"),
+            Action::ZoomOut => tr("action-zoom-out"),
+            Action::UiScaleUp => tr("action-ui-scale-up"),
+            Action::UiScaleDown => tr("action-ui-scale-down"),
+            Action::UiScaleReset => tr("action-ui-scale-reset"),
+            Action::ToggleSidePanel => tr("action-toggle-side-panel"),
+            Action::ShowTiming => tr("action-show-timing"),
+            Action::Minimap => tr("action-minimap"),
+            Action::ReduceMotion => tr("action-reduce-motion"),
+            Action::Pin => tr("action-pin"),
+            Action::TogglePanels => tr("action-toggle-panels"),
+            Action::PerformanceMode => tr("action-performance-mode"),
+            Action::PlayStop => tr("action-play-stop"),
+            Action::PlayFromStart => tr("action-play-from-start"),
+            Action::Record => tr("action-record"),
+            Action::ToggleLoop => tr("action-toggle-loop"),
+            Action::Rewind => tr("action-rewind"),
+            Action::PlayKeys => tr("action-play-keys"),
+            Action::Shortcuts => tr("action-shortcuts"),
+            Action::About => tr("action-about"),
         }
     }
 
@@ -282,7 +289,8 @@ impl Action {
             Action::Frame => sc(CMD, Key::J),
             Action::Group => sc(CMD, Key::G),
             Action::Ungroup => sc(CMD_ALT, Key::G),
-            Action::EnterLeaveGroup => sc(NONE, Key::Tab),
+            // Tab moves the keyboard between cards (D183).
+            Action::EnterLeaveGroup => sc(CMD, Key::Enter),
             Action::Portal => sc(SHIFT, Key::P),
             Action::AutoLayout => sc(CMD, Key::L),
             // `Alt+A` is Select None (D101).
@@ -311,6 +319,7 @@ impl Action {
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
             Action::Minimap => sc(SHIFT, Key::M),
+            Action::ReduceMotion => None,
             Action::Pin => sc(NONE, Key::P),
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
@@ -368,6 +377,7 @@ impl Action {
                 | Action::UiScaleUp
                 | Action::UiScaleDown
                 | Action::UiScaleReset
+                | Action::ReduceMotion
                 | Action::Shortcuts
                 | Action::About
         )
@@ -454,10 +464,13 @@ mod tests {
             for_key(Key::Tab, Modifiers::CTRL),
             Some(Action::TogglePanels)
         );
+        // Tab is the canvas's focus; groups open with Ctrl+Enter.
+        assert_eq!(for_key(Key::Tab, Modifiers::NONE), None);
         assert_eq!(
-            for_key(Key::Tab, Modifiers::NONE),
+            for_key(Key::Enter, Modifiers::CTRL),
             Some(Action::EnterLeaveGroup)
         );
+        assert_eq!(for_key(Key::Enter, Modifiers::NONE), None);
         assert_eq!(
             for_key(Key::F11, Modifiers::NONE),
             Some(Action::PerformanceMode)

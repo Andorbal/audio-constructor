@@ -453,7 +453,7 @@
         "id": "f",
         "kind": "comment",
         "config": {
-          "text": "Voices plays the Subtractive Synth Voice block once for every note, up to eight at a time, and adds them up, so chords work. The knobs set every voice at once: Cutoff is where the filter rests, Brightness how far each note's envelope opens it, and Release how long a note rings after you let go. Tab into the Synth to see one voice."
+          "text": "Voices plays the Subtractive Synth Voice block once for every note, up to eight at a time, and adds them up, so chords work. The knobs set every voice at once: Cutoff is where the filter rests, Brightness how far each note's envelope opens it, and Release how long a note rings after you let go. Double-click the Synth to see one voice."
         },
         "ui": {
           "pos": [

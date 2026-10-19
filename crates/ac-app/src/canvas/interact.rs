@@ -13,6 +13,7 @@ use super::{
     field_rect, widgets,
 };
 use crate::edit::{self, GROUP_IN, GROUP_OUT};
+use crate::i18n::tr;
 use crate::theme;
 
 impl Canvas {
@@ -92,12 +93,12 @@ impl Canvas {
                 self.gesture = Gesture::Reroute {
                     points: vec![pointer],
                 };
-                self.hint = Some("Drag across wires to add reroutes".into());
+                self.hint = Some(tr("hint-add-reroutes"));
             } else if modifiers.ctrl || modifiers.command {
                 self.gesture = Gesture::Cut {
                     points: vec![pointer],
                 };
-                self.hint = Some("Drag across wires to cut them".into());
+                self.hint = Some(tr("hint-cut-wires"));
             }
         }
 
@@ -227,8 +228,7 @@ impl Canvas {
                         snap: None,
                     };
                 }
-                self.hint =
-                    Some("Drop on a socket to connect · on empty canvas to add a node".into());
+                self.hint = Some(tr("hint-drop-wire"));
             }
             Hit::Field { node, socket } => {
                 let spec = scene
@@ -252,7 +252,7 @@ impl Canvas {
                             DRAG_TRAVEL,
                             false,
                         );
-                        self.hint = Some("Ctrl: fine · Shift: coarse".into());
+                        self.hint = Some(tr("hint-fine-coarse"));
                     }
                     _ => self.begin_move(io, node, modifiers, origin),
                 }
@@ -272,7 +272,7 @@ impl Canvas {
                     Grab::Control => {
                         let body = scene.node(node).and_then(|n| n.body).map(|b| b.0);
                         if matches!(body, Some(Body::Knob | Body::Number)) {
-                            self.hint = Some("Ctrl: fine · Shift: coarse".into());
+                            self.hint = Some(tr("hint-fine-coarse"));
                         }
                     }
                     Grab::Nothing => {}
@@ -287,7 +287,7 @@ impl Canvas {
                 let size = scene
                     .node(node)
                     .map_or(vec2(240.0, 120.0), |n| n.rect.size());
-                io.doc.checkpoint("Resize");
+                io.doc.checkpoint(&tr("undo-resize"));
                 self.gesture = Gesture::ResizeNode {
                     node,
                     start: size,
@@ -310,7 +310,7 @@ impl Canvas {
                     .filter_map(|id| io.doc.graph().node(*id))
                     .map(|n| pos2(n.ui.pos[0], n.ui.pos[1]))
                     .collect();
-                io.doc.checkpoint("Move frame");
+                io.doc.checkpoint(&tr("undo-move-frame"));
                 self.gesture = Gesture::MoveFrame {
                     index,
                     start: f.rect,
@@ -323,7 +323,7 @@ impl Canvas {
                 let Some(start) = io.doc.graph().frames.get(index).map(|f| f.rect) else {
                     return;
                 };
-                io.doc.checkpoint("Resize frame");
+                io.doc.checkpoint(&tr("undo-resize-frame"));
                 self.gesture = Gesture::ResizeFrame {
                     index,
                     start,
@@ -337,7 +337,7 @@ impl Canvas {
                     self.gesture = Gesture::Cut {
                         points: vec![origin],
                     };
-                    self.hint = Some("Drag across wires to cut them".into());
+                    self.hint = Some(tr("hint-cut-wires"));
                 } else {
                     self.gesture = Gesture::BoxSelect {
                         origin: t.to_canvas(origin),
@@ -378,7 +378,7 @@ impl Canvas {
                 }
             })
             .collect();
-        io.doc.checkpoint("Move");
+        io.doc.checkpoint(&tr("undo-move"));
         self.gesture = Gesture::Move {
             ids,
             starts,
@@ -545,8 +545,16 @@ impl Canvas {
         }
         io.doc.move_nodes(&moves);
 
-        // Dropping one unwired node onto a wire splices it in.
+        // Dropping one unwired node onto a wire splices it in. Moved with
+        // the arrows, it's the card's middle that has to be on the wire.
         *insert = None;
+        let probe = match (self.grab_keys, ids.first(), moves.first()) {
+            (true, Some(id), Some((_, p))) => {
+                let size = scene.node(*id).map_or(egui::Vec2::ZERO, |n| n.rect.size());
+                t.to_screen(pos2(p[0], p[1]) + size / 2.0)
+            }
+            _ => pointer,
+        };
         if ids.len() == 1 && !edit::is_virtual(ids[0]) {
             let id = ids[0];
             let graph = io.doc.display_graph();
@@ -562,7 +570,7 @@ impl Canvas {
                         t.to_screen(w.to),
                         self.view.zoom,
                     );
-                    let dist = super::wires::distance(&super::wires::flatten(&c), pointer);
+                    let dist = super::wires::distance(&super::wires::flatten(&c), probe);
                     if dist < 14.0 && best.as_ref().is_none_or(|b| dist < b.0) {
                         best = Some((dist, w.wire.clone()));
                     }
@@ -576,17 +584,19 @@ impl Canvas {
         }
     }
 
-    fn finish_move(&mut self, io: &mut CanvasIo) {
+    pub(super) fn finish_move(&mut self, io: &mut CanvasIo) {
         let Gesture::Move { ids, insert, .. } = std::mem::replace(&mut self.gesture, Gesture::Idle)
         else {
             return;
         };
+        self.grab_keys = false;
         self.hint = None;
         if let Some(w) = insert {
             let id = ids[0];
-            io.doc.edit(io.registry, "Insert on wire", |g, ctx| {
-                edit::insert_on_wire(g, ctx, id, &w);
-            });
+            io.doc
+                .edit(io.registry, &tr("undo-insert-on-wire"), |g, ctx| {
+                    edit::insert_on_wire(g, ctx, id, &w);
+                });
         } else {
             io.doc.drop_noop_step();
         }
@@ -641,7 +651,7 @@ impl Canvas {
                     .map(|w| w.wire.clone())
                     .collect();
                 if !cut.is_empty() {
-                    io.doc.edit(io.registry, "Cut wires", |g, _| {
+                    io.doc.edit(io.registry, &tr("undo-cut-wires"), |g, _| {
                         g.wires.retain(|w| !cut.contains(w));
                     });
                 }
@@ -663,7 +673,7 @@ impl Canvas {
                     })
                     .collect();
                 if !crossings.is_empty() {
-                    let new = io.doc.edit(io.registry, "Add reroute", |g, ctx| {
+                    let new = io.doc.edit(io.registry, &tr("undo-add-reroute"), |g, ctx| {
                         edit::add_reroutes(g, ctx, &crossings)
                     });
                     self.mark_born(&new, now);
@@ -711,7 +721,7 @@ impl Canvas {
                     _ => return,
                 };
                 let mut error = None;
-                io.doc.edit(io.registry, "Connect", |g, ctx| {
+                io.doc.edit(io.registry, &tr("undo-connect"), |g, ctx| {
                     let at = detached
                         .as_ref()
                         .and_then(|d| g.wires.iter().position(|w| w == d));
@@ -731,7 +741,7 @@ impl Canvas {
             }
             None => {
                 if let Some(d) = detached {
-                    io.doc.edit(io.registry, "Disconnect", |g, _| {
+                    io.doc.edit(io.registry, &tr("undo-disconnect"), |g, _| {
                         g.wires.retain(|w| *w != d);
                     });
                 } else if !self.screen.contains(pointer) {
@@ -751,7 +761,7 @@ impl Canvas {
         }
     }
 
-    fn click(
+    pub(super) fn click(
         &mut self,
         io: &mut CanvasIo,
         scene: &Scene,
@@ -837,7 +847,7 @@ impl Canvas {
                 }
             }
             Hit::Collapse { node } => {
-                io.doc.edit(io.registry, "Collapse", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-collapse"), |g, _| {
                     if let Some(n) = g.node_mut(node) {
                         n.ui.collapsed = !n.ui.collapsed;
                     }

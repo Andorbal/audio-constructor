@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use ac_core::{Graph, GroupDef, GroupId, IdGen, NodeId, NodePath, Project, Registry, Value};
 
 use crate::edit::{self, Ctx, Interface};
+use crate::i18n::tr;
 use crate::undo::{History, Snapshot};
 
 /// One level of group nesting: the definition being edited and the instance
@@ -82,7 +83,7 @@ impl Document {
             .as_ref()
             .and_then(|p| p.file_stem())
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "Untitled".to_string())
+            .unwrap_or_else(|| tr("document-untitled"))
     }
 
     // ------------------------------------------------------------ scope
@@ -364,7 +365,7 @@ impl Document {
         let Some(def) = self.current_def().cloned() else {
             return;
         };
-        let before = self.snapshot("Rename group socket");
+        let before = self.snapshot(&tr("undo-rename-group-socket"));
         let renamed = edit::edit_scope(
             &mut self.project,
             Some(&def),
@@ -403,7 +404,7 @@ impl Document {
     /// Change project settings from a widget that reports changes every
     /// frame while dragged: one undo step per widget and gesture.
     pub fn edit_settings(&mut self, key: &str, now: f64, f: impl FnOnce(&mut Project)) {
-        self.checkpoint_coalesced("Change project settings", key, now);
+        self.checkpoint_coalesced(&tr("undo-change-project-settings"), key, now);
         f(&mut self.project);
         self.changed(true);
     }
@@ -427,7 +428,7 @@ impl Document {
             return;
         }
         let key = format!("binding:{index}:{field}");
-        self.checkpoint_coalesced("Change binding", &key, now);
+        self.checkpoint_coalesced(&tr("undo-change-binding"), &key, now);
         if let Some(slot) = self.project.bindings.get_mut(index) {
             *slot = b;
         }
@@ -467,7 +468,7 @@ impl Document {
             return false;
         }
         let key = format!("param:{:?}:{id}:{socket}", self.current_def());
-        self.checkpoint_coalesced("Change value", &key, now);
+        self.checkpoint_coalesced(&tr("undo-change-value"), &key, now);
         if let Some(n) = self.graph_mut_raw().node_mut(id) {
             n.params.insert(socket.to_string(), value);
         }
@@ -489,7 +490,7 @@ impl Document {
             return false;
         }
         let key = format!("param:{:?}:{id}:{socket}", self.current_def());
-        self.checkpoint_coalesced("Change text", &key, now);
+        self.checkpoint_coalesced(&tr("undo-change-text"), &key, now);
         if let Some(n) = self.graph_mut_raw().node_mut(id) {
             n.params.insert(socket.to_string(), value);
         }
@@ -512,7 +513,7 @@ impl Document {
         }
         let names: Vec<&str> = values.iter().map(|(s, _)| *s).collect();
         let key = format!("param:{:?}:{id}:{}", self.current_def(), names.join("+"));
-        self.checkpoint_coalesced("Change value", &key, now);
+        self.checkpoint_coalesced(&tr("undo-change-value"), &key, now);
         if let Some(n) = self.graph_mut_raw().node_mut(id) {
             for (s, v) in values {
                 n.params.insert(s.to_string(), v.clone());
@@ -541,7 +542,7 @@ impl Document {
             return false;
         }
         let k = format!("config:{:?}:{id}:{key}", self.current_def());
-        self.checkpoint_coalesced("Edit settings", &k, now);
+        self.checkpoint_coalesced(&tr("undo-edit-settings"), &k, now);
         if let Some(n) = self.graph_mut_raw().node_mut(id) {
             if !n.config.is_object() {
                 n.config = ac_core::empty_config();

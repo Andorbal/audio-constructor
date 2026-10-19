@@ -11,6 +11,7 @@ use ac_dsp::curve::{Curve, Point, Shape};
 use egui::{Align2, Pos2, Shape as Paint, Stroke, pos2};
 
 use super::{Edit, area, grid, load, store};
+use crate::i18n::tr;
 use crate::theme;
 
 const GRAPH_DEFAULT: &[(f64, f64)] = ac_nodes::generators::graph::DEFAULT_POINTS;
@@ -136,13 +137,15 @@ pub fn remove_point(points: &mut Vec<Point>, i: usize) -> bool {
 }
 
 /// The shapes offered for a segment, with their names.
-pub const SHAPES: &[(&str, Shape)] = &[
-    ("Straight", Shape::Linear),
-    ("Hold (step)", Shape::Step),
-    ("Smooth", Shape::Smooth),
-    ("Slow start", Shape::Bend(0.5)),
-    ("Fast start", Shape::Bend(-0.5)),
-];
+pub fn shapes() -> [(String, Shape); 5] {
+    [
+        (tr("editor-shape-straight"), Shape::Linear),
+        (tr("editor-shape-hold"), Shape::Step),
+        (tr("editor-shape-smooth"), Shape::Smooth),
+        (tr("editor-shape-slow-start"), Shape::Bend(0.5)),
+        (tr("editor-shape-fast-start"), Shape::Bend(-0.5)),
+    ]
+}
 
 #[derive(Clone, Copy)]
 struct Drag {
@@ -247,12 +250,12 @@ pub(super) fn ui(
     if let Some(MenuFor(i)) = load::<MenuFor>(ui, menu_id) {
         resp.context_menu(|ui| {
             if i + 1 < points.len() {
-                ui.label("Segment after this point");
-                for (name, shape) in SHAPES {
-                    let current = points.get(i).is_some_and(|p| p.shape == *shape);
-                    if ui.selectable_label(current, *name).clicked() {
+                ui.label(tr("editor-segment-after"));
+                for (name, shape) in shapes() {
+                    let current = points.get(i).is_some_and(|p| p.shape == shape);
+                    if ui.selectable_label(current, name).clicked() {
                         if let Some(p) = points.get_mut(i) {
-                            p.shape = *shape;
+                            p.shape = shape;
                         }
                         edit = Some(Edit {
                             value: to_value(&points),
@@ -264,7 +267,10 @@ pub(super) fn ui(
                 ui.separator();
             }
             if ui
-                .add_enabled(points.len() > MIN_POINTS, egui::Button::new("Remove point"))
+                .add_enabled(
+                    points.len() > MIN_POINTS,
+                    egui::Button::new(tr("editor-remove-point")),
+                )
                 .clicked()
             {
                 remove_point(&mut points, i);

@@ -360,7 +360,11 @@ fn the_transport_preset_adds_three_gamepad_buttons() {
             TransportAction::Record
         ]
     );
-    assert!(h.query_by_label_contains("Gamepad A (south)").is_some());
+    assert!(
+        h.query_all_by_label_contains("Gamepad A (south)")
+            .next()
+            .is_some()
+    );
     // Again: nothing new, and one undo removes all three.
     add_transport_buttons(&mut h);
     assert_eq!(h.state().document().project.bindings.len(), 3);

@@ -20,7 +20,7 @@ use ac_core::{
 };
 use egui::{Event, Key, Modifiers, Pos2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use serde_json::json;
 
 fn harness(project: Option<Project>) -> Harness<'static, EditorApp> {
@@ -745,7 +745,15 @@ fn blocks_packs_and_libraries_come_from_links() {
     assert!(h.query_by_label_contains("Shared Things  (2)").is_some());
     // The block already imported shows as installed; the other installs.
     assert!(h.query_by_label_contains("Installed").is_some());
-    h.get_by_label("Install").click();
+    // The Install button says which block it installs.
+    h.query_all_by_role(egui::accesskit::Role::Button)
+        .find(|n| {
+            n.accesskit_node()
+                .label()
+                .is_some_and(|l| l.starts_with("Install "))
+        })
+        .expect("an Install button")
+        .click();
     steps(&mut h, 2);
     wait_for(&mut h, "the install", |a| {
         a.online

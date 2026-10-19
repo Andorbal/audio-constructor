@@ -20,6 +20,36 @@ pub fn default_library_dir() -> Option<PathBuf> {
 }
 
 /// The directory a project file's relative paths resolve against.
+/// Show `dir` in the system's file manager, making it first if it doesn't
+/// exist yet (View ▸ Theme ▸ Open Themes Folder).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn open_folder(dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(opener)
+        .arg(dir)
+        .spawn()
+        .map_err(|e| format!("couldn't run {opener}: {e}"))?;
+    // The opener exits as soon as the file manager is up; waiting on it
+    // keeps it from lingering as a zombie process.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+/// The browser has no folders to show.
+#[cfg(target_arch = "wasm32")]
+pub fn open_folder(dir: &Path) -> Result<(), String> {
+    Err(format!("{} can't be shown here", dir.display()))
+}
+
 pub fn project_dir(path: &Path) -> PathBuf {
     match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),

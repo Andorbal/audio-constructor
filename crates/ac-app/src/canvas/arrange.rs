@@ -16,6 +16,7 @@ use super::view::View;
 use crate::document::Document;
 use crate::edit::align::Align;
 use crate::edit::{self, connect, layout};
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 
 impl Canvas {
@@ -53,9 +54,9 @@ impl Canvas {
         let set = if whole { graph.ids() } else { selected };
         if set.len() < 2 {
             return Err(if whole {
-                "Nothing to lay out yet: add a few nodes first".into()
+                tr("canvas-layout-nothing")
             } else {
-                "Select two or more nodes to lay out (or none, for the whole graph)".into()
+                tr("canvas-layout-select")
             });
         }
         let cards: Vec<layout::Card> = graph
@@ -122,7 +123,7 @@ impl Canvas {
                 Some((n.id, if d.is_finite() { d } else { fallback }))
             })
             .collect();
-        doc.checkpoint("Auto-layout");
+        doc.checkpoint(&tr("undo-auto-layout"));
         let g = doc.graph_mut_raw();
         for (id, min) in &arranged.cards {
             let d = offsets
@@ -163,14 +164,14 @@ impl Canvas {
             .collect();
         if ids.len() < how.needs() {
             return Err(if how.distributes() {
-                "Select three or more nodes to distribute".into()
+                tr("canvas-distribute-select")
             } else {
-                "Select two or more nodes to align".into()
+                tr("canvas-align-select")
             });
         }
         let rects = self.node_rects(doc, registry, &ids);
         let moves = edit::align::moves(&rects, how);
-        doc.checkpoint(how.undo_label());
+        doc.checkpoint(&how.undo_label());
         let g = doc.graph_mut_raw();
         let mut moved = 0;
         for (id, d) in &moves {
@@ -200,17 +201,17 @@ impl Canvas {
             .filter(|i| !edit::is_virtual(*i))
             .collect();
         let [a, b] = ids[..] else {
-            return Err("Select two nodes to connect them (F)".into());
+            return Err(tr("canvas-connect-select"));
         };
         let scene = self.build(doc, registry);
         let (Some(na), Some(nb)) = (scene.node(a), scene.node(b)) else {
-            return Err("Select two nodes to connect them (F)".into());
+            return Err(tr("canvas-connect-select"));
         };
         if [na, nb]
             .iter()
             .any(|n| matches!(n.class, Class::Missing(_)))
         {
-            return Err("Can't wire a missing node".into());
+            return Err(tr("canvas-connect-missing"));
         }
         let a_first = na
             .rect
@@ -255,28 +256,35 @@ impl Canvas {
                     .map(|p| (right, left, p))
             });
         let Some((from, to, (output, input))) = pick else {
-            return Err(format!(
-                "Nothing to connect: no free input of {} takes an output of {}, or the other way \
-                 round without making a loop",
-                right.title, left.title
+            return Err(tr_args(
+                "canvas-connect-nothing",
+                &[
+                    ("right", (&right.title).into()),
+                    ("left", (&left.title).into()),
+                ],
             ));
         };
-        let said = format!(
-            "Connected {} {} → {} {}",
-            from.title,
-            super::paint::pretty(&output),
-            to.title,
-            super::paint::pretty(&input)
+        let said = tr_args(
+            "canvas-connected",
+            &[
+                ("from", (&from.title).into()),
+                ("output", super::paint::pretty(&output).into()),
+                ("to", (&to.title).into()),
+                ("input", super::paint::pretty(&input).into()),
+            ],
         );
         let (from, to) = (Endpoint::new(from.id, output), Endpoint::new(to.id, input));
         let mut error = None;
-        doc.edit(registry, "Connect", |g, ctx| {
+        doc.edit(registry, &tr("undo-connect"), |g, ctx| {
             if let Err(e) = edit::connect(g, ctx, from, to) {
                 error = Some(e);
             }
         });
         match error {
-            Some(e) => Err(format!("Couldn't connect: {e}")),
+            Some(e) => Err(tr_args(
+                "canvas-couldnt-connect",
+                &[("error", e.to_string().into())],
+            )),
             None => Ok(said),
         }
     }

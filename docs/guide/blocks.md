@@ -24,8 +24,8 @@ section:
   the view; right-click it for **Add to canvas**, **Export block
   file…**, and **Remove from library**.
 
-A block on the canvas is a group: press `Tab` to look inside, see how it's
-built, and change it. Instrument blocks (the ones with a Voice node
+A block on the canvas is a group: double-click it to look inside, see how
+it's built, and change it. Instrument blocks (the ones with a Voice node
 inside) come in as [Voices](building-sounds.md#polyphony-with-voices)
 nodes, ready to play chords.
 

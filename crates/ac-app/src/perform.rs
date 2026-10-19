@@ -21,7 +21,10 @@ use crate::canvas::piano;
 use crate::canvas::scene::{self, Body, NodeView};
 use crate::document::Document;
 use crate::edit::pins;
+use crate::i18n::{tr, tr_args};
 use crate::{icons, theme};
+
+mod access;
 
 /// Narrowest grid cell (points); the grid fits as many columns as the
 /// width takes. Performance mode uses bigger cells, for touch.
@@ -138,6 +141,8 @@ pub struct PerformView {
     scroll: f32,
     /// The cards drawn last frame (tests read these).
     pub cells: Vec<Cell>,
+    /// The Button that Space is holding down (access.rs).
+    key_hold: Option<NodeId>,
 }
 
 impl PerformView {
@@ -157,6 +162,7 @@ impl PerformView {
         self.rename = None;
         self.scroll = 0.0;
         self.cells.clear();
+        self.key_hold = None;
     }
 
     /// Escape: close a popup or a field, or let go of a control. Returns
@@ -275,7 +281,7 @@ impl PerformView {
                         FieldResult::Cancel => {}
                         FieldResult::Commit => {
                             let text = r.text.clone();
-                            io.doc.edit_panels("Rename panel", |p, _| {
+                            io.doc.edit_panels(&tr("undo-rename-panel"), |p, _| {
                                 pins::rename_panel(p, i, &text);
                             });
                         }
@@ -298,7 +304,8 @@ impl PerformView {
                         .frame_when_inactive(false)
                         .min_size(vec2(0.0, 26.0)),
                 )
-                .on_hover_text("Double-click to rename · right-click for more");
+                .on_hover_text(tr("perform-tab-tip"));
+            tab.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, true, selected, &name));
             if tab.clicked() {
                 self.current = i;
             }
@@ -306,33 +313,46 @@ impl PerformView {
                 self.start_rename(i, &name);
             }
             tab.context_menu(|ui| {
-                if ui.button(format!("{}  Rename", icons::PENCIL)).clicked() {
+                if icons::spoken(ui.button(format!("{}  {}", icons::PENCIL, tr("perform-rename"))))
+                    .clicked()
+                {
                     self.start_rename(i, &name);
                     ui.close();
                 }
-                let left = ui.add_enabled(
+                let left = icons::spoken(ui.add_enabled(
                     i > 0,
-                    egui::Button::new(format!("{}  Move Left", icons::ARROW_LEFT)),
-                );
+                    egui::Button::new(format!(
+                        "{}  {}",
+                        icons::ARROW_LEFT,
+                        tr("perform-move-left")
+                    )),
+                ));
                 if left.clicked() {
                     self.move_panel(io, i, i - 1);
                     ui.close();
                 }
-                let right = ui.add_enabled(
+                let right = icons::spoken(ui.add_enabled(
                     i + 1 < n,
-                    egui::Button::new(format!("{}  Move Right", icons::CARET_RIGHT)),
-                );
+                    egui::Button::new(format!(
+                        "{}  {}",
+                        icons::CARET_RIGHT,
+                        tr("perform-move-right")
+                    )),
+                ));
                 if right.clicked() {
                     self.move_panel(io, i, i + 1);
                     ui.close();
                 }
                 ui.separator();
-                if ui
-                    .button(format!("{}  Delete Panel", icons::TRASH))
-                    .on_hover_text("The nodes stay in the patch; Ctrl+Z brings the panel back")
-                    .clicked()
+                if icons::spoken(ui.button(format!(
+                    "{}  {}",
+                    icons::TRASH,
+                    tr("perform-delete-panel")
+                )))
+                .on_hover_text(tr("perform-delete-panel-tip"))
+                .clicked()
                 {
-                    io.doc.edit_panels("Delete panel", |p, _| {
+                    io.doc.edit_panels(&tr("undo-delete-panel"), |p, _| {
                         pins::remove_panel(p, i);
                     });
                     if self.current >= i && self.current > 0 {
@@ -343,13 +363,13 @@ impl PerformView {
                 }
             });
         }
-        let add = ui
-            .add(
-                egui::Button::new(RichText::new(icons::PLUS).size(15.0)).frame_when_inactive(false),
-            )
-            .on_hover_text("New panel");
+        let add = icons::spoken(ui.add(
+            egui::Button::new(RichText::new(icons::PLUS).size(15.0)).frame_when_inactive(false),
+        ))
+        .on_hover_text(tr("perform-new-panel"))
+        .accessible_name(tr("perform-new-panel"));
         if add.clicked() {
-            let (i, name) = io.doc.edit_panels("New panel", |p, _| {
+            let (i, name) = io.doc.edit_panels(&tr("undo-new-panel"), |p, _| {
                 let i = pins::add_panel(p, "");
                 (i, p.get(i).map_or(String::new(), |x| x.name.clone()))
             });
@@ -357,17 +377,17 @@ impl PerformView {
             self.start_rename(i, &name);
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let perform = ui
-                .add(egui::Button::new(format!(
-                    "{}  Perform",
-                    icons::CORNERS_OUT
-                )))
-                .on_hover_text("Show this panel full screen (F11; Esc leaves)");
+            let perform = icons::spoken(ui.add(egui::Button::new(format!(
+                "{}  {}",
+                icons::CORNERS_OUT,
+                tr("perform-perform")
+            ))))
+            .on_hover_text(tr("perform-perform-tip"));
             if perform.clicked() {
                 self.set_fullscreen(ui.ctx(), true);
             }
             ui.label(
-                RichText::new("P on the canvas pins the selected controls · Ctrl+Tab: canvas")
+                RichText::new(tr("perform-hint"))
                     .small()
                     .color(theme::text_faint()),
             );
@@ -385,7 +405,7 @@ impl PerformView {
     fn move_panel(&mut self, io: &mut CanvasIo, from: usize, to: usize) {
         let moved = io
             .doc
-            .edit_panels("Move panel", |p, _| pins::move_panel(p, from, to));
+            .edit_panels(&tr("undo-move-panel"), |p, _| pins::move_panel(p, from, to));
         if moved && self.current == from {
             self.current = to;
         } else if moved && self.current == to {
@@ -427,19 +447,29 @@ impl PerformView {
                 )
                 // With Play keys on, Space goes to the patch.
                 .on_hover_text(match (playing, play_keys) {
-                    (true, false) => "Stop (Space)",
-                    (false, false) => "Play (Space)",
-                    (true, true) => "Stop",
-                    (false, true) => "Play",
+                    (true, false) => tr("transport-stop-tip"),
+                    (false, false) => tr("perform-play-tip"),
+                    (true, true) => tr("transport-stop"),
+                    (false, true) => tr("transport-play"),
+                })
+                .accessible_name(if playing {
+                    tr("transport-stop")
+                } else {
+                    tr("transport-play")
                 });
             if play.clicked() {
                 actions.push(Action::PlayStop);
             }
+            let spoken = tr_args(
+                "transport-position",
+                &[("bars", (&bars).into()), ("time", (&time).into())],
+            );
             ui.label(
                 RichText::new(bars)
                     .font(theme::mono_font(20.0))
                     .color(theme::text_strong()),
-            );
+            )
+            .accessible_name(spoken);
             ui.label(
                 RichText::new(time)
                     .font(theme::mono_font(theme::FONT_UI))
@@ -453,26 +483,31 @@ impl PerformView {
                         .selected(selected)
                         .frame_when_inactive(false)
                         .min_size(vec2(0.0, 32.0));
-                    if ui.add(b).clicked() {
+                    let r = ui.add(b);
+                    r.widget_info(|| {
+                        egui::WidgetInfo::selected(egui::Role::Tab, true, selected, &p.name)
+                    });
+                    if r.clicked() {
                         self.current = i;
                     }
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let exit = ui
-                    .add(
+                let exit = icons::spoken(
+                    ui.add(
                         egui::Button::new(
-                            RichText::new(format!("{}  Exit", icons::CORNERS_IN))
+                            RichText::new(format!("{}  {}", icons::CORNERS_IN, tr("perform-exit")))
                                 .size(theme::FONT_UI),
                         )
                         .min_size(vec2(0.0, 32.0)),
-                    )
-                    .on_hover_text("Leave performance mode (Esc or F11)");
+                    ),
+                )
+                .on_hover_text(tr("perform-exit-tip"));
                 if exit.clicked() {
                     actions.push(Action::PerformanceMode);
                 }
-                let keys = ui
-                    .add(
+                let keys = icons::spoken(
+                    ui.add(
                         egui::Button::new(RichText::new(icons::KEYBOARD).size(20.0).color(
                             if play_keys {
                                 theme::accent()
@@ -482,12 +517,14 @@ impl PerformView {
                         ))
                         .selected(play_keys)
                         .min_size(vec2(40.0, 32.0)),
-                    )
-                    .on_hover_text(if play_keys {
-                        "Play keys is on: computer keys go to the patch"
-                    } else {
-                        "Play keys: send computer keys to the patch"
-                    });
+                    ),
+                )
+                .on_hover_text(if play_keys {
+                    tr("perform-play-keys-on")
+                } else {
+                    tr("perform-play-keys-off")
+                })
+                .accessible_name(tr("transport-play-keys"));
                 if keys.clicked() {
                     actions.push(Action::PlayKeys);
                 }
@@ -504,6 +541,7 @@ impl PerformView {
             egui::Id::unique("panel-grid"),
             Sense::click_and_drag(),
         );
+        self.name_grid(io, &response);
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 0.0, theme::canvas_bg());
         let dt = self.live.begin_frame(now);
@@ -515,9 +553,8 @@ impl PerformView {
             empty_state(
                 &painter,
                 rect,
-                "No panels yet",
-                "Select sliders, buttons, meters, or other controls on the canvas and press P \
-                 to pin them to a panel.",
+                &tr("perform-no-panels"),
+                &tr("perform-no-panels-hint"),
             );
             return;
         };
@@ -533,9 +570,8 @@ impl PerformView {
             empty_state(
                 &painter,
                 rect,
-                &format!("Nothing pinned to {} yet", panel.name),
-                "Select controls or displays on the canvas (sliders, knobs, buttons, the \
-                 keyboard, meters, scopes) and press P, or right-click one and pin it here.",
+                &tr_args("perform-nothing-pinned", &[("panel", (&panel.name).into())]),
+                &tr("perform-nothing-pinned-hint"),
             );
         }
 
@@ -596,8 +632,9 @@ impl PerformView {
             {
                 let (a, b) = (a.item, b.item);
                 let panel = self.current;
-                io.doc
-                    .edit_panels("Move on panel", |p, _| pins::move_item(p, panel, a, b));
+                io.doc.edit_panels(&tr("undo-move-on-panel"), |p, _| {
+                    pins::move_item(p, panel, a, b)
+                });
             }
         }
         if response.clicked()
@@ -685,6 +722,8 @@ impl PerformView {
             );
         }
 
+        self.accessibility(ui, io, &scene, &live, now);
+
         // Popups and fields over the grid.
         if let Some((node, at)) = self.choice {
             let close = match scene.node(node) {
@@ -756,7 +795,7 @@ impl PerformView {
             }
             PanelHit::Unpin(_) => {
                 let k = c.item;
-                io.doc.edit_panels("Unpin", |p, _| {
+                io.doc.edit_panels(&tr("undo-unpin"), |p, _| {
                     if let Some(pl) = p.get_mut(panel)
                         && k < pl.items.len()
                     {
@@ -774,7 +813,7 @@ impl PerformView {
                     .graph
                     .node(c.node)
                     .map_or([1, 1], |inst| natural_span(io.registry, inst));
-                io.doc.edit_panels("Resize on panel", |p, _| {
+                io.doc.edit_panels(&tr("undo-resize-on-panel"), |p, _| {
                     let Some(it) = p.get(panel).and_then(|pl| pl.items.get(k)) else {
                         return;
                     };
@@ -1034,7 +1073,7 @@ fn paint_card(
         Stroke::new(1.0, theme::fade(theme::node_outline(), alpha))
     };
     painter.rect_stroke(c.rect, radius, outline, StrokeKind::Outside);
-    let title = n.map_or_else(|| "Missing node".to_string(), |n| n.title.clone());
+    let title = n.map_or_else(|| tr("perform-missing-node"), |n| n.title.clone());
     let right = c.buttons.map_or(c.header.max.x - 8.0, |b| b[0].min.x - 4.0);
     let mut job = egui::text::LayoutJob::single_section(
         title,
@@ -1082,7 +1121,7 @@ fn paint_card(
         painter.text(
             c.rect.center() + vec2(0.0, HEADER / 2.0),
             Align2::CENTER_CENTER,
-            "no widget to show",
+            tr("perform-no-widget"),
             theme::ui_font(theme::FONT_SMALL),
             theme::text_muted(),
         );

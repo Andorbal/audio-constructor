@@ -73,7 +73,7 @@
         "id": "4",
         "kind": "comment",
         "config": {
-          "text": "Tab into the Drum Machine (or double-click it) to see the Pattern and the four synthesized drums. Select the Pattern and click its cells in the Node tab to change the beat. Step 0.5 plays it at half speed."
+          "text": "Double-click the Drum Machine (or select it and press Ctrl+Enter) to see the Pattern and the four synthesized drums. Select the Pattern and click its cells in the Node tab to change the beat. Step 0.5 plays it at half speed."
         },
         "ui": {
           "pos": [

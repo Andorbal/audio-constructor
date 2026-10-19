@@ -295,7 +295,7 @@ fn portals_rename_and_paste_inside_groups() {
     // Group everything and go inside: the portal still works there.
     press(&mut h, Modifiers::NONE, Key::A);
     press(&mut h, Modifiers::COMMAND, Key::G);
-    press(&mut h, Modifiers::NONE, Key::Tab);
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
     assert_eq!(h.state().document().scope.len(), 1);
     let (senders, receivers) = tags(&h);
     let (s, r) = (senders[0], receivers[0]);

@@ -54,6 +54,13 @@ serde_json.workspace = true
 # would link libwayland-client in builds without eframe (the plugin).
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
 directories.workspace = true
+# The editor's own text (menus, panels, messages) comes from Fluent
+# catalogs embedded in the binary (`src/i18n.rs`, `locales/`); all three
+# are MIT OR Apache-2.0. sys-locale finds the system's language (in the
+# browser it reports none without its `js` feature, and English shows).
+fluent-bundle = "0.16"
+unic-langid = "0.9"
+sys-locale = "0.3"
 # The plugin window: egui on baseview (MIT OR Apache-2.0), with the OpenGL
 # renderer (DECISIONS D125). It needs a logging facade to build; `log` is
 # the one plugin frameworks route to the host's log.
@@ -62,6 +69,8 @@ raw-window-handle = { version = "0.6", optional = true }
 
 [dev-dependencies]
 egui_kittest.workspace = true
+# Reads the catalogs' message ids in tests (the version fluent-bundle uses).
+fluent-syntax = "0.12"
 
 # Opens the plugin window adapter in a window of its own, with no host.
 [[example]]

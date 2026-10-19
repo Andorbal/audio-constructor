@@ -10,6 +10,7 @@ use super::scene::{Class, Scene};
 use super::{Canvas, CanvasEvent, CanvasIo, EditTarget, Hit, InlineEdit, widgets};
 use crate::actions::Action;
 use crate::edit::{self, GROUP_IN};
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -137,8 +138,8 @@ impl Canvas {
                         .color(theme::text_muted())
                         .small(),
                 );
-                if wired && item(ui, icons::LINK_BREAK, "Disconnect", None) {
-                    io.doc.edit(io.registry, "Disconnect", |g, _| {
+                if wired && item(ui, icons::LINK_BREAK, &tr("canvas-disconnect"), None) {
+                    io.doc.edit(io.registry, &tr("undo-disconnect"), |g, _| {
                         if *input {
                             g.disconnect_input(&ep);
                         } else {
@@ -147,7 +148,7 @@ impl Canvas {
                     });
                     return true;
                 }
-                if wired && !iface && item(ui, icons::CROSSHAIR, "Add Reroute", None) {
+                if wired && !iface && item(ui, icons::CROSSHAIR, &tr("canvas-add-reroute"), None) {
                     let w = if *input {
                         graph.wire_into(&ep).cloned()
                     } else {
@@ -160,7 +161,7 @@ impl Canvas {
                         && let Some(s) = scene.node(*node).and_then(|n| n.socket(name, *input))
                     {
                         let p = s.pos + vec2(if *input { -40.0 } else { 40.0 }, 0.0);
-                        let new = io.doc.edit(io.registry, "Add reroute", |g, ctx| {
+                        let new = io.doc.edit(io.registry, &tr("undo-add-reroute"), |g, ctx| {
                             edit::add_reroutes(g, ctx, &[(w, [p.x, p.y])])
                         });
                         self.mark_born(&new, now);
@@ -170,24 +171,32 @@ impl Canvas {
                 if io.doc.current_def().is_some() && !iface {
                     if *input
                         && !wired
-                        && item(ui, icons::ARROW_SQUARE_IN, "Expose as Group Input", None)
+                        && item(ui, icons::ARROW_SQUARE_IN, &tr("canvas-expose-input"), None)
                     {
-                        io.doc.edit(io.registry, "Expose input", |g, ctx| {
-                            edit::expose_input(g, ctx, &ep);
-                        });
+                        io.doc
+                            .edit(io.registry, &tr("undo-expose-input"), |g, ctx| {
+                                edit::expose_input(g, ctx, &ep);
+                            });
                         return true;
                     }
-                    if !*input && item(ui, icons::ARROW_SQUARE_OUT, "Expose as Group Output", None)
+                    if !*input
+                        && item(
+                            ui,
+                            icons::ARROW_SQUARE_OUT,
+                            &tr("canvas-expose-output"),
+                            None,
+                        )
                     {
-                        io.doc.edit(io.registry, "Expose output", |g, ctx| {
-                            edit::expose_output(g, ctx, &ep);
-                        });
+                        io.doc
+                            .edit(io.registry, &tr("undo-expose-output"), |g, ctx| {
+                                edit::expose_output(g, ctx, &ep);
+                            });
                         return true;
                     }
                 }
                 if iface && !name.is_empty() {
                     let input_side = *node == GROUP_IN;
-                    if item(ui, icons::PENCIL, "Rename Socket", None) {
+                    if item(ui, icons::PENCIL, &tr("canvas-rename-socket"), None) {
                         if let Some(s) = scene.node(*node).and_then(|n| n.socket(name, *input)) {
                             self.edit = Some(InlineEdit {
                                 target: EditTarget::Interface {
@@ -202,10 +211,11 @@ impl Canvas {
                         }
                         return true;
                     }
-                    if item(ui, icons::TRASH, "Remove from Group Interface", None) {
-                        io.doc.edit(io.registry, "Remove group socket", |g, ctx| {
-                            edit::remove_interface_socket(g, ctx, input_side, name);
-                        });
+                    if item(ui, icons::TRASH, &tr("canvas-remove-socket"), None) {
+                        io.doc
+                            .edit(io.registry, &tr("undo-remove-group-socket"), |g, ctx| {
+                                edit::remove_interface_socket(g, ctx, input_side, name);
+                            });
                         return true;
                     }
                 }
@@ -215,7 +225,7 @@ impl Canvas {
                         .and_then(|n| n.socket(name, true))
                         .and_then(|s| s.spec.as_ref())
                         .is_some_and(ac_core::binding::bindable);
-                    if bindable && !wired && item(ui, icons::LINK, "Bind…", None) {
+                    if bindable && !wired && item(ui, icons::LINK, &tr("canvas-bind"), None) {
                         io.events.push(CanvasEvent::Bind {
                             node: *node,
                             socket: name.clone(),
@@ -223,19 +233,26 @@ impl Canvas {
                         return true;
                     }
                     if io.bound_input(*node, name).is_some()
-                        && item(ui, icons::LINK_BREAK, "Remove Bindings", None)
+                        && item(ui, icons::LINK_BREAK, &tr("canvas-remove-bindings"), None)
                     {
                         let target = ac_core::Target::Input {
                             node: io.doc.node_path(*node),
                             socket: name.clone(),
                         };
-                        io.doc.edit_project("Remove bindings", |p| {
+                        io.doc.edit_project(&tr("undo-remove-bindings"), |p| {
                             p.bindings.retain(|b| b.target != target);
                         });
                         return true;
                     }
                 }
-                if !iface && item(ui, icons::BOOK_OPEN, "Node Help", Some(Action::NodeHelp)) {
+                if !iface
+                    && item(
+                        ui,
+                        icons::BOOK_OPEN,
+                        &Action::NodeHelp.label(),
+                        Some(Action::NodeHelp),
+                    )
+                {
                     io.events.push(CanvasEvent::ShowHelp(*node));
                     return true;
                 }
@@ -247,11 +264,11 @@ impl Canvas {
                 };
                 if matches!(n.class, Class::Interface { .. }) {
                     ui.label(
-                        RichText::new("Group interface")
+                        RichText::new(tr("canvas-group-interface"))
                             .color(theme::text_muted())
                             .small(),
                     );
-                    ui.label(RichText::new("Drag to its empty socket to add one;\nright-click a socket to rename or remove it.").small());
+                    ui.label(RichText::new(tr("canvas-group-interface-tip")).small());
                     return false;
                 }
                 if let Class::Portal(info) = &n.class {
@@ -259,7 +276,12 @@ impl Canvas {
                 }
                 ui.label(RichText::new(&n.title).color(theme::text_muted()).small());
                 if n.class == Class::Reroute
-                    && item(ui, icons::TAG, "Make Portal", Some(Action::Portal))
+                    && item(
+                        ui,
+                        icons::TAG,
+                        &tr("canvas-make-portal"),
+                        Some(Action::Portal),
+                    )
                 {
                     let r = self.portal_from_reroute(io, *node, now);
                     io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
@@ -269,7 +291,7 @@ impl Canvas {
                     && item(
                         ui,
                         icons::ARROW_SQUARE_IN,
-                        "Enter Group",
+                        &tr("canvas-enter-group"),
                         Some(Action::EnterLeaveGroup),
                     )
                 {
@@ -284,7 +306,7 @@ impl Canvas {
                     (icons::COPY, Action::Duplicate),
                     (icons::STACK, Action::Group),
                 ] {
-                    if item(ui, icon, a.label(), Some(a)) {
+                    if item(ui, icon, &a.label(), Some(a)) {
                         run(io, a);
                         return true;
                     }
@@ -293,14 +315,15 @@ impl Canvas {
                     && item(
                         ui,
                         icons::ARROW_SQUARE_OUT,
-                        "Ungroup",
+                        &Action::Ungroup.label(),
                         Some(Action::Ungroup),
                     )
                 {
                     run(io, Action::Ungroup);
                     return true;
                 }
-                if n.kind == "clip" && item(ui, icons::FILE_AUDIO, "Choose File…", None) {
+                if n.kind == "clip" && item(ui, icons::FILE_AUDIO, &tr("canvas-choose-file"), None)
+                {
                     io.events.push(CanvasEvent::ChooseClipFile(*node));
                     return true;
                 }
@@ -309,9 +332,12 @@ impl Canvas {
                 for socket in main {
                     let free = n.socket(socket, true).is_some_and(|s| !s.wired);
                     let label = if main.len() > 1 {
-                        format!("Bind {}…", socket.to_uppercase())
+                        tr_args(
+                            "canvas-bind-axis",
+                            &[("axis", socket.to_uppercase().into())],
+                        )
                     } else {
-                        "Bind…".to_string()
+                        tr("canvas-bind")
                     };
                     if free && item(ui, icons::LINK, &label, None) {
                         io.events.push(CanvasEvent::Bind {
@@ -333,7 +359,7 @@ impl Canvas {
                         && item(
                             ui,
                             icons::PLUGS_CONNECTED,
-                            Action::LazyConnect.label(),
+                            &Action::LazyConnect.label(),
                             Some(Action::LazyConnect),
                         )
                     {
@@ -343,7 +369,7 @@ impl Canvas {
                     if item(
                         ui,
                         icons::FLOW_ARROW,
-                        Action::AutoLayout.label(),
+                        &Action::AutoLayout.label(),
                         Some(Action::AutoLayout),
                     ) {
                         run(io, Action::AutoLayout);
@@ -354,7 +380,7 @@ impl Canvas {
                     if item(
                         ui,
                         icons::ALIGN_LEFT,
-                        Action::ArrangeMenu.label(),
+                        &Action::ArrangeMenu.label(),
                         Some(Action::ArrangeMenu),
                     ) {
                         if let Some((_, at)) = self.menu {
@@ -371,20 +397,25 @@ impl Canvas {
                     (icons::TRASH, Action::Delete),
                     (icons::SCISSORS, Action::DeleteReconnect),
                 ] {
-                    if item(ui, icon, a.label(), Some(a)) {
+                    if item(ui, icon, &a.label(), Some(a)) {
                         run(io, a);
                         return true;
                     }
                 }
                 ui.separator();
-                if item(ui, icons::BOOK_OPEN, "Node Help", Some(Action::NodeHelp)) {
+                if item(
+                    ui,
+                    icons::BOOK_OPEN,
+                    &Action::NodeHelp.label(),
+                    Some(Action::NodeHelp),
+                ) {
                     io.events.push(CanvasEvent::ShowHelp(*node));
                     return true;
                 }
                 false
             }
             Target::Frame(i) => {
-                if item(ui, icons::PENCIL, "Rename Frame", None) {
+                if item(ui, icons::PENCIL, &tr("canvas-rename-frame"), None) {
                     if let Some(f) = io.doc.graph().frames.get(*i) {
                         let r = super::frame_rect(f);
                         self.edit = Some(InlineEdit {
@@ -398,9 +429,9 @@ impl Canvas {
                     }
                     return true;
                 }
-                if item(ui, icons::TRASH, "Remove Frame (keep nodes)", None) {
+                if item(ui, icons::TRASH, &tr("canvas-remove-frame"), None) {
                     let i = *i;
-                    io.doc.edit(io.registry, "Remove frame", |g, _| {
+                    io.doc.edit(io.registry, &tr("undo-remove-frame"), |g, _| {
                         if i < g.frames.len() {
                             g.frames.remove(i);
                         }
@@ -410,22 +441,27 @@ impl Canvas {
                 false
             }
             Target::Wire(w, at) => {
-                if item(ui, icons::LINK_BREAK, "Disconnect", None) {
+                if item(ui, icons::LINK_BREAK, &tr("canvas-disconnect"), None) {
                     let w = w.clone();
-                    io.doc.edit(io.registry, "Disconnect", |g, _| {
+                    io.doc.edit(io.registry, &tr("undo-disconnect"), |g, _| {
                         g.wires.retain(|x| *x != w)
                     });
                     return true;
                 }
-                if item(ui, icons::CROSSHAIR, "Add Reroute Here", None) {
+                if item(ui, icons::CROSSHAIR, &tr("canvas-add-reroute-here"), None) {
                     let crossing = (w.clone(), [at.x, at.y]);
-                    let new = io.doc.edit(io.registry, "Add reroute", |g, ctx| {
+                    let new = io.doc.edit(io.registry, &tr("undo-add-reroute"), |g, ctx| {
                         edit::add_reroutes(g, ctx, &[crossing])
                     });
                     self.mark_born(&new, now);
                     return true;
                 }
-                if item(ui, icons::TAG, "Make Portal", Some(Action::Portal)) {
+                if item(
+                    ui,
+                    icons::TAG,
+                    &tr("canvas-make-portal"),
+                    Some(Action::Portal),
+                ) {
                     let r = self.portal_from_wire(io, w, now);
                     io.events.push(CanvasEvent::Status(r.unwrap_or_else(|e| e)));
                     return true;
@@ -434,7 +470,7 @@ impl Canvas {
             }
             Target::Arrange => {
                 ui.label(
-                    RichText::new("Arrange the selection")
+                    RichText::new(tr("canvas-arrange-selection"))
                         .color(theme::text_muted())
                         .small(),
                 );
@@ -442,7 +478,7 @@ impl Canvas {
                     if i == 1 || i == 7 {
                         ui.separator();
                     }
-                    if item(ui, icon, a.label(), Some(a)) {
+                    if item(ui, icon, &a.label(), Some(a)) {
                         run(io, a);
                         return true;
                     }
@@ -450,7 +486,12 @@ impl Canvas {
                 false
             }
             Target::Canvas(at) => {
-                if item(ui, icons::PLUS, "Add Node…", Some(Action::AddNode)) {
+                if item(
+                    ui,
+                    icons::PLUS,
+                    &Action::AddNode.label(),
+                    Some(Action::AddNode),
+                ) {
                     let screen = self.transform().to_screen(*at);
                     io.events.push(CanvasEvent::OpenPalette {
                         screen,
@@ -465,7 +506,7 @@ impl Canvas {
                     (icons::FRAME_CORNERS, Action::Frame),
                     (icons::CORNERS_OUT, Action::FitAll),
                 ] {
-                    if item(ui, icon, a.label(), Some(a)) {
+                    if item(ui, icon, &a.label(), Some(a)) {
                         run(io, a);
                         return true;
                     }
@@ -474,7 +515,7 @@ impl Canvas {
                     && item(
                         ui,
                         icons::ARROW_LEFT,
-                        "Leave Group",
+                        &tr("canvas-leave-group"),
                         Some(Action::EnterLeaveGroup),
                     )
                 {
@@ -497,17 +538,24 @@ impl Canvas {
         now: f64,
     ) -> bool {
         let _ = now;
-        let role = if info.send { "sender" } else { "receiver" };
+        let role = if info.send {
+            tr("canvas-portal-sender")
+        } else {
+            tr("canvas-portal-receiver")
+        };
         ui.label(
-            RichText::new(format!("Portal “{}” · {role}", info.name))
-                .color(theme::text_muted())
-                .small(),
+            RichText::new(tr_args(
+                "canvas-portal-title",
+                &[("name", (&info.name).into()), ("role", role.into())],
+            ))
+            .color(theme::text_muted())
+            .small(),
         );
         let jump = match (info.send, info.partners.len()) {
             (_, 0) => None,
-            (true, 1) => Some("Jump to Receiver".to_string()),
-            (true, n) => Some(format!("Jump to Next Receiver (of {n})")),
-            (false, _) => Some("Jump to Sender".to_string()),
+            (true, 1) => Some(tr("canvas-jump-receiver")),
+            (true, n) => Some(tr_args("canvas-jump-next-receiver", &[("count", n.into())])),
+            (false, _) => Some(tr("canvas-jump-sender")),
         };
         if let Some(label) = jump
             && item(ui, icons::ARROW_SQUARE_OUT, &label, None)
@@ -516,11 +564,11 @@ impl Canvas {
             return true;
         }
         for (icon, a, label) in [
-            (icons::PENCIL, Action::Rename, "Rename Portal"),
-            (icons::LINK, Action::Portal, "Back to Wire"),
-            (icons::COPY, Action::Duplicate, "Duplicate"),
+            (icons::PENCIL, Action::Rename, tr("canvas-rename-portal")),
+            (icons::LINK, Action::Portal, tr("canvas-back-to-wire")),
+            (icons::COPY, Action::Duplicate, Action::Duplicate.label()),
         ] {
-            if item(ui, icon, label, Some(a)) {
+            if item(ui, icon, &label, Some(a)) {
                 io.events.push(CanvasEvent::Run(a));
                 return true;
             }
@@ -529,7 +577,7 @@ impl Canvas {
         if item(
             ui,
             icons::TRASH,
-            Action::Delete.label(),
+            &Action::Delete.label(),
             Some(Action::Delete),
         ) {
             io.events.push(CanvasEvent::Run(Action::Delete));
@@ -577,7 +625,7 @@ impl Canvas {
                     .graph()
                     .node(node)
                     .and_then(|n| io.registry.get(&n.kind).map(|en| en.meta.name.to_string()));
-                io.doc.edit(io.registry, "Rename", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-rename"), |g, _| {
                     if let Some(n) = g.node_mut(node) {
                         n.ui.label =
                             (!text.is_empty() && Some(&text) != default.as_ref()).then_some(text);
@@ -586,14 +634,14 @@ impl Canvas {
             }
             EditTarget::Portal(node) => {
                 let (node, text) = (*node, e.text.clone());
-                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-rename-portal"), |g, _| {
                     edit::portal::rename(g, node, &text);
                 });
             }
             EditTarget::Comment(node) => {
                 let text = e.text.clone();
                 let node = *node;
-                io.doc.edit(io.registry, "Edit note", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-edit-note"), |g, _| {
                     if let Some(n) = g.node_mut(node) {
                         if !n.config.is_object() {
                             n.config = ac_core::empty_config();
@@ -606,7 +654,7 @@ impl Canvas {
             }
             EditTarget::Frame(i) => {
                 let (i, text) = (*i, e.text.trim().to_string());
-                io.doc.edit(io.registry, "Rename frame", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-rename-frame"), |g, _| {
                     if let Some(f) = g.frames.get_mut(i)
                         && !text.is_empty()
                     {
@@ -667,7 +715,7 @@ impl Canvas {
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new(if s.is_new_slot() {
-                        "new socket".to_string()
+                        tr("canvas-new-socket")
                     } else {
                         super::paint::pretty(&s.name)
                     })
@@ -684,32 +732,41 @@ impl Canvas {
             let mut facts = Vec::new();
             if input {
                 facts.push(if s.wired {
-                    "wired".to_string()
+                    tr("canvas-tip-wired")
                 } else {
-                    "unwired: set inline (Const rate)".to_string()
+                    tr("canvas-tip-unwired")
                 });
             } else if let Some(spec) = &s.spec {
                 facts.push(match spec.rate {
-                    ac_core::OutRate::Fixed(r) => format!("{r:?} rate").to_lowercase(),
-                    ac_core::OutRate::Poly => "rate follows inputs".to_string(),
+                    ac_core::OutRate::Fixed(r) => tr_args(
+                        "canvas-tip-rate",
+                        &[("rate", format!("{r:?}").to_lowercase().into())],
+                    ),
+                    ac_core::OutRate::Poly => tr("canvas-tip-rate-follows"),
                 });
             }
             if let Some(spec) = &s.spec
                 && s.ty == SignalType::Audio
             {
                 facts.push(match spec.channels {
-                    ac_core::Channels::Fixed(n) => format!("{n} ch"),
-                    ac_core::Channels::Follow => "channels follow input".into(),
-                    ac_core::Channels::UpTo(n) => format!("up to {n} ch"),
+                    ac_core::Channels::Fixed(n) => {
+                        tr_args("canvas-tip-channels", &[("count", n.into())])
+                    }
+                    ac_core::Channels::Follow => tr("canvas-tip-channels-follow"),
+                    ac_core::Channels::UpTo(n) => {
+                        tr_args("canvas-tip-channels-up-to", &[("count", n.into())])
+                    }
                 });
             }
             if let Some(spec) = &s.spec
                 && let Some((a, b)) = spec.range
             {
-                facts.push(format!(
-                    "range {} – {}",
-                    widgets::format(a, spec),
-                    widgets::format(b, spec)
+                facts.push(tr_args(
+                    "canvas-tip-range",
+                    &[
+                        ("from", widgets::format(a, spec).into()),
+                        ("to", widgets::format(b, spec).into()),
+                    ],
                 ));
             }
             if !facts.is_empty() {
@@ -725,14 +782,17 @@ impl Canvas {
                 let text = match s.ty {
                     SignalType::Audio => level.map(|l| {
                         if l < 1e-6 {
-                            "silent".to_string()
+                            tr("canvas-tip-silent")
                         } else {
-                            format!("peak {:.1} dBFS", 20.0 * l.log10())
+                            tr_args(
+                                "canvas-tip-peak",
+                                &[("db", format!("{:.1}", 20.0 * l.log10()).into())],
+                            )
                         }
                     }),
                     SignalType::Trigger | SignalType::Midi => tele
                         .socket_events(path, sock)
-                        .map(|c| format!("{c} events")),
+                        .map(|c| tr_args("canvas-tip-events", &[("count", c.into())])),
                     SignalType::Text => None,
                     ty => value.map(|v| widgets::live_text(v, ty, s.spec.as_ref())),
                 };
@@ -754,9 +814,9 @@ impl Canvas {
                     }
                     widgets::Field::Check => {
                         if widgets::value(node, spec).as_bool().unwrap_or(false) {
-                            "on".into()
+                            tr("canvas-tip-on")
                         } else {
-                            "off".into()
+                            tr("canvas-tip-off")
                         }
                     }
                     widgets::Field::Text => widgets::text(node, spec),
@@ -774,7 +834,7 @@ impl Canvas {
                 ui.label(RichText::new(doc).color(theme::text()));
             }
             if s.is_new_slot() {
-                ui.label("Drop a wire here to add a socket to the group's interface.");
+                ui.label(tr("canvas-tip-new-socket"));
             }
         });
     }
@@ -791,8 +851,9 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
     if !io.doc.scope.is_empty() {
         ui.label(
             RichText::new(format!(
-                "{}  Pin to Panel: top-level nodes only",
-                icons::PUSH_PIN
+                "{}  {}",
+                icons::PUSH_PIN,
+                tr("canvas-pin-top-level-only")
             ))
             .small()
             .color(theme::text_faint()),
@@ -823,12 +884,19 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
         panel,
     };
     for (i, name, on) in &panels {
-        if !on && item(ui, icons::PUSH_PIN, &format!("Pin to {name}"), None) {
+        if !on
+            && item(
+                ui,
+                icons::PUSH_PIN,
+                &tr_args("canvas-pin-to", &[("panel", name.into())]),
+                None,
+            )
+        {
             io.events.push(CanvasEvent::Pin(pin(Some(*i))));
             return true;
         }
     }
-    if item(ui, icons::PUSH_PIN, "Pin to New Panel", None) {
+    if item(ui, icons::PUSH_PIN, &tr("canvas-pin-to-new"), None) {
         io.events.push(CanvasEvent::Pin(pin(None)));
         return true;
     }
@@ -837,7 +905,7 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
             && item(
                 ui,
                 icons::PUSH_PIN_SLASH,
-                &format!("Unpin from {name}"),
+                &tr_args("canvas-unpin-from", &[("panel", name.into())]),
                 None,
             )
         {

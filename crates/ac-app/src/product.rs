@@ -26,6 +26,7 @@ use ac_io::crash::{self, Saved};
 use ac_io::update::{self, Check, Release, Version};
 use egui::RichText;
 
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::settings::{AppSettings, UpdateChecks};
 use crate::theme;
@@ -78,6 +79,9 @@ pub struct Product {
     show_report: bool,
     /// The last link opened (tests read it; opening goes through egui).
     opened: Option<String>,
+    /// A window just appeared: its first button takes the keyboard, so it
+    /// can be answered without the pointer (and a screen reader reads it).
+    want_focus: bool,
 }
 
 fn now() -> u64 {
@@ -98,6 +102,7 @@ impl Product {
             crash: None,
             show_report: false,
             opened: None,
+            want_focus: false,
         };
         if settings.prefs.crash_prompt
             && let Some(dir) = &p.opts.crash_dir
@@ -117,6 +122,7 @@ impl Product {
             }
             UpdateChecks::Off => {}
         }
+        p.want_focus = p.crash.is_some() || p.notice.is_some();
         p
     }
 
@@ -141,7 +147,10 @@ impl Product {
             });
         match spawned {
             Ok(_) => self.checking = Some((rx, asked)),
-            Err(e) if asked => self.notice = Some(Notice::Failed(e.to_string())),
+            Err(e) if asked => {
+                self.notice = Some(Notice::Failed(e.to_string()));
+                self.want_focus = true;
+            }
             Err(_) => {}
         }
     }
@@ -163,6 +172,7 @@ impl Product {
     /// Help ▸ Report a Problem…: the issue form, with the version and
     /// system filled in.
     pub fn report_problem(&mut self, ctx: &egui::Context) {
+        // The issue goes to the project, whose tracker is in English.
         let body = format!(
             "What happened, and what did you expect?\n\n\n---\nAudio Constructor {} on {} {}\n",
             env!("CARGO_PKG_VERSION"),
@@ -185,9 +195,10 @@ impl Product {
         let result = match rx.try_recv() {
             Ok(r) => r,
             Err(TryRecvError::Empty) => return,
-            Err(TryRecvError::Disconnected) => Err("the check stopped unexpectedly".into()),
+            Err(TryRecvError::Disconnected) => Err(tr("update-check-stopped")),
         };
         self.checking = None;
+        let before = self.notice.clone();
         self.notice = match result {
             Ok(Check::Newer(release))
                 if asked || release.version.to_string() != settings.prefs.skip_version =>
@@ -200,6 +211,25 @@ impl Product {
             // Nobody asked: say nothing about a quiet day or a failed check.
             _ => self.notice.take().filter(|n| *n == Notice::Ask),
         };
+        if self.notice.is_some() && self.notice != before {
+            self.want_focus = true;
+        }
+    }
+
+    /// Give `r` the keyboard if a window just appeared, unless the person
+    /// is typing somewhere.
+    fn take_focus(&mut self, r: &egui::Response) {
+        if !self.want_focus {
+            return;
+        }
+        self.want_focus = false;
+        let typing = r
+            .ctx
+            .memory(|m| m.focused())
+            .is_some_and(|id| egui::text_edit::TextEditState::load(&r.ctx, id).is_some());
+        if !typing {
+            r.request_focus();
+        }
     }
 
     /// Draws whatever there is to say, each frame.
@@ -215,9 +245,9 @@ impl Product {
         };
         let mut close = false;
         let title = match &notice {
-            Notice::Ask => "Check for updates?",
-            Notice::Newer(_) => "A new version is out",
-            Notice::UpToDate(_) | Notice::Failed(_) => "Updates",
+            Notice::Ask => tr("update-ask-title"),
+            Notice::Newer(_) => tr("update-newer-title"),
+            Notice::UpToDate(_) | Notice::Failed(_) => tr("update-title"),
         };
         egui::Window::new(title)
             .id(egui::Id::unique("product-update"))
@@ -228,50 +258,56 @@ impl Product {
                 ui.set_max_width(340.0);
                 match &notice {
                     Notice::Ask => {
-                        ui.label(
-                            "Audio Constructor can look once a day for a newer version \
-                             and tell you when one is out. It only asks the project's \
-                             release page; nothing about you or your work is sent.",
-                        );
+                        ui.label(tr("update-ask-text"));
                         ui.horizontal_wrapped(|ui| {
-                            if ui.button("Check Daily").clicked() {
+                            let daily = ui.button(tr("update-check-daily"));
+                            self.take_focus(&daily);
+                            if daily.clicked() {
                                 settings.set_update_checks(UpdateChecks::Daily);
                                 settings.set_last_update_check(now());
                                 self.check(ctx, false);
                                 close = true;
                             }
-                            if ui.button("Don't Check").clicked() {
+                            if ui.button(tr("update-dont-check")).clicked() {
                                 settings.set_update_checks(UpdateChecks::Off);
                                 close = true;
                             }
                         });
                         ui.label(
-                            RichText::new("Change it any time under Help.")
+                            RichText::new(tr("update-change-later"))
                                 .small()
                                 .color(theme::text_muted()),
                         );
                     }
                     Notice::Newer(r) => {
-                        ui.label(format!(
-                            "Audio Constructor {} is out. You have {}.",
-                            r.version, self.opts.current
+                        ui.label(tr_args(
+                            "update-newer-text",
+                            &[
+                                ("version", r.version.to_string().into()),
+                                ("current", self.opts.current.to_string().into()),
+                            ],
                         ));
                         ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .button(format!("{}  Download", icons::DOWNLOAD_SIMPLE))
-                                .clicked()
-                            {
+                            let download = icons::spoken(ui.button(format!(
+                                "{}  {}",
+                                icons::DOWNLOAD_SIMPLE,
+                                tr("update-download")
+                            )));
+                            self.take_focus(&download);
+                            if download.clicked() {
                                 self.open(ctx, r.page.clone());
                                 close = true;
                             }
-                            if !r.notes.trim().is_empty() && ui.button("What's New").clicked() {
+                            if !r.notes.trim().is_empty()
+                                && ui.button(tr("update-whats-new")).clicked()
+                            {
                                 self.show_notes = !self.show_notes;
                             }
-                            if ui.button("Skip This Version").clicked() {
+                            if ui.button(tr("update-skip")).clicked() {
                                 settings.set_skip_version(&r.version.to_string());
                                 close = true;
                             }
-                            if ui.button("Later").clicked() {
+                            if ui.button(tr("update-later")).clicked() {
                                 close = true;
                             }
                         });
@@ -284,14 +320,21 @@ impl Product {
                         }
                     }
                     Notice::UpToDate(v) => {
-                        ui.label(format!("You have the newest version, {v}."));
-                        if ui.button("OK").clicked() {
+                        ui.label(tr_args(
+                            "update-up-to-date",
+                            &[("version", v.to_string().into())],
+                        ));
+                        let ok = ui.button(tr("dialog-ok"));
+                        self.take_focus(&ok);
+                        if ok.clicked() {
                             close = true;
                         }
                     }
                     Notice::Failed(why) => {
-                        ui.label(format!("Couldn't check for updates: {why}."));
-                        if ui.button("OK").clicked() {
+                        ui.label(tr_args("update-failed", &[("why", why.into())]));
+                        let ok = ui.button(tr("dialog-ok"));
+                        self.take_focus(&ok);
+                        if ok.clicked() {
                             close = true;
                         }
                     }
@@ -308,58 +351,46 @@ impl Product {
             return;
         };
         let mut done = false;
-        egui::Window::new("Audio Constructor stopped unexpectedly")
+        egui::Window::new(tr("crash-title"))
             .id(egui::Id::unique("product-crash"))
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .collapsible(false)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.set_max_width(460.0);
-                let which = if count > 1 {
-                    format!("{count} reports were saved, the newest from")
-                } else {
-                    "A report was saved from".to_string()
-                };
                 let program = report
                     .text
                     .lines()
                     .find_map(|l| l.strip_prefix("program:"))
-                    .map_or("the editor", str::trim)
-                    .to_string();
-                ui.label(format!(
-                    "Last time, a bug stopped it. {which} {program}: the version, your \
-                     system, and where it stopped. It's on this computer only; \
-                     nothing has been sent."
+                    .map_or_else(|| tr("crash-the-editor"), |p| p.trim().to_string());
+                ui.label(tr_args(
+                    "crash-text",
+                    &[("count", count.into()), ("program", program.into())],
                 ));
-                ui.label(
-                    "Reporting it helps get the bug fixed: the project's issue form \
-                     opens in your browser with the report filled in, for you to read, \
-                     add what you were doing, and send, or not.",
-                );
+                ui.label(tr("crash-report-text"));
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button("Report…").clicked() {
+                    let report_button = ui.button(tr("crash-report"));
+                    self.take_focus(&report_button);
+                    if report_button.clicked() {
                         self.open(ctx, crash::issue_url(&report.text));
                         done = true;
                     }
                     if ui
                         .button(if self.show_report {
-                            "Hide Report"
+                            tr("crash-hide-report")
                         } else {
-                            "Show Report"
+                            tr("crash-show-report")
                         })
                         .clicked()
                     {
                         self.show_report = !self.show_report;
                     }
-                    if ui.button("Dismiss").clicked() {
+                    if ui.button(tr("crash-dismiss")).clicked() {
                         done = true;
                     }
                 });
                 let mut never = !settings.prefs.crash_prompt;
-                if ui
-                    .checkbox(&mut never, "Don't offer crash reports again")
-                    .changed()
-                {
+                if ui.checkbox(&mut never, tr("crash-never")).changed() {
                     settings.set_crash_prompt(!never);
                 }
                 if self.show_report {
@@ -369,9 +400,12 @@ impl Product {
                             ui.label(RichText::new(&report.text).monospace().small());
                         });
                     ui.label(
-                        RichText::new(format!("Saved as {}", report.path.display()))
-                            .small()
-                            .color(theme::text_muted()),
+                        RichText::new(tr_args(
+                            "crash-saved-as",
+                            &[("path", report.path.display().to_string().into())],
+                        ))
+                        .small()
+                        .color(theme::text_muted()),
                     );
                 }
             });
@@ -384,6 +418,8 @@ impl Product {
             }
             self.crash = None;
             self.show_report = false;
+            // The update question, if there is one, is next.
+            self.want_focus = self.notice.is_some();
         }
     }
 }

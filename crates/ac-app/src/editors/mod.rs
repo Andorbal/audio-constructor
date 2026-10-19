@@ -17,6 +17,7 @@ pub mod steps;
 use ac_core::Config;
 use egui::{Color32, Rect, Sense, Stroke, StrokeKind};
 
+use crate::i18n::tr;
 use crate::theme;
 
 /// Which editor a node kind gets, and the config key it edits.
@@ -42,19 +43,13 @@ impl Editor {
     }
 
     /// How to use it, in a line.
-    pub fn hint(self) -> &'static str {
+    pub fn hint(self) -> String {
         match self {
-            Editor::Curve(_) => {
-                "Drag points; double-click to add or remove one; right-click a point to bend the segment after it."
-            }
-            Editor::Pattern => "Click or drag across cells to switch them.",
-            Editor::PianoRoll => {
-                "Click or drag to draw a note, drag one to move it or its end to stretch it, right-click to delete. Shift: off the grid."
-            }
-            Editor::Bands => {
-                "Drag an edge; double-click to split a band; right-click an edge to merge its bands."
-            }
-            Editor::Steps => "Click or drag to draw values. Shift: fine values.",
+            Editor::Curve(_) => tr("editor-curve-hint"),
+            Editor::Pattern => tr("editor-pattern-hint"),
+            Editor::PianoRoll => tr("editor-piano-roll-hint"),
+            Editor::Bands => tr("editor-bands-hint"),
+            Editor::Steps => tr("editor-steps-hint"),
         }
     }
 

@@ -10,6 +10,7 @@ use egui::{RichText, Stroke};
 use super::{PanelIo, PanelRequest, markdown, section};
 use crate::files;
 use crate::help::{self, Example};
+use crate::i18n::{self, tr, tr_args};
 use crate::icons;
 use crate::palette;
 use crate::theme;
@@ -45,10 +46,15 @@ impl HelpView {
 pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView) {
     ui.add(
         egui::TextEdit::singleline(&mut view.query)
-            .hint_text(format!("{}  Search help", icons::MAGNIFYING_GLASS))
+            .hint_text(format!(
+                "{}  {}",
+                icons::MAGNIFYING_GLASS,
+                tr("help-search")
+            ))
             .desired_width(f32::INFINITY)
             .margin(egui::Margin::symmetric(8, 5)),
-    );
+    )
+    .accessible_name(tr("help-search"));
     ui.add_space(4.0);
     if !view.query.trim().is_empty() {
         results(ui, io, view);
@@ -60,8 +66,9 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView) {
         (None, Some(kind)) => {
             ui.label(
                 RichText::new(format!(
-                    "{}  No help for `{kind}`: this version doesn't have that node.",
-                    icons::WARNING
+                    "{}  {}",
+                    icons::WARNING,
+                    tr_args("help-unknown-kind", &[("kind", kind.as_str().into())])
                 ))
                 .color(theme::warning()),
             );
@@ -93,7 +100,7 @@ fn node_link(ui: &mut egui::Ui, view: &mut HelpView, e: &NodeEntry) {
 fn results(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
     let found = io.registry.search(&view.query);
     if found.is_empty() {
-        ui.label(RichText::new("No node matches.").color(theme::text_muted()));
+        ui.label(RichText::new(tr("help-no-match")).color(theme::text_muted()));
     }
     for e in found {
         node_link(ui, view, e);
@@ -102,7 +109,7 @@ fn results(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
 
 fn index(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
     ui.label(
-        RichText::new("Press F1 on a node for its help, or choose one here.")
+        RichText::new(tr("help-index-hint"))
             .small()
             .color(theme::text_muted()),
     );
@@ -117,7 +124,8 @@ fn index(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
         }
         entries.sort_by_key(|e| e.meta.name);
         egui::CollapsingHeader::new(
-            RichText::new(format!("{}  ({})", cat.name(), entries.len())).color(theme::text()),
+            RichText::new(format!("{}  ({})", i18n::category(cat), entries.len()))
+                .color(theme::text()),
         )
         .id_salt(("help-index", cat.slug()))
         .default_open(false)
@@ -132,8 +140,7 @@ fn index(ui: &mut egui::Ui, io: &PanelIo, view: &mut HelpView) {
 /// A node kind's reference.
 fn page(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str, e: &NodeEntry) {
     let m = &e.meta;
-    if ui
-        .small_button(format!("{}  All nodes", icons::ARROW_LEFT))
+    if icons::spoken(ui.small_button(format!("{}  {}", icons::ARROW_LEFT, tr("help-all-nodes"))))
         .clicked()
     {
         view.kind = None;
@@ -150,17 +157,19 @@ fn page(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str, e:
                 .color(theme::text_strong()),
         );
         ui.label(
-            RichText::new(m.category.name())
+            RichText::new(i18n::category(m.category))
                 .small()
                 .color(theme::text_muted()),
         );
     });
     let mut tags = kind.to_string();
     if m.live {
-        tags.push_str(" · live source");
+        tags.push_str(" · ");
+        tags.push_str(&tr("help-live-source"));
     }
     if m.whole_input {
-        tags.push_str(" · needs its whole input (baked)");
+        tags.push_str(" · ");
+        tags.push_str(&tr("help-whole-input"));
     }
     ui.label(
         RichText::new(tags)
@@ -174,8 +183,8 @@ fn page(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str, e:
     }
 
     let sig = (e.describe)(&empty_config());
-    sockets(ui, "Inputs", &sig.inputs, true);
-    sockets(ui, "Outputs", &sig.outputs, false);
+    sockets(ui, &tr("section-inputs"), &sig.inputs, true);
+    sockets(ui, &tr("section-outputs"), &sig.outputs, false);
     used_in(ui, io, view, kind);
 }
 
@@ -190,7 +199,7 @@ pub(super) fn tip_box(ui: &mut egui::Ui, tip: &str) {
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(
-                RichText::new(format!("{}  Try this", icons::LIGHTBULB))
+                RichText::new(format!("{}  {}", icons::LIGHTBULB, tr("help-try-this")))
                     .color(theme::accent())
                     .strong(),
             );
@@ -260,7 +269,11 @@ fn detail(s: &SocketSpec) -> Option<String> {
         }
         (_, SignalType::Trigger) if s.choices.is_empty() => None,
         (Value::Text(t), _) => Some(t.clone()),
-        (Value::Bool(b), _) => Some(if *b { "on" } else { "off" }.to_string()),
+        (Value::Bool(b), _) => Some(if *b {
+            tr("canvas-tip-on")
+        } else {
+            tr("canvas-tip-off")
+        }),
         (Value::Int(i), _) => Some(with_unit(*i as f64)),
         (Value::Float(f), _) => Some(with_unit(*f)),
     };
@@ -269,17 +282,20 @@ fn detail(s: &SocketSpec) -> Option<String> {
     } else {
         s.range.map(|(a, b)| format!("{a} … {}", with_unit(b)))
     };
-    let parts: Vec<String> = [default.map(|d| format!("{d} by default")), range]
-        .into_iter()
-        .flatten()
-        .collect();
+    let parts: Vec<String> = [
+        default.map(|d| tr_args("help-default", &[("value", d.into())])),
+        range,
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
 /// The blocks (in the library) and the examples that use `kind`: clicking
 /// a block adds it to the canvas, clicking an example opens it.
 fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str) {
-    section(ui, "Used in");
+    section(ui, &tr("section-used-in"));
     let blocks = help::blocks_using(io.library, kind);
     let examples: Vec<Example> = help::examples_using(view.examples(), kind)
         .into_iter()
@@ -287,17 +303,18 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
         .collect();
     if blocks.is_empty() && examples.is_empty() {
         ui.label(
-            RichText::new(
-                "No block or example uses it yet. Build something with it and save it to the \
-                 library from the Node tab.",
-            )
-            .small()
-            .color(theme::text_muted()),
+            RichText::new(tr("help-unused"))
+                .small()
+                .color(theme::text_muted()),
         );
         return;
     }
     if !blocks.is_empty() {
-        ui.label(RichText::new("Blocks").small().color(theme::text_muted()));
+        ui.label(
+            RichText::new(tr("help-blocks"))
+                .small()
+                .color(theme::text_muted()),
+        );
         for b in blocks {
             let d = &b.block.def;
             let r = ui
@@ -305,13 +322,15 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
                     false,
                     RichText::new(format!("{}  {}", icons::STACK, d.name)).color(theme::accent()),
                 )
+                // The icon tells a block from an example on screen.
+                .accessible_name(tr_args("help-block-link", &[("name", (&d.name).into())]))
                 .on_hover_ui(|ui| {
                     ui.set_max_width(340.0);
                     if !d.description.is_empty() {
                         markdown::show(ui, &d.description);
                     }
                     ui.label(
-                        RichText::new("Click to add it to the canvas.")
+                        RichText::new(tr("help-click-to-add"))
                             .small()
                             .color(theme::text_faint()),
                     );
@@ -324,7 +343,11 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
     }
     if !examples.is_empty() {
         ui.add_space(4.0);
-        ui.label(RichText::new("Examples").small().color(theme::text_muted()));
+        ui.label(
+            RichText::new(tr("help-examples"))
+                .small()
+                .color(theme::text_muted()),
+        );
         for ex in examples {
             let r = ui
                 .selectable_label(
@@ -332,7 +355,8 @@ fn used_in(ui: &mut egui::Ui, io: &mut PanelIo, view: &mut HelpView, kind: &str)
                     RichText::new(format!("{}  {}", icons::FOLDER_OPEN, ex.name))
                         .color(theme::accent()),
                 )
-                .on_hover_text("Open this example (as a new, untitled project)");
+                .accessible_name(tr_args("help-example-link", &[("name", (&ex.name).into())]))
+                .on_hover_text(tr("help-open-example"));
             if r.clicked() {
                 io.requests.push(PanelRequest::OpenExample(ex.path.clone()));
             }

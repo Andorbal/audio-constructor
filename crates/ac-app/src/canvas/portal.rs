@@ -11,6 +11,7 @@ use super::scene::{Class, NodeView, Scene};
 use super::{Canvas, CanvasIo, Hit, PendingWire};
 use crate::document::Document;
 use crate::edit::portal;
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 
 /// The tags to light up: the other ends of a hovered or selected tag.
@@ -160,12 +161,15 @@ impl Canvas {
             .filter(|id| graph.node(*id).and_then(portal::tag).is_some())
             .collect();
         if !tags.is_empty() {
-            let gone = doc.edit(registry, "Back to wire", |g, _| portal::remove(g, &tags));
+            let gone = doc.edit(registry, &tr("undo-back-to-wire"), |g, _| {
+                portal::remove(g, &tags)
+            });
             doc.selection.retain(|id| !gone.contains(id));
-            return Ok(format!(
-                "Back to {}",
-                if gone.len() > 2 { "wires" } else { "a wire" }
-            ));
+            return Ok(if gone.len() > 2 {
+                tr("canvas-back-to-wires")
+            } else {
+                tr("canvas-back-to-a-wire")
+            });
         }
         let reroutes: Vec<NodeId> = sel
             .iter()
@@ -179,7 +183,7 @@ impl Canvas {
         let scene = self.build(doc, registry);
         let places = places(&scene);
         let made: Vec<NodeId> = if !reroutes.is_empty() {
-            doc.edit(registry, "Make portal", |g, ctx| {
+            doc.edit(registry, &tr("undo-make-portal"), |g, ctx| {
                 let mut made = Vec::new();
                 for r in &reroutes {
                     if let Some(new) = portal::make_from_reroute(g, ctx, *r, &places) {
@@ -192,11 +196,9 @@ impl Canvas {
         } else {
             let wires = portal::wires_between(&doc.display_graph(), &sel);
             if wires.is_empty() {
-                return Err(
-                    "To make a portal, select a reroute, or the two nodes a wire joins".into(),
-                );
+                return Err(tr("canvas-portal-how"));
             }
-            doc.edit(registry, "Make portal", |g, ctx| {
+            doc.edit(registry, &tr("undo-make-portal"), |g, ctx| {
                 let mut made = Vec::new();
                 for w in &wires {
                     if let Some((s, r)) = portal::make_from_wire(g, ctx, w, &places) {
@@ -213,7 +215,7 @@ impl Canvas {
     pub(super) fn portal_from_wire(&mut self, io: &mut CanvasIo, wire: &Wire, now: f64) -> Outcome {
         let scene = self.build(io.doc, io.registry);
         let places = places(&scene);
-        let made = io.doc.edit(io.registry, "Make portal", |g, ctx| {
+        let made = io.doc.edit(io.registry, &tr("undo-make-portal"), |g, ctx| {
             portal::make_from_wire(g, ctx, wire, &places)
                 .map(|(s, r)| vec![s, r])
                 .unwrap_or_default()
@@ -230,7 +232,7 @@ impl Canvas {
     ) -> Outcome {
         let scene = self.build(io.doc, io.registry);
         let places = places(&scene);
-        let made = io.doc.edit(io.registry, "Make portal", |g, ctx| {
+        let made = io.doc.edit(io.registry, &tr("undo-make-portal"), |g, ctx| {
             portal::make_from_reroute(g, ctx, id, &places)
                 .map(|r| std::iter::once(id).chain(r).collect::<Vec<_>>())
                 .unwrap_or_default()
@@ -245,7 +247,7 @@ impl Canvas {
             .find_map(|id| graph.node(*id).and_then(portal::tag))
             .map(|t| t.name)
         else {
-            return Err("Nothing there could become a portal".into());
+            return Err(tr("canvas-portal-nothing"));
         };
         let fresh: Vec<NodeId> = made
             .iter()
@@ -253,9 +255,7 @@ impl Canvas {
             .filter(|id| !self.born.contains_key(id))
             .collect();
         self.mark_born(&fresh, now);
-        Ok(format!(
-            "Made portal “{name}”. Double-click a tag to jump to the other end; F2 renames it."
-        ))
+        Ok(tr_args("canvas-portal-made", &[("name", name.into())]))
     }
 }
 
@@ -263,17 +263,13 @@ impl Canvas {
 fn describe(info: &portal::Info) -> String {
     let n = info.partners.len();
     let what = match (info.send, n) {
-        (true, 0) => "No receivers: copy and paste one of this portal's receivers, or \
-                      turn another wire from the same output into a portal."
-            .to_string(),
-        (true, 1) => "Sends to 1 receiver.".to_string(),
-        (true, n) => format!("Sends to {n} receivers."),
-        (false, 0) => "No sender is linked to it.".to_string(),
-        (false, _) => "Receives from its sender.".to_string(),
+        (true, 0) => tr("canvas-portal-no-receivers"),
+        (true, n) => tr_args("canvas-portal-sends", &[("count", n.into())]),
+        (false, 0) => tr("canvas-portal-no-sender"),
+        (false, _) => tr("canvas-portal-receives"),
     };
-    format!(
-        "Portal “{}”. {what}\nDouble-click to jump to the other end · F2 renames · \
-         Shift+P turns it back into a wire",
-        info.name
+    tr_args(
+        "canvas-portal-tip",
+        &[("name", (&info.name).into()), ("what", what.into())],
     )
 }

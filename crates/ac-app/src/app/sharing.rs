@@ -13,9 +13,10 @@ use ac_io::Update;
 use ac_io::remote::{Fetched, RemoteBlock};
 use egui::{Key, RichText};
 
-use super::{AfterConfirm, EditorApp, plural};
+use super::{AfterConfirm, EditorApp};
 use crate::dialogs::{BlockToExport, FilePurpose};
 use crate::files;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::online::{Done, LibraryState, LinkDialog, Playing, PreviewKey, can_preview};
 use crate::palette;
@@ -41,7 +42,18 @@ impl EditorApp {
             .and_then(|t| Block::from_json(&t).map_err(|e| e.to_string()));
         let block = match block {
             Ok(b) => b,
-            Err(e) => return self.warn(format!("Couldn't read {}: {e}", path.display()), now),
+            Err(e) => {
+                return self.warn(
+                    tr_args(
+                        "status-couldnt-read",
+                        &[
+                            ("path", path.display().to_string().into()),
+                            ("error", e.into()),
+                        ],
+                    ),
+                    now,
+                );
+            }
         };
         let preview = ac_io::library::sidecar_preview(path, &block);
         let hint = path
@@ -62,7 +74,10 @@ impl EditorApp {
             .iter()
             .any(|b| b.block.same_definition(&block));
         match self.library.import_with_preview(block, hint, preview) {
-            Ok(_) if known => self.say(format!("{name} is already in your library"), now),
+            Ok(_) if known => self.say(
+                tr_args("status-block-already-there", &[("name", (&name).into())]),
+                now,
+            ),
             Ok(source) => {
                 // Show it where it landed.
                 self.side.open = true;
@@ -71,19 +86,30 @@ impl EditorApp {
                     origin: Some(Origin::Imported),
                     tag: None,
                 };
-                let with = if self
+                let with_preview = self
                     .library
                     .get(&source)
                     .and_then(|b| b.preview_path())
-                    .is_some()
-                {
-                    " with its preview"
-                } else {
-                    ""
-                };
-                self.say(format!("Imported {name} into your library{with}"), now);
+                    .is_some();
+                self.say(
+                    if with_preview {
+                        tr_args(
+                            "status-block-imported-with-preview",
+                            &[("name", (&name).into())],
+                        )
+                    } else {
+                        tr_args("status-block-imported", &[("name", (&name).into())])
+                    },
+                    now,
+                );
             }
-            Err(e) => self.warn(format!("Couldn't import {name}: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-import",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -110,15 +136,30 @@ impl EditorApp {
                         .render_saved(source.clone(), block, self.registry.clone());
                 }
                 let tag = source.to_string();
-                self.doc.edit_project("Save block", |p| {
+                self.doc.edit_project(&tr("undo-save-block"), |p| {
                     if let Some(d) = p.group_defs.get_mut(def) {
                         d.source = Some(tag);
                         d.version = version;
                     }
                 });
-                self.say(format!("Saved {name} to your library (v{version})"), now);
+                self.say(
+                    tr_args(
+                        "status-block-saved",
+                        &[
+                            ("name", (&name).into()),
+                            ("version", version.to_string().into()),
+                        ],
+                    ),
+                    now,
+                );
             }
-            Err(e) => self.warn(format!("Couldn't save {name} to your library: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-save-block",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -131,17 +172,24 @@ impl EditorApp {
             .into_iter()
             .find(|u| &u.def == def)
         else {
-            self.say("That block is up to date", now);
+            self.say(tr("status-block-up-to-date"), now);
             return false;
         };
-        let dropped = self.apply_updates(std::slice::from_ref(&u), "Update block");
+        let dropped = self.apply_updates(std::slice::from_ref(&u), &tr("undo-update-block"));
         let name = self
             .doc
             .project
             .group_defs
             .get(def)
             .map_or_else(|| def.0.clone(), |d| d.name.clone());
-        self.report_update(format!("Updated {name} to v{}", u.to), dropped, now);
+        self.report_update(
+            tr_args(
+                "status-block-updated",
+                &[("name", name.into()), ("version", u.to.to_string().into())],
+            ),
+            dropped,
+            now,
+        );
         true
     }
 
@@ -150,12 +198,16 @@ impl EditorApp {
     pub fn update_all_blocks(&mut self, now: f64) -> usize {
         let updates = self.library.updates(&self.doc.project);
         if updates.is_empty() {
-            self.say("Every block is up to date", now);
+            self.say(tr("status-blocks-up-to-date"), now);
             return 0;
         }
-        let dropped = self.apply_updates(&updates, "Update blocks");
+        let dropped = self.apply_updates(&updates, &tr("undo-update-blocks"));
         let n = updates.len();
-        self.report_update(format!("Updated {n} block{}", plural(n)), dropped, now);
+        self.report_update(
+            tr_args("status-blocks-updated", &[("count", n.into())]),
+            dropped,
+            now,
+        );
         n
     }
 
@@ -181,8 +233,8 @@ impl EditorApp {
         if dropped > 0 {
             self.warn(
                 format!(
-                    "{text} · removed {dropped} wire{} to sockets the new version doesn't have",
-                    plural(dropped)
+                    "{text} · {}",
+                    tr_args("status-update-dropped-wires", &[("count", dropped.into())])
                 ),
                 now,
             );
@@ -201,15 +253,20 @@ impl EditorApp {
         let file = b.path.is_some();
         match self.library.remove(source) {
             Ok(()) => {
-                let what = if file { " and deleted its file" } else { "" };
-                self.say(
-                    format!(
-                        "Removed {name} from your library{what}; projects that use it keep their copy"
-                    ),
-                    now,
-                );
+                let text = if file {
+                    tr_args("status-block-removed-file", &[("name", (&name).into())])
+                } else {
+                    tr_args("status-block-removed", &[("name", (&name).into())])
+                };
+                self.say(text, now);
             }
-            Err(e) => self.warn(format!("Couldn't remove {name}: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-remove-block",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -219,10 +276,7 @@ impl EditorApp {
     pub(super) fn export_pack(&mut self, now: f64) {
         let Some(path) = self.doc.path.clone() else {
             self.pack_after_save = true;
-            self.say(
-                "Save the project first; the pack is made from the saved file",
-                now,
-            );
+            self.say(tr("status-save-before-pack"), now);
             self.file_dialog(FilePurpose::SaveAs, now);
             return;
         };
@@ -238,38 +292,41 @@ impl EditorApp {
     /// Write the saved project and its audio files to the pack `out`.
     pub fn export_pack_to(&mut self, out: &Path, now: f64) {
         let Some(project) = self.doc.path.clone() else {
-            self.warn("Save the project before packing it", now);
+            self.warn(tr("status-save-before-packing"), now);
             return;
         };
         let out = files::with_extension(out.to_path_buf(), ac_io::PACK_EXTENSION);
         match ac_io::write_pack(&project, &out, &self.registry) {
             Ok(r) => {
                 let audio = r.files.saturating_sub(1);
-                let mut text = format!(
-                    "Packed the project and {audio} audio file{} into {}",
-                    plural(audio),
-                    out.display()
+                let mut text = tr_args(
+                    "status-packed",
+                    &[
+                        ("count", audio.into()),
+                        ("path", out.display().to_string().into()),
+                    ],
                 );
                 if !r.moved.is_empty() {
                     let n = r.moved.len();
-                    text.push_str(&format!(
-                        " · copied {n} file{} from outside the project folder into the pack's assets/",
-                        plural(n)
-                    ));
+                    text.push_str(" · ");
+                    text.push_str(&tr_args("status-pack-copied", &[("count", n.into())]));
                 }
                 if r.missing.is_empty() {
                     self.say(text, now);
                 } else {
                     let n = r.missing.len();
-                    text.push_str(&format!(
-                        " · left out {n} missing file{}: {}",
-                        plural(n),
-                        r.missing.join(", ")
+                    text.push_str(" · ");
+                    text.push_str(&tr_args(
+                        "status-pack-left-out",
+                        &[("count", n.into()), ("files", r.missing.join(", ").into())],
                     ));
                     self.warn(text, now);
                 }
             }
-            Err(e) => self.warn(format!("Couldn't write the pack: {e}"), now),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-pack", &[("error", e.to_string().into())]),
+                now,
+            ),
         }
     }
 
@@ -299,12 +356,15 @@ impl EditorApp {
             BlockToExport::Library(source) => self.library.get(source).map(|b| b.block.clone()),
         };
         let Some(block) = block else {
-            return self.warn("That block is gone", now);
+            return self.warn(tr("status-export-block-gone"), now);
         };
         let path = files::with_extension(path, ac_core::BLOCK_EXTENSION);
         let name = block.def.name.clone();
         self.online.export(block, path, self.registry.clone());
-        self.say(format!("Exporting {name}…"), now);
+        self.say(
+            tr_args("status-exporting-name", &[("name", name.into())]),
+            now,
+        );
     }
 
     // ------------------------------------------------------------ links
@@ -325,7 +385,7 @@ impl EditorApp {
             return;
         }
         self.online.import_link(link);
-        self.say(format!("Downloading {link}…"), now);
+        self.say(tr_args("status-downloading", &[("link", link.into())]), now);
     }
 
     /// The "Import from Link…" dialog, while it's open.
@@ -337,26 +397,20 @@ impl EditorApp {
         let r = egui::Modal::new(egui::Id::unique("import-from-link")).show(ctx, |ui| {
             ui.set_width(480.0);
             ui.label(
-                RichText::new(format!("{}  Import from Link", icons::LINK))
+                RichText::new(format!("{}  {}", icons::LINK, tr("dialog-link-title")))
                     .size(theme::FONT_HEADING)
                     .color(theme::text_strong()),
             );
-            ui.label(
-                RichText::new(
-                    "A link to a block (.acblock), a pack (.acpack), or a shared library's \
-                     index.json. Blocks join your library under Imported; a pack is saved \
-                     to your Downloads folder and opened; a library is listed in the \
-                     Library tab, to preview and install from.",
-                )
-                .color(theme::text_muted()),
-            );
+            ui.label(RichText::new(tr("dialog-link-text")).color(theme::text_muted()));
             ui.add_space(6.0);
-            let field = ui.add(
-                egui::TextEdit::singleline(&mut d.text)
-                    .hint_text("https://…")
-                    .desired_width(f32::INFINITY)
-                    .font(theme::mono_font(theme::FONT_VALUE)),
-            );
+            let field = ui
+                .add(
+                    egui::TextEdit::singleline(&mut d.text)
+                        .hint_text("https://…")
+                        .desired_width(f32::INFINITY)
+                        .font(theme::mono_font(theme::FONT_VALUE)),
+                )
+                .accessible_name(tr("dialog-link-field"));
             if d.focus {
                 field.request_focus();
                 d.focus = false;
@@ -364,11 +418,13 @@ impl EditorApp {
             let enter = field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("Cancel").clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                if ui.button(tr("dialog-cancel")).clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
                     result = Some(None);
                 }
                 let ready = !d.text.trim().is_empty();
-                let import = ui.add_enabled(ready, egui::Button::new("Import"));
+                let import = ui.add_enabled(ready, egui::Button::new(tr("dialog-link-import")));
                 if ready && (import.clicked() || enter) {
                     result = Some(Some(d.text.trim().to_string()));
                 }
@@ -394,7 +450,7 @@ impl EditorApp {
         self.online.remove_library(link);
         self.settings.remove_library(link);
         self.say(
-            format!("Removed {name} from the Library tab; blocks you installed from it stay"),
+            tr_args("status-library-removed", &[("name", name.into())]),
             now,
         );
     }
@@ -416,11 +472,7 @@ impl EditorApp {
             return;
         }
         let Some((_, rate)) = self.engine.audition() else {
-            return self.warn(
-                "Previews play through the editor's own audio output; in a plugin, hear \
-                 them in the desktop editor",
-                now,
-            );
+            return self.warn(tr("status-preview-needs-output"), now);
         };
         if let Some(audio) = self.online.cached(&key, rate) {
             return self.play_preview(key, &audio);
@@ -432,7 +484,7 @@ impl EditorApp {
                 };
                 if !can_preview(&b.block) {
                     return self.warn(
-                        format!("{} has no audio output, so nothing to hear", b.name()),
+                        tr_args("status-preview-no-output", &[("name", b.name().into())]),
                         now,
                     );
                 }
@@ -501,21 +553,28 @@ impl EditorApp {
                         self.online.add_library(remote);
                         self.side.open = true;
                         self.side.tab = Tab::Library;
-                        let mut text = format!(
-                            "Added the library {name} ({n} block{}) to the Library tab",
-                            plural(n)
+                        let mut text = tr_args(
+                            "status-library-added",
+                            &[("name", name.into()), ("count", n.into())],
                         );
                         if skipped > 0 {
-                            text.push_str(&format!(
-                                " · {skipped} entr{} in its index couldn't be used",
-                                if skipped == 1 { "y" } else { "ies" }
+                            text.push_str(" · ");
+                            text.push_str(&tr_args(
+                                "status-library-skipped",
+                                &[("count", skipped.into())],
                             ));
                             self.warn(text, now);
                         } else {
                             self.say(text, now);
                         }
                     }
-                    Err(e) => self.warn(format!("Couldn't import from the link: {e}"), now),
+                    Err(e) => self.warn(
+                        tr_args(
+                            "status-couldnt-import-link",
+                            &[("error", e.to_string().into())],
+                        ),
+                        now,
+                    ),
                 }
             }
             Done::Library { link, result } => {
@@ -533,7 +592,10 @@ impl EditorApp {
                 }
                 match result {
                     Ok(b) => self.import_remote(*b, now),
-                    Err(e) => self.warn(format!("Couldn't install it: {e}"), now),
+                    Err(e) => self.warn(
+                        tr_args("status-couldnt-install", &[("error", e.to_string().into())]),
+                        now,
+                    ),
                 }
             }
             Done::Preview { key, rate, result } => {
@@ -549,7 +611,10 @@ impl EditorApp {
                     }
                     Err(e) if wanted => {
                         self.online.playing = Playing::Idle;
-                        self.warn(format!("Couldn't play the preview: {e}"), now);
+                        self.warn(
+                            tr_args("status-couldnt-preview", &[("error", e.to_string().into())]),
+                            now,
+                        );
                     }
                     Err(_) => {}
                 }
@@ -558,19 +623,33 @@ impl EditorApp {
                 self.online.exporting = self.online.exporting.saturating_sub(1);
                 match result {
                     Ok(e) => {
-                        let path = e.block.display();
+                        let path = e.block.display().to_string();
+                        let args = [("name", (&name).into()), ("path", (&path).into())];
                         match (&e.preview, &e.no_preview) {
                             (Some(_), _) => {
-                                self.say(format!("Exported {name} to {path} with its preview"), now)
+                                self.say(tr_args("status-exported-block-preview", &args), now)
                             }
                             (None, Some(why)) => self.warn(
-                                format!("Exported {name} to {path}, without a preview: {why}"),
+                                tr_args(
+                                    "status-exported-block-no-preview",
+                                    &[
+                                        ("name", (&name).into()),
+                                        ("path", path.into()),
+                                        ("why", why.to_string().into()),
+                                    ],
+                                ),
                                 now,
                             ),
-                            (None, None) => self.say(format!("Exported {name} to {path}"), now),
+                            (None, None) => self.say(tr_args("status-exported-block", &args), now),
                         }
                     }
-                    Err(e) => self.warn(format!("Couldn't export {name}: {e}"), now),
+                    Err(e) => self.warn(
+                        tr_args(
+                            "status-couldnt-export-block",
+                            &[("name", name.into()), ("error", e.to_string().into())],
+                        ),
+                        now,
+                    ),
                 }
             }
             Done::SavedPreview { source, block, wav } => {
@@ -605,11 +684,23 @@ impl EditorApp {
             .and_then(|()| std::fs::write(&path, bytes));
         match saved {
             Ok(()) => {
-                self.say(format!("Downloaded the pack to {}", path.display()), now);
+                self.say(
+                    tr_args(
+                        "status-pack-downloaded",
+                        &[("path", path.display().to_string().into())],
+                    ),
+                    now,
+                );
                 self.request(AfterConfirm::Open(path), now);
             }
             Err(e) => self.warn(
-                format!("Couldn't save the pack to {}: {e}", path.display()),
+                tr_args(
+                    "status-couldnt-save-pack",
+                    &[
+                        ("path", path.display().to_string().into()),
+                        ("error", e.to_string().into()),
+                    ],
+                ),
                 now,
             ),
         }

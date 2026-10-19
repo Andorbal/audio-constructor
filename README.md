@@ -135,7 +135,8 @@ wire, `Ctrl+Z` to undo. Pick your audio interface in the side panel's
 **Devices** tab (`N` toggles the panel); MIDI inputs are opened on their own
 and listed there. `F1` on a node opens
 its help, with a "Try this" tip and the blocks and examples that use it.
-View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
+View ▸ Theme has light and high-contrast themes (and your own, from
+theme files), and View ▸ UI Scale sizes the whole
 interface from 75 % to 200 %.
 
 The examples in `examples/` are good places to start. Each is a working
@@ -227,6 +228,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
+| [docs/TRANSLATING.md](docs/TRANSLATING.md) | How the editor's text is translated, and how to add a language |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 

@@ -17,6 +17,7 @@ use ac_core::{
 use ac_engine::BindingValues;
 
 use crate::document::Document;
+use crate::i18n::tr_args;
 
 /// What learning will bind.
 #[derive(Clone, Debug, PartialEq)]
@@ -322,10 +323,18 @@ impl BoundInputs {
 /// A binding's target for people: "Gain · gain", "Transport: Record".
 pub fn target_label(project: &Project, registry: &Registry, target: &Target) -> String {
     match target {
-        Target::Transport { action } => format!("Transport: {}", action.label()),
+        Target::Transport { action } => tr_args(
+            "bindings-transport-target",
+            &[("action", action.label().into())],
+        ),
         Target::Input { node, socket } => {
             let name = project.node_at(node).map_or_else(
-                || format!("missing node {node}"),
+                || {
+                    tr_args(
+                        "bindings-missing-node",
+                        &[("node", node.to_string().into())],
+                    )
+                },
                 |n| node_name(project, registry, n),
             );
             format!("{name} · {}", crate::canvas::paint_pretty(socket))
