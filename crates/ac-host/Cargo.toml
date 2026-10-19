@@ -19,6 +19,9 @@ serde_json.workspace = true
 rtrb.workspace = true
 assert_no_alloc.workspace = true
 directories = "6.0"
+# VST3 hosting (MIT/Apache bindings, DECISIONS D118, D137) and loading its modules.
+vst3 = "0.3"
+libloading = "0.8"
 # CLAP hosting (MIT/Apache, DECISIONS D9, D130).
 clack-host = "0.2"
 clack-extensions = { version = "0.2", features = [

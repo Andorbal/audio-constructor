@@ -30,6 +30,9 @@ mod imp {
         pub fn clap_window(&self) -> Window<'static, 'static> {
             Window::from_x11_handle(0)
         }
+        pub fn native_parent(&self) -> *mut std::ffi::c_void {
+            std::ptr::null_mut()
+        }
         pub fn show(&self) {}
         pub fn hide(&self) {}
         pub fn raise(&self) {}

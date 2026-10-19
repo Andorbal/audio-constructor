@@ -99,6 +99,11 @@ impl HostWindow {
         unsafe { Window::from_win32_hwnd(self.hwnd as *mut c_void) }
     }
 
+    /// The window as VST3's `HWND` parent.
+    pub fn native_parent(&self) -> *mut c_void {
+        self.hwnd as *mut c_void
+    }
+
     pub fn show(&self) {
         // SAFETY: `hwnd` is a live window owned by this value.
         unsafe { ShowWindow(self.hwnd, SW_SHOW) };

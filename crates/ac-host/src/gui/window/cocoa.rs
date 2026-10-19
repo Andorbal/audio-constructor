@@ -69,6 +69,13 @@ impl HostWindow {
         unsafe { Window::from_cocoa_nsview(view) }
     }
 
+    /// The content view as VST3's `NSView` parent.
+    pub fn native_parent(&self) -> *mut c_void {
+        self.window.contentView().map_or(std::ptr::null_mut(), |v| {
+            Retained::as_ptr(&v) as *mut c_void
+        })
+    }
+
     pub fn show(&self) {
         self.window.makeKeyAndOrderFront(None);
         self.shown.set(true);

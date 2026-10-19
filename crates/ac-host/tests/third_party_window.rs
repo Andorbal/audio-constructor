@@ -51,23 +51,35 @@ fn a_third_party_plugin_window_opens_while_it_plays() {
         eprintln!("skipped: set AC_THIRD_PARTY_PLUGINS and AC_THIRD_PARTY_NAME");
         return;
     };
+    let formats = std::env::var("AC_THIRD_PARTY_FORMATS").unwrap_or_else(|_| "clap".into());
     let mut plugins = Vec::new();
     for e in std::fs::read_dir(&dir).unwrap().flatten() {
-        if ac_host::scan::format_of(&e.path()) == Some(PluginFormat::Clap)
+        if ac_host::scan::format_of(&e.path()).is_some()
             && let Ok(list) = ac_host::describe_bundle(&e.path())
         {
             plugins.extend(list);
         }
     }
-    let desc = plugins
-        .iter()
-        .find(|d| d.name == name && d.format == PluginFormat::Clap)
-        .cloned()
-        .unwrap_or_else(|| panic!("no CLAP plugin named {name} in {dir}"));
     let host = Arc::new(PluginHost::new(Catalog {
-        plugins,
+        plugins: plugins.clone(),
         ..Catalog::default()
     }));
+    for format in formats.split(',').map(str::trim) {
+        let format = match format {
+            "vst3" => PluginFormat::Vst3,
+            _ => PluginFormat::Clap,
+        };
+        let desc = plugins
+            .iter()
+            .find(|d| d.name == name && d.format == format)
+            .cloned()
+            .unwrap_or_else(|| panic!("no {} plugin named {name} in {dir}", format.name()));
+        let label = format!("{name} ({})", format.name());
+        play_with_its_window(&host, &desc, &label);
+    }
+}
+
+fn play_with_its_window(host: &Arc<PluginHost>, desc: &ac_core::PluginDesc, label: &str) {
     let mut p = Project::default();
     p.graph.nodes = vec![
         NodeInstance::new(NodeId(1), "midi_in"),
@@ -81,14 +93,14 @@ fn a_third_party_plugin_window_opens_while_it_plays() {
     let (mut engine, report) = Engine::new(
         p,
         Arc::new(ac_nodes::registry()),
-        Arc::new(Plugins(host)),
+        Arc::new(Plugins(host.clone())),
         EngineOptions::default(),
     );
     assert!(!report.has_errors(), "{report}");
     let key = NodePath::root(NodeId(2)).to_string();
-    assert!(ac_host::has_window(&key), "{name} has a window");
+    assert!(ac_host::has_window(&key), "{label} has a window");
     ac_host::show_window(&key).expect("the window opens");
-    eprintln!("{name}: window open");
+    eprintln!("{label}: window open");
     let on = [MidiEvent::new(
         0,
         MidiMsg::NoteOn {
@@ -107,16 +119,16 @@ fn a_third_party_plugin_window_opens_while_it_plays() {
         peak = peak.max(block(&mut engine, &[]));
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(ac_host::window_open(&key), "{name}'s window stayed open");
-    assert!(peak > 0.001, "{name} played while its window was open");
-    eprintln!("{name}: closing the window");
+    assert!(ac_host::window_open(&key), "{label}'s window stayed open");
+    assert!(peak > 0.001, "{label} played while its window was open");
+    eprintln!("{label}: closing the window");
     ac_host::close_window(&key);
     assert!(!ac_host::window_open(&key));
     for _ in 0..20 {
         let _ = ac_host::poll();
         block(&mut engine, &[]);
     }
-    eprintln!("{name}: closed; stopping");
+    eprintln!("{label}: closed; stopping");
     drop(engine);
     assert!(ac_host::running().is_empty());
 }

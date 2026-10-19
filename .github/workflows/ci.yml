@@ -164,7 +164,8 @@ jobs:
   third-party-plugin:
     name: Third-party plugin as a node (Linux)
     # Phase 3 acceptance: "A third-party CLAP synth runs as a node inside a
-    # project." Six Sines (an FM synth; MIT source, and its release archive
+    # project" (and the same synth's VST3 build, for VST3 hosting). Six Sines
+    # (an FM synth; MIT source, and its release archive
     # carries GPL-3.0 for the bundled binaries) is downloaded at a pinned
     # release, checked against its SHA-256, and only run here: never linked
     # or redistributed (DECISIONS D136).
@@ -196,12 +197,13 @@ jobs:
         env:
           AC_THIRD_PARTY_PLUGINS: ${{ github.workspace }}/third-party/six-sines_assets
           AC_THIRD_PARTY_NAME: Six Sines
-          AC_THIRD_PARTY_FORMATS: clap
+          AC_THIRD_PARTY_FORMATS: clap,vst3
         run: cargo test -p ac-cli --test third_party_plugins -- --ignored --nocapture
       - name: Open its window, and ours, in the host's window (virtual display)
         env:
           AC_THIRD_PARTY_PLUGINS: ${{ github.workspace }}/third-party/six-sines_assets
           AC_THIRD_PARTY_NAME: Six Sines
+          AC_THIRD_PARTY_FORMATS: clap,vst3
         run: |
           xvfb-run -a cargo test -p ac-host --test third_party_window -- --ignored --nocapture
           xvfb-run -a cargo test -p ac-host --test plugin_window -- --ignored --nocapture

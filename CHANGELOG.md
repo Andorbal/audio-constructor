@@ -15,7 +15,7 @@ fixes and smaller changes.
 
 ### Added
 
-- **Plugins as nodes**: a new **Plugin** node runs a CLAP plugin
+- **Plugins as nodes**: a new **Plugin** node runs a CLAP or VST3 plugin
   installed on your computer inside a patch, a synth played from MIDI or
   an effect on audio. Its sockets come from the plugin: audio in and out
   (extra ports such as a sidechain as `in_2`, `out_2`), `midi` and
@@ -24,6 +24,10 @@ fixes and smaller changes.
   inline or wired to any modulator, and the plugin follows them on the
   right sample. The node reports the plugin's latency, so the engine
   lines up the paths around it.
+- VST3 plugins' parameter inputs go from 0 to 1, the way the format
+  carries them (CLAP plugins' use the plugin's own ranges). A VST3 synth
+  that answers the mod wheel, pitch bend, or other MIDI controllers gets
+  them from its `midi` input.
 - A project with a plugin that isn't installed still opens with its
   sockets and wires; the node plays silence and the compile report says
   which plugin is missing.

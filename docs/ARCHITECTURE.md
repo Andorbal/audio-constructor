@@ -706,8 +706,8 @@ All hosts call the same `Engine`.
   - *Bundles.* `scripts/bundle_plugin.py` builds `Audio Constructor.clap`
     and `Audio Constructor.vst3` (D123).
 - **Plugin hosting** (`ac-host`, DECISIONS D130–D138): third-party CLAP
-  plugins run as `Plugin` nodes in the editor, `audioc render`, `run`, and
-  `validate`.
+  and VST3 plugins run as `Plugin` nodes in the editor, `audioc render`,
+  `run`, and `validate`.
   - *The node.* `ac-nodes`'s `Plugin` node knows its plugin only through a
     `PluginDesc` in its config (`config.plugin`: format, id, name, vendor,
     where it was found, audio ports and their channels, note in and out,
@@ -756,6 +756,15 @@ All hosts call the same `Engine`.
     top-level window the host makes on the main thread (X11 with its own
     connection, Win32, or Cocoa), or asks a plugin that only floats to
     float its own (D134).
+  - *VST3.* The same, through the `vst3` bindings (D137): the module's
+    entry, the factory's audio classes, a component and controller on the
+    main thread (connected when they're separate), an `IAudioProcessor`
+    in the node fed preallocated `IParameterChanges` and `IEventList`
+    objects and a `ProcessContext`, normalized (0–1) parameter sockets,
+    window edits carried to the processor by the host, MIDI controllers
+    through `IMidiMapping`, the component's and controller's states in one
+    blob, and `IPlugView` windows with the host's `IPlugFrame` (and
+    `IRunLoop` on Linux).
   - *Finding plugins.* `ac_host::scan` walks the standard CLAP and VST3
     folders (and `CLAP_PATH`, `VST3_PATH`) and describes each bundle in a
     child process (`audioc scan-bundle`, `audio-constructor
