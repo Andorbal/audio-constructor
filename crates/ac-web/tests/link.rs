@@ -467,7 +467,7 @@ fn text_signals_work_in_the_worklet() {
     assert!(reference.handle.report().errors().count() == 0);
     // 375 quanta of 128 frames at 48 kHz is 1 s: 330 cycles.
     assert!(
-        (crossings as i32 - 330).abs() <= 2,
+        (crossings - 330i32).abs() <= 2,
         "330 Hz from the text: {crossings}"
     );
 }
