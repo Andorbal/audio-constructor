@@ -148,6 +148,7 @@ dependencies = [
  "ac-engine",
  "ac-io",
  "ac-nodes",
+ "assert_no_alloc",
  "eframe",
  "egui",
  "js-sys",

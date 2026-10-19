@@ -78,5 +78,6 @@ web-sys = { version = "0.3", optional = true, features = [
 
 [dev-dependencies]
 ac-app = { path = "../ac-app", default-features = false }
+assert_no_alloc.workspace = true
 ac-io.workspace = true
 serde_json.workspace = true
