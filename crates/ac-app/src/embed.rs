@@ -153,13 +153,27 @@ impl EditorWindow {
         parent: Option<&P>,
         host: Option<bv::host::Host>,
     ) -> Result<EditorWindow, EmbedError> {
+        EditorWindow::create_hooked(editor, opts, parent, host, Box::new(NoHook))
+    }
+
+    /// [`EditorWindow::create`] with `hook` around every frame: a plugin
+    /// lends the editor its engine there and takes its edits (see
+    /// [`WindowHook`]).
+    pub fn create_hooked<P: HasWindowHandle>(
+        editor: &SharedEditor,
+        opts: &WindowOptions,
+        parent: Option<&P>,
+        host: Option<bv::host::Host>,
+        hook: Box<dyn WindowHook>,
+    ) -> Result<EditorWindow, EmbedError> {
         let mut settings = settings_for(opts, lock(editor).settings().prefs.ui_scale);
         if let Some(p) = parent {
             settings.parent = Some(parent_handle(p)?);
         }
         let repaint = RepaintNotifier::new();
         settings.repaint_notifier = Some(repaint.clone());
-        let window = EguiWindow::create_with_host(settings, WindowApp::new(editor.clone()), host)?;
+        let app = WindowApp::new(editor.clone(), hook);
+        let window = EguiWindow::create_with_host(settings, app, host)?;
         Ok(EditorWindow { window, repaint })
     }
 
@@ -246,7 +260,7 @@ fn settings_for(opts: &WindowOptions, ui_scale: f32) -> EguiWindowSettings {
 
 /// The parent as baseview takes it, refusing kinds this platform can't
 /// hold a child in (baseview would panic on those).
-fn parent_handle<P: HasWindowHandle>(parent: &P) -> Result<bv::ParentWindowHandle, EmbedError> {
+pub fn parent_handle<P: HasWindowHandle>(parent: &P) -> Result<bv::ParentWindowHandle, EmbedError> {
     let raw = parent.window_handle().map_err(EmbedError::Handle)?.as_raw();
     check_parent(raw)?;
     Ok(bv::ParentWindowHandle::from_window(parent))
@@ -286,9 +300,32 @@ fn kind_of(raw: RawWindowHandle) -> &'static str {
     }
 }
 
+/// What a host does around each frame of its editor window, on the
+/// window's thread with the editor locked. A plugin whose session keeps
+/// the project lends the editor its engine handle for `draw` and takes the
+/// edits afterwards ([`EditorApp::host_keeps_project`]).
+pub trait WindowHook: Send + 'static {
+    /// Run `draw`, the editor's frame, once.
+    fn frame(&mut self, editor: &mut EditorApp, draw: &mut dyn FnMut(&mut EditorApp)) {
+        draw(editor);
+    }
+
+    /// The window's size changed (the host resized it, or the editor's UI
+    /// scale did). `size.scale_factor` includes the UI scale.
+    fn resized(&mut self, size: bv::WindowSize) {
+        let _ = size;
+    }
+}
+
+/// No host work around frames.
+struct NoHook;
+
+impl WindowHook for NoHook {}
+
 /// One window's view of the shared editor.
 struct WindowApp {
     editor: SharedEditor,
+    hook: Box<dyn WindowHook>,
     /// Set when the editor panicked in this window: the window says so
     /// instead of drawing it again (the host keeps running).
     failed: Option<String>,
@@ -297,9 +334,10 @@ struct WindowApp {
 }
 
 impl WindowApp {
-    fn new(editor: SharedEditor) -> WindowApp {
+    fn new(editor: SharedEditor, hook: Box<dyn WindowHook>) -> WindowApp {
         WindowApp {
             editor,
+            hook,
             failed: None,
             modifiers: egui::Modifiers::NONE,
         }
@@ -321,7 +359,15 @@ impl WindowApp {
     ) -> egui::Rgba {
         if self.failed.is_none() {
             let editor = &self.editor;
-            let drawn = catch_unwind(AssertUnwindSafe(|| draw(&mut lock(editor), ui)));
+            let hook = &mut self.hook;
+            let drawn = catch_unwind(AssertUnwindSafe(|| {
+                let mut draw = Some(draw);
+                hook.frame(&mut lock(editor), &mut |e| {
+                    if let Some(d) = draw.take() {
+                        d(e, ui);
+                    }
+                });
+            }));
             if let Err(panic) = drawn {
                 let why = panic
                     .downcast_ref::<&str>()
@@ -406,6 +452,10 @@ impl egui_baseview::App for WindowApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut Frame) {
         let clear = self.frame(ui);
         frame.set_clear_color(clear);
+    }
+
+    fn resized(&mut self, size: bv::WindowSize) {
+        self.hook.resized(size);
     }
 }
 
@@ -529,7 +579,7 @@ mod tests {
     #[test]
     fn a_window_draws_the_shared_editor_frame_by_frame() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone());
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook));
         let ctx = egui::Context::default();
         for _ in 0..3 {
             frame(&ctx, |ui| {
@@ -546,7 +596,7 @@ mod tests {
     #[test]
     fn a_panic_in_a_frame_stays_in_its_window() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone());
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook));
         let ctx = egui::Context::default();
         let mut drawn = 0;
         for _ in 0..3 {
@@ -563,7 +613,7 @@ mod tests {
         // and a new window draws the editor again.
         assert!(editor.is_poisoned());
         assert!(lock(&editor).is_hosted());
-        let mut again = WindowApp::new(editor.clone());
+        let mut again = WindowApp::new(editor.clone(), Box::new(NoHook));
         frame(&ctx, |ui| {
             again.frame(ui);
         });
