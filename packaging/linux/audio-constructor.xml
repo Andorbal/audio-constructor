@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- File types, so file managers open projects, packs, and blocks in the editor. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-audio-constructor-project">
+    <comment>Audio Constructor project</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.acproj"/>
+  </mime-type>
+  <mime-type type="application/x-audio-constructor-pack">
+    <comment>Audio Constructor pack</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.acpack"/>
+  </mime-type>
+  <mime-type type="application/x-audio-constructor-block">
+    <comment>Audio Constructor block</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.acblock"/>
+  </mime-type>
+</mime-info>

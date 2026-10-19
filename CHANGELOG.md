@@ -13,6 +13,13 @@ fixes and smaller changes.
 
 ## [0.14.0] - 2026-10-19
 
+### Added
+
+- The editor has an icon, in its window, the taskbar or dock, and the
+  desktop's menus.
+- `audio-constructor --version` prints the version without opening a
+  window.
+
 ## [0.10.0] - 2026-10-19
 
 Audio Constructor now runs inside other music software as a plugin: a
