@@ -4,20 +4,24 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: Phases 1 (foundation) and 2 (depth) are built. Phase 1 gave the
-> engine, the command line, and the desktop editor. Phase 2 added
-> polyphony, nodes that bake their whole input, latency compensation,
-> multi-core processing, the Phase 2 node library (with editors for
-> curves, step grids, piano rolls, and bands), 23 shipped blocks, packs
-> for sharing projects, control surfaces (gamepads, the computer keyboard,
-> OSC, bindings with learn, performance panels), editor conveniences
-> (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
-> help), 14 example projects, and a [user guide](docs/guide/README.md).
-> Phase 3 (plugins, the web, packaging) is under way: projects already
-> run inside other music software as CLAP and VST3 plugins, and the whole
-> editor runs in a web browser. See
-> [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
-> needs a human with audio hardware.
+> Status: Phases 1 (foundation), 2 (depth), and 3 (reach) are built.
+> Phase 1 gave the engine, the command line, and the desktop editor.
+> Phase 2 added polyphony, nodes that bake their whole input, latency
+> compensation, multi-core processing, the Phase 2 node library (with
+> editors for curves, step grids, piano rolls, and bands), 23 shipped
+> blocks, packs for sharing projects, control surfaces (gamepads, the
+> computer keyboard, OSC, bindings with learn, performance panels),
+> editor conveniences (auto-layout, find, portals, a minimap, a light
+> theme, UI scale, F1 help), example projects, and a
+> [user guide](docs/guide/README.md). Phase 3 made projects run inside
+> other music software as CLAP and VST3 plugins, put other makers' CLAP
+> and VST3 plugins inside projects as nodes, ran the whole editor in a
+> web browser, added single-sample feedback and seven more nodes, and
+> made it a product: installers, an update check you opt into, crash
+> reports you choose to send, block previews and shared libraries,
+> themes of your own, a translation-ready editor, and a keyboard and
+> screen-reader pass. See [docs/ROADMAP.md](docs/ROADMAP.md) for what was
+> verified and what still needs a human with audio hardware.
 
 ![The Start example playing: an oscillator through a gain, meter, and scope to the output, with live meters and a flowing wire](docs/images/editor-start.png)
 
@@ -70,8 +74,8 @@ parts those tools are made of and lets you wire them up however you like.
 3. **A plugin**: the engine as a CLAP and VST3 effect and instrument, so a
    patch runs inside any music software that loads plugins, with sixteen
    macro knobs the host can automate and, in CLAP hosts, the whole editor
-   in the plugin's window. Hosting third-party plugins as nodes is
-   planned.
+   in the plugin's window. The other way round works too: the CLAP and
+   VST3 plugins installed on your computer run as nodes inside a patch.
 4. **In a browser**: the same editor and engine as a web page, with
    MIDI, gamepads, and the microphone, examples from the site, and files
    opened and saved through the browser. Nothing to install.

@@ -13,6 +13,13 @@ fixes and smaller changes.
 
 ## [0.14.0] - 2026-10-19
 
+The last part of Phase 3 makes Audio Constructor something to install and
+live with: installers for every system with the plugins inside, an update
+check that asks first, crash reports you choose to send, blocks shared with
+previews from any web host, themes of your own, an editor ready to be
+translated, and the whole canvas and its panels usable from the keyboard
+and with a screen reader.
+
 ### Added
 
 - **Installers.** Each release now has an installer for every system,
@@ -156,6 +163,7 @@ fixes and smaller changes.
 - **Enter / Leave Group is now Ctrl+Enter** (it was Tab, which now moves
   the keyboard from node to node). Double-clicking a group still goes
   inside.
+
 ## [0.13.0] - 2026-10-19
 
 ### Added
@@ -411,6 +419,7 @@ in the Node tab.
   stops every packet when refused. The node's help also notes that most
   surfaces name controls by page and name (`/1/fader1`) and that the
   address match is exact.
+
 ## [0.7.0] - 2026-10-18
 
 The end of Phase 2: fourteen example projects to learn from, a user guide,
@@ -908,7 +917,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
-[0.14.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.14.0
+[0.14.0]: https://github.com/Andorbal/audio-constructor/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Andorbal/audio-constructor/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Andorbal/audio-constructor/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.11.0
