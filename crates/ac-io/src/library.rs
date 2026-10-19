@@ -171,7 +171,7 @@ impl Library {
     /// again changes nothing; a different one under the same name gets a
     /// new id. Returns its source.
     pub fn import(&mut self, block: Block, id_hint: &str) -> Result<BlockSource, String> {
-        if let Some(same) = self.blocks.iter().find(|b| b.block == block) {
+        if let Some(same) = self.blocks.iter().find(|b| b.block.same_definition(&block)) {
             return Ok(same.source.clone());
         }
         let base = slug(id_hint);
@@ -255,7 +255,7 @@ impl Library {
                 continue;
             };
             block.def.source = None;
-            if self.blocks.iter().any(|b| b.block == block) {
+            if self.blocks.iter().any(|b| b.block.same_definition(&block)) {
                 continue;
             }
             if self.import(block, &source.id).is_ok() {
@@ -291,7 +291,10 @@ impl Library {
             };
             block.def.source = None;
             // Ours, exactly: nothing to do.
-            if self.get(&source).is_some_and(|b| b.block == block) {
+            if self
+                .get(&source)
+                .is_some_and(|b| b.block.same_definition(&block))
+            {
                 continue;
             }
             let Ok(new) = self.import(block, &source.id) else {
@@ -325,6 +328,7 @@ mod tests {
         Block {
             def,
             uses: Default::default(),
+            preview: None,
         }
     }
 

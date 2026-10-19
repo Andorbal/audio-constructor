@@ -188,6 +188,7 @@ fn a_block_with_a_voice_inside_comes_polyphonic() {
     let block = Block {
         def,
         uses: Default::default(),
+        preview: None,
     };
     let source = h.state_mut().library.save_user(block).unwrap();
     let b = h.state().library.get(&source).unwrap().clone();

@@ -408,6 +408,7 @@ mod tests {
         Block {
             def,
             uses: Default::default(),
+            preview: None,
         }
     }
 

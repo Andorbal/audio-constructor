@@ -34,7 +34,11 @@ impl EditorApp {
             Err(e) => return self.warn(format!("Couldn't read {}: {e}", path.display()), now),
         };
         let name = block.def.name.clone();
-        let known = self.library.blocks().iter().any(|b| b.block == block);
+        let known = self
+            .library
+            .blocks()
+            .iter()
+            .any(|b| b.block.same_definition(&block));
         let hint = path
             .file_stem()
             .and_then(|s| s.to_str())

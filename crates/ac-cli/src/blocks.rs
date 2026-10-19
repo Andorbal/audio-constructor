@@ -105,7 +105,7 @@ pub fn update(args: UpdateArgs) -> Result<ExitCode> {
             };
             let current = Block::from_project(&project, &id);
             let newer = lb.block.def.version > project.group_defs[&id].version;
-            let differs = current.as_ref() != Some(&lb.block);
+            let differs = !current.is_some_and(|c| c.same_definition(&lb.block));
             if newer || (args.force && differs) {
                 let from = project.group_defs[&id].version;
                 let report = update_def(&mut project, &id, &lb.block, &source);
