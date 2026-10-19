@@ -11,8 +11,10 @@
 //!
 //! Blocks listed in an index are checked against the index's size and
 //! SHA-256 before they're read, and so are their previews. Every download
-//! goes through [`crate::net`], so only `https` (or `http` on this
-//! machine) and only up to a size limit.
+//! goes through `crate::net`, so only `https` (or `http` on this
+//! machine) and only up to a size limit. The browser build has no `net`
+//! (the page fetches for itself): there these types exist and every
+//! download says so.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -21,9 +23,55 @@ use ac_core::{BLOCK_EXTENSION, Block, slug};
 
 use crate::hash::{matches_sha256, sha256_hex};
 use crate::index::{INDEX_FILE, IndexBlock, IndexFile, LibraryIndex, resolve_url, url_unescape};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::net::{FetchError, Limits, fetch};
 use crate::pack::PACK_EXTENSION;
 use crate::wav::read_wav_bytes;
+#[cfg(target_arch = "wasm32")]
+use offline::{FetchError, Limits, fetch};
+
+/// Downloads in the browser build, which fetches with the page instead.
+#[cfg(target_arch = "wasm32")]
+mod offline {
+    use std::fmt;
+    use std::time::Duration;
+
+    #[derive(Clone, Copy, Debug)]
+    pub struct Limits {
+        pub max_bytes: u64,
+        pub timeout: Duration,
+    }
+
+    impl Limits {
+        pub const DOCUMENT: Limits = Limits {
+            max_bytes: 4 << 20,
+            timeout: Duration::from_secs(20),
+        };
+        pub const PACK: Limits = Limits {
+            max_bytes: 256 << 20,
+            timeout: Duration::from_secs(300),
+        };
+    }
+
+    #[derive(Debug)]
+    pub enum FetchError {
+        TooLarge { limit: u64 },
+        Unsupported,
+    }
+
+    impl fmt::Display for FetchError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                FetchError::TooLarge { limit } => write!(f, "larger than {limit} bytes"),
+                FetchError::Unsupported => f.write_str("the browser build downloads links itself"),
+            }
+        }
+    }
+
+    pub fn fetch(_url: &str, _limits: Limits) -> Result<Vec<u8>, FetchError> {
+        Err(FetchError::Unsupported)
+    }
+}
 
 /// What a link turned out to hold.
 #[derive(Clone, Debug, PartialEq)]

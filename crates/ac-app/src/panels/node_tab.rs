@@ -1159,6 +1159,18 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         {
             io.requests.push(PanelRequest::SaveBlock(d.clone()));
         }
+        if ui
+            .button(format!("{}  Export block file…", icons::EXPORT))
+            .on_hover_text(
+                "Write this definition to a block file to share, with a few seconds of it \
+                 playing (its preview) beside it.",
+            )
+            .clicked()
+        {
+            io.requests.push(PanelRequest::ExportBlock(
+                crate::dialogs::BlockToExport::Def(d.clone()),
+            ));
+        }
         if let Some(u) = update
             && ui
                 .button(format!(

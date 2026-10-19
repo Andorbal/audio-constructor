@@ -1,6 +1,7 @@
-//! The editor's own settings (theme, UI scale), kept in `settings.json` in
-//! the platform config folder next to the recent list. They belong to the
-//! person, not to a project, so they never travel with project files.
+//! The editor's own settings (theme, UI scale, the shared libraries added
+//! by link), kept in `settings.json` in the platform config folder next to
+//! the recent list. They belong to the person, not to a project, so they
+//! never travel with project files.
 
 use std::path::{Path, PathBuf};
 
@@ -18,6 +19,9 @@ pub struct Prefs {
     pub theme: ThemeChoice,
     /// egui's zoom factor: 1 is 100 %.
     pub ui_scale: f32,
+    /// Shared libraries the Library tab lists, by their index's link, in
+    /// the order they were added (DECISIONS D194).
+    pub libraries: Vec<String>,
 }
 
 impl Default for Prefs {
@@ -25,6 +29,7 @@ impl Default for Prefs {
         Prefs {
             theme: ThemeChoice::Dark,
             ui_scale: 1.0,
+            libraries: Vec::new(),
         }
     }
 }
@@ -116,6 +121,23 @@ impl AppSettings {
         }
     }
 
+    /// Remember a shared library's link (once).
+    pub fn add_library(&mut self, link: &str) {
+        if !self.prefs.libraries.iter().any(|l| l == link) {
+            self.prefs.libraries.push(link.to_string());
+            self.save();
+        }
+    }
+
+    /// Forget a shared library's link.
+    pub fn remove_library(&mut self, link: &str) {
+        let before = self.prefs.libraries.len();
+        self.prefs.libraries.retain(|l| l != link);
+        if self.prefs.libraries.len() != before {
+            self.save();
+        }
+    }
+
     /// Write the file. Failing to save settings is not worth interrupting
     /// anyone for; the editor keeps them for this session.
     fn save(&self) {
@@ -144,6 +166,14 @@ fn parse(text: &str) -> Prefs {
     }
     if let Some(s) = map.get("ui_scale").and_then(serde_json::Value::as_f64) {
         prefs.ui_scale = s as f32;
+    }
+    if let Some(list) = map.get("libraries").and_then(serde_json::Value::as_array) {
+        for l in list.iter().filter_map(serde_json::Value::as_str) {
+            let l = l.trim();
+            if !l.is_empty() && !prefs.libraries.iter().any(|x| x == l) {
+                prefs.libraries.push(l.to_string());
+            }
+        }
     }
     prefs.sanitized()
 }
@@ -176,9 +206,14 @@ mod tests {
         assert_eq!(s.prefs, Prefs::default(), "no file yet");
         s.set_theme(ThemeChoice::Light);
         s.set_ui_scale(1.25);
+        s.add_library("https://example.org/a/index.json");
+        s.add_library("https://example.org/b/index.json");
+        s.add_library("https://example.org/a/index.json");
+        s.remove_library("https://example.org/b/index.json");
         let again = AppSettings::load_from(Some(file.clone()));
         assert_eq!(again.prefs.theme, ThemeChoice::Light);
         assert_eq!(again.prefs.ui_scale, 1.25);
+        assert_eq!(again.prefs.libraries, ["https://example.org/a/index.json"]);
         std::fs::remove_dir_all(dir).ok();
     }
 
@@ -193,5 +228,8 @@ mod tests {
         assert_eq!(p.theme, ThemeChoice::System);
         assert_eq!(p.ui_scale, 1.0);
         assert_eq!(parse(r#"{"ui_scale": 40}"#).ui_scale, 2.0);
+        let p = parse(r#"{"libraries": ["https://a/index.json", 3, " ", "https://a/index.json"]}"#);
+        assert_eq!(p.libraries, ["https://a/index.json"]);
+        assert!(parse(r#"{"libraries": "nope"}"#).libraries.is_empty());
     }
 }

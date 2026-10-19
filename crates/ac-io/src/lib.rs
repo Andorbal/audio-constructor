@@ -71,7 +71,6 @@ pub mod preview;
 pub mod priority;
 pub mod project_file;
 pub mod record;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod remote;
 pub mod rings;
 pub mod runtime;

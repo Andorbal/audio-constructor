@@ -283,6 +283,20 @@ impl Library {
         Ok(source)
     }
 
+    /// Keep `wav` as the preview of the person's own or an imported block
+    /// (written beside it as `<id>.preview.wav` and recorded in its file).
+    pub fn set_preview(&mut self, source: &BlockSource, wav: &[u8]) -> Result<(), String> {
+        if source.origin == Origin::Shipped {
+            return Err("shipped blocks keep no preview files".into());
+        }
+        let block = self
+            .get(source)
+            .map(|b| b.block.clone())
+            .ok_or_else(|| format!("{source} isn't in the library"))?;
+        self.store_with_preview(source.clone(), block, Some(wav))
+            .map(|_| ())
+    }
+
     /// Remove a user or imported block (shipped ones can't be removed).
     pub fn remove(&mut self, source: &BlockSource) -> Result<(), String> {
         if source.origin == Origin::Shipped {
@@ -500,6 +514,24 @@ mod tests {
         });
         let c = lib.import(claims, "claims").unwrap();
         assert_eq!(lib.get(&c).unwrap().block.preview, None);
+        // A saved block's preview can be added after it's saved.
+        let mine = lib.save_user(block("Mine", &[])).unwrap();
+        lib.set_preview(&mine, &wav).unwrap();
+        assert!(dir.join("mine.preview.wav").exists());
+        assert!(
+            Library::open(&dir)
+                .get(&mine)
+                .unwrap()
+                .preview_path()
+                .is_some()
+        );
+        // Saving it again (a new version) drops the old version's preview.
+        lib.save_user(block("Mine", &[])).unwrap();
+        assert!(!dir.join("mine.preview.wav").exists());
+        assert!(
+            lib.set_preview(&BlockSource::new(Origin::Shipped, "x"), &wav)
+                .is_err()
+        );
         // Removing the block takes its preview too.
         lib.remove(&s).unwrap();
         assert!(!file.exists());

@@ -23,6 +23,7 @@ pub mod help;
 pub mod host;
 pub mod icons;
 pub mod menubar;
+pub mod online;
 pub mod palette;
 pub mod panels;
 pub mod params;

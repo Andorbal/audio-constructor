@@ -8,6 +8,8 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 pub enum Action {
     New,
     Open,
+    /// Import a block, a pack, or a shared library from a link.
+    ImportFromLink,
     Save,
     SaveAs,
     ExportWav,
@@ -119,6 +121,7 @@ impl Action {
     pub const ALL: &'static [Action] = &[
         Action::New,
         Action::Open,
+        Action::ImportFromLink,
         Action::Save,
         Action::SaveAs,
         Action::ExportWav,
@@ -186,6 +189,7 @@ impl Action {
         match self {
             Action::New => "New",
             Action::Open => "Open…",
+            Action::ImportFromLink => "Import from Link…",
             Action::Save => "Save",
             Action::SaveAs => "Save As…",
             Action::ExportWav => "Export WAV…",
@@ -259,6 +263,7 @@ impl Action {
             Action::SaveAs => sc(CMD_SHIFT, Key::S),
             Action::ExportWav => sc(CMD, Key::E),
             Action::ExportPack => None,
+            Action::ImportFromLink => None,
             Action::Quit => sc(CMD, Key::Q),
             Action::Undo => sc(CMD, Key::Z),
             Action::Redo => sc(CMD_SHIFT, Key::Z),
@@ -347,6 +352,7 @@ impl Action {
                 | Action::SaveAs
                 | Action::ExportWav
                 | Action::ExportPack
+                | Action::ImportFromLink
                 | Action::Quit
                 | Action::Undo
                 | Action::Redo

@@ -33,6 +33,23 @@ fixes and smaller changes.
   size, and SHA-256), so the folder can be shared from any web host that
   serves files. Blocks that don't load are reported and left out of the
   index, and `--check` says whether an index is up to date.
+- **Previews in the Library tab**: every block that makes sound has a
+  play button. It plays the block's preview over whatever the patch is
+  playing, from the preview file when the block has one and rendered on
+  the spot otherwise (the same audio an export writes); click again to
+  stop. Saving a group to your library keeps a preview beside it too.
+- **Export block file…** (in the Node tab for a group, and on a library
+  block's right-click menu) writes the block to share, with its preview
+  beside it, rendered in the background.
+- **Import from Link…** (in the File menu and the Library tab) takes a
+  link to a block, a pack, or a shared library's `index.json`. Blocks join
+  your library under Imported, with their previews; packs are saved to
+  your Downloads folder and open as packs do; a library is listed in the
+  Library tab under **Shared libraries**, remembered between sessions,
+  where its blocks can be searched, previewed (downloaded once, then kept
+  in the cache folder), and installed, each checked against the library's
+  index. Downloads run in the background and never hold up the editor;
+  only https links work, except to this computer.
 - `audioc block-import <link>` imports a block, a pack, or a whole
   library (or some of it, with `--only`) from an https link, into your
   library or the one `--library` names. Blocks from a library are checked

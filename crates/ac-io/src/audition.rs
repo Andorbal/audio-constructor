@@ -37,6 +37,8 @@ struct Shared {
     playing: AtomicU64,
     /// Frames of it played.
     position: AtomicU64,
+    /// The newest clip that finished, was replaced, or was stopped.
+    done: AtomicU64,
 }
 
 /// The control end: start and stop clips, see what's playing.
@@ -132,6 +134,12 @@ impl Audition {
         }
     }
 
+    /// Whether clip `id` has played to its end, or been replaced or
+    /// stopped (false until the audio side has taken it).
+    pub fn is_done(&self, id: u64) -> bool {
+        self.shared.done.load(Ordering::Acquire) >= id
+    }
+
     /// How far into clip `id` playback is, 0 to 1 (0 if it isn't playing).
     pub fn progress(&self, id: u64) -> f32 {
         if self.playing() != Some(id) || self.length.0 != id || self.length.1 == 0 {
@@ -162,6 +170,7 @@ impl AuditionTap {
                     Command::Stop => None,
                 };
                 if let Some(old) = self.current.take() {
+                    self.shared.done.fetch_max(old.id, Ordering::AcqRel);
                     self.give_back(old);
                 }
                 self.current = next;
@@ -197,6 +206,7 @@ impl AuditionTap {
         if self.pos >= len {
             self.shared.playing.store(0, Ordering::Release);
             if let Some(done) = self.current.take() {
+                self.shared.done.fetch_max(done.id, Ordering::AcqRel);
                 self.give_back(done);
             }
         } else {
@@ -255,6 +265,7 @@ mod tests {
         let out = mix(&mut tap, 4);
         assert!(close(&out[..4], &[1.0, 1.1, 0.5, 0.5]), "{out:?}");
         assert_eq!(a.playing(), None);
+        assert!(a.is_done(id));
         // The box came back to be freed here.
         a.collect_garbage();
         assert!(a.back.is_empty());
@@ -267,11 +278,15 @@ mod tests {
         let out = mix(&mut tap, 2);
         assert!(close(&out, &[1.0, 1.0, 0.0, 0.0]), "{out:?}");
         let b = a.play(vec![vec![0.25; 100]], 1.0).unwrap();
+        assert!(!a.is_done(b), "not taken yet");
         mix(&mut tap, 2);
         assert_eq!(a.playing(), Some(b));
+        assert!(a.is_done(b - 1), "the first was replaced");
+        assert!(!a.is_done(b));
         a.stop();
         assert_eq!(mix(&mut tap, 2), vec![0.5; 4]);
         assert_eq!(a.playing(), None);
+        assert!(a.is_done(b));
         a.collect_garbage();
     }
 
