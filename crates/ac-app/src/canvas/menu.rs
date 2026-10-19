@@ -733,6 +733,7 @@ impl Canvas {
                     SignalType::Trigger | SignalType::Midi => tele
                         .socket_events(path, sock)
                         .map(|c| format!("{c} events")),
+                    SignalType::Text => None,
                     ty => value.map(|v| widgets::live_text(v, ty, s.spec.as_ref())),
                 };
                 if let Some(t) = text {
@@ -758,6 +759,7 @@ impl Canvas {
                             "off".into()
                         }
                     }
+                    widgets::Field::Text => widgets::text(node, spec),
                     _ => String::new(),
                 };
                 if !text.is_empty() {

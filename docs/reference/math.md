@@ -130,12 +130,13 @@ on partway through a song.
 
 Kind: `constant` · Also found by: value, number
 
-A fixed `Float`, `Int`, or `Bool` value, set with its inline widget.
+A fixed `Float`, `Int`, `Bool`, or `Text` value, set with its inline
+widget.
 
 The `type` setting chooses the kind of value: `float` (the default),
-`int`, or `bool`. The `value` input and the `out` output both take that
-type. Leave `value` unwired and set it with its widget; that widget is
-the control.
+`int`, `bool`, or `text`. The `value` input and the `out` output both
+take that type. Leave `value` unwired and set it with its widget; that
+widget is the control.
 
 `out` is a block-rate signal. If you wire something into `value`, it is
 passed through once per block (the value at the start of the block), so
@@ -145,7 +146,8 @@ value that is NaN or infinite comes out as 0.
 **Try this:** wire one `Constant` into the `freq` of several
 `Oscillator`s and retune them all from one widget. A `bool` Constant
 makes a project-wide switch: wire it into every `loop` input you want
-to flip at once.
+to flip at once. A `text` Constant holds an OSC address that several
+`OSC In` and `OSC Out` nodes share.
 
 **Inputs**
 
@@ -528,6 +530,46 @@ rhythms into one `Sampler`'s `start` for a busier beat.
 | --- | --- | --- |
 | `out` | Midi | Every input's MIDI in time order, each held note once. |
 
+<a id="number-to-text"></a>
+## Number to Text
+
+Kind: `number_to_text` · Also found by: format, string, template, label, address, print, join
+
+Writes numbers into a text template: `/fader/{}` with `value` 3
+gives `/fader/3`.
+
+`template` is the text to produce, with `{}` where each number goes.
+Placeholders take the values in order (`value`, then `value_2` to
+`value_4`, as many as the `args` setting gives, 1–4). A placeholder
+can name a value, counting from 0 (`{1}`), and ask for a fixed
+number of decimals (`{:.2}`, `{0:.1}`); plain `{}` writes whole
+numbers without a decimal point and others with as many digits as
+they need. `{{` and `}}` give literal braces. A template with a
+stray brace, an unknown format, or a placeholder past the last
+value writes nothing for that part; a value that isn't a number
+writes 0. The text is cut at 128 bytes.
+
+`out` changes once per block, from the values at the block's start,
+so a moving signal doesn't produce every intermediate number.
+
+**Try this:** wire a `Counter` into `value` with the template
+`/fader/{}` and feed `out` into an `OSC In`'s `address` to step
+through a surface's faders, or expose `value` as a group input so
+each instance of a block listens to its own control.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `template` | Text | `{}` |  | The text to write, with {} where numbers go. |
+| `value` | Float | 0 |  | The number for the first placeholder. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Text | The filled-in text, once per block. |
+
 <a id="quantize"></a>
 ## Quantize
 
@@ -770,6 +812,43 @@ for a two-note trill.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `out` | Float | The picked input. |
+
+<a id="text-to-number"></a>
+## Text to Number
+
+Kind: `text_to_number` · Also found by: parse, string, extract, read, pattern, address
+
+Reads a number out of text: with the pattern `/fader/{}`, the text
+`/fader/3` gives 3.
+
+`pattern` is the text to expect, with one `{}` where the number is;
+the rest must match exactly, and whatever sits in the placeholder's
+place (spaces around it ignored) is read as a number. An empty
+pattern reads the whole text. `value` holds the number and `ok` is
+on while the text matches; when it doesn't (wrong text, nothing
+numeric in the placeholder, no `{}` in a non-empty pattern), `value`
+is 0 and `ok` is off, and nothing stops.
+
+The `type` setting picks the output: `float` (the default) or
+`int`, which rounds. Both change once per block.
+
+**Try this:** wire a group's text input through this node to turn
+a channel name such as `ch3` into the `index` of a `Select`, with
+the pattern `ch{}` and type `int`.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `text` | Text | `` |  | The text to read. |
+| `pattern` | Text | `{}` |  | The expected text, with {} at the number. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `value` | Float | The number read, or 0. |
+| `ok` | Bool | On while the text matches the pattern. |
 
 <a id="unary"></a>
 ## Unary

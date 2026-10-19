@@ -794,6 +794,19 @@ impl Canvas {
                         Self::send_param(io, node, &socket, Value::Bool(!on), now);
                         io.doc.end_coalescing();
                     }
+                    widgets::Field::Text => {
+                        self.edit = Some(InlineEdit {
+                            target: EditTarget::Param {
+                                node,
+                                socket,
+                                spec: spec.clone(),
+                            },
+                            text: widgets::text(n, &spec),
+                            rect: field_rect(s),
+                            multiline: false,
+                            started: false,
+                        });
+                    }
                     _ => {}
                 }
             }

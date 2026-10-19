@@ -19,6 +19,7 @@ pub mod merge;
 // Node files are named after their kind, and this kind is `math`.
 #[allow(clippy::module_inception)]
 pub mod math;
+pub mod number_to_text;
 pub mod quantize;
 pub mod random;
 mod route;
@@ -26,6 +27,7 @@ pub mod sample_hold;
 pub mod select;
 pub mod smooth;
 pub mod switch;
+pub mod text_to_number;
 pub mod unary;
 
 /// Register every node in this category.
@@ -49,6 +51,8 @@ pub fn register(r: &mut Registry) {
     r.register::<select::Select>();
     r.register::<switch::Switch>();
     r.register::<merge::Merge>();
+    r.register::<number_to_text::NumberToText>();
+    r.register::<text_to_number::TextToNumber>();
 }
 
 /// `x` if it is finite, else 0. Math nodes promise finite outputs, so NaN and

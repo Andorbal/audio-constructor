@@ -1,6 +1,6 @@
 //! Bindings: MIDI controllers and notes, computer keys, gamepad controls,
-//! and OSC mapped onto node inputs and transport actions (UX.md
-//! "Bindings", ARCHITECTURE §8 "Parameters in").
+//! OSC, and a plugin host's macro parameters mapped onto node inputs and
+//! transport actions (UX.md "Bindings", ARCHITECTURE §8 "Parameters in").
 //!
 //! A [`Binding`] is stored in the project. The engine resolves its target
 //! to parameter slots when it compiles and applies matching events on the
@@ -15,7 +15,9 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::control::{Control, ControlEvent, GamepadAxis, GamepadButton, Key, osc_address_hash};
+use crate::control::{
+    Control, ControlEvent, GamepadAxis, GamepadButton, Key, MACRO_COUNT, osc_address_hash,
+};
 use crate::events::MidiMsg;
 use crate::id::NodePath;
 use crate::signal::{Scale, SignalType, SocketSpec, Unit};
@@ -95,7 +97,7 @@ impl Binding {
 ///
 /// MIDI channels are 1–16 as people number them (absent: any channel);
 /// gamepads are numbered from 0 in the order they were connected (absent:
-/// any gamepad).
+/// any gamepad); macros are 1–[`MACRO_COUNT`], as hosts list them.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Source {
@@ -127,6 +129,11 @@ pub enum Source {
         address: String,
         #[serde(default, skip_serializing_if = "is_zero")]
         arg: u8,
+    },
+    /// A macro parameter of the plugin build: host automation, or the
+    /// host's own control for it. Outside a plugin nothing sends it.
+    Macro {
+        number: u8,
     },
 }
 
@@ -166,6 +173,9 @@ impl Source {
                 address: osc_address_hash(address),
                 arg: *arg,
             },
+            Source::Macro { number } => SourceKey::Macro {
+                index: macro_index(*number),
+            },
         }
     }
 
@@ -194,6 +204,7 @@ impl Source {
                     format!("OSC {address} [{arg}]")
                 }
             }
+            Source::Macro { number } => format!("Macro {}", macro_index(*number) + 1),
         }
     }
 
@@ -202,9 +213,19 @@ impl Source {
     pub fn is_continuous(&self) -> bool {
         matches!(
             self,
-            Source::MidiCc { .. } | Source::GamepadAxis { .. } | Source::Osc { .. }
+            Source::MidiCc { .. }
+                | Source::GamepadAxis { .. }
+                | Source::Osc { .. }
+                | Source::Macro { .. }
         )
     }
+}
+
+/// A macro number as stored (1–[`MACRO_COUNT`]) to its index (0–15).
+/// Out-of-range numbers are repaired like MIDI channels (DECISIONS D29):
+/// 0 means 1, past the last means the last.
+fn macro_index(number: u8) -> u8 {
+    number.clamp(1, MACRO_COUNT as u8) - 1
 }
 
 impl fmt::Display for Source {
@@ -358,6 +379,9 @@ pub enum SourceKey {
         address: u64,
         arg: u8,
     },
+    Macro {
+        index: u8,
+    },
 }
 
 /// How one event reads on a source: where the control sits (0–1) and
@@ -439,7 +463,7 @@ impl SourceKey {
     ///
     /// Keys and buttons read 0–1 (pressed from halfway); sticks read
     /// `(v + 1) / 2` and count as pressed when pushed at least halfway right
-    /// or up; triggers and OSC values read 0–1.
+    /// or up; triggers, OSC values, and macros read 0–1.
     pub fn read_control(&self, e: &ControlEvent) -> Option<Reading> {
         let pad_ok = |want: Option<u8>, got: u8| want.is_none_or(|p| p == got);
         match (*self, e.control) {
@@ -465,6 +489,9 @@ impl SourceKey {
             (SourceKey::Osc { address, arg }, Control::Osc { address: a, arg: g })
                 if a == address && g == arg =>
             {
+                Some(Reading::level(e.value))
+            }
+            (SourceKey::Macro { index }, Control::Macro { index: i }) if i == index => {
                 Some(Reading::level(e.value))
             }
             _ => None,
@@ -603,8 +630,8 @@ pub enum InputEvent {
 pub const LEARN_THRESHOLD: f32 = 0.08;
 
 /// Learns a binding source from incoming events: the first key, note,
-/// button, or press, or the first controller, stick, or OSC value that
-/// moves by [`LEARN_THRESHOLD`].
+/// button, or press, or the first controller, stick, OSC value, or macro
+/// that moves by [`LEARN_THRESHOLD`].
 #[derive(Clone, Debug, Default)]
 pub struct Learner {
     /// Where each continuous control was first seen.
@@ -675,6 +702,11 @@ impl Learner {
                     return None;
                 }
                 osc_name(address).map(|address| Source::Osc { address, arg })
+            }
+            InputEvent::Control(control @ Control::Macro { index }, v) => {
+                self.moved(control, v).then_some(Source::Macro {
+                    number: index.saturating_add(1),
+                })
             }
         }
     }
@@ -803,6 +835,52 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn macros_round_trip_read_learn_and_repair() {
+        let b = Binding::input(Source::Macro { number: 3 }, path(&[7]), "gain");
+        let v = serde_json::to_value(&b).unwrap();
+        assert_eq!(
+            v["source"],
+            serde_json::json!({"type": "macro", "number": 3})
+        );
+        assert_eq!(serde_json::from_value::<Binding>(v).unwrap(), b);
+        assert_eq!(b.source.label(), "Macro 3");
+        assert!(b.source.is_continuous());
+        // Macro 3 is index 2 on the wire; other macros don't match.
+        let k = b.source.key();
+        assert_eq!(k, SourceKey::Macro { index: 2 });
+        let at = |index: u8, value: f32| ControlEvent::new(0, Control::Macro { index }, value);
+        assert_eq!(
+            k.read_control(&at(2, 0.25)),
+            Some(Reading {
+                value: 0.25,
+                on: false
+            })
+        );
+        assert!(k.read_control(&at(2, 0.75)).unwrap().on);
+        assert_eq!(k.read_control(&at(1, 0.5)), None);
+        assert_eq!(k.read_control(&at(2, f32::NAN)).unwrap().value, 0.0);
+        // Numbers outside 1..=MACRO_COUNT are repaired, never out of range.
+        assert_eq!(
+            Source::Macro { number: 0 }.key(),
+            SourceKey::Macro { index: 0 }
+        );
+        assert_eq!(
+            Source::Macro { number: 200 }.key(),
+            SourceKey::Macro {
+                index: MACRO_COUNT as u8 - 1
+            }
+        );
+        assert_eq!(Source::Macro { number: 0 }.label(), "Macro 1");
+        // Learning waits for the macro to move, like any continuous control.
+        let none = |_: u64| None;
+        let mut l = Learner::new();
+        let ev = |v: f32| InputEvent::Control(Control::Macro { index: 4 }, v);
+        assert_eq!(l.feed(&ev(0.5), &none), None);
+        assert_eq!(l.feed(&ev(0.52), &none), None);
+        assert_eq!(l.feed(&ev(0.7), &none), Some(Source::Macro { number: 5 }));
     }
 
     #[test]

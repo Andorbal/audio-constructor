@@ -25,7 +25,7 @@ use ac_core::{
     Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, LOCAL, MIDI_CAPACITY, MidiEvent,
     Node, NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry,
     RenderWholeFn, Resources, SignalType, SocketSpec, SpectrumBuf, SpectrumShape, TempoMap,
-    TriggerSrc, WholeInputs, conversion, param_value,
+    TextBuf, TextSrc, TriggerSrc, WholeInputs, conversion, param_text, param_value,
     util::{Fnv64, derive_seed},
 };
 use serde_json::json;
@@ -151,6 +151,7 @@ enum OutStore {
     Midi,
     Spectrum(SpectrumShape),
     Buffer,
+    Text,
 }
 
 /// Storage assigned to an output: virtual sample buffers, a scalar, etc.
@@ -165,6 +166,7 @@ enum Alloc {
     Midi(u32),
     Spectrum(u32),
     Buffer(u32),
+    Text(u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -201,6 +203,7 @@ struct Builder {
     out_midi: Vec<u32>,
     out_spectra: Vec<u32>,
     out_buffers: Vec<u32>,
+    out_texts: Vec<u32>,
     chan_table: Vec<u32>,
     /// Virtual sample buffers; index 0 is permanent silence.
     vsamples: Vec<Life>,
@@ -211,6 +214,9 @@ struct Builder {
     int_def: Vec<usize>,
     spectra: Vec<(SpectrumShape, usize)>,
     buffer_def: Vec<usize>,
+    /// Text slots: the initial value, and the defining step for a wired
+    /// output (`None` for a typed value, which no step writes).
+    texts: Vec<(TextBuf, Option<usize>)>,
     params: Vec<ParamSlot>,
     param_smooth: Vec<u32>,
     param_map: ParamMap,
@@ -245,6 +251,7 @@ impl Builder {
             o_midi: (0, 0),
             o_spectra: (0, 0),
             o_buffers: (0, 0),
+            o_texts: (0, 0),
             o_stash: (0, 0),
             acquire: (0, 0),
             release: (0, 0),
@@ -582,6 +589,7 @@ pub(crate) fn compile_with(
         out_midi: Vec::new(),
         out_spectra: Vec::new(),
         out_buffers: Vec::new(),
+        out_texts: Vec::new(),
         chan_table: Vec::new(),
         vsamples: vec![Life {
             def: 0,
@@ -593,6 +601,7 @@ pub(crate) fn compile_with(
         int_def: Vec::new(),
         spectra: Vec::new(),
         buffer_def: Vec::new(),
+        texts: Vec::new(),
         params: Vec::new(),
         param_smooth: Vec::new(),
         param_map: HashMap::new(),
@@ -631,7 +640,7 @@ pub(crate) fn compile_with(
                 Some((s, o)) => {
                     let src_spec = &flat.nodes[s].sig.outputs[o];
                     let a = alloc[s][o].clone();
-                    wired_input(&mut b, &f.path, spec, src_spec.ty, &a, &mut report)
+                    wired_input(&mut b, f, spec, src_spec.ty, &a, &mut report)
                 }
                 None => unwired_input(&mut b, f, spec, smooth_len),
             };
@@ -655,7 +664,7 @@ pub(crate) fn compile_with(
 
         // Outputs.
         let out_start = b.output_slots.len() as u32;
-        let (s0, sc0, i0, t0, m0, sp0, bu0) = (
+        let (s0, sc0, i0, t0, m0, sp0, bu0, tx0) = (
             b.out_samples.len() as u32,
             b.out_scalars.len() as u32,
             b.out_ints.len() as u32,
@@ -663,6 +672,7 @@ pub(crate) fn compile_with(
             b.out_midi.len() as u32,
             b.out_spectra.len() as u32,
             b.out_buffers.len() as u32,
+            b.out_texts.len() as u32,
         );
         for o in 0..f.sig.outputs.len() {
             if !wants_outputs {
@@ -744,6 +754,13 @@ pub(crate) fn compile_with(
                     b.out_buffers.push(k);
                     (OutputSlot::Buffer(local), Alloc::Buffer(k))
                 }
+                OutStore::Text => {
+                    let local = b.out_texts.len() as u32 - tx0;
+                    let k = b.texts.len() as u32;
+                    b.texts.push((TextBuf::EMPTY, Some(step_index)));
+                    b.out_texts.push(k);
+                    (OutputSlot::Text(local), Alloc::Text(k))
+                }
                 OutStore::None => (OutputSlot::None, Alloc::None),
             };
             b.output_slots.push(slot);
@@ -765,6 +782,7 @@ pub(crate) fn compile_with(
         step.o_midi = (m0, b.out_midi.len() as u32);
         step.o_spectra = (sp0, b.out_spectra.len() as u32);
         step.o_buffers = (bu0, b.out_buffers.len() as u32);
+        step.o_texts = (tx0, b.out_texts.len() as u32);
         b.steps.push(step);
         node_steps[node].push(step_index);
     }
@@ -1061,6 +1079,10 @@ pub(crate) fn compile_with(
                     let def = b.buffer_def.get(*k as usize).copied();
                     local(k, def, &lay.pos_buffers, base.buffers);
                 }
+                InputSlot::Text(TextSrc::Wired(k)) => {
+                    let def = b.texts.get(*k as usize).and_then(|t| t.1);
+                    local(k, def, &lay.pos_texts, base.texts);
+                }
                 _ => {}
             }
         }
@@ -1222,6 +1244,7 @@ pub(crate) fn compile_with(
             .map(|(shape, _)| SpectrumBuf::new(*shape, shape.max_frames(max_block)))
             .collect(),
         buffers: vec![None; b.buffer_def.len()],
+        texts: b.texts.iter().map(|(t, _)| *t).collect(),
     };
     let graph = Box::new(CompiledGraph {
         generation: opts.generation,
@@ -1243,6 +1266,7 @@ pub(crate) fn compile_with(
         out_midi: lay.out_midi,
         out_spectra: lay.out_spectra,
         out_buffers: lay.out_buffers,
+        out_texts: lay.out_texts,
         chan_table: b.chan_table,
         pool,
         params: b.params,
@@ -1477,6 +1501,7 @@ fn out_stores(
                 .or(shape)
                 .map_or(OutStore::None, OutStore::Spectrum),
             SignalType::Buffer => OutStore::Buffer,
+            SignalType::Text => OutStore::Text,
             SignalType::Any => OutStore::None,
         })
         .collect()
@@ -1660,6 +1685,7 @@ fn step_reads(b: &Builder) -> Vec<Vec<usize>> {
                     InputSlot::Midi(Some(v)) => b.vmidi.get(v as usize).map(|l| l.def),
                     InputSlot::Spectrum(Some(k)) => b.spectra.get(k as usize).map(|sp| sp.1),
                     InputSlot::Buffer(Some(k)) => b.buffer_def.get(k as usize).copied(),
+                    InputSlot::Text(TextSrc::Wired(k)) => b.texts.get(k as usize).and_then(|t| t.1),
                     _ => None,
                 };
                 d.extend(def);
@@ -1679,6 +1705,7 @@ struct Layout {
     out_midi: Vec<u32>,
     out_spectra: Vec<u32>,
     out_buffers: Vec<u32>,
+    out_texts: Vec<u32>,
     pos_samples: Vec<u32>,
     pos_scalars: Vec<u32>,
     pos_ints: Vec<u32>,
@@ -1686,6 +1713,7 @@ struct Layout {
     pos_midi: Vec<u32>,
     pos_spectra: Vec<u32>,
     pos_buffers: Vec<u32>,
+    pos_texts: Vec<u32>,
 }
 
 impl Layout {
@@ -1698,6 +1726,7 @@ impl Layout {
             out_midi: Vec::with_capacity(b.out_midi.len()),
             out_spectra: Vec::with_capacity(b.out_spectra.len()),
             out_buffers: Vec::with_capacity(b.out_buffers.len()),
+            out_texts: Vec::with_capacity(b.out_texts.len()),
             pos_samples: vec![u32::MAX; b.vsamples.len()],
             pos_scalars: vec![u32::MAX; b.scalar_def.len()],
             pos_ints: vec![u32::MAX; b.int_def.len()],
@@ -1705,6 +1734,7 @@ impl Layout {
             pos_midi: vec![u32::MAX; b.vmidi.len()],
             pos_spectra: vec![u32::MAX; b.spectra.len()],
             pos_buffers: vec![u32::MAX; b.buffer_def.len()],
+            pos_texts: vec![u32::MAX; b.texts.len()],
         }
     }
 
@@ -1719,6 +1749,7 @@ impl Layout {
             midi: self.out_midi.len(),
             spectra: self.out_spectra.len(),
             buffers: self.out_buffers.len(),
+            texts: self.out_texts.len(),
             stash: 0,
         }
     }
@@ -1778,6 +1809,12 @@ impl Layout {
             &mut self.out_buffers,
             &mut self.pos_buffers,
         );
+        s.o_texts = put(
+            &b.out_texts,
+            s.o_texts,
+            &mut self.out_texts,
+            &mut self.pos_texts,
+        );
         s
     }
 }
@@ -1796,12 +1833,13 @@ fn input_channels(rule: Channels, src: usize) -> usize {
 
 fn wired_input(
     b: &mut Builder,
-    path: &NodePath,
+    f: &FlatNode,
     spec: &SocketSpec,
     src_ty: SignalType,
     a: &Alloc,
     report: &mut CompileReport,
 ) -> InputSlot {
+    let path = &f.path;
     match spec.ty {
         SignalType::Audio => {
             let bufs: Vec<u32> = match (a, conversion(src_ty, spec.ty)) {
@@ -1879,6 +1917,10 @@ fn wired_input(
             Alloc::Buffer(k) => InputSlot::Buffer(Some(*k)),
             _ => InputSlot::Buffer(None),
         },
+        SignalType::Text => match a {
+            Alloc::Text(k) => InputSlot::Text(TextSrc::Wired(*k)),
+            _ => InputSlot::Text(TextSrc::Const(const_text(b, f, spec))),
+        },
         SignalType::Any => InputSlot::None,
     }
 }
@@ -1927,8 +1969,18 @@ fn unwired_input(b: &mut Builder, f: &FlatNode, spec: &SocketSpec, smooth_len: u
         SignalType::Midi => InputSlot::Midi(None),
         SignalType::Spectrum => InputSlot::Spectrum(None),
         SignalType::Buffer => InputSlot::Buffer(None),
+        SignalType::Text => InputSlot::Text(TextSrc::Const(const_text(b, f, spec))),
         SignalType::Any => InputSlot::None,
     }
+}
+
+/// A text slot holding what's typed into an unwired `Text` input. It has
+/// no param slot: the engine's parameter queue carries numbers, so editing
+/// the text recompiles (state carries over, D11).
+fn const_text(b: &mut Builder, f: &FlatNode, spec: &SocketSpec) -> u32 {
+    let t = param_text(spec, f.params.get(spec.name.as_ref()));
+    b.texts.push((t, None));
+    (b.texts.len() - 1) as u32
 }
 
 fn bypass_for(f: &FlatNode) -> Bypass {

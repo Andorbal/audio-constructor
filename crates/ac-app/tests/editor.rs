@@ -7,10 +7,15 @@ use ac_app::{AppOptions, EditorApp};
 use ac_core::{Endpoint, GROUP_KIND, NodeId, NodeInstance, Project, Value, Wire};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, pos2, vec2};
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use serde_json::json;
 
 fn harness(project: Option<Project>) -> Harness<'static, EditorApp> {
+    harness_sized(project, vec2(1400.0, 900.0))
+}
+
+/// A harness with a window of `size` (a long side tab needs a tall one).
+fn harness_sized(project: Option<Project>, size: egui::Vec2) -> Harness<'static, EditorApp> {
     let ctx = egui::Context::default();
     let mut app = EditorApp::new(
         &ctx,
@@ -23,7 +28,7 @@ fn harness(project: Option<Project>) -> Harness<'static, EditorApp> {
         app.open_unsaved(p);
     }
     let mut h = Harness::builder()
-        .with_size(vec2(1400.0, 900.0))
+        .with_size(size)
         .with_max_steps(64)
         .with_step_dt(1.0 / 30.0)
         .with_accessibility_check(false)
@@ -608,6 +613,123 @@ fn the_devices_tab_turns_osc_listening_on_and_off() {
     h.get_by_label("Listen on UDP port").click();
     steps(&mut h, 3);
     assert!(h.state().engine.osc_in.is_none());
+}
+
+#[test]
+fn the_devices_tab_lists_osc_messages_and_use_sets_the_address() {
+    // An OSC In to point at the surface; it's the one selected node.
+    let mut p = Project::default();
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(1), "osc_in").at(0.0, 0.0));
+    // The OSC section is far down the Devices tab; keep it on screen.
+    let mut h = harness_sized(Some(p), vec2(1400.0, 1600.0));
+    let free = std::net::UdpSocket::bind("0.0.0.0:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    {
+        let app = h.state_mut();
+        app.engine.osc_port = free;
+        app.doc.selection = [NodeId(1)].into();
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Devices;
+    }
+    steps(&mut h, 3);
+    h.get_by_label("Listen on UDP port").click();
+    steps(&mut h, 3);
+    let _ = h.get_by_label_contains("None yet");
+    // A multi-fader strip, as a surface names it, with its value.
+    let tx = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+    tx.send_to(b"/fader/1/3\0\0,f\0\0\x3f\x00\x00\x00", ("127.0.0.1", free))
+        .unwrap();
+    let t0 = std::time::Instant::now();
+    while h
+        .state()
+        .engine
+        .osc_in
+        .as_ref()
+        .unwrap()
+        .recent()
+        .is_empty()
+        && t0.elapsed() < std::time::Duration::from_secs(5)
+    {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    steps(&mut h, 2);
+    let _ = h.get_by_label("/fader/1/3");
+    let _ = h.get_by_label("0.5");
+    h.get_by_label("Use").click();
+    steps(&mut h, 3);
+    let addr = h.state().document().graph().node(NodeId(1)).unwrap().params["address"].clone();
+    assert_eq!(addr, ac_core::Value::Text("/fader/1/3".into()));
+    // Clear empties the list; nothing else is selected, so no Use buttons.
+    h.state_mut().doc.selection.clear();
+    steps(&mut h, 2);
+    assert!(h.query_by_label("Use").is_none());
+    h.get_by_label("Clear").click();
+    steps(&mut h, 2);
+    let _ = h.get_by_label_contains("None yet");
+    h.get_by_label("Listen on UDP port").click();
+    steps(&mut h, 2);
+}
+
+#[test]
+fn the_node_tab_edits_osc_addresses_and_flags_a_bad_one() {
+    // An OSC node's address, host, and port are `Text` and `Int` inputs:
+    // the Node tab shows them as fields, and typing an address stores it
+    // as a param and asks the engine to recompile.
+    let mut p = Project::default();
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(1), "osc_in").at(0.0, 0.0));
+    let mut out = NodeInstance::new(NodeId(2), "osc_out").at(320.0, 0.0);
+    out.params
+        .insert("address".into(), ac_core::Value::Text("no slash".into()));
+    p.graph.nodes.push(out);
+    let mut h = harness(Some(p));
+    {
+        let app = h.state_mut();
+        app.doc.selection = [NodeId(1)].into();
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Node;
+    }
+    steps(&mut h, 3);
+    let _ = h.get_by_label("SETTINGS");
+    let _ = h.get_by_label("Arguments");
+    let _ = h.get_by_label("address");
+    assert!(h.query_by_label("host").is_none(), "OSC In has no host");
+    assert!(
+        h.query_by_label_contains("The OSC address must start with")
+            .is_none(),
+        "the default address is fine"
+    );
+    let before = h.state().doc.engine_revision;
+    // Typing an address stores it on focus loss. The help quotes the
+    // default too; the field is the text input.
+    h.get_all_by_value("/fader/1")
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::TextInput)
+        .expect("an address field")
+        .click();
+    steps(&mut h, 1);
+    // The caret lands at the end of the default; Enter gives up focus.
+    h.event(Event::Text("/3".into()));
+    steps(&mut h, 1);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    steps(&mut h, 3);
+    let addr = h.state().document().graph().node(NodeId(1)).unwrap().params["address"].clone();
+    assert_eq!(addr, ac_core::Value::Text("/fader/1/3".into()));
+    assert!(
+        h.state().doc.engine_revision > before,
+        "text changes recompile"
+    );
+
+    h.state_mut().doc.selection = [NodeId(2)].into();
+    steps(&mut h, 3);
+    let _ = h.get_by_label("host");
+    let _ = h.get_by_label("port");
+    let _ = h.get_by_label_contains("The OSC address must start with");
 }
 
 #[test]

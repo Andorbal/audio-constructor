@@ -43,6 +43,13 @@ pub fn set_many(
     }
 }
 
+/// Set an unwired `Text` input. The engine's parameter queue carries
+/// numbers only, so the document asks for a recompile instead; the node's
+/// state carries over, and the new text is read on the next block.
+pub fn set_text(doc: &mut Document, id: NodeId, socket: &str, text: String, now: f64) {
+    doc.set_text_param(id, socket, text, now);
+}
+
 /// Press an unwired trigger input's button.
 pub fn fire(doc: &Document, engine: &mut EngineHandle, id: NodeId, socket: &str) {
     for path in doc.all_node_paths(id) {

@@ -14,7 +14,7 @@ use crate::panel::Panel;
 
 /// The current project file format version. Bumping it requires a migration
 /// in [`migrate`] and a fixture of the old format in the tests.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// A whole project: what `.acproj` files contain.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -196,6 +196,38 @@ impl Project {
     }
 }
 
+/// `(path, stored hash)` for every asset reference in a project.
+pub fn referenced_assets(
+    project: &Project,
+    registry: &crate::registry::Registry,
+) -> Vec<(String, Option<String>)> {
+    let mut out = Vec::new();
+    let graphs =
+        std::iter::once(&project.graph).chain(project.group_defs.values().map(|d| &d.graph));
+    for g in graphs {
+        for n in &g.nodes {
+            let Some(entry) = registry.get(&n.kind) else {
+                continue;
+            };
+            for key in entry.meta.asset_keys {
+                if let Some(p) = n.config.get(*key).and_then(|v| v.as_str())
+                    && !p.is_empty()
+                {
+                    let hash = n
+                        .config
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    out.push((p.to_string(), hash));
+                }
+            }
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// Canonical pretty JSON with a trailing newline.
 pub fn to_canonical_json<T: Serialize>(value: &T) -> String {
     // Serializing our own types to a String can only fail on non-string map
@@ -218,12 +250,82 @@ pub fn migrate(mut value: serde_json::Value) -> Result<serde_json::Value, LoadEr
             supported: SCHEMA_VERSION,
         });
     }
-    // Version 1 is the first format; future migrations chain here:
-    // if version < 2 { value = v1_to_v2(value); }
+    // Version 1 is the first format; migrations chain from it.
+    if version < 2 {
+        v1_to_v2(&mut value);
+    }
     if let Some(obj) = value.as_object_mut() {
         obj.insert("schema_version".into(), SCHEMA_VERSION.into());
     }
     Ok(value)
+}
+
+/// Version 2 made the OSC nodes' address, host, and port inputs (`Text`
+/// and `Int` sockets) instead of settings: move them from `config` to
+/// `params`, in the root graph and every group definition (a block file's
+/// `def` and `uses` too). A port written as text becomes a number;
+/// anything a socket can't hold is left alone.
+fn v1_to_v2(value: &mut serde_json::Value) {
+    fn move_keys(node: &mut serde_json::Value, keys: &[&str]) {
+        let Some(obj) = node.as_object_mut() else {
+            return;
+        };
+        let mut moved = Vec::new();
+        if let Some(config) = obj.get_mut("config").and_then(|c| c.as_object_mut()) {
+            for &key in keys {
+                let Some(v) = config.get(key) else { continue };
+                let value = match (key, v) {
+                    ("port", serde_json::Value::String(s)) => match s.trim().parse::<i64>() {
+                        Ok(n) => serde_json::Value::from(n),
+                        Err(_) => continue,
+                    },
+                    ("port", v) if v.as_i64().is_some() => v.clone(),
+                    (_, serde_json::Value::String(_)) => v.clone(),
+                    _ => continue,
+                };
+                moved.push((key, value));
+                config.remove(key);
+            }
+        }
+        if moved.is_empty() {
+            return;
+        }
+        let params = obj
+            .entry("params")
+            .or_insert_with(|| serde_json::Value::Object(Default::default()));
+        if let Some(params) = params.as_object_mut() {
+            for (key, v) in moved {
+                params.entry(key).or_insert(v);
+            }
+        }
+    }
+    fn visit(graph: &mut serde_json::Value) {
+        let Some(nodes) = graph.get_mut("nodes").and_then(|n| n.as_array_mut()) else {
+            return;
+        };
+        for node in nodes {
+            match node.get("kind").and_then(|k| k.as_str()) {
+                Some("osc_in") => move_keys(node, &["address"]),
+                Some("osc_out") => move_keys(node, &["address", "host", "port"]),
+                _ => {}
+            }
+        }
+    }
+    if let Some(graph) = value.get_mut("graph") {
+        visit(graph);
+    }
+    if let Some(graph) = value.get_mut("def").and_then(|d| d.get_mut("graph")) {
+        visit(graph);
+    }
+    for key in ["group_defs", "uses"] {
+        if let Some(defs) = value.get_mut(key).and_then(|d| d.as_object_mut()) {
+            for def in defs.values_mut() {
+                if let Some(graph) = def.get_mut("graph") {
+                    visit(graph);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -231,6 +333,7 @@ mod tests {
     use super::*;
     use crate::graph::{Endpoint, NodeInstance, Wire};
     use crate::id::NodeId;
+    use crate::value::Value;
 
     fn sample() -> Project {
         let mut p = Project {
@@ -297,6 +400,61 @@ mod tests {
         assert_eq!(again, p);
         assert!(p.to_json().contains("\"hologram\": true"));
         assert!(p.to_json().contains("\"plugins\""));
+    }
+
+    #[test]
+    fn version_1_osc_settings_become_inputs() {
+        let text = r#"{
+  "schema_version": 1,
+  "graph": {
+    "nodes": [
+      {"id": "1", "kind": "osc_in", "config": {"address": "/xy", "args": 2}},
+      {"id": "2", "kind": "osc_out",
+       "config": {"address": "/a", "host": "10.0.0.2", "port": "8000"},
+       "params": {"address": "/kept"}},
+      {"id": "3", "kind": "osc_out", "config": {"port": 70000.5, "address": 5}},
+      {"id": "4", "kind": "osc_in"}
+    ],
+    "wires": []
+  },
+  "group_defs": {
+    "g": {"name": "G", "graph": {"nodes": [
+      {"id": "1", "kind": "osc_in", "config": {"address": "/inner"}}
+    ], "wires": []}}
+  }
+}
+"#;
+        let p = Project::from_json(text).unwrap();
+        assert_eq!(p.schema_version, SCHEMA_VERSION);
+        let n = |i: u64| p.graph.nodes.iter().find(|n| n.id == NodeId(i)).unwrap();
+        assert_eq!(n(1).params.get("address"), Some(&Value::Text("/xy".into())));
+        assert_eq!(n(1).config, serde_json::json!({"args": 2}));
+        // A param already there wins; the rest move, the port as a number.
+        assert_eq!(
+            n(2).params.get("address"),
+            Some(&Value::Text("/kept".into()))
+        );
+        assert_eq!(
+            n(2).params.get("host"),
+            Some(&Value::Text("10.0.0.2".into()))
+        );
+        assert_eq!(n(2).params.get("port"), Some(&Value::Int(8000)));
+        assert_eq!(n(2).config, serde_json::json!({}));
+        // Values a socket can't hold stay where they were.
+        assert!(n(3).params.is_empty());
+        assert_eq!(
+            n(3).config,
+            serde_json::json!({"port": 70000.5, "address": 5})
+        );
+        assert!(n(4).params.is_empty());
+        let inner = &p.group_defs[&GroupId::from("g")].graph.nodes[0];
+        assert_eq!(
+            inner.params.get("address"),
+            Some(&Value::Text("/inner".into()))
+        );
+        // Saving writes the current version and reads back the same.
+        let again = Project::from_json(&p.to_json()).unwrap();
+        assert_eq!(again, p);
     }
 
     #[test]
