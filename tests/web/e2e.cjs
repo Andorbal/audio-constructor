@@ -359,6 +359,16 @@ async function main() {
     heard = await listen(page);
     check(heard.rms > 0.01, "and its clips play", heard.rms.toFixed(4));
 
+    // Reverse Delay: a whole-input node bakes on the page and plays in the
+    // worklet.
+    s = await open(page, port, "reverse-delay");
+    s = await until(page, (x) => x.baked >= 1, 20000);
+    check(s && s.baked >= 1, "Reverse Delay's Reverse node bakes from its Clip", s && s.baked);
+    await page.evaluate(() => window.audioConstructor.play());
+    await sleep(1500);
+    heard = await listen(page);
+    check(heard.rms > 0.005, "and the reversed clip plays", heard.rms.toFixed(4));
+
     await files(browser, port, errors);
   } finally {
     await browser.close();

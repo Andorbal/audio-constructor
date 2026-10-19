@@ -60,6 +60,8 @@ pub enum Handled {
     /// Audio files kept for the project that asks for them.
     Assets,
     Collected,
+    /// A bake the page made; whether it was for the running project.
+    Baked(bool),
 }
 
 /// The engine inside the audio worklet.
@@ -187,6 +189,14 @@ impl AudioSide {
             Posted::Collect => {
                 self.handle.collect_garbage();
                 Handled::Collected
+            }
+            Posted::Bake { path, outputs, .. } => {
+                let Ok(path) = path.parse::<ac_core::NodePath>() else {
+                    return Err(format!("a bake for {path:?}, which isn't a node path"));
+                };
+                let used = self.handle.adopt_bake(&path, Arc::new(outputs));
+                self.size_buffers();
+                Handled::Baked(used)
             }
             Posted::Assets { revision, files } => {
                 let files = files

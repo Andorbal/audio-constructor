@@ -729,7 +729,9 @@ All hosts call the same `Engine`.
     changes tagged for another project), runs the processor with the
     quantum's input, sends MIDI Out messages back, and publishes
     telemetry every fourth quantum. Nothing in it allocates; posted
-    messages free retired graphs.
+    messages free retired graphs. Whole-input nodes bake on the page (one
+    job a frame) and the worklet adopts each result
+    (`EngineHandle::adopt_bake`, D156).
   - *Devices and files* (D153, D154): Web MIDI, the Gamepad API, and the
     microphone; files through the File System Access API or an upload and
     a download, audio files in memory, examples fetched from the site.

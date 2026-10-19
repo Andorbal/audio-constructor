@@ -356,3 +356,85 @@ fn a_broken_project_message_does_not_stall_the_worklet() {
         "the play behind the barrier ran"
     );
 }
+
+#[test]
+fn the_page_bakes_and_the_worklet_plays_the_bake() {
+    let b = Buffers::new();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/reverse-delay.acproj");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let project = Project::from_json(&text).unwrap();
+    let registry = ac_nodes::registry();
+    let assets: Vec<(String, Vec<u8>)> = ac_core::referenced_assets(&project, &registry)
+        .into_iter()
+        .map(|(p, _)| {
+            let bytes = std::fs::read(path.parent().unwrap().join(&p)).unwrap();
+            (p, bytes)
+        })
+        .collect();
+    assert!(!assets.is_empty(), "the example plays a clip");
+    let mut web = Web::new(&b, Project::default());
+    web.editor.open_example_files(
+        std::path::Path::new("examples/reverse-delay.acproj"),
+        &text,
+        assets,
+    );
+    // The mirror bakes (on the page's thread in a browser, on a thread of
+    // its own here), then sends the result along.
+    let reverse: NodePath = "3".parse().unwrap();
+    let state = |h: &ac_engine::EngineHandle| {
+        h.bakes()
+            .iter()
+            .find(|s| s.path == reverse)
+            .map(|s| s.state.clone())
+    };
+    let t0 = std::time::Instant::now();
+    while t0.elapsed().as_secs() < 20 {
+        web.frame();
+        web.quantum(&[0.0; QUANTUM]);
+        if state(web.side.handle()) == Some(ac_engine::WholeState::Baked) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(
+        state(&web.editor.engine.handle),
+        Some(ac_engine::WholeState::Baked),
+        "the page baked"
+    );
+    assert_eq!(
+        state(web.side.handle()),
+        Some(ac_engine::WholeState::Baked),
+        "the worklet took the page's bake"
+    );
+    // And it plays what a local engine that baked plays.
+    let store = web.editor.assets().clone();
+    let resources: Arc<dyn ac_core::Resources> = Arc::new(ac_io::FileResources {
+        assets: store,
+        recorder: None,
+    });
+    let (mut reference, _) = Engine::new(
+        web.editor.engine.handle.project().clone(),
+        Arc::new(ac_nodes::registry()),
+        resources,
+        EngineOptions {
+            sample_rate: f64::from(RATE),
+            max_block: QUANTUM,
+            socket_telemetry: true,
+            offline: false,
+        },
+    );
+    reference.handle.bake_all();
+    reference.handle.collect_garbage();
+    web.editor.engine.handle.play();
+    reference.handle.play();
+    let mut loudest = 0.0f32;
+    for k in 0..400 {
+        web.frame();
+        let got = web.quantum(&[0.0; QUANTUM]);
+        let want = run_local(&mut reference, &[0.0; QUANTUM], &[]);
+        assert_eq!(got, want, "quantum {k}");
+        loudest = loudest.max(peak(&got));
+    }
+    assert!(loudest > 0.05, "the reversed clip plays: {loudest}");
+}

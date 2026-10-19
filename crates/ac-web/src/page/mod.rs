@@ -83,7 +83,8 @@ impl WebHandle {
     /// (left and right output levels), `sampleRate`, `inStep` (the worklet
     /// runs the project the editor shows), `project`, `errors` (compile
     /// errors), `missingFiles` (audio files the project can't find),
-    /// `dirty` (unsaved changes), `midiInputs`, `midiSent` (messages MIDI
+    /// `baked` (whole-input nodes baked), `dirty` (unsaved changes),
+    /// `midiInputs`, `midiSent` (messages MIDI
     /// Out nodes sent), `mic`, and `dropped` (ring records that didn't
     /// fit).
     pub fn status(&self) -> String {
@@ -106,6 +107,11 @@ impl WebHandle {
             "project": app.editor.document().title(),
             "errors": app.editor.engine.report.errors().count(),
             "missingFiles": app.editor.assets().issues.len(),
+            "baked": handle
+                .bakes()
+                .iter()
+                .filter(|b| b.state == ac_engine::WholeState::Baked)
+                .count(),
             "dirty": app.editor.document().is_dirty(),
             "midiInputs": st.devices.inputs,
             "midiSent": st.devices.sent,

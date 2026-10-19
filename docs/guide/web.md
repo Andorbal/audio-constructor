@@ -99,6 +99,9 @@ There's no Open Recent in the browser.
   your system uses; change it in the system's sound settings. There's no
   latency measurement, and the CPU load and per-node timing read 0
   (the page can't time the audio thread).
+- **Baking pauses the editor.** A Reverse or Normalize node fed from a
+  Clip bakes in the page, so the editor stops for a moment while it does
+  (on the desktop it bakes in the background).
 - **Latency** is the browser's: usually a little more than the desktop
   editor at a moderate buffer. MIDI and keys land at the start of the
   next 128-sample block.

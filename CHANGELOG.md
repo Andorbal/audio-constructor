@@ -26,7 +26,9 @@ and files opened and saved through the browser.
   values, bindings and learning, panels, undo. Click or press a key once to
   start the sound, as browsers ask.
 - **Examples from the site**: File ▸ Examples and the help's "Used in"
-  list every shipped example, and each opens with its audio files. Add
+  list every shipped example, and each opens with its audio files.
+  Reverse and Normalize bake in the page (the editor waits a moment while
+  they do) and play as on the desktop. Add
   `?example=guitar-pedalboard` (or any example's file name) to the address
   to open one straight away.
 - **Files in the browser**: Open takes projects, packs, and block files;

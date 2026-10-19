@@ -19,7 +19,9 @@
 //! Everything is little-endian. A message that doesn't decode is dropped,
 //! never trusted.
 
-use ac_core::{AudioData, Control, GamepadAxis, GamepadButton, Key, MidiMsg};
+use ac_core::{
+    AudioData, Control, GamepadAxis, GamepadButton, Key, MidiMsg, WholeOutputs, WholeValue,
+};
 use ac_engine::Relayed;
 
 /// A ring record from the page to the worklet.
@@ -322,6 +324,14 @@ pub enum Posted {
     /// Drop graphs the processor has finished with (sent now and then, so
     /// freeing never happens in `process()`).
     Collect,
+    /// The page's mirror baked the whole-input node at `path` (an engine
+    /// path; `key` is the mirror's): the worklet uses the result instead
+    /// of baking on the audio thread.
+    Bake {
+        path: String,
+        key: u64,
+        outputs: WholeOutputs,
+    },
 }
 
 const POSTED_MAGIC: u32 = 0x4143_5731; // "ACW1"
@@ -329,8 +339,8 @@ const POSTED_MAGIC: u32 = 0x4143_5731; // "ACW1"
 impl Posted {
     pub fn encode(&self) -> Vec<u8> {
         let mut out = Vec::new();
-        let mut put = |b: &[u8]| out.extend_from_slice(b);
-        put(&POSTED_MAGIC.to_le_bytes());
+        out.extend_from_slice(&POSTED_MAGIC.to_le_bytes());
+        let put = |out: &mut Vec<u8>, b: &[u8]| out.extend_from_slice(b);
         match self {
             Posted::Project {
                 seq,
@@ -338,32 +348,42 @@ impl Posted {
                 assets,
                 json,
             } => {
-                put(&[0]);
-                put(&seq.to_le_bytes());
-                put(&generation.to_le_bytes());
-                put(&assets.to_le_bytes());
-                put(&(json.len() as u32).to_le_bytes());
-                put(json.as_bytes());
+                put(&mut out, &[0]);
+                put(&mut out, &seq.to_le_bytes());
+                put(&mut out, &generation.to_le_bytes());
+                put(&mut out, &assets.to_le_bytes());
+                put(&mut out, &(json.len() as u32).to_le_bytes());
+                put(&mut out, json.as_bytes());
             }
             Posted::Assets { revision, files } => {
-                put(&[1]);
-                put(&revision.to_le_bytes());
-                put(&(files.len() as u32).to_le_bytes());
+                put(&mut out, &[1]);
+                put(&mut out, &revision.to_le_bytes());
+                put(&mut out, &(files.len() as u32).to_le_bytes());
                 for (path, audio) in files {
-                    put(&(path.len() as u32).to_le_bytes());
-                    put(path.as_bytes());
-                    put(&audio.sample_rate.to_le_bytes());
-                    put(&(audio.channels.len() as u32).to_le_bytes());
-                    put(&(audio.frames() as u32).to_le_bytes());
+                    put(&mut out, &(path.len() as u32).to_le_bytes());
+                    put(&mut out, path.as_bytes());
+                    put(&mut out, &audio.sample_rate.to_le_bytes());
+                    put(&mut out, &(audio.channels.len() as u32).to_le_bytes());
+                    put(&mut out, &(audio.frames() as u32).to_le_bytes());
                     for ch in &audio.channels {
                         for i in 0..audio.frames() {
                             let v = ch.get(i).copied().unwrap_or(0.0);
-                            put(&v.to_le_bytes());
+                            put(&mut out, &v.to_le_bytes());
                         }
                     }
                 }
             }
-            Posted::Collect => put(&[2]),
+            Posted::Collect => put(&mut out, &[2]),
+            Posted::Bake { path, key, outputs } => {
+                put(&mut out, &[3]);
+                put(&mut out, &(path.len() as u32).to_le_bytes());
+                put(&mut out, path.as_bytes());
+                put(&mut out, &key.to_le_bytes());
+                put(&mut out, &(outputs.values.len() as u32).to_le_bytes());
+                for v in &outputs.values {
+                    whole_value(&mut out, v);
+                }
+            }
         }
         out
     }
@@ -426,10 +446,104 @@ impl Posted {
                 Posted::Assets { revision, files }
             }
             2 => Posted::Collect,
+            3 => {
+                let n = r.len().ok_or_else(bad)?;
+                let path =
+                    String::from_utf8(r.take(n).ok_or_else(bad)?.to_vec()).map_err(|_| bad())?;
+                let key = r.u64().ok_or_else(bad)?;
+                let count = r.len().ok_or_else(bad)?;
+                let mut values = Vec::new();
+                for _ in 0..count {
+                    values.push(read_whole_value(&mut r).ok_or_else(bad)?);
+                }
+                Posted::Bake {
+                    path,
+                    key,
+                    outputs: WholeOutputs { values },
+                }
+            }
             _ => return Err(bad()),
         };
         if r.done() { Ok(m) } else { Err(bad()) }
     }
+}
+
+fn whole_value(out: &mut Vec<u8>, v: &WholeValue) {
+    let n32 = |out: &mut Vec<u8>, n: usize| out.extend_from_slice(&(n as u32).to_le_bytes());
+    match v {
+        WholeValue::None => out.push(0),
+        WholeValue::Audio(chans) => {
+            out.push(1);
+            n32(out, chans.len());
+            for ch in chans {
+                n32(out, ch.len());
+                for x in ch {
+                    out.extend_from_slice(&x.to_le_bytes());
+                }
+            }
+        }
+        WholeValue::Float(xs) => {
+            out.push(2);
+            n32(out, xs.len());
+            for x in xs {
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+        }
+        WholeValue::Int(xs) => {
+            out.push(3);
+            n32(out, xs.len());
+            for x in xs {
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+        }
+        WholeValue::Triggers(xs) => {
+            out.push(4);
+            n32(out, xs.len());
+            for x in xs {
+                out.extend_from_slice(&x.to_le_bytes());
+            }
+        }
+        WholeValue::Midi(ms) => {
+            out.push(5);
+            n32(out, ms.len());
+            for (at, m) in ms {
+                out.extend_from_slice(&at.to_le_bytes());
+                let (b, n) = m.to_bytes();
+                out.push(n as u8);
+                out.extend_from_slice(&b);
+            }
+        }
+    }
+}
+
+/// A list of `count` fixed-size items, checked against what's left before
+/// anything is allocated for it.
+fn read_list<T>(
+    r: &mut Reader,
+    size: usize,
+    mut item: impl FnMut(&mut Reader) -> Option<T>,
+) -> Option<Vec<T>> {
+    let n = r.len()?;
+    if n.checked_mul(size)? > r.data.len() {
+        return None;
+    }
+    let mut v = Vec::with_capacity(n);
+    for _ in 0..n {
+        v.push(item(r)?);
+    }
+    Some(v)
+}
+
+fn read_whole_value(r: &mut Reader) -> Option<WholeValue> {
+    Some(match r.u8()? {
+        0 => WholeValue::None,
+        1 => WholeValue::Audio(read_list(r, 4, |r| read_list(r, 4, |r| r.f32()))?),
+        2 => WholeValue::Float(read_list(r, 4, |r| r.f32())?),
+        3 => WholeValue::Int(read_list(r, 4, |r| r.u32().map(|v| v as i32))?),
+        4 => WholeValue::Triggers(read_list(r, 8, |r| r.u64())?),
+        5 => WholeValue::Midi(read_list(r, 12, |r| Some((r.u64()?, read_midi(r)?)))?),
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -553,6 +667,32 @@ mod tests {
             Posted::decode(&Posted::Collect.encode()),
             Ok(Posted::Collect)
         );
+        let bake = Posted::Bake {
+            path: "5/3".into(),
+            key: 0xfeed_beef_0000_0001,
+            outputs: WholeOutputs {
+                values: vec![
+                    WholeValue::None,
+                    WholeValue::Audio(vec![vec![0.5, -0.25], vec![1.0, 0.0]]),
+                    WholeValue::Float(vec![0.1, 0.2, 0.3]),
+                    WholeValue::Int(vec![-3, 7]),
+                    WholeValue::Triggers(vec![0, 480, 96_000]),
+                    WholeValue::Midi(vec![(
+                        12,
+                        MidiMsg::NoteOn {
+                            channel: 1,
+                            note: 64,
+                            velocity: 99,
+                        },
+                    )]),
+                ],
+            },
+        };
+        assert_eq!(Posted::decode(&bake.encode()), Ok(bake.clone()));
+        let bytes = bake.encode();
+        for n in 0..bytes.len() {
+            assert!(Posted::decode(&bytes[..n]).is_err(), "cut at {n}");
+        }
     }
 
     #[test]

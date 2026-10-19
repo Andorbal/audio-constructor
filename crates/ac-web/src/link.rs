@@ -12,10 +12,11 @@
 //! worklet's newest telemetry into the mirror, so every meter, scope, and
 //! the transport readout show what the worklet plays.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use ac_core::{AudioData, Control, ControlEvent, MidiEvent, MidiMsg};
-use ac_engine::{EngineHandle, Processor, STATUS_WORDS};
+use ac_core::{AudioData, Control, ControlEvent, MidiEvent, MidiMsg, NodePath};
+use ac_engine::{EngineHandle, Processor, STATUS_WORDS, WholeState};
 
 use crate::ring::{Consumer, MAX_RECORD, Producer, SharedMem};
 use crate::snapshot::SnapshotReader;
@@ -35,6 +36,8 @@ pub struct PageLink<M> {
     sent: Option<u64>,
     assets_revision: u32,
     sent_assets: Vec<(String, Arc<AudioData>)>,
+    /// The key of the bake last posted for each node.
+    sent_bakes: HashMap<NodePath, u64>,
     learn_midi: Vec<MidiEvent>,
     learn_controls: Vec<ControlEvent>,
     record: [u8; MAX_RECORD],
@@ -68,6 +71,7 @@ impl<M: SharedMem> PageLink<M> {
             sent: None,
             assets_revision: 0,
             sent_assets: Vec::new(),
+            sent_bakes: HashMap::new(),
             learn_midi: Vec::new(),
             learn_controls: Vec::new(),
             record: [0; MAX_RECORD],
@@ -147,6 +151,26 @@ impl<M: SharedMem> PageLink<M> {
             );
             self.push(ToAudio::Barrier(self.seq));
             self.sent = Some(handle.generation());
+        }
+        // Bakes the mirror finished, after the project they belong to (the
+        // worklet takes a bake for the project it runs), so it never bakes
+        // on the audio thread.
+        for spec in handle.bakes() {
+            if spec.state != WholeState::Baked || self.sent_bakes.get(&spec.path) == Some(&spec.key)
+            {
+                continue;
+            }
+            if let Some(r) = handle.bake_result(&spec.path).filter(|r| r.key == spec.key) {
+                posts.push(
+                    Posted::Bake {
+                        path: r.path.to_string(),
+                        key: r.key,
+                        outputs: (*r.outputs).clone(),
+                    }
+                    .encode(),
+                );
+                self.sent_bakes.insert(spec.path.clone(), spec.key);
+            }
         }
         let midi = std::mem::take(&mut self.learn_midi);
         let controls = std::mem::take(&mut self.learn_controls);

@@ -111,6 +111,35 @@ impl EngineHandle {
         self.generation
     }
 
+    /// The bake this handle holds for the whole-input node at `path`, if
+    /// any (current or stale): what a mirror sends along so the other
+    /// engine needn't bake it again ([`EngineHandle::adopt_bake`] there).
+    pub fn bake_result(&self, path: &NodePath) -> Option<&BakeResult> {
+        self.bakes.get(path)
+    }
+
+    /// Use a bake a mirror engine made for the whole-input node at `path`
+    /// of the project this handle compiled last, as if this handle had
+    /// baked it ([`EngineHandle::finish_bake`]). A bake's key hashes this
+    /// handle's own history (how often its resources were replaced), so
+    /// the result takes the key of the node's current spec here; it's only
+    /// meaningful when the mirror compiled the same project. Returns
+    /// whether a node at `path` was waiting for it (and so recompiled).
+    pub fn adopt_bake(&mut self, path: &NodePath, outputs: Arc<ac_core::WholeOutputs>) -> bool {
+        let Some(spec) = self.bake_specs.iter().find(|s| &s.path == path) else {
+            return false;
+        };
+        if spec.state == WholeState::Baked || matches!(spec.state, WholeState::Disabled { .. }) {
+            return false;
+        }
+        let key = spec.key;
+        self.finish_bake(BakeResult {
+            path: path.clone(),
+            key,
+            outputs,
+        })
+    }
+
     /// Apply a message a mirror engine relayed ([`Processor::relay`]).
     /// Transport commands act as if they were called here. Parameter
     /// changes go to the slot in the graph this handle compiled last, so
