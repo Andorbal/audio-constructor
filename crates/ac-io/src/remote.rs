@@ -55,7 +55,11 @@ mod offline {
 
     #[derive(Debug)]
     pub enum FetchError {
-        TooLarge { limit: u64 },
+        // Matched like the native one's; the browser never makes it.
+        #[allow(dead_code)]
+        TooLarge {
+            limit: u64,
+        },
         Unsupported,
     }
 

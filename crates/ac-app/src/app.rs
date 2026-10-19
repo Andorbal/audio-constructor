@@ -219,6 +219,8 @@ impl Clock {
 // The embedding host shares the editor between its own thread and the
 // window's (egui-baseview runs a window on its own thread on X11), so the
 // editor must stay `Send`; this fails to compile if a field stops being.
+// A browser page has one thread, and its devices aren't `Send`.
+#[cfg(not(target_arch = "wasm32"))]
 const _: () = {
     const fn sendable<T: Send>() {}
     sendable::<EditorApp>();
@@ -331,10 +333,13 @@ impl EditorApp {
         if path.is_some() {
             library.import_unknown(&project);
         }
+        #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
         let mut online = Online::with_libraries(&opts.settings.prefs.libraries);
         // A library kept on disk means a real session: downloads go where
         // the person keeps them and previews are cached. In memory (tests),
-        // nothing outside the session is written.
+        // nothing outside the session is written; a browser page has neither
+        // folder.
+        #[cfg(not(target_arch = "wasm32"))]
         if opts.library.is_some() {
             online.cache_dir = ac_io::library::preview_cache_dir();
             online.download_dir = crate::online::default_download_dir();

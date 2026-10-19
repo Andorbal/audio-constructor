@@ -35,7 +35,8 @@ with a notice otherwise:
 
 Needs Python 3.8 or newer, and per format: tar or zip (built in),
 dpkg-deb (deb), pkgbuild and productbuild (pkg; part of macOS), and
-makensis from NSIS 3 (setup; it also runs on Linux and macOS).
+makensis from NSIS 3 (setup; it also runs on Linux and macOS; found on the
+PATH, in NSIS's install folder, or at MAKENSIS).
 """
 
 from __future__ import annotations
@@ -519,10 +520,22 @@ def notarize(pkg: Path) -> None:
 # --- Windows: the setup program ---------------------------------------------------
 
 
+def find_makensis() -> str | None:
+    """makensis on the PATH, or where NSIS's Windows installer puts it."""
+    found = os.environ.get("MAKENSIS") or shutil.which("makensis")
+    if found:
+        return found
+    for var in ("ProgramFiles(x86)", "ProgramFiles"):
+        base = os.environ.get(var)
+        if base and (Path(base) / "NSIS" / "makensis.exe").is_file():
+            return str(Path(base) / "NSIS" / "makensis.exe")
+    return None
+
+
 def make_setup(b: Build, folder: Path) -> Path:
-    makensis = shutil.which("makensis")
+    makensis = find_makensis()
     if not makensis:
-        raise PackageError("makensis not found (install NSIS 3)")
+        raise PackageError("makensis not found (install NSIS 3, or set MAKENSIS to it)")
     # NSIS takes the files from a staging folder named as the script expects.
     nsis = fresh(b.work / "nsis")
     for name in PROGRAMS:

@@ -96,9 +96,21 @@ jobs:
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        # Use an installed NSIS if there is one; otherwise install it, retrying
+        # (the package feed throttles CI runners), and fail here rather than
+        # later if makensis still isn't there.
         run: |
-          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress }
-          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+          $dirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS")
+          function Find-Nsis { $dirs | Where-Object { Test-Path (Join-Path $_ "makensis.exe") } | Select-Object -First 1 }
+          $found = Find-Nsis
+          for ($i = 1; -not $found -and $i -le 4; $i++) {
+            choco install nsis -y --no-progress
+            if ($LASTEXITCODE -ne 0) { Write-Host "choco exited with $LASTEXITCODE (attempt $i)"; Start-Sleep -Seconds (10 * $i) }
+            $found = Find-Nsis
+          }
+          if (-not $found) { Write-Error "makensis.exe isn't installed"; exit 1 }
+          Write-Host "NSIS is in $found"
+          $found | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - run: rustup show
       - name: Put the signing identities in a keychain (macOS)
         if: runner.os == 'macOS' && env.HAS_MACOS_CERTIFICATE == 'true'
