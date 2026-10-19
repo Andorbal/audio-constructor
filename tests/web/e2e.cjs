@@ -192,6 +192,35 @@ async function files(browser, port, errors) {
   await page.keyboard.press("Control+Shift+s");
   saved = await files_after(page, 2);
   check(saved.asked === 1 && saved.saved.length === 2, "Save As asks where", saved.asked);
+  // Text signals: a Constant's text, read as a number, is the pitch.
+  const textPitch = JSON.stringify({
+      "schema_version": 2,
+      "name": "Text Pitch",
+      "graph": {
+        "nodes": [
+          { "id": "1", "kind": "constant", "config": { "type": "text" }, "params": { "value": "/pitch/330" } },
+          { "id": "2", "kind": "text_to_number", "params": { "pattern": "/pitch/{}" } },
+          { "id": "3", "kind": "oscillator", "params": { "shape": "sine", "start": "load" } },
+          { "id": "4", "kind": "gain", "params": { "gain": -12.0 } },
+          { "id": "5", "kind": "audio_out" }
+        ],
+        "wires": [
+          { "from": "1:out", "to": "2:text" },
+          { "from": "2:value", "to": "3:freq" },
+          { "from": "3:out", "to": "4:in" },
+          { "from": "4:out", "to": "5:in" }
+        ]
+      }
+    });
+  await page.evaluate((t) => {
+    window.__acFiles.next = new File([t], "text-pitch.acproj", { type: "application/json" });
+  }, textPitch);
+  await page.keyboard.press("Control+o");
+  s = await until(page, (x) => x.project === "Text Pitch" && x.inStep, 10000);
+  check(s && s.errors === 0, "a patch with text signals compiles", s && s.errors);
+  await sleep(800);
+  let heard = await listen(page);
+  check(Math.abs(heard.freq - 330) < 8, "and its text sets the pitch: 330 Hz", `${heard.freq.toFixed(1)} Hz`);
   // MIDI through a patch: MIDI In straight to MIDI Out comes back to the
   // page, for the outputs checked in the Devices tab.
   const thru = JSON.stringify({

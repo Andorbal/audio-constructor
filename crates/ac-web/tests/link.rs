@@ -438,3 +438,56 @@ fn the_page_bakes_and_the_worklet_plays_the_bake() {
     }
     assert!(loudest > 0.05, "the reversed clip plays: {loudest}");
 }
+
+/// Text signals cross like any other: a Constant's text read as a number
+/// sets an oscillator's pitch, in the worklet as locally.
+#[test]
+fn text_signals_work_in_the_worklet() {
+    let project = Project::from_json(TEXT_PITCH).expect("the text patch reads");
+    let b = Buffers::new();
+    let mut web = Web::new(&b, project.clone());
+    let mut reference = local(&project);
+    let silence = [0.0f32; QUANTUM];
+    let mut crossings = 0;
+    let mut last = 0.0f32;
+    for k in 0..400 {
+        web.frame();
+        let got = web.quantum(&silence);
+        let want = run_local(&mut reference, &silence, &[]);
+        assert_eq!(got, want, "quantum {k}");
+        if k >= 25 {
+            for v in &got[..QUANTUM] {
+                if last <= 0.0 && *v > 0.0 {
+                    crossings += 1;
+                }
+                last = *v;
+            }
+        }
+    }
+    assert!(reference.handle.report().errors().count() == 0);
+    // 375 quanta of 128 frames at 48 kHz is 1 s: 330 cycles.
+    assert!(
+        (crossings as i32 - 330).abs() <= 2,
+        "330 Hz from the text: {crossings}"
+    );
+}
+
+const TEXT_PITCH: &str = r#"{
+    "schema_version": 2,
+    "name": "Text Pitch",
+    "graph": {
+      "nodes": [
+        { "id": "1", "kind": "constant", "config": { "type": "text" }, "params": { "value": "/pitch/330" } },
+        { "id": "2", "kind": "text_to_number", "params": { "pattern": "/pitch/{}" } },
+        { "id": "3", "kind": "oscillator", "params": { "shape": "sine", "start": "load" } },
+        { "id": "4", "kind": "gain", "params": { "gain": -12.0 } },
+        { "id": "5", "kind": "audio_out" }
+      ],
+      "wires": [
+        { "from": "1:out", "to": "2:text" },
+        { "from": "2:value", "to": "3:freq" },
+        { "from": "3:out", "to": "4:in" },
+        { "from": "4:out", "to": "5:in" }
+      ]
+    }
+  }"#;
