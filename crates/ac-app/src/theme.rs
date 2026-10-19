@@ -738,12 +738,18 @@ impl ThemeChoice {
 
     /// The name shown in View ▸ Theme.
     pub fn label(&self) -> String {
+        use crate::i18n::tr;
         match self {
+            ThemeChoice::Dark => tr("theme-dark"),
+            ThemeChoice::Light => tr("theme-light"),
+            ThemeChoice::HighContrast => tr("theme-high-contrast"),
+            ThemeChoice::System => tr("theme-system"),
             ThemeChoice::User(name) => name.clone(),
-            builtin => builtin.english_label().to_string(),
         }
     }
 
+    /// The English name, which a theme file can't take either (whatever
+    /// language the editor shows, a file's name means the same theme).
     fn english_label(&self) -> &str {
         match self {
             ThemeChoice::Dark => "Dark",

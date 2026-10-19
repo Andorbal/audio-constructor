@@ -81,6 +81,7 @@ pub const BOOK_OPEN: &str = "\u{E0E6}";
 pub const LIGHTBULB: &str = "\u{E2DC}";
 pub const CIRCLE_HALF: &str = "\u{E1BC}";
 pub const TEXT_AA: &str = "\u{E6EE}";
+pub const GLOBE: &str = "\u{E288}";
 pub const BOOKS: &str = "\u{E758}";
 pub const SLIDERS: &str = "\u{E434}";
 pub const GEAR: &str = "\u{E270}";

@@ -24,6 +24,7 @@ use crate::export::{ExportSummary, export_wav};
 use crate::files::{self, Recent};
 use crate::find::{FindBar, Found};
 use crate::host::{HostControls, HostRequest};
+use crate::i18n::{self, Language, LanguageChoice, tr, tr_args};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
@@ -168,6 +169,8 @@ pub struct EditorApp {
     settings: AppSettings,
     /// The person's own themes (the themes folder beside the settings).
     themes: UserThemes,
+    /// The language the editor shows (View ▸ Language, resolved).
+    language: Language,
     /// The editor's time, kept from going backwards when it moves to
     /// another context (a reopened plugin window's clock starts at zero).
     clock: Clock,
@@ -229,6 +232,9 @@ impl EditorApp {
     /// first frame. With `AudioMode::Hosted` the host runs the processor
     /// ([`EditorApp::take_processor`]) and the editor opens no devices.
     pub fn embedded(opts: AppOptions) -> EditorApp {
+        // Messages made while starting up are in the person's language too.
+        let language = opts.settings.prefs.language.resolve();
+        i18n::set_language(language);
         let registry = Arc::new(ac_nodes::registry());
         let mut library = match &opts.library {
             Some(dir) => Library::open(dir),
@@ -245,7 +251,17 @@ impl EditorApp {
             Some(p) => match files::open_project(p, &registry) {
                 Ok((proj, assets)) => (proj, Some(p.clone()), files::project_dir(p), assets),
                 Err(e) => {
-                    status = Some((format!("Couldn't open {}: {e}", p.display()), 0.0, true));
+                    status = Some((
+                        tr_args(
+                            "status-couldnt-open-path",
+                            &[
+                                ("path", p.display().to_string().into()),
+                                ("error", e.into()),
+                            ],
+                        ),
+                        0.0,
+                        true,
+                    ));
                     let proj = files::default_project(&registry);
                     (proj, None, cwd(), AssetStore::default())
                 }
@@ -336,6 +352,7 @@ impl EditorApp {
             selection_order: SelectionOrder::default(),
             palette_feed: Vec::new(),
             themes: UserThemes::load(opts.settings.themes_dir()),
+            language,
             settings: opts.settings,
             clock: Clock::default(),
             epoch: 0,
@@ -361,15 +378,13 @@ impl EditorApp {
     fn report_theme_issues(&mut self) {
         let mut text = Vec::new();
         if let (_, Some(missing)) = self.themes.look(&self.settings.prefs.theme) {
-            text.push(format!(
-                "The theme “{missing}” isn't in your themes folder, so the editor is Dark"
-            ));
+            text.push(tr_args("status-theme-missing", &[("name", missing.into())]));
         }
         if let Some(first) = self.themes.problems.first() {
             let n = self.themes.problems.len();
-            text.push(format!(
-                "{n} theme file{} couldn't be used ({first})",
-                plural(n)
+            text.push(tr_args(
+                "status-theme-files-unusable",
+                &[("count", n.into()), ("first", first.into())],
             ));
         }
         if text.is_empty() {
@@ -393,9 +408,9 @@ impl EditorApp {
             return;
         };
         let n = self.library.issues.len();
-        let text = format!(
-            "{n} block file{} in your library couldn't be read ({first})",
-            plural(n)
+        let text = tr_args(
+            "status-block-files-unreadable",
+            &[("count", n.into()), ("first", first.to_string().into())],
         );
         match &mut self.status {
             Some((s, _, warn)) => {
@@ -690,7 +705,7 @@ impl EditorApp {
         ctx.request_repaint();
         if let Some(name) = missing {
             self.warn(
-                format!("The theme “{name}” isn't in your themes folder, so the editor is Dark"),
+                tr_args("status-theme-missing", &[("name", name.into())]),
                 now,
             );
         } else if let ThemeChoice::User(name) = &choice
@@ -698,10 +713,13 @@ impl EditorApp {
         {
             if t.low_contrast() {
                 self.warn(
-                    format!(
-                        "“{name}” has text at {:.1}:1 ({}), under the 4.5:1 that keeps text \
-                         readable",
-                        t.text_contrast.0, t.text_contrast.1
+                    tr_args(
+                        "status-theme-low-contrast",
+                        &[
+                            ("name", name.into()),
+                            ("ratio", format!("{:.1}", t.text_contrast.0).into()),
+                            ("where", (&t.text_contrast.1).into()),
+                        ],
                     ),
                     now,
                 );
@@ -711,18 +729,36 @@ impl EditorApp {
         }
     }
 
+    /// View ▸ Language: the menus and messages switch from the next
+    /// frame (this one is half drawn), and the choice is remembered.
+    pub fn set_language(&mut self, choice: LanguageChoice, now: f64) {
+        self.settings.set_language(choice);
+        self.language = choice.resolve();
+        i18n::set_language(self.language);
+        self.say(
+            tr_args("status-language", &[("language", choice.label().into())]),
+            now,
+        );
+    }
+
+    /// The language the editor shows.
+    pub fn language(&self) -> Language {
+        self.language
+    }
+
     /// View ▸ Theme ▸ Reload Themes: read the themes folder again, and
     /// show the chosen theme as its file now says.
     pub fn reload_themes(&mut self, ctx: &egui::Context, now: f64) {
         self.themes = UserThemes::load(self.settings.themes_dir());
         self.apply_settings(ctx);
         let n = self.themes.themes.len();
-        let mut text = format!("{n} theme{} in your themes folder", plural(n));
+        let mut text = tr_args("status-themes-loaded", &[("count", n.into())]);
         if let Some(first) = self.themes.problems.first() {
             let bad = self.themes.problems.len();
-            text.push_str(&format!(
-                " · {bad} file{} couldn't be used ({first})",
-                plural(bad)
+            text.push_str(" · ");
+            text.push_str(&tr_args(
+                "status-theme-files-unusable",
+                &[("count", bad.into()), ("first", first.into())],
             ));
             self.warn(text, now);
         } else {
@@ -733,12 +769,21 @@ impl EditorApp {
     /// View ▸ Theme ▸ Open Themes Folder.
     fn open_themes_folder(&mut self, now: f64) {
         let Some(dir) = self.settings.themes_dir() else {
-            self.warn("Themes aren't kept anywhere in this session", now);
+            self.warn(tr("status-no-themes-folder"), now);
             return;
         };
         match files::open_folder(&dir) {
-            Ok(()) => self.say(format!("Themes folder: {}", dir.display()), now),
-            Err(e) => self.warn(format!("Couldn't open the themes folder: {e}"), now),
+            Ok(()) => self.say(
+                tr_args(
+                    "status-themes-folder",
+                    &[("path", dir.display().to_string().into())],
+                ),
+                now,
+            ),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-open-themes-folder", &[("error", e.into())]),
+                now,
+            ),
         }
     }
 
@@ -748,7 +793,13 @@ impl EditorApp {
         self.settings.set_ui_scale(scale);
         let scale = self.settings.prefs.ui_scale;
         ctx.set_zoom_factor(scale);
-        self.say(format!("Interface at {:.0} %", scale * 100.0), now);
+        self.say(
+            tr_args(
+                "status-ui-scale",
+                &[("percent", format!("{:.0}", scale * 100.0).into())],
+            ),
+            now,
+        );
     }
 
     fn say(&mut self, text: impl Into<String>, now: f64) {
@@ -767,6 +818,9 @@ impl EditorApp {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let now = self.clock.now(ctx.input(|i| i.time));
+        // The thread may be new (a plugin window's): speak the editor's
+        // language on it.
+        i18n::set_language(self.language);
         // The app may be drawn into a context other than the one it was
         // created with (a test harness); give that one the look too.
         let themed = egui::Id::unique("audio-constructor-theme");
@@ -881,6 +935,7 @@ impl EditorApp {
                     play_keys: self.play_keys.is_on(),
                     theme: &self.settings.prefs.theme,
                     themes: &self.themes,
+                    language: self.settings.prefs.language,
                     ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
                     examples,
@@ -1009,44 +1064,55 @@ impl EditorApp {
                 // Learning a binding: say what's listening until it binds.
                 ui.label(
                     RichText::new(format!(
-                        "{}  Binding {label}: move a control (MIDI, key, gamepad, or OSC)… Esc cancels",
-                        icons::LINK
+                        "{}  {}",
+                        icons::LINK,
+                        tr_args("status-learning", &[("target", label.into())])
                     ))
                     .small()
                     .color(theme::accent()),
                 );
-                if ui.small_button("Cancel").clicked() {
+                if ui.small_button(tr("status-cancel")).clicked() {
                     self.cancel_learn(now);
                 }
             // A recorded take waits here until it's made into a Clip.
             } else if let Some(take) = self.takes.first().cloned() {
                 ui.label(
                     RichText::new(format!(
-                        "{}  Recorded {}",
+                        "{}  {}",
                         icons::RECORD,
-                        take.relative_path
+                        tr_args("status-recorded", &[("file", (&take.relative_path).into())])
                     ))
                     .small()
                     .color(theme::text()),
                 );
-                if ui.small_button("Create Clip from take").clicked() {
+                if ui.small_button(tr("status-clip-from-take")).clicked() {
                     self.clip_from_take(&take, now);
                 }
-                if ui.small_button(icons::X).on_hover_text("Dismiss").clicked()
+                if ui
+                    .small_button(icons::X)
+                    .on_hover_text(tr("status-dismiss"))
+                    .clicked()
                     && !self.takes.is_empty()
                 {
                     self.takes.remove(0);
                 }
                 if self.takes.len() > 1 {
                     ui.label(
-                        RichText::new(format!("+{} more", self.takes.len() - 1))
-                            .small()
-                            .color(theme::text_muted()),
+                        RichText::new(tr_args(
+                            "status-more-takes",
+                            &[("count", (self.takes.len() - 1).into())],
+                        ))
+                        .small()
+                        .color(theme::text_muted()),
                     );
                 }
             } else if let Some((text, t, warn)) = &self.status {
                 if now - t < 8.0 || *t == 0.0 {
-                    let color = if *warn { theme::warning() } else { theme::text() };
+                    let color = if *warn {
+                        theme::warning()
+                    } else {
+                        theme::text()
+                    };
                     let icon = if *warn { icons::WARNING } else { icons::INFO };
                     ui.label(
                         RichText::new(format!("{icon}  {text}"))
@@ -1058,7 +1124,13 @@ impl EditorApp {
                 }
             } else if let Some((p, _)) = &self.export_job {
                 ui.spinner();
-                ui.label(RichText::new(format!("Exporting {}…", p.display())).small());
+                ui.label(
+                    RichText::new(tr_args(
+                        "status-exporting-to",
+                        &[("path", p.display().to_string().into())],
+                    ))
+                    .small(),
+                );
             } else if self.play_keys.is_on() {
                 let stop = Action::PlayKeys
                     .shortcut()
@@ -1066,25 +1138,22 @@ impl EditorApp {
                     .unwrap_or_default();
                 ui.label(
                     RichText::new(format!(
-                        "{}  Play keys: keys go to the patch · Esc and shortcuts with \
-                         modifiers still work · {stop} stops",
-                        icons::KEYBOARD
+                        "{}  {}",
+                        icons::KEYBOARD,
+                        tr_args("status-play-keys-on", &[("stop", stop.into())])
                     ))
                     .small()
                     .color(theme::accent()),
                 );
             } else {
                 let hint = if self.perform.shown {
-                    "Drag or click a widget to play it · drag a card by its edge to move it · \
-                     F11 performance mode · Ctrl+Tab canvas"
+                    tr("hint-panels")
                 } else if self.doc.selection.is_empty() {
-                    "Shift+A add · drag from a socket to wire · double-click empty canvas to search \
-                     · Ctrl+F find · Ctrl+L lay out"
+                    tr("hint-nothing-selected")
                 } else if self.doc.selection.len() >= 2 {
-                    "F connect two · Shift+A add a node wired from these · Ctrl+L lay out · \
-                     Shift+Alt+A align · Ctrl+G group"
+                    tr("hint-several-selected")
                 } else {
-                    "G move · Shift+D duplicate · X delete · Ctrl+G group · M mute · H collapse"
+                    tr("hint-one-selected")
                 };
                 ui.label(RichText::new(hint).small().color(theme::text_faint()));
             }
@@ -1099,21 +1168,27 @@ impl EditorApp {
                     egui::Button::new(RichText::new(text).small().color(theme::text_muted()))
                         .frame(false),
                 );
-                if r.on_hover_text("Audio device settings").clicked() {
+                if r.on_hover_text(tr("status-audio-settings")).clicked() {
                     self.side.open = true;
                     self.side.tab = Tab::Devices;
                 }
                 let n = self.engine.report.diagnostics.len();
                 if n > 0 {
                     let errors = self.engine.report.has_errors();
-                    let r = ui.add(
-                        egui::Button::new(
-                            RichText::new(format!("{} {n}", icons::WARNING))
-                                .small()
-                                .color(if errors { theme::error() } else { theme::warning() }),
+                    let r = ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new(format!("{} {n}", icons::WARNING))
+                                    .small()
+                                    .color(if errors {
+                                        theme::error()
+                                    } else {
+                                        theme::warning()
+                                    }),
+                            )
+                            .frame(false),
                         )
-                        .frame(false),
-                    );
+                        .on_hover_text(tr_args("status-problems", &[("count", n.into())]));
                     if r.clicked() {
                         self.side.open = true;
                         self.side.tab = Tab::Problems;
@@ -1150,17 +1225,19 @@ impl EditorApp {
                 Ok(s) => {
                     let secs = s.frames as f64 / f64::from(s.sample_rate.max(1));
                     self.say(
-                        format!(
-                            "Exported {:.2} s × {} ch at {} Hz to {}",
-                            secs,
-                            s.channels,
-                            s.sample_rate,
-                            path.display()
+                        tr_args(
+                            "status-exported",
+                            &[
+                                ("seconds", format!("{secs:.2}").into()),
+                                ("channels", s.channels.to_string().into()),
+                                ("rate", s.sample_rate.to_string().into()),
+                                ("path", path.display().to_string().into()),
+                            ],
                         ),
                         now,
                     );
                 }
-                Err(e) => self.warn(format!("Export failed: {e}"), now),
+                Err(e) => self.warn(tr_args("status-export-failed", &[("error", e.into())]), now),
             }
         }
         if self.export_job.is_some() {
@@ -1175,10 +1252,12 @@ impl EditorApp {
         if self.is_hosted() {
             return;
         }
-        let title = format!(
-            "{}{} — Audio Constructor",
-            if self.doc.is_dirty() { "● " } else { "" },
-            self.doc.title()
+        let title = tr_args(
+            "app-window-title",
+            &[
+                ("dirty", if self.doc.is_dirty() { "● " } else { "" }.into()),
+                ("project", self.doc.title().into()),
+            ],
         );
         if title != self.title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -1261,8 +1340,17 @@ impl EditorApp {
         let done = r.finished_takes();
         for t in done {
             match &t.error {
-                Some(e) => self.warn(format!("Take {} is incomplete: {e}", t.relative_path), now),
-                None => self.say(format!("Recorded {}", t.relative_path), now),
+                Some(e) => self.warn(
+                    tr_args(
+                        "status-take-incomplete",
+                        &[("file", (&t.relative_path).into()), ("error", e.into())],
+                    ),
+                    now,
+                ),
+                None => self.say(
+                    tr_args("status-recorded", &[("file", (&t.relative_path).into())]),
+                    now,
+                ),
             }
             self.takes.push(t);
         }
@@ -1534,7 +1622,7 @@ impl EditorApp {
     pub fn cancel_learn(&mut self, now: f64) {
         if self.learn.take().is_some() {
             self.engine.handle.set_input_monitor(false);
-            self.say("Binding cancelled", now);
+            self.say(tr("status-binding-cancelled"), now);
         }
     }
 
@@ -1555,13 +1643,14 @@ impl EditorApp {
             crate::bindings::LearnTarget::Transport(_) => None,
         };
         let binding = learn.binding(source.clone(), ty);
-        if crate::bindings::add(&mut self.doc, "Bind", binding) {
-            self.say(format!("Bound {} to {}", source.label(), learn.label), now);
+        let args = [
+            ("source", source.label().into()),
+            ("target", (&learn.label).into()),
+        ];
+        if crate::bindings::add(&mut self.doc, &tr("undo-bind"), binding) {
+            self.say(tr_args("status-bound", &args), now);
         } else {
-            self.say(
-                format!("{} already drives {}", source.label(), learn.label),
-                now,
-            );
+            self.say(tr_args("status-already-bound", &args), now);
         }
     }
 
@@ -1596,7 +1685,7 @@ impl EditorApp {
                 if let Some(id) = self.doc.navigate_to(&path) {
                     self.canvas.jump_to(&self.doc, &self.registry, id);
                 } else {
-                    self.warn("That node no longer exists.", now);
+                    self.warn(tr("status-node-gone"), now);
                 }
             }
             PanelRequest::Status(s) => self.say(s, now),
@@ -1621,10 +1710,13 @@ impl EditorApp {
                     .replace(&self.doc.project, self.doc.engine_revision);
                 self.loop_sent = None;
                 match &self.engine.device_error {
-                    Some(e) => self.warn(format!("Audio: {e}"), now),
+                    Some(e) => {
+                        let e = e.to_string();
+                        self.warn(tr_args("status-audio", &[("what", e.into())]), now)
+                    }
                     None => {
                         let d = self.engine.describe();
-                        self.say(format!("Audio: {d}"), now);
+                        self.say(tr_args("status-audio", &[("what", d.into())]), now);
                     }
                 }
             }
@@ -1641,6 +1733,7 @@ impl EditorApp {
             MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
             MenuCommand::ReloadThemes => self.reload_themes(ctx, now),
             MenuCommand::OpenThemesFolder => self.open_themes_folder(now),
+            MenuCommand::SetLanguage(l) => self.set_language(l, now),
             MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
@@ -1668,9 +1761,10 @@ impl EditorApp {
         let wire = self.canvas.wire_under(&self.doc, p);
         let id = self.add_candidate(&c, at, None, now);
         if let (Some(id), Some(w)) = (id, wire) {
-            self.doc.edit(&self.registry, "Insert on wire", |g, ctx| {
-                edit::insert_on_wire(g, ctx, id, &w);
-            });
+            self.doc
+                .edit(&self.registry, &tr("undo-insert-on-wire"), |g, ctx| {
+                    edit::insert_on_wire(g, ctx, id, &w);
+                });
         }
     }
 
@@ -1714,9 +1808,7 @@ impl EditorApp {
     fn prepare_feed(&mut self) {
         self.palette_feed = self.feed_order();
         let n = self.palette_feed.len();
-        self.palette.note = (n >= 2).then(|| {
-            format!("The {n} selected nodes will be wired into it, in the order you selected them")
-        });
+        self.palette.note = (n >= 2).then(|| tr_args("palette-feed-note", &[("count", n.into())]));
     }
 
     /// Why the selected nodes weren't wired into a new node, for the
@@ -1724,16 +1816,15 @@ impl EditorApp {
     fn feed_reason(&self, e: &FeedError) -> String {
         let name = |id: NodeId| {
             self.doc.graph().node(id).map_or_else(
-                || "a selected node".to_string(),
+                || tr("status-a-selected-node"),
                 |n| connect::title(n, &self.registry, &self.doc.project.group_defs),
             )
         };
         match e {
-            FeedError::NoOutput(id) => format!("{} has no output", name(*id)),
-            FeedError::NoInput(id, ty) => format!(
-                "it has no free input that takes the {} output of {}",
-                ty.name(),
-                name(*id)
+            FeedError::NoOutput(id) => tr_args("status-no-output", &[("node", name(*id).into())]),
+            FeedError::NoInput(id, ty) => tr_args(
+                "status-no-free-input",
+                &[("type", ty.name().into()), ("node", name(*id).into())],
             ),
         }
     }
@@ -1744,13 +1835,18 @@ impl EditorApp {
         match self.doc.navigate_to(&f.path) {
             Some(id) => {
                 self.canvas.jump_to(&self.doc, &self.registry, id);
+                let args = [
+                    ("title", (&f.title).into()),
+                    ("kind", (&f.kind).into()),
+                    ("place", (&f.place).into()),
+                ];
                 if f.place.is_empty() {
-                    self.say(format!("{} ({})", f.title, f.kind), now);
+                    self.say(tr_args("status-found", &args), now);
                 } else {
-                    self.say(format!("{} ({}) in {}", f.title, f.kind, f.place), now);
+                    self.say(tr_args("status-found-in", &args), now);
                 }
             }
-            None => self.warn("That node no longer exists.", now),
+            None => self.warn(tr("status-node-gone"), now),
         }
     }
 
@@ -1793,7 +1889,10 @@ impl EditorApp {
             Some(source) => match self.block_instance(source) {
                 Some(text) => Some(text),
                 None => {
-                    self.warn(format!("{} is no longer in the library", c.name), now);
+                    self.warn(
+                        tr_args("status-block-gone", &[("name", (&c.name).into())]),
+                        now,
+                    );
                     return None;
                 }
             },
@@ -1808,9 +1907,10 @@ impl EditorApp {
         let socket = c.socket.clone();
         let mut error = None;
         let mut fed: Option<Result<usize, FeedError>> = None;
-        let id = self
-            .doc
-            .edit(&self.registry, &format!("Add {}", c.name), |g, ctx| {
+        let id = self.doc.edit(
+            &self.registry,
+            &tr_args("undo-add-named", &[("name", (&c.name).into())]),
+            |g, ctx| {
                 let id = if let Some(text) = &block {
                     match edit::paste(g, ctx, text, [pos.x, pos.y]) {
                         Ok(ids) => *ids.first()?,
@@ -1869,22 +1969,28 @@ impl EditorApp {
                     }));
                 }
                 Some(id)
-            });
+            },
+        );
         if let Some(e) = error {
             self.warn(e, now);
         }
         match &fed {
             Some(Ok(n)) => self.say(
-                format!(
-                    "Added {} and wired the {n} selected nodes into it, in the order you selected \
-                     them",
-                    c.name
+                tr_args(
+                    "status-added-and-wired",
+                    &[("name", (&c.name).into()), ("count", (*n).into())],
                 ),
                 now,
             ),
             Some(Err(e)) => {
                 let why = self.feed_reason(e);
-                self.warn(format!("Added {} without wiring: {why}", c.name), now);
+                self.warn(
+                    tr_args(
+                        "status-added-without-wiring",
+                        &[("name", (&c.name).into()), ("why", why.into())],
+                    ),
+                    now,
+                );
             }
             None => {}
         }
@@ -1901,18 +2007,14 @@ impl EditorApp {
         }
         let at = self.canvas.pointer_canvas();
         let text = text.to_string();
-        match self.doc.edit(&self.registry, "Paste", |g, ctx| {
+        match self.doc.edit(&self.registry, &tr("undo-paste"), |g, ctx| {
             edit::paste(g, ctx, &text, [at.x, at.y])
         }) {
             Ok(ids) => {
                 self.doc.selection = ids.iter().copied().collect();
                 self.canvas.mark_born(&ids, now);
                 self.say(
-                    format!(
-                        "Pasted {} node{}",
-                        ids.len(),
-                        if ids.len() == 1 { "" } else { "s" }
-                    ),
+                    tr_args("status-pasted", &[("count", ids.len().into())]),
                     now,
                 );
                 self.last_added = ids;
@@ -1943,10 +2045,7 @@ impl EditorApp {
             return;
         }
         if matches!(a, Action::PlayKeys) && !self.engine.keys_reach_engine() {
-            self.say(
-                "Play keys isn't available here: the host plays the patch",
-                now,
-            );
+            self.say(tr("status-play-keys-unavailable"), now);
             return;
         }
         match a {
@@ -1963,14 +2062,14 @@ impl EditorApp {
                 if self.doc.undo() {
                     self.canvas.edit = None;
                 } else {
-                    self.say("Nothing to undo", now);
+                    self.say(tr("status-nothing-to-undo"), now);
                 }
             }
             Action::Redo => {
                 if self.doc.redo() {
                     self.canvas.edit = None;
                 } else {
-                    self.say("Nothing to redo", now);
+                    self.say(tr("status-nothing-to-redo"), now);
                 }
             }
             Action::Copy => {
@@ -1980,11 +2079,7 @@ impl EditorApp {
                     ctx.copy_text(text.clone());
                     self.clipboard = Some(text);
                     self.say(
-                        format!(
-                            "Copied {} node{}",
-                            sel.len(),
-                            if sel.len() == 1 { "" } else { "s" }
-                        ),
+                        tr_args("status-copied", &[("count", sel.len().into())]),
                         now,
                     );
                 }
@@ -2007,7 +2102,7 @@ impl EditorApp {
                     return;
                 }
                 let keep = a == Action::DuplicateWithInputs;
-                let new = self.doc.edit(&reg, "Duplicate", |g, ctx| {
+                let new = self.doc.edit(&reg, &tr("undo-duplicate"), |g, ctx| {
                     edit::duplicate(g, ctx, &sel, keep, [30.0, 30.0])
                 });
                 self.doc.selection = new.iter().copied().collect();
@@ -2037,14 +2132,14 @@ impl EditorApp {
                 self.prepare_feed();
             }
             Action::AutoLayout => match self.canvas.auto_layout(&mut self.doc, &reg) {
-                Ok(n) => self.say(format!("Laid out {n} nodes · Ctrl+Z undoes it"), now),
+                Ok(n) => self.say(tr_args("status-laid-out", &[("count", n.into())]), now),
                 Err(e) => self.say(e, now),
             },
             Action::ArrangeMenu => {
                 if self.selected_real().len() >= 2 {
                     self.canvas.open_arrange_menu();
                 } else {
-                    self.say("Select two or more nodes to align or distribute", now);
+                    self.say(tr("status-select-two-to-align"), now);
                 }
             }
             Action::AlignLeft
@@ -2076,7 +2171,7 @@ impl EditorApp {
                     return;
                 }
                 let pins_before = pin_count(&self.doc.project);
-                if let Some((inst, _)) = self.doc.edit(&reg, "Make group", |g, ctx| {
+                if let Some((inst, _)) = self.doc.edit(&reg, &tr("undo-make-group"), |g, ctx| {
                     edit::group::make_group(g, ctx, &sel)
                 }) {
                     self.doc.selection = [inst].into();
@@ -2084,15 +2179,11 @@ impl EditorApp {
                     let dropped = pins_before.saturating_sub(pin_count(&self.doc.project));
                     if dropped > 0 {
                         self.say(
-                            format!(
-                                "Grouped. {dropped} pinned node{} left the panels: nodes inside \
-                                 groups can't be pinned (Ctrl+Z to undo).",
-                                plural(dropped)
-                            ),
+                            tr_args("status-grouped-unpinned", &[("count", dropped.into())]),
                             now,
                         );
                     } else {
-                        self.say("Grouped. Tab goes inside; Ctrl+Alt+G ungroups.", now);
+                        self.say(tr("status-grouped"), now);
                     }
                 }
             }
@@ -2108,12 +2199,12 @@ impl EditorApp {
                     })
                     .collect();
                 if groups.is_empty() {
-                    self.say("Select a group to ungroup", now);
+                    self.say(tr("status-select-group-to-ungroup"), now);
                     return;
                 }
                 let mut all = Vec::new();
                 for g_id in groups {
-                    let ungrouped = self.doc.edit(&reg, "Ungroup", |g, ctx| {
+                    let ungrouped = self.doc.edit(&reg, &tr("undo-ungroup"), |g, ctx| {
                         let new = edit::group::ungroup(g, ctx, g_id)?;
                         // Portals that come out keep names of their own.
                         edit::portal::after_paste(g, &new);
@@ -2133,12 +2224,14 @@ impl EditorApp {
                     _ => false,
                 };
                 if !entered && !self.doc.leave_group() && sel.len() == 1 {
-                    self.say("That node isn't a group", now);
+                    self.say(tr("status-not-a-group"), now);
                 }
             }
-            Action::Mute => self.toggle_nodes("Mute", |n| n.muted = !n.muted),
-            Action::Collapse => self.toggle_nodes("Collapse", |n| n.ui.collapsed = !n.ui.collapsed),
-            Action::HideUnwired => self.toggle_nodes("Hide unwired sockets", |n| {
+            Action::Mute => self.toggle_nodes(&tr("undo-mute"), |n| n.muted = !n.muted),
+            Action::Collapse => self.toggle_nodes(&tr("undo-collapse"), |n| {
+                n.ui.collapsed = !n.ui.collapsed;
+            }),
+            Action::HideUnwired => self.toggle_nodes(&tr("undo-hide-unwired"), |n| {
                 let on = n.extra.get(HIDE_UNWIRED).and_then(|v| v.as_bool()) == Some(true);
                 if on {
                     n.extra.remove(HIDE_UNWIRED);
@@ -2230,7 +2323,7 @@ impl EditorApp {
                     }
                 };
                 self.doc
-                    .edit_project("Loop", |p| p.settings.loop_region = region);
+                    .edit_project(&tr("undo-loop"), |p| p.settings.loop_region = region);
             }
             Action::Rewind => self.engine.handle.seek(0),
             Action::PlayKeys => {
@@ -2242,14 +2335,11 @@ impl EditorApp {
                         .map(|s| ctx.format_shortcut(&s))
                         .unwrap_or_default();
                     self.say(
-                        format!(
-                            "Play keys on: keys go to the patch ({stop} or the keyboard button \
-                             turns it off)"
-                        ),
+                        tr_args("status-play-keys-turned-on", &[("stop", stop.into())]),
                         now,
                     );
                 } else {
-                    self.say("Play keys off", now);
+                    self.say(tr("status-play-keys-off"), now);
                 }
             }
             Action::Pin => self.pin_selection(now),
@@ -2299,10 +2389,7 @@ impl EditorApp {
     /// on it already.
     fn pin_selection(&mut self, now: f64) {
         if !self.doc.scope.is_empty() {
-            self.say(
-                "Only top-level nodes can be pinned: leave the group (Tab) first",
-                now,
-            );
+            self.say(tr("status-pin-top-level-only"), now);
             return;
         }
         let nodes: Vec<NodeId> = self
@@ -2311,10 +2398,7 @@ impl EditorApp {
             .filter(|id| self.doc.project.graph.node(*id).is_some_and(pins::pinnable))
             .collect();
         if nodes.is_empty() {
-            self.say(
-                "Select a control or display to pin: a slider, knob, button, keyboard, meter, scope…",
-                now,
-            );
+            self.say(tr("status-select-something-to-pin"), now);
             return;
         }
         let current = self.perform.current;
@@ -2342,40 +2426,47 @@ impl EditorApp {
                     .iter()
                     .any(|id| graph.node(*id).is_some_and(pins::pinnable))
                 {
-                    self.say("Only controls and displays can be pinned", now);
+                    self.say(tr("status-only-controls-pin"), now);
                     return;
                 }
-                let (index, added, name) = self.doc.edit_panels("Pin to panel", |panels, g| {
-                    let index = match panel {
-                        Some(i) if i < panels.len() => i,
-                        _ => pins::add_panel(panels, ""),
-                    };
-                    let added = pins::pin(panels, g, index, &nodes);
-                    let name = panels.get(index).map_or(String::new(), |p| p.name.clone());
-                    (index, added, name)
-                });
+                let (index, added, name) =
+                    self.doc.edit_panels(&tr("undo-pin-to-panel"), |panels, g| {
+                        let index = match panel {
+                            Some(i) if i < panels.len() => i,
+                            _ => pins::add_panel(panels, ""),
+                        };
+                        let added = pins::pin(panels, g, index, &nodes);
+                        let name = panels.get(index).map_or(String::new(), |p| p.name.clone());
+                        (index, added, name)
+                    });
                 self.perform.current = index;
                 if added > 0 {
                     self.say(
-                        format!(
-                            "Pinned {added} node{} to {name} · Ctrl+Tab shows the panels",
-                            plural(added)
+                        tr_args(
+                            "status-pinned",
+                            &[("count", added.into()), ("panel", (&name).into())],
                         ),
                         now,
                     );
                 } else {
-                    self.say(format!("Already pinned to {name}"), now);
+                    self.say(
+                        tr_args("status-already-pinned", &[("panel", name.into())]),
+                        now,
+                    );
                 }
             }
             PinRequest::Unpin { nodes, panel } => {
                 let from = panel
                     .and_then(|i| self.doc.project.panels.get(i))
-                    .map_or("every panel".to_string(), |p| p.name.clone());
-                let removed = self
-                    .doc
-                    .edit_panels("Unpin", |panels, _| pins::unpin(panels, panel, &nodes));
+                    .map_or_else(|| tr("status-every-panel"), |p| p.name.clone());
+                let removed = self.doc.edit_panels(&tr("undo-unpin"), |panels, _| {
+                    pins::unpin(panels, panel, &nodes)
+                });
                 self.say(
-                    format!("Unpinned {removed} node{} from {from}", plural(removed)),
+                    tr_args(
+                        "status-unpinned",
+                        &[("count", removed.into()), ("panel", from.into())],
+                    ),
                     now,
                 );
             }
@@ -2422,12 +2513,12 @@ impl EditorApp {
             // depends on whether it's the effect or the instrument).
             AfterConfirm::New if self.in_host() => {
                 self.host_requests.push(HostRequest::New);
-                self.say("New project", now);
+                self.say(tr("status-new-project"), now);
             }
             AfterConfirm::New => {
                 let p = files::default_project(&self.registry);
                 self.replace_document(p, None, cwd(), AssetStore::default());
-                self.say("New project", now);
+                self.say(tr("status-new-project"), now);
             }
             AfterConfirm::Open(path) => self.open(&path, now),
             AfterConfirm::OpenExample(path) => self.open_example(&path, now),
@@ -2444,36 +2535,59 @@ impl EditorApp {
     pub fn open(&mut self, path: &Path, now: f64) {
         match file_kind(path) {
             FileKind::Project => {
-                if let Err(e) = self.open_project(path, format!("Opened {}", path.display()), now) {
-                    self.warn(format!("Couldn't open: {e}"), now);
+                let what = tr_args(
+                    "status-opened",
+                    &[("path", path.display().to_string().into())],
+                );
+                if let Err(e) = self.open_project(path, what, now) {
+                    self.warn(tr_args("status-couldnt-open", &[("error", e.into())]), now);
                 }
             }
             FileKind::Pack => match ac_io::unpack_beside(path) {
                 Ok(project) => {
                     let dir = files::project_dir(&project);
-                    let mut what = format!("Unpacked {} into {}", file_name(path), dir.display());
+                    let mut what = tr_args(
+                        "status-unpacked",
+                        &[
+                            ("pack", file_name(path).into()),
+                            ("folder", dir.display().to_string().into()),
+                        ],
+                    );
                     // Someone else's blocks: import them and point the
                     // copies at the imports, before the project opens.
                     if let Ok(mut p) = ac_io::load_project(&project) {
                         let adopted = self.library.adopt(&mut p);
                         if adopted > 0 && ac_io::save_project(&project, &p).is_ok() {
-                            what.push_str(&format!(
-                                " · added {adopted} block{} from it to your library",
-                                plural(adopted)
+                            what.push_str(" · ");
+                            what.push_str(&tr_args(
+                                "status-pack-blocks-added",
+                                &[("count", adopted.into())],
                             ));
                         }
                     }
                     if let Err(e) = self.open_project(&project, what, now) {
                         self.warn(
-                            format!(
-                                "Unpacked into {}, but couldn't open the project: {e}",
-                                dir.display()
+                            tr_args(
+                                "status-unpacked-but-not-opened",
+                                &[
+                                    ("folder", dir.display().to_string().into()),
+                                    ("error", e.into()),
+                                ],
                             ),
                             now,
                         );
                     }
                 }
-                Err(e) => self.warn(format!("Couldn't unpack {}: {e}", path.display()), now),
+                Err(e) => self.warn(
+                    tr_args(
+                        "status-couldnt-unpack",
+                        &[
+                            ("pack", path.display().to_string().into()),
+                            ("error", e.to_string().into()),
+                        ],
+                    ),
+                    now,
+                ),
             },
             FileKind::Block => self.import_block_file(path, now),
         }
@@ -2504,14 +2618,17 @@ impl EditorApp {
         let blocks = self.library.import_unknown(&self.doc.project);
         let mut text = what;
         if blocks > 0 {
-            text.push_str(&format!(
-                " · added {blocks} block{} it uses to your library",
-                plural(blocks)
+            text.push_str(" · ");
+            text.push_str(&tr_args(
+                "status-project-blocks-added",
+                &[("count", blocks.into())],
             ));
         }
         if missing > 0 {
-            text.push_str(&format!(
-                " — {missing} audio file problem(s); see the Project tab"
+            text.push_str(" — ");
+            text.push_str(&tr_args(
+                "status-audio-file-problems",
+                &[("count", missing.into())],
             ));
             self.warn(text, now);
         } else {
@@ -2529,7 +2646,13 @@ impl EditorApp {
             // file is never written either way.
             self.host_requests
                 .push(HostRequest::Open(path.to_path_buf()));
-            self.say(format!("Opened the example {}", file_name(path)), now);
+            self.say(
+                tr_args(
+                    "status-opened-example-file",
+                    &[("file", file_name(path).into())],
+                ),
+                now,
+            );
             return;
         }
         match files::open_project(path, &self.registry) {
@@ -2543,13 +2666,14 @@ impl EditorApp {
                 };
                 self.replace_document(project, None, files::project_dir(path), assets);
                 self.say(
-                    format!(
-                        "Opened the example “{name}” as a new project: Save As keeps your changes"
-                    ),
+                    tr_args("status-opened-example", &[("name", name.into())]),
                     now,
                 );
             }
-            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-open-example", &[("error", e.into())]),
+                now,
+            ),
         }
     }
 
@@ -2618,7 +2742,10 @@ impl EditorApp {
         ) {
             Ok(n) => n,
             Err(e) => {
-                self.warn(format!("Couldn't copy audio files: {e}"), now);
+                self.warn(
+                    tr_args("status-couldnt-copy-audio", &[("error", e.into())]),
+                    now,
+                );
                 0
             }
         };
@@ -2644,17 +2771,21 @@ impl EditorApp {
                 if assets_changed {
                     self.reload_assets();
                 }
-                let extra = if copied > 0 {
-                    format!(
-                        " (copied {copied} audio file{} into assets/)",
-                        if copied == 1 { "" } else { "s" }
+                let path = path.display().to_string();
+                let text = if copied > 0 {
+                    tr_args(
+                        "status-saved-with-audio",
+                        &[("path", path.into()), ("count", copied.into())],
                     )
                 } else {
-                    String::new()
+                    tr_args("status-saved", &[("path", path.into())])
                 };
-                self.say(format!("Saved {}{extra}", path.display()), now);
+                self.say(text, now);
             }
-            Err(e) => self.warn(format!("Couldn't save: {e}"), now),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-save", &[("error", e.to_string().into())]),
+                now,
+            ),
         }
     }
 
@@ -2673,7 +2804,7 @@ impl EditorApp {
             let _ = tx.send(export_wav(&project, registry, resources, &p));
         });
         self.export_job = Some((path, rx));
-        self.say("Exporting…", now);
+        self.say(tr("status-exporting"), now);
     }
 
     fn file_dialog(&mut self, purpose: FilePurpose, now: f64) {
@@ -2742,14 +2873,11 @@ impl EditorApp {
             FilePurpose::Locate(old) => match self.import_audio(&path) {
                 Ok(a) => {
                     let reg = self.registry.clone();
-                    let n = self
-                        .doc
-                        .edit_project("Locate file", |p| files::relink_asset(p, &reg, &old, &a));
+                    let n = self.doc.edit_project(&tr("undo-locate-file"), |p| {
+                        files::relink_asset(p, &reg, &old, &a)
+                    });
                     self.reload_assets();
-                    self.say(
-                        format!("Relinked {n} node{}", if n == 1 { "" } else { "s" }),
-                        now,
-                    );
+                    self.say(tr_args("status-relinked", &[("count", n.into())]), now);
                 }
                 Err(e) => self.warn(e, now),
             },
@@ -2797,7 +2925,7 @@ impl EditorApp {
                 let a2 = a.clone();
                 let reg = self.registry.clone();
                 let assign = |doc: &mut Document| {
-                    doc.edit(&reg, "Choose clip file", |g, _| {
+                    doc.edit(&reg, &tr("undo-choose-clip-file"), |g, _| {
                         if let Some(n) = g.node_mut(node) {
                             if !n.config.is_object() {
                                 n.config = ac_core::empty_config();
@@ -2820,10 +2948,16 @@ impl EditorApp {
                 self.reload_assets();
                 match a.note {
                     Some(n) => self.say(n, now),
-                    None => self.say(format!("Clip plays {}", a.file), now),
+                    None => self.say(
+                        tr_args("status-clip-plays", &[("file", a.file.into())]),
+                        now,
+                    ),
                 }
             }
-            Err(e) => self.warn(format!("Couldn't use that file: {e}"), now),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                now,
+            ),
         }
     }
 

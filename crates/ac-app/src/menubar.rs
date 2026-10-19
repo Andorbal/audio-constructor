@@ -9,6 +9,7 @@ use egui::RichText;
 use crate::actions::Action;
 use crate::files::Recent;
 use crate::help::Example;
+use crate::i18n::{self, Arg, LanguageChoice, tr, tr_args};
 use crate::icons;
 use crate::palette::Candidate;
 use crate::settings::UI_SCALES;
@@ -30,6 +31,8 @@ pub enum MenuCommand {
     ReloadThemes,
     /// View ▸ Theme ▸ Open Themes Folder.
     OpenThemesFolder,
+    /// View ▸ Language.
+    SetLanguage(LanguageChoice),
     /// View ▸ UI Scale (1 is 100 %).
     SetUiScale(f32),
 }
@@ -50,6 +53,7 @@ pub struct MenuState<'a> {
     pub theme: &'a ThemeChoice,
     /// The person's own themes, listed after the built-in ones.
     pub themes: &'a UserThemes,
+    pub language: LanguageChoice,
     pub ui_scale: f32,
     pub recent: &'a Recent,
     /// The shipped examples, by name.
@@ -60,7 +64,7 @@ pub struct MenuState<'a> {
 }
 
 fn entry(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, icon: &str, enabled: bool) {
-    entry_labeled(ui, out, action, icon, action.label(), enabled);
+    entry_labeled(ui, out, action, icon, &action.label(), enabled);
 }
 
 fn entry_labeled(
@@ -116,9 +120,12 @@ fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
         let choice = ThemeChoice::User(t.name.clone());
         let mut notes = Vec::new();
         if t.low_contrast() {
-            notes.push(format!(
-                "Text contrast {:.1}:1 ({}), under 4.5:1: text may be hard to read",
-                t.text_contrast.0, t.text_contrast.1
+            notes.push(tr_args(
+                "menu-theme-low-contrast-tip",
+                &[
+                    ("ratio", format!("{:.1}", t.text_contrast.0).into()),
+                    ("where", Arg::from(&t.text_contrast.1)),
+                ],
             ));
         }
         notes.extend(t.notes.iter().cloned());
@@ -127,9 +134,12 @@ fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
         if t.low_contrast() {
             ui.label(
                 RichText::new(format!(
-                    "{}  low text contrast ({:.1}:1)",
+                    "{}  {}",
                     icons::WARNING,
-                    t.text_contrast.0
+                    tr_args(
+                        "menu-theme-low-contrast",
+                        &[("ratio", format!("{:.1}", t.text_contrast.0).into())]
+                    )
                 ))
                 .small()
                 .color(theme::warning()),
@@ -146,14 +156,22 @@ fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
     ui.separator();
     if s.themes.dir.is_some() {
         if ui
-            .button(format!("{}  Open Themes Folder", icons::FOLDER_OPEN))
+            .button(format!(
+                "{}  {}",
+                icons::FOLDER_OPEN,
+                tr("menu-open-themes-folder")
+            ))
             .clicked()
         {
             out.push(MenuCommand::OpenThemesFolder);
             ui.close();
         }
         if ui
-            .button(format!("{}  Reload Themes", icons::ARROWS_CLOCKWISE))
+            .button(format!(
+                "{}  {}",
+                icons::ARROWS_CLOCKWISE,
+                tr("menu-reload-themes")
+            ))
             .clicked()
         {
             out.push(MenuCommand::ReloadThemes);
@@ -170,14 +188,18 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 .size(17.0)
                 .color(theme::type_color(ac_core::SignalType::Audio)),
         );
-        ui.menu_button("File", |ui| {
+        ui.menu_button(tr("menu-file"), |ui| {
             entry(ui, &mut out, Action::New, icons::FILE_PLUS, true);
             entry(ui, &mut out, Action::Open, icons::FOLDER_OPEN, true);
             ui.menu_button(
-                format!("{}  Open Recent", icons::CLOCK_COUNTER_CLOCKWISE),
+                format!(
+                    "{}  {}",
+                    icons::CLOCK_COUNTER_CLOCKWISE,
+                    tr("menu-open-recent")
+                ),
                 |ui| {
                     if s.recent.entries.is_empty() {
-                        ui.label(RichText::new("No recent projects").color(theme::text_muted()));
+                        ui.label(RichText::new(tr("menu-no-recent")).color(theme::text_muted()));
                     }
                     for p in &s.recent.entries {
                         let exists = p.is_file();
@@ -188,7 +210,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                         let label = if exists {
                             name
                         } else {
-                            format!("{name} (missing)")
+                            tr_args("menu-recent-missing", &[("name", name.into())])
                         };
                         let r = ui
                             .add_enabled(exists, egui::Button::new(label))
@@ -199,7 +221,11 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                         }
                         if !exists
                             && ui
-                                .small_button(format!("{}  Remove from list", icons::X))
+                                .small_button(format!(
+                                    "{}  {}",
+                                    icons::X,
+                                    tr("menu-remove-from-list")
+                                ))
                                 .clicked()
                         {
                             out.push(MenuCommand::ForgetRecent(p.clone()));
@@ -207,27 +233,28 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                     }
                     if !s.recent.entries.is_empty() {
                         ui.separator();
-                        if ui.button("Clear list").clicked() {
+                        if ui.button(tr("menu-clear-list")).clicked() {
                             out.push(MenuCommand::ClearRecent);
                             ui.close();
                         }
                     }
                 },
             );
-            ui.menu_button(format!("{}  Examples", icons::BOOK_OPEN), |ui| {
-                if s.examples.is_empty() {
-                    ui.label(RichText::new("No examples found").color(theme::text_muted()));
-                }
-                for ex in s.examples {
-                    let r = ui
-                        .button(&ex.name)
-                        .on_hover_text("Opens a copy: saving asks where to put it");
-                    if r.clicked() {
-                        out.push(MenuCommand::OpenExample(ex.path.clone()));
-                        ui.close();
+            ui.menu_button(
+                format!("{}  {}", icons::BOOK_OPEN, tr("menu-examples")),
+                |ui| {
+                    if s.examples.is_empty() {
+                        ui.label(RichText::new(tr("menu-no-examples")).color(theme::text_muted()));
                     }
-                }
-            });
+                    for ex in s.examples {
+                        let r = ui.button(&ex.name).on_hover_text(tr("menu-example-tip"));
+                        if r.clicked() {
+                            out.push(MenuCommand::OpenExample(ex.path.clone()));
+                            ui.close();
+                        }
+                    }
+                },
+            );
             ui.separator();
             entry(ui, &mut out, Action::Save, icons::FLOPPY_DISK, true);
             entry(ui, &mut out, Action::SaveAs, icons::FLOPPY_DISK, true);
@@ -238,9 +265,15 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 entry(ui, &mut out, Action::Quit, icons::SIGN_OUT, true);
             }
         });
-        ui.menu_button("Edit", |ui| {
-            let undo = s.undo.map_or("Undo".to_string(), |l| format!("Undo {l}"));
-            let redo = s.redo.map_or("Redo".to_string(), |l| format!("Redo {l}"));
+        ui.menu_button(tr("menu-edit"), |ui| {
+            let undo = s.undo.map_or_else(
+                || Action::Undo.label(),
+                |l| tr_args("menu-undo-named", &[("what", l.into())]),
+            );
+            let redo = s.redo.map_or_else(
+                || Action::Redo.label(),
+                |l| tr_args("menu-redo-named", &[("what", l.into())]),
+            );
             entry_labeled(
                 ui,
                 &mut out,
@@ -304,9 +337,9 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                     |ui| {
                         if let Some(sc) = Action::ArrangeMenu.shortcut() {
                             ui.label(
-                                RichText::new(format!(
-                                    "{} opens this at the pointer",
-                                    ui.ctx().format_shortcut(&sc)
+                                RichText::new(tr_args(
+                                    "menu-arrange-at-pointer",
+                                    &[("shortcut", ui.ctx().format_shortcut(&sc).into())],
                                 ))
                                 .small()
                                 .color(theme::text_faint()),
@@ -328,7 +361,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             ui.separator();
             entry(ui, &mut out, Action::Pin, icons::PUSH_PIN, sel && !s.panels);
         });
-        ui.menu_button("View", |ui| {
+        ui.menu_button(tr("menu-view"), |ui| {
             toggle(ui, &mut out, Action::ToggleSidePanel, s.side_panel);
             toggle(ui, &mut out, Action::ShowTiming, s.timing);
             toggle(ui, &mut out, Action::Minimap, s.minimap);
@@ -347,26 +380,51 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::ZoomIn, icons::PLUS, true);
             entry(ui, &mut out, Action::ZoomOut, icons::MINUS, true);
             ui.separator();
-            ui.menu_button(format!("{}  Theme", icons::CIRCLE_HALF), |ui| {
-                theme_menu(ui, &mut out, s);
-            });
-            ui.menu_button(format!("{}  UI Scale", icons::TEXT_AA), |ui| {
-                for step in UI_SCALES {
-                    let on = (s.ui_scale - step).abs() < 1e-3;
-                    let icon = if on { icons::CHECK } else { "    " };
-                    if ui
-                        .button(format!("{icon}  {:.0} %", step * 100.0))
-                        .clicked()
-                    {
-                        out.push(MenuCommand::SetUiScale(step));
+            ui.menu_button(
+                format!("{}  {}", icons::CIRCLE_HALF, tr("menu-theme")),
+                |ui| {
+                    theme_menu(ui, &mut out, s);
+                },
+            );
+            ui.menu_button(format!("{}  {}", icons::GLOBE, tr("menu-language")), |ui| {
+                for l in LanguageChoice::ALL {
+                    let icon = if s.language == l {
+                        icons::CHECK
+                    } else {
+                        "    "
+                    };
+                    if ui.button(format!("{icon}  {}", l.label())).clicked() {
+                        out.push(MenuCommand::SetLanguage(l));
                         ui.close();
                     }
                 }
-                ui.separator();
-                entry(ui, &mut out, Action::UiScaleUp, icons::PLUS, true);
-                entry(ui, &mut out, Action::UiScaleDown, icons::MINUS, true);
-                entry(ui, &mut out, Action::UiScaleReset, "    ", true);
             });
+            ui.menu_button(
+                format!("{}  {}", icons::TEXT_AA, tr("menu-ui-scale")),
+                |ui| {
+                    for step in UI_SCALES {
+                        let on = (s.ui_scale - step).abs() < 1e-3;
+                        let icon = if on { icons::CHECK } else { "    " };
+                        if ui
+                            .button(format!(
+                                "{icon}  {}",
+                                tr_args(
+                                    "menu-ui-scale-step",
+                                    &[("percent", format!("{:.0}", step * 100.0).into())]
+                                )
+                            ))
+                            .clicked()
+                        {
+                            out.push(MenuCommand::SetUiScale(step));
+                            ui.close();
+                        }
+                    }
+                    ui.separator();
+                    entry(ui, &mut out, Action::UiScaleUp, icons::PLUS, true);
+                    entry(ui, &mut out, Action::UiScaleDown, icons::MINUS, true);
+                    entry(ui, &mut out, Action::UiScaleReset, "    ", true);
+                },
+            );
             ui.separator();
             entry(
                 ui,
@@ -376,7 +434,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 true,
             );
         });
-        ui.menu_button("Add", |ui| {
+        ui.menu_button(tr("menu-add"), |ui| {
             entry(ui, &mut out, Action::AddNode, icons::MAGNIFYING_GLASS, true);
             ui.separator();
             for cat in Category::ALL {
@@ -388,7 +446,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 if entries.is_empty() {
                     continue;
                 }
-                ui.menu_button(cat.name(), |ui| {
+                ui.menu_button(i18n::category(cat), |ui| {
                     for e in entries {
                         if ui
                             .button(e.meta.name)
@@ -417,14 +475,18 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::Group, icons::STACK, s.has_selection);
             entry(ui, &mut out, Action::Ungroup, icons::STACK, s.has_selection);
             ui.label(
-                RichText::new("Reroute: Shift+right-drag across a wire")
+                RichText::new(tr("menu-reroute-hint"))
                     .small()
                     .color(theme::text_faint()),
             );
         });
-        ui.menu_button("Transport", |ui| {
-            let play = if s.playing { "Stop" } else { "Play" };
-            entry_labeled(ui, &mut out, Action::PlayStop, icons::PLAY, play, true);
+        ui.menu_button(tr("menu-transport"), |ui| {
+            let play = if s.playing {
+                tr("menu-stop")
+            } else {
+                tr("menu-play")
+            };
+            entry_labeled(ui, &mut out, Action::PlayStop, icons::PLAY, &play, true);
             entry(ui, &mut out, Action::PlayFromStart, icons::PLAY, true);
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
@@ -432,7 +494,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             ui.separator();
             toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });
-        ui.menu_button("Help", |ui| {
+        ui.menu_button(tr("menu-help"), |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);
             entry(ui, &mut out, Action::NodeHelp, icons::BOOK_OPEN, true);
             ui.separator();

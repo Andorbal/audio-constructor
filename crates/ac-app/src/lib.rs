@@ -21,6 +21,7 @@ pub mod files;
 pub mod find;
 pub mod help;
 pub mod host;
+pub mod i18n;
 pub mod icons;
 pub mod menubar;
 pub mod palette;

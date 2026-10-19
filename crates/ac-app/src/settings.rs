@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::LanguageChoice;
 use crate::theme::ThemeChoice;
 
 /// UI scale steps (View ▸ UI Scale; UX.md "Accessibility and scaling").
@@ -19,6 +20,10 @@ pub struct Prefs {
     pub theme: ThemeChoice,
     /// egui's zoom factor: 1 is 100 %.
     pub ui_scale: f32,
+    /// View ▸ Language.
+    pub language: LanguageChoice,
+    /// View ▸ Reduce Motion: no fades, flowing wires, or eased moves.
+    pub reduce_motion: bool,
 }
 
 impl Default for Prefs {
@@ -26,6 +31,8 @@ impl Default for Prefs {
         Prefs {
             theme: ThemeChoice::Dark,
             ui_scale: 1.0,
+            language: LanguageChoice::System,
+            reduce_motion: false,
         }
     }
 }
@@ -115,6 +122,20 @@ impl AppSettings {
         }
     }
 
+    pub fn set_language(&mut self, language: LanguageChoice) {
+        if self.prefs.language != language {
+            self.prefs.language = language;
+            self.save();
+        }
+    }
+
+    pub fn set_reduce_motion(&mut self, on: bool) {
+        if self.prefs.reduce_motion != on {
+            self.prefs.reduce_motion = on;
+            self.save();
+        }
+    }
+
     pub fn set_ui_scale(&mut self, scale: f32) {
         let scale = clamp_scale(scale);
         if (self.prefs.ui_scale - scale).abs() > 1e-4 {
@@ -151,6 +172,18 @@ fn parse(text: &str) -> Prefs {
     if let Some(s) = map.get("ui_scale").and_then(serde_json::Value::as_f64) {
         prefs.ui_scale = s as f32;
     }
+    if let Some(l) = map
+        .get("language")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+    {
+        prefs.language = l;
+    }
+    if let Some(r) = map
+        .get("reduce_motion")
+        .and_then(serde_json::Value::as_bool)
+    {
+        prefs.reduce_motion = r;
+    }
     prefs.sanitized()
 }
 
@@ -185,6 +218,11 @@ mod tests {
         let again = AppSettings::load_from(Some(file.clone()));
         assert_eq!(again.prefs.theme, ThemeChoice::Light);
         assert_eq!(s.themes_dir(), Some(dir.join("nested").join("themes")));
+        s.set_language(LanguageChoice::English);
+        s.set_reduce_motion(true);
+        let again = AppSettings::load_from(Some(file.clone()));
+        assert_eq!(again.prefs.language, LanguageChoice::English);
+        assert!(again.prefs.reduce_motion);
         s.set_theme(ThemeChoice::User("Night Shift".into()));
         let text = std::fs::read_to_string(&file).unwrap();
         assert!(text.contains(r#""theme": "Night Shift""#), "{text}");
@@ -210,5 +248,11 @@ mod tests {
         assert_eq!(p.theme, ThemeChoice::System);
         assert_eq!(p.ui_scale, 1.0);
         assert_eq!(parse(r#"{"ui_scale": 40}"#).ui_scale, 2.0);
+        let p = parse(r#"{"language": "pseudo", "reduce_motion": true}"#);
+        assert_eq!(p.language, LanguageChoice::Pseudo);
+        assert!(p.reduce_motion);
+        let p = parse(r#"{"language": "klingon", "reduce_motion": "yes"}"#);
+        assert_eq!(p.language, LanguageChoice::System);
+        assert!(!p.reduce_motion);
     }
 }
