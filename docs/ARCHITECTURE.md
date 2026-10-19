@@ -56,8 +56,8 @@ Contents
 | Serialization | **serde** + JSON | Human-readable, diffable project files. |
 | Lock-free plumbing | **rtrb** (SPSC rings), **arc-swap**, **triple_buffer** | Audio thread never blocks. |
 | Thread priority | **audio_thread_priority** | Real-time scheduling for worker threads. |
-| Plugin build | **nih-plug** (CLAP + VST3) | Phase 3. Same engine, host-provided buffers. |
-| Plugin hosting | **clack** (CLAP), **vst3-sys** (VST3) | Phase 3. See licensing notes in DECISIONS. |
+| Plugin build | **nice-plug** (CLAP + VST3) | The maintained, crates.io-published successor of nih-plug (DECISIONS D117). Same engine, host-provided buffers. VST3 through the MIT/Apache `vst3` bindings (D118). |
+| Plugin hosting | **clack** (CLAP), **vst3** (VST3) | Phase 3 (M3.2). The plugin build's tests already use clack as their host. |
 | Benchmarks | **criterion** plus an `audioc bench` subcommand | Per-node and whole-graph throughput, tracked over time. |
 | UI tests | **egui_kittest** | Drive the editor without a display; snapshot where a software renderer is available. |
 
@@ -78,7 +78,7 @@ audio-constructor/
     ac-io/                # device layer: cpal, midir, gilrs, rosc, file I/O. Feature-gated per backend.
     ac-cli/               # `audioc` binary
     ac-app/               # `audio-constructor` desktop binary (eframe)
-    ac-plugin/            # Phase 3: nih-plug wrapper
+    ac-plugin/            # the engine as a CLAP/VST3 effect and instrument (nice-plug)
     ac-web/               # Phase 3: wasm glue, AudioWorklet host
   examples/               # example projects shipped with the app
   scripts/release.py      # version bumps, changelog checks, release notes (CLAUDE.md)
@@ -89,7 +89,9 @@ audio-constructor/
 ```
 
 Dependency direction is strictly downward: `ac-app`/`ac-cli` → `ac-io` →
-`ac-engine` → `ac-nodes` → `ac-dsp` → `ac-core`. CI runs
+`ac-engine` → `ac-nodes` → `ac-dsp` → `ac-core`. `ac-plugin` sits on
+`ac-engine` directly: a host provides its devices, so it links no device
+layer. CI runs
 `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`,
 `ac-nodes`, and `ac-engine` on every change.
 
@@ -276,7 +278,9 @@ Transport
 - The project has a nominal sample rate; the engine runs at the device's
   rate. Nodes are written to be sample-rate independent (they take the rate
   from `PrepareCtx`). Clips are resampled on load if needed.
-- There is no external sync (MIDI clock, Ableton Link) in scope.
+- There is no external sync (MIDI clock, network tempo sync) in scope,
+  except that the plugin build follows its host's play, stop, and position
+  (§13, DECISIONS D121).
 
 ## 7. Compilation and scheduling
 
@@ -348,9 +352,10 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   default to avoid zipper noise (per-socket opt-out). A ramp counts back
   from its target, so it gives the same samples however blocks split it.
 - **Bindings** (D92–D95): the project's bindings (a MIDI controller or
-  note, key, gamepad control, or OSC address → an input or a transport
-  action) compile to a table inside the compiled graph, resolved through
-  the same (path, socket) → slot map as parameter changes; bindings to
+  note, key, gamepad control, OSC address, or a plugin's macro parameter
+  (D119) → an input or a transport action) compile to a table inside the
+  compiled graph, resolved through the same (path, socket) → slot map as
+  parameter changes; bindings to
   missing, wired, or unbindable inputs are compile warnings. Each block,
   the processor matches its MIDI and control events against the table
   (allocation-free, into a preallocated list in offset order) and splits
@@ -445,6 +450,9 @@ impl EngineHandle {                                                   // control
 }
 impl Processor {                                                      // audio thread
     pub fn process(&mut self, io: &mut HostIo);
+    pub fn install_pending(&mut self) -> u64;                         // swap in a waiting graph now; its generation
+    pub fn follow_transport(&mut self, playing: bool, position: Option<u64>, tolerance: u64); // a plugin host's
+    pub fn reset(&mut self);                                          // reset every node at the next block
 }
 ```
 
@@ -624,11 +632,41 @@ All hosts call the same `Engine`.
   - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
   - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.
   - `audioc fmt` canonicalizes `.acproj` and `.acblock` files.
-- **Plugin** (Phase 3, `ac-plugin`): nih-plug exposes the engine as a CLAP and
-  VST3 effect and instrument. The plugin's audio input and output map to
-  `AudioIn`/`AudioOut` nodes; host MIDI maps to `MidiIn`; a configurable set of
-  sockets is exposed as host-automatable parameters. The editor UI runs inside
-  the plugin window via `nih_plug_egui`.
+- **Plugin** (`ac-plugin`, DECISIONS D117–D123): nice-plug exports two
+  plugins from one library, as CLAP and VST3: **Audio Constructor Effect**
+  (stereo, mono, or mono-to-stereo audio, with notes in) and **Audio
+  Constructor Instrument** (notes in, stereo out, notes out).
+  - *Engine hosting.* Activation builds the engine at the host's sample
+    rate and largest block and starts the instance's control thread
+    (D122). Each host block goes through `ac_plugin::bridge::Bridge`,
+    without allocating (debug builds abort if it does): the host's
+    channels are copied into channel-major `HostIo` scratch sized at
+    activation (a mono bus widened to a pair), host notes and MIDI become
+    `MidiEvent`s at their offsets (for MIDI In nodes and MIDI bindings),
+    macros that moved become `Control::Macro` events at the start of the
+    framework's sub-block, the transport follows the host's
+    (`Processor::follow_transport`, D121), and MIDI Out nodes' messages go
+    back to the host. Blocks of any size up to the maximum work; longer
+    ones are split. Latency the graph adds is reported to the host.
+  - *Parameters.* Sixteen macros (`macro_1` … `macro_16`) are the host's
+    parameters; the project's bindings from `Source::Macro` say what each
+    drives, with the binding's range and mapping, sample-accurately, and
+    the host's readout shows the value it sets (D119).
+  - *State.* The host saves the macro values and one JSON document: the
+    project, its audio files, and where it came from (D120). Restoring,
+    loading a project file, and every edit recompile on the host's main
+    thread or the editor's and hot-swap at a block boundary; bad state
+    falls back to the default project with a report. New instances start
+    with a working patch: a Gain on Macro 1 (effect), or MIDI In into an
+    eight-voice Subtractive Synth Voice with Macros 1–4 on its sound
+    (instrument).
+  - *Editor.* The node editor embeds in the plugin window through
+    `ac_plugin::editor` (an egui-baseview window): it gets the shared
+    session (project, assets, `EngineHandle`) and the macro parameters,
+    pushes project changes with `Session::set_project`, and leaves the
+    transport to the host.
+  - *Bundles.* `scripts/bundle_plugin.py` builds `Audio Constructor.clap`
+    and `Audio Constructor.vst3` (D123).
 - **Web** (Phase 3, `ac-web`): the engine runs inside an `AudioWorklet`; the
   UI is eframe's web target. The two communicate through `SharedArrayBuffer`
   rings, the same abstraction as native.

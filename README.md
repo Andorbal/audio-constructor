@@ -13,7 +13,8 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > OSC, bindings with learn, performance panels), editor conveniences
 > (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
 > help), 14 example projects, and a [user guide](docs/guide/README.md).
-> Phase 3 (plugins, the web, packaging) is next. See
+> Phase 3 (plugins, the web, packaging) is under way: projects already
+> run inside other music software as CLAP and VST3 plugins. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
@@ -64,9 +65,10 @@ parts those tools are made of and lets you wire them up however you like.
 2. **The command line**: `audioc render` turns a project into a WAV file for
    batch jobs and automation; `audioc run` runs a project headless on a box
    with no screen.
-3. **A plugin** (planned): the engine packaged as a CLAP/VST3 effect and
-   instrument so patches run inside any host. Hosting third-party plugins as
-   nodes is also planned.
+3. **A plugin**: the engine as a CLAP and VST3 effect and instrument, so a
+   patch runs inside any music software that loads plugins, with sixteen
+   macro knobs the host can automate. Hosting third-party plugins as nodes
+   is planned.
 
 ## Getting started
 
@@ -163,6 +165,21 @@ patch with notes on the canvas saying what each part does and what to try:
 
 ![The Subtractive Synth example: MIDI note, oscillator, filter, and envelopes, with a clock-driven demo note](docs/images/editor-synth.png)
 
+### Build the plugin
+
+```
+python3 scripts/bundle_plugin.py            # release build into target/bundled/
+python3 scripts/bundle_plugin.py --install  # ... and copy into your plugin folders
+```
+
+This builds `Audio Constructor.clap` and `Audio Constructor.vst3`; each holds
+both plugins, **Audio Constructor Effect** and **Audio Constructor
+Instrument**. `--install` copies them where hosts look: `~/.clap` and
+`~/.vst3` on Linux, `~/Library/Audio/Plug-Ins/CLAP` and `…/VST3` on macOS,
+and `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3` on Windows. The
+plugin needs no system libraries beyond the Rust toolchain. How to use it
+is in the guide's [plugin chapter](docs/guide/plugin.md).
+
 ### Use the command line
 
 ```
@@ -198,7 +215,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 
 | Document | What it covers |
 | --- | --- |
-| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, and troubleshooting |
+| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, the plugin, and troubleshooting |
 | [docs/reference](docs/reference/README.md) | Every node, by category: what it does, a tip, and each socket (generated from the nodes' own documentation) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases, milestones, and acceptance criteria |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Engine, signal model, scheduling, real-time rules, persistence |
