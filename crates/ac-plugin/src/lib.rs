@@ -35,7 +35,10 @@ mod plugin;
 pub mod session;
 pub mod state;
 
-pub use plugin::{AcPlugin, Effect, EffectVariant, Instrument, InstrumentVariant, Variant};
+pub use plugin::{
+    AcPlugin, Effect, EffectVariant, Instrument, InstrumentVariant, Variant, Vst3Effect,
+    Vst3Instrument,
+};
 pub use session::{Kind, Session, Shared};
 
 // Debug builds (what the tests and the CLAP test host load) abort on any
@@ -47,4 +50,5 @@ pub use session::{Kind, Session, Shared};
 static ALLOCATOR: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 nice_plug::nice_export_clap!(Effect, Instrument);
-nice_plug::nice_export_vst3!(Effect, Instrument);
+// The VST3 plugins have no window yet (see `editor.rs`); same class ids.
+nice_plug::nice_export_vst3!(Vst3Effect, Vst3Instrument);

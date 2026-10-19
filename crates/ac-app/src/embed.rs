@@ -1,6 +1,6 @@
 //! The editor in a window its host provides: a plugin's editor window
 //! (ARCHITECTURE §13). It draws with egui-baseview's OpenGL renderer
-//! (DECISIONS D121) into a child of the host's parent window.
+//! (DECISIONS D125) into a child of the host's parent window.
 //!
 //! A plugin keeps one [`EditorApp`] for its whole life (made with
 //! [`EditorApp::embedded`] and `AudioMode::Hosted`), wrapped by [`share`],
@@ -153,13 +153,27 @@ impl EditorWindow {
         parent: Option<&P>,
         host: Option<bv::host::Host>,
     ) -> Result<EditorWindow, EmbedError> {
+        EditorWindow::create_hooked(editor, opts, parent, host, Box::new(NoHook))
+    }
+
+    /// [`EditorWindow::create`] with `hook` around every frame: a plugin
+    /// lends the editor its engine there and takes its edits (see
+    /// [`WindowHook`]).
+    pub fn create_hooked<P: HasWindowHandle>(
+        editor: &SharedEditor,
+        opts: &WindowOptions,
+        parent: Option<&P>,
+        host: Option<bv::host::Host>,
+        hook: Box<dyn WindowHook>,
+    ) -> Result<EditorWindow, EmbedError> {
         let mut settings = settings_for(opts, lock(editor).settings().prefs.ui_scale);
         if let Some(p) = parent {
             settings.parent = Some(parent_handle(p)?);
         }
         let repaint = RepaintNotifier::new();
         settings.repaint_notifier = Some(repaint.clone());
-        let window = EguiWindow::create_with_host(settings, WindowApp::new(editor.clone()), host)?;
+        let app = WindowApp::new(editor.clone(), hook, settings.zoom_factor);
+        let window = EguiWindow::create_with_host(settings, app, host)?;
         Ok(EditorWindow { window, repaint })
     }
 
@@ -246,7 +260,7 @@ fn settings_for(opts: &WindowOptions, ui_scale: f32) -> EguiWindowSettings {
 
 /// The parent as baseview takes it, refusing kinds this platform can't
 /// hold a child in (baseview would panic on those).
-fn parent_handle<P: HasWindowHandle>(parent: &P) -> Result<bv::ParentWindowHandle, EmbedError> {
+pub fn parent_handle<P: HasWindowHandle>(parent: &P) -> Result<bv::ParentWindowHandle, EmbedError> {
     let raw = parent.window_handle().map_err(EmbedError::Handle)?.as_raw();
     check_parent(raw)?;
     Ok(bv::ParentWindowHandle::from_window(parent))
@@ -286,24 +300,64 @@ fn kind_of(raw: RawWindowHandle) -> &'static str {
     }
 }
 
+/// What a host does around each frame of its editor window, on the
+/// window's thread with the editor locked. A plugin whose session keeps
+/// the project lends the editor its engine handle for `draw` and takes the
+/// edits afterwards ([`EditorApp::host_keeps_project`]).
+pub trait WindowHook: Send + 'static {
+    /// Run `draw`, the editor's frame, once. `ctx` is the window's (to ask
+    /// for another frame later, say).
+    fn frame(
+        &mut self,
+        ctx: &egui::Context,
+        editor: &mut EditorApp,
+        draw: &mut dyn FnMut(&mut EditorApp),
+    ) {
+        let _ = ctx;
+        draw(editor);
+    }
+
+    /// The window's size changed (the host resized it, or the editor's UI
+    /// scale did), in the platform's terms: physical pixels and the
+    /// system's scale factor, not counting the UI scale.
+    fn resized(&mut self, size: bv::WindowSize) {
+        let _ = size;
+    }
+}
+
+/// No host work around frames.
+struct NoHook;
+
+impl WindowHook for NoHook {}
+
 /// One window's view of the shared editor.
 struct WindowApp {
     editor: SharedEditor,
+    hook: Box<dyn WindowHook>,
     /// Set when the editor panicked in this window: the window says so
     /// instead of drawing it again (the host keeps running).
     failed: Option<String>,
+    /// The modifier keys held, followed through each frame's events.
+    modifiers: egui::Modifiers,
+    /// The UI scale egui-baseview draws at (its zoom factor).
+    zoom: f32,
 }
 
 impl WindowApp {
-    fn new(editor: SharedEditor) -> WindowApp {
+    fn new(editor: SharedEditor, hook: Box<dyn WindowHook>, zoom: f32) -> WindowApp {
         WindowApp {
             editor,
+            hook,
             failed: None,
+            modifiers: egui::Modifiers::NONE,
+            zoom,
         }
     }
 
     /// Draw one frame; the color to clear the window with.
     fn frame(&mut self, ui: &mut egui::Ui) -> egui::Rgba {
+        let mods = &mut self.modifiers;
+        ui.ctx().input_mut(|i| recover_keys(&mut i.events, mods));
         self.frame_with(ui, EditorApp::ui)
     }
 
@@ -316,7 +370,16 @@ impl WindowApp {
     ) -> egui::Rgba {
         if self.failed.is_none() {
             let editor = &self.editor;
-            let drawn = catch_unwind(AssertUnwindSafe(|| draw(&mut lock(editor), ui)));
+            let hook = &mut self.hook;
+            let ctx = ui.ctx().clone();
+            let drawn = catch_unwind(AssertUnwindSafe(|| {
+                let mut draw = Some(draw);
+                hook.frame(&ctx, &mut lock(editor), &mut |e| {
+                    if let Some(d) = draw.take() {
+                        d(e, ui);
+                    }
+                });
+            }));
             if let Err(panic) = drawn {
                 let why = panic
                     .downcast_ref::<&str>()
@@ -347,6 +410,51 @@ fn failed(ui: &mut egui::Ui, why: &str) {
     });
 }
 
+/// Key presses egui-baseview 0.9 drops, recovered from the text they typed.
+///
+/// It turns only unshifted letters, digits, and a few named keys into key
+/// events, so Shift+A (add node), Shift+D (duplicate), `.` (frame the
+/// selection), `+` and `-` (zoom) would reach the editor as text alone.
+/// Each such character typed without Ctrl or Cmd becomes the key press it
+/// came from, with the modifiers held at the time. What leaves no text
+/// can't be recovered: function keys, and Ctrl or Cmd with Shift or a
+/// symbol (their menu entries still work).
+fn recover_keys(events: &mut Vec<egui::Event>, modifiers: &mut egui::Modifiers) {
+    let mut out = Vec::with_capacity(events.len());
+    for e in events.drain(..) {
+        match &e {
+            egui::Event::ModifiersChanged(m) => *modifiers = *m,
+            egui::Event::WindowFocused(false) => *modifiers = egui::Modifiers::NONE,
+            egui::Event::Text(t) => {
+                let mut chars = t.chars();
+                let key = match (chars.next(), chars.next()) {
+                    (Some(c), None) if c.is_ascii_uppercase() || c.is_ascii_punctuation() => {
+                        egui::Key::from_name(t)
+                    }
+                    _ => None,
+                };
+                let sent = |k: egui::Key| {
+                    out.iter().any(
+                        |o| matches!(o, egui::Event::Key { key, pressed: true, .. } if *key == k),
+                    )
+                };
+                if let Some(k) = key.filter(|k| !sent(*k)) {
+                    out.push(egui::Event::Key {
+                        key: k,
+                        physical_key: None,
+                        pressed: true,
+                        repeat: false,
+                        modifiers: *modifiers,
+                    });
+                }
+            }
+            _ => {}
+        }
+        out.push(e);
+    }
+    *events = out;
+}
+
 impl egui_baseview::App for WindowApp {
     fn build(&mut self, _ctx: egui::Context, _frame: &mut Frame) -> Result<(), HandlerError> {
         // The editor styles a new context on its first frame.
@@ -356,6 +464,17 @@ impl egui_baseview::App for WindowApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut Frame) {
         let clear = self.frame(ui);
         frame.set_clear_color(clear);
+    }
+
+    fn resized(&mut self, size: bv::WindowSize) {
+        // egui-baseview reports the scale with its zoom (the UI scale) in.
+        let system = size.scale_factor / f64::from(self.zoom.max(0.01));
+        self.hook
+            .resized(bv::WindowSize::from_physical(size.physical, system));
+    }
+
+    fn zoom_factor_changed(&mut self, zoom_factor: f32) {
+        self.zoom = zoom_factor;
     }
 }
 
@@ -394,6 +513,58 @@ mod tests {
     }
 
     #[test]
+    fn shifted_letters_and_symbols_become_key_presses_again() {
+        use egui::{Event, Key, Modifiers};
+        let key = |key, modifiers| Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers,
+        };
+        let text = |t: &str| Event::Text(t.into());
+        let mut mods = Modifiers::NONE;
+        let mut events = vec![
+            Event::ModifiersChanged(Modifiers::SHIFT),
+            text("A"),
+            Event::ModifiersChanged(Modifiers::NONE),
+            text("+"),
+            // Already a key event: left alone.
+            key(Key::G, Modifiers::NONE),
+            text("g"),
+            // Not keys.
+            text("é"),
+            text("ab"),
+        ];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(
+            events,
+            vec![
+                Event::ModifiersChanged(Modifiers::SHIFT),
+                key(Key::A, Modifiers::SHIFT),
+                text("A"),
+                Event::ModifiersChanged(Modifiers::NONE),
+                key(Key::Plus, Modifiers::NONE),
+                text("+"),
+                key(Key::G, Modifiers::NONE),
+                text("g"),
+                text("é"),
+                text("ab"),
+            ]
+        );
+        // Held modifiers carry over to the next frame, and losing focus
+        // lets go of them.
+        let mut events = vec![Event::ModifiersChanged(Modifiers::SHIFT)];
+        recover_keys(&mut events, &mut mods);
+        let mut events = vec![text("D")];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(events[0], key(Key::D, Modifiers::SHIFT));
+        let mut events = vec![Event::WindowFocused(false), text(".")];
+        recover_keys(&mut events, &mut mods);
+        assert_eq!(events[1], key(Key::Period, Modifiers::NONE));
+    }
+
+    #[test]
     fn windows_open_at_the_editors_ui_scale() {
         let opts = WindowOptions {
             size: [1000.0, 0.0],
@@ -427,7 +598,7 @@ mod tests {
     #[test]
     fn a_window_draws_the_shared_editor_frame_by_frame() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone());
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         let ctx = egui::Context::default();
         for _ in 0..3 {
             frame(&ctx, |ui| {
@@ -444,7 +615,7 @@ mod tests {
     #[test]
     fn a_panic_in_a_frame_stays_in_its_window() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone());
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         let ctx = egui::Context::default();
         let mut drawn = 0;
         for _ in 0..3 {
@@ -461,7 +632,7 @@ mod tests {
         // and a new window draws the editor again.
         assert!(editor.is_poisoned());
         assert!(lock(&editor).is_hosted());
-        let mut again = WindowApp::new(editor.clone());
+        let mut again = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         frame(&ctx, |ui| {
             again.frame(ui);
         });

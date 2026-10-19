@@ -1,4 +1,4 @@
-//! The plugin state a host saves with its session (DECISIONS D118).
+//! The plugin state a host saves with its session (DECISIONS D120).
 //!
 //! It travels inside the framework's own state (which also holds the
 //! macro parameters' values, by id) as one persisted field, a JSON

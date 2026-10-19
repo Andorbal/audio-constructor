@@ -1,6 +1,6 @@
 //! The plugin's audio assets: the bytes of every audio file the project's
 //! nodes reference, kept in memory and saved inside the plugin state
-//! (DECISIONS D118), so a host session carries its samples with it.
+//! (DECISIONS D120), so a host session carries its samples with it.
 //!
 //! Keys are the paths as node configs write them (relative to the folder
 //! the project came from, or absolute), so a project loaded from a file
@@ -22,6 +22,13 @@ pub struct Asset {
     audio: Option<Arc<AudioData>>,
     /// Why it can't be played, if it can't.
     pub problem: Option<String>,
+}
+
+impl Asset {
+    /// The decoded audio, if the bytes are a WAV file this can play.
+    pub fn audio(&self) -> Option<&Arc<AudioData>> {
+        self.audio.as_ref()
+    }
 }
 
 /// Every asset the plugin holds, by config path.

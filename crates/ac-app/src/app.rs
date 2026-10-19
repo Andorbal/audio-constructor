@@ -23,6 +23,7 @@ use crate::edit::{self, HIDE_UNWIRED, pins};
 use crate::export::{ExportSummary, export_wav};
 use crate::files::{self, Recent};
 use crate::find::{FindBar, Found};
+use crate::host::{HostControls, HostRequest};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::palette::{Candidate, Palette};
@@ -173,6 +174,10 @@ pub struct EditorApp {
     /// The document's state when the embedding host last heard of it
     /// ([`EditorApp::take_changes`]).
     host_seen: ChangeStamp,
+    /// The host's automatable parameters, shown in the Devices tab.
+    host_controls: Option<Box<dyn HostControls>>,
+    /// What the editor asked of a host that keeps the project.
+    host_requests: Vec<HostRequest>,
 }
 
 /// Where the document is in its history: equal stamps, same project.
@@ -331,6 +336,8 @@ impl EditorApp {
             clock: Clock::default(),
             epoch: 0,
             host_seen: (0, 0, 0),
+            host_controls: None,
+            host_requests: Vec::new(),
         };
         // A plugin window can't go full screen: performance mode fills
         // the window instead.
@@ -439,10 +446,15 @@ impl EditorApp {
         self.doc.path.as_deref()
     }
 
-    /// The project, if it changed since the host last asked or last loaded
-    /// one: an edit, an undo or redo, New, Open, or Save. A plugin marks its
-    /// state dirty on `Some`. Moving the view alone isn't a change, though
-    /// [`EditorApp::project`] carries it.
+    /// Whether the project changed since the host last asked or last loaded
+    /// one: an edit, an undo or redo, New, Open, or Save. Moving the view
+    /// alone isn't a change, though [`EditorApp::project`] carries it.
+    pub fn has_changes(&self) -> bool {
+        self.change_stamp() != self.host_seen
+    }
+
+    /// The project, once per change (see [`EditorApp::has_changes`]). A
+    /// plugin marks its state dirty on `Some`.
     pub fn take_changes(&mut self) -> Option<Project> {
         let stamp = self.change_stamp();
         if stamp == self.host_seen {
@@ -462,11 +474,97 @@ impl EditorApp {
     pub fn load_project(&mut self, project: Project, path: Option<&Path>) {
         let base = path.map_or_else(cwd, files::project_dir);
         let assets = AssetStore::load_for(&project, &base, &self.registry);
+        self.load_project_with(project, path, assets);
+    }
+
+    /// [`EditorApp::load_project`] with the audio files the host holds
+    /// (a plugin keeps them in its saved state, not on disk). Files the
+    /// project refers to and `assets` lacks show as missing.
+    pub fn load_project_with(&mut self, project: Project, path: Option<&Path>, assets: AssetStore) {
+        let base = path.map_or_else(cwd, files::project_dir);
+        let assets = with_missing(assets, &project, &self.registry);
         // Questions about the document being replaced no longer apply.
         self.confirm = None;
         self.prompt = None;
         self.replace_document(project, path.map(Path::to_path_buf), base, assets);
+        // The host has this project already.
+        let _ = self.engine.take_outgoing();
         self.host_seen = self.change_stamp();
+    }
+
+    /// The host keeps the project and the engine from now on (a plugin's
+    /// session; `AudioMode::Hosted` only). Each frame it lends the editor
+    /// its engine handle ([`EditorApp::with_engine`]); edits come back
+    /// through [`EditorApp::take_engine_edit`] and
+    /// [`EditorApp::take_changes`]; New, Open, and picked audio files
+    /// become [`HostRequest`]s; the host runs the transport and the
+    /// engine's upkeep.
+    pub fn host_keeps_project(&mut self) {
+        self.engine.keep_in_host();
+    }
+
+    /// Show the host's automatable parameters (a plugin's macros) in the
+    /// Devices tab, moved through `controls` so the host records them.
+    pub fn set_host_controls(&mut self, controls: Box<dyn HostControls>) {
+        self.host_controls = Some(controls);
+    }
+
+    /// Run `f` with the host's engine `handle` as the editor's engine (a
+    /// frame, or upkeep), then give it back, even if `f` panics.
+    pub fn with_engine<R>(
+        &mut self,
+        handle: &mut EngineHandle,
+        f: impl FnOnce(&mut EditorApp) -> R,
+    ) -> R {
+        self.engine.swap_handle(handle, true);
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        self.engine.swap_handle(handle, false);
+        match r {
+            Ok(r) => r,
+            Err(panic) => std::panic::resume_unwind(panic),
+        }
+    }
+
+    /// The project the engine should run, if the document changed in a way
+    /// the engine hears since the last call (while the host keeps the
+    /// project). The host compiles it and says how that went with
+    /// [`EditorApp::host_compiled`].
+    pub fn take_engine_edit(&mut self) -> Option<Project> {
+        self.engine.take_outgoing()
+    }
+
+    /// What compiling the last engine edit found (the Problems tab shows
+    /// it). `None` when the host had no engine to compile with; the editor
+    /// compiles on its own stand-in then.
+    pub fn host_compiled(&mut self, report: Option<ac_engine::CompileReport>) {
+        self.engine.host_compiled(report, &self.doc.project);
+    }
+
+    /// What the editor asked of the host since the last call.
+    pub fn take_host_requests(&mut self) -> Vec<HostRequest> {
+        std::mem::take(&mut self.host_requests)
+    }
+
+    /// The audio files the host holds changed (it kept a file the editor
+    /// asked it to): show them.
+    pub fn set_host_assets(&mut self, assets: AssetStore) {
+        self.assets = with_missing(assets, &self.doc.project, &self.registry);
+        self.missing = missing_of(&self.assets);
+        self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
+    }
+
+    /// Say something in the status bar (a host reporting what a load found).
+    pub fn tell(&mut self, text: impl Into<String>, warning: bool) {
+        let now = self.clock.last;
+        if warning {
+            self.warn(text, now);
+        } else {
+            self.say(text, now);
+        }
+    }
+
+    fn in_host(&self) -> bool {
+        self.engine.in_host()
     }
 
     /// Engine upkeep while nothing shows the editor (a plugin whose window
@@ -504,6 +602,8 @@ impl EditorApp {
     /// Transport ▸ Play Keys do; a performance view can too). Turning it off
     /// releases every key held in the patch.
     pub fn set_play_keys(&mut self, on: bool) {
+        // Keys a host doesn't pass on would only stop the shortcuts working.
+        let on = on && self.engine.keys_reach_engine();
         self.play_keys.set(on, &mut self.engine);
     }
 
@@ -742,6 +842,7 @@ impl EditorApp {
                         timing: self.show_timing.then_some(&self.timing),
                         requests: Vec::new(),
                         now,
+                        host: self.host_controls.as_mut(),
                     };
                     self.side.show(ui, &mut io);
                     let reqs = std::mem::take(&mut io.requests);
@@ -1000,6 +1101,10 @@ impl EditorApp {
 
     /// Keep the engine's loop region in step with the project.
     fn sync_loop(&mut self) {
+        // A host that keeps the project runs the transport (and its loop).
+        if self.in_host() {
+            return;
+        }
         let rate = f64::from(self.engine.info.sample_rate);
         let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
         let want = self.doc.project.settings.loop_region.and_then(|[a, b]| {
@@ -1013,7 +1118,16 @@ impl EditorApp {
     }
 
     fn reload_assets(&mut self) {
-        self.assets = AssetStore::load_for(&self.doc.project, &self.doc.base_dir, &self.registry);
+        self.assets = if self.in_host() {
+            // The host holds the files; the editor's copies are what it has.
+            with_missing(
+                std::mem::take(&mut self.assets),
+                &self.doc.project,
+                &self.registry,
+            )
+        } else {
+            AssetStore::load_for(&self.doc.project, &self.doc.base_dir, &self.registry)
+        };
         self.missing = missing_of(&self.assets);
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
         let resources = self.resources();
@@ -1720,6 +1834,22 @@ impl EditorApp {
     /// Run a command (from a shortcut, a menu, or a button).
     pub fn run(&mut self, ctx: &egui::Context, a: Action, now: f64) {
         let reg = self.registry.clone();
+        // The host's transport plays the patch (Space usually reaches the
+        // host as well); the editor's would fight it.
+        let host_transport = matches!(
+            a,
+            Action::PlayStop | Action::PlayFromStart | Action::Record | Action::Rewind
+        );
+        if host_transport && self.in_host() {
+            return;
+        }
+        if matches!(a, Action::PlayKeys) && !self.engine.keys_reach_engine() {
+            self.say(
+                "Play keys isn't available here: the host plays the patch",
+                now,
+            );
+            return;
+        }
         match a {
             Action::New => self.request(AfterConfirm::New, now),
             Action::Open => self.file_dialog(FilePurpose::Open, now),
@@ -2189,6 +2319,12 @@ impl EditorApp {
 
     fn proceed(&mut self, after: AfterConfirm, now: f64) {
         match after {
+            // The host starts over with its own default (a plugin's
+            // depends on whether it's the effect or the instrument).
+            AfterConfirm::New if self.in_host() => {
+                self.host_requests.push(HostRequest::New);
+                self.say("New project", now);
+            }
             AfterConfirm::New => {
                 let p = files::default_project(&self.registry);
                 self.replace_document(p, None, cwd(), AssetStore::default());
@@ -2247,6 +2383,15 @@ impl EditorApp {
     /// Replace the document with the project at `path`. The status starts
     /// with `what` and adds the blocks it brought and any missing files.
     fn open_project(&mut self, path: &Path, what: String, now: f64) -> Result<(), String> {
+        if self.in_host() {
+            // The host loads it with its audio files into its own state;
+            // the document follows on the next frame.
+            self.host_requests
+                .push(HostRequest::Open(path.to_path_buf()));
+            self.recent.add(path);
+            self.say(what, now);
+            return Ok(());
+        }
         let (project, assets) = files::open_project(path, &self.registry)?;
         let missing = assets.issues.len();
         self.replace_document(
@@ -2280,6 +2425,14 @@ impl EditorApp {
     /// untitled copy, so saving never overwrites the shipped file. Its
     /// audio files still load from beside it.
     pub fn open_example(&mut self, path: &Path, now: f64) {
+        if self.in_host() {
+            // A plugin's copy lives in the host's state, so the shipped
+            // file is never written either way.
+            self.host_requests
+                .push(HostRequest::Open(path.to_path_buf()));
+            self.say(format!("Opened the example {}", file_name(path)), now);
+            return;
+        }
         match files::open_project(path, &self.registry) {
             Ok((mut project, assets)) => {
                 // Its stored view was set on someone else's window.
@@ -2322,9 +2475,12 @@ impl EditorApp {
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
         // A new project starts from scratch: transport at zero, every node
         // rebuilt (new resources carry no state over). The device stays open.
-        self.engine.handle.stop();
-        self.engine.handle.set_recording(false);
-        self.engine.handle.seek(0);
+        // A host's transport is the host's.
+        if !self.is_hosted() {
+            self.engine.handle.stop();
+            self.engine.handle.set_recording(false);
+            self.engine.handle.seek(0);
+        }
         let resources = self.resources();
         self.engine.set_resources(&self.doc.project, resources);
         self.engine.synced_revision = self.doc.engine_revision;
@@ -2379,6 +2535,12 @@ impl EditorApp {
                 self.doc.mark_saved();
                 // Saving moved the project, relinked its files, or kept its view.
                 self.epoch += 1;
+                if self.in_host() {
+                    // The host holds the audio; it writes it beside the file.
+                    self.host_requests.push(HostRequest::WriteAssets {
+                        dir: files::project_dir(&path),
+                    });
+                }
                 self.recent.add(&path);
                 if assets_changed {
                     self.reload_assets();
@@ -2478,29 +2640,60 @@ impl EditorApp {
             FilePurpose::ImportBlock => self.import_block_file(&path, now),
             FilePurpose::Export => self.export(path, now),
             FilePurpose::ChooseClip(node) => self.assign_clip(node, &path, now),
-            FilePurpose::Locate(old) => {
-                match files::import_audio(&path, self.doc.path.as_deref()) {
-                    Ok(a) => {
-                        let reg = self.registry.clone();
-                        let n = self.doc.edit_project("Locate file", |p| {
-                            files::relink_asset(p, &reg, &old, &a)
-                        });
-                        self.reload_assets();
-                        self.say(
-                            format!("Relinked {n} node{}", if n == 1 { "" } else { "s" }),
-                            now,
-                        );
-                    }
-                    Err(e) => self.warn(e, now),
+            FilePurpose::Locate(old) => match self.import_audio(&path) {
+                Ok(a) => {
+                    let reg = self.registry.clone();
+                    let n = self
+                        .doc
+                        .edit_project("Locate file", |p| files::relink_asset(p, &reg, &old, &a));
+                    self.reload_assets();
+                    self.say(
+                        format!("Relinked {n} node{}", if n == 1 { "" } else { "s" }),
+                        now,
+                    );
                 }
-            }
+                Err(e) => self.warn(e, now),
+            },
         }
+    }
+
+    /// An audio file someone picked, ready for a config: copied into the
+    /// project's assets folder when it has one, or, when the host keeps
+    /// the project, handed to the host under `assets/` (a plugin saves the
+    /// bytes in its state) and shown from the editor's own copy.
+    fn import_audio(&mut self, src: &Path) -> Result<files::ImportedAsset, String> {
+        if !self.in_host() {
+            return files::import_audio(src, self.doc.path.as_deref());
+        }
+        let bytes = std::fs::read(src).map_err(|e| format!("{}: {e}", src.display()))?;
+        let data =
+            ac_io::wav::read_wav_bytes(&bytes).map_err(|e| format!("{}: {e}", src.display()))?;
+        let hash = ac_core::util::content_hash(&bytes);
+        let channels = data.channels.len().max(1) as u64;
+        // The content in the name: the same file picked twice is kept once,
+        // and two files that share a name don't replace each other.
+        let stem = src
+            .file_stem()
+            .map_or_else(|| "clip".into(), |s| s.to_string_lossy().to_string());
+        let short: String = hash.chars().take(8).collect();
+        let file = format!("assets/{stem}-{short}.wav");
+        self.assets.insert(&file, data);
+        self.host_requests.push(HostRequest::AddAsset {
+            path: file.clone(),
+            bytes,
+        });
+        Ok(files::ImportedAsset {
+            file,
+            channels,
+            hash,
+            note: None,
+        })
     }
 
     /// Give a Clip node a file (copied into the project's assets when the
     /// project has a home).
     pub fn assign_clip(&mut self, node: NodeId, path: &Path, now: f64) {
-        match files::import_audio(path, self.doc.path.as_deref()) {
+        match self.import_audio(path) {
             Ok(a) => {
                 let a2 = a.clone();
                 let reg = self.registry.clone();
@@ -2577,6 +2770,29 @@ impl eframe::App for EditorApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         theme::canvas_bg().to_normalized_gamma_f32()
     }
+}
+
+/// `assets` (a host's, built in memory) with a Missing issue for every file
+/// `project` refers to that it lacks, as loading from disk would report.
+fn with_missing(mut assets: AssetStore, project: &Project, registry: &Registry) -> AssetStore {
+    let issue_path = |i: &AssetIssue| match i {
+        AssetIssue::Missing { path, .. } | AssetIssue::Changed { path } => path.clone(),
+    };
+    // Files found since aren't missing any more.
+    let present: BTreeSet<String> = assets.paths().cloned().collect();
+    assets
+        .issues
+        .retain(|i| !matches!(i, AssetIssue::Missing { path, .. } if present.contains(path)));
+    for (path, _) in ac_io::assets::referenced_assets(project, registry) {
+        let known = present.contains(&path) || assets.issues.iter().any(|i| issue_path(i) == path);
+        if !known {
+            assets.issues.push(AssetIssue::Missing {
+                path,
+                reason: "not among the plugin's audio files".into(),
+            });
+        }
+    }
+    assets
 }
 
 fn missing_of(assets: &AssetStore) -> BTreeSet<String> {

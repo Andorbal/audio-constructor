@@ -118,18 +118,23 @@ dependencies = [
 name = "ac-plugin"
 version = "0.13.0"
 dependencies = [
+ "ac-app",
  "ac-core",
  "ac-engine",
+ "ac-io",
  "ac-nodes",
  "assert_no_alloc",
  "clack-extensions",
  "clack-host",
+ "egui",
+ "egui_kittest",
  "hound",
  "libloading 0.8.9",
  "nice-plug",
  "serde",
  "serde_json",
  "vst3",
+ "x11-dl",
 ]
 
 [[package]]
@@ -4008,9 +4013,6 @@ dependencies = [
  "raw-window-handle",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wayland-backend",
- "wayland-client",
- "wayland-protocols",
  "web-sys",
  "windows-sys 0.61.2",
 ]
