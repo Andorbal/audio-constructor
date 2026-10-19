@@ -69,6 +69,12 @@ enum Command {
     Pack(blocks::PackArgs),
     /// Unpack an `.acpack` into a folder.
     Unpack(blocks::UnpackArgs),
+    /// Print the version; with `--check`, also ask whether a newer release
+    /// is out (sends nothing but the request).
+    Version {
+        #[arg(long)]
+        check: bool,
+    },
     /// Rewrite project and block files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
@@ -79,6 +85,10 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    // A bug that panics leaves a report the editor offers to send.
+    if let Some(dir) = ac_io::crash::default_dir() {
+        ac_io::crash::install(dir, "audioc");
+    }
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Render(args) => render::run(args),
@@ -104,6 +114,7 @@ fn main() -> ExitCode {
         Command::BlockUpdate(args) => blocks::update(args),
         Command::Pack(args) => blocks::pack(args),
         Command::Unpack(args) => blocks::unpack(args),
+        Command::Version { check } => version(check),
     };
     match result {
         Ok(code) => code,
@@ -112,4 +123,21 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn version(check: bool) -> anyhow::Result<ExitCode> {
+    use ac_io::update::{self, Check, Version};
+    println!("audioc {}", env!("CARGO_PKG_VERSION"));
+    if check {
+        match update::check(&update::feed_url(), Version::current()).map_err(anyhow::Error::msg)? {
+            Check::Newer(release) => {
+                println!("A newer release is out: {}", release.version);
+                println!("Download it from {}", release.page);
+            }
+            Check::UpToDate(latest) => {
+                println!("This is the newest release (the latest is {latest}).");
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }

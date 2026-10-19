@@ -50,6 +50,8 @@ pub mod audio;
 pub mod clock;
 pub mod control;
 pub mod convert;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod crash;
 pub mod engine_threads;
 pub mod gamepad;
 pub mod latency;
@@ -69,6 +71,8 @@ pub mod project_file;
 pub mod record;
 pub mod rings;
 pub mod runtime;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update;
 pub mod wav;
 pub mod zip;
 

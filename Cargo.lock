@@ -93,6 +93,7 @@ dependencies = [
  "assert_no_alloc",
  "cpal",
  "crc32fast",
+ "directories",
  "flate2",
  "gilrs",
  "hound",

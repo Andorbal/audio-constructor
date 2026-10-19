@@ -33,6 +33,13 @@ fixes and smaller changes.
   folder without root (`--uninstall` removes it). Releases list every
   file's SHA-256 in `SHA256SUMS.txt`, and are signed (and on macOS
   notarized) once signing certificates are set up for the project.
+- `audioc version` prints the version, and `audioc version --check` asks
+  whether a newer release is out and where to download it. It sends
+  nothing but the request.
+- When `audioc` stops because of a bug, it saves a crash report (the
+  version, the system, and where it stopped, with your home folder
+  written as `~`) in a `crashes` folder beside the editor's settings, and
+  says where. Nothing is sent anywhere.
 - The editor has an icon, in its window, the taskbar or dock, and the
   desktop's menus.
 - `audio-constructor --version` prints the version without opening a

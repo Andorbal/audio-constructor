@@ -50,6 +50,7 @@ egui_kittest = "0.37"
 criterion = { version = "0.8", default-features = false }
 # HTTPS for imports from a link and the update check (ac-io `net`): rustls
 # with the system's trust store, no OpenSSL.
+directories = "6.0"
 ureq = { version = "3.4", default-features = false, features = ["rustls", "platform-verifier"] }
 
 [workspace.lints.rust]
