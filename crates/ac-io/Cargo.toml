@@ -41,6 +41,10 @@ flate2.workspace = true
 crc32fast.workspace = true
 serde_json.workspace = true
 
+# The browser fetches for itself.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ureq.workspace = true
+
 [target.'cfg(target_os = "linux")'.dependencies]
 # SCHED_FIFO for the ALSA callback thread.
 thread-priority.workspace = true

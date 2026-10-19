@@ -58,6 +58,8 @@ pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
 pub mod monitor;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod net;
 pub mod null;
 pub mod osc;
 pub mod osc_out;
