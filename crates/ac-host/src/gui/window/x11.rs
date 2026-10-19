@@ -24,6 +24,93 @@ x11rb::atom_manager! {
     }
 }
 
+/// Atoms a window manager creates, which plugin toolkits look up without
+/// creating them and then use as if they existed: on a server with no
+/// window manager (a virtual display, a bare session) a property set with
+/// the missing atom is an X error, which Xlib's default handler turns into
+/// an exit. Interning them first makes them exist; on a desktop they
+/// already do.
+const WM_ATOMS: &[&[u8]] = &[
+    b"CLIPBOARD",
+    b"TARGETS",
+    b"UTF8_STRING",
+    b"WM_CHANGE_STATE",
+    b"WM_DELETE_WINDOW",
+    b"WM_PROTOCOLS",
+    b"WM_STATE",
+    b"WM_TAKE_FOCUS",
+    b"XdndActionCopy",
+    b"XdndActionList",
+    b"XdndAware",
+    b"XdndDrop",
+    b"XdndEnter",
+    b"XdndFinished",
+    b"XdndLeave",
+    b"XdndPosition",
+    b"XdndSelection",
+    b"XdndStatus",
+    b"XdndTypeList",
+    b"_KDE_NET_WM_WINDOW_TYPE_OVERRIDE",
+    b"_MOTIF_WM_HINTS",
+    b"_NET_ACTIVE_WINDOW",
+    b"_NET_FRAME_EXTENTS",
+    b"_NET_SUPPORTED",
+    b"_NET_WM_ACTION_CLOSE",
+    b"_NET_WM_ACTION_FULLSCREEN",
+    b"_NET_WM_ACTION_MINIMIZE",
+    b"_NET_WM_ACTION_MOVE",
+    b"_NET_WM_ACTION_RESIZE",
+    b"_NET_WM_ALLOWED_ACTIONS",
+    b"_NET_WM_ICON",
+    b"_NET_WM_MOVERESIZE",
+    b"_NET_WM_NAME",
+    b"_NET_WM_PID",
+    b"_NET_WM_PING",
+    b"_NET_WM_STATE",
+    b"_NET_WM_STATE_ABOVE",
+    b"_NET_WM_STATE_FULLSCREEN",
+    b"_NET_WM_STATE_HIDDEN",
+    b"_NET_WM_STATE_MAXIMIZED_HORZ",
+    b"_NET_WM_STATE_MAXIMIZED_VERT",
+    b"_NET_WM_STATE_SKIP_TASKBAR",
+    b"_NET_WM_USER_TIME",
+    b"_NET_WM_WINDOW_TYPE",
+    b"_NET_WM_WINDOW_TYPE_COMBO",
+    b"_NET_WM_WINDOW_TYPE_DIALOG",
+    b"_NET_WM_WINDOW_TYPE_NORMAL",
+    b"_NET_WM_WINDOW_TYPE_POPUP_MENU",
+    b"_NET_WORKAREA",
+    b"_XEMBED",
+    b"_XEMBED_INFO",
+    b"_XSETTINGS_SETTINGS",
+];
+
+/// Make the atoms in [`WM_ATOMS`] exist on the display, once per
+/// process, before any plugin library loads (toolkits look them up when
+/// they start, and keep what they found). Without a display it does
+/// nothing.
+pub(crate) fn prepare_display() {
+    // The connection stays open: an X server with no clients left resets,
+    // and forgets atoms with it.
+    static KEEP: std::sync::OnceLock<Option<RustConnection>> = std::sync::OnceLock::new();
+    KEEP.get_or_init(|| {
+        std::env::var_os("DISPLAY")?;
+        let (conn, _) = x11rb::connect(None).ok()?;
+        intern_wm_atoms(&conn);
+        Some(conn)
+    });
+}
+
+fn intern_wm_atoms(conn: &RustConnection) {
+    let cookies: Vec<_> = WM_ATOMS
+        .iter()
+        .filter_map(|name| conn.intern_atom(false, name).ok())
+        .collect();
+    for c in cookies {
+        let _ = c.reply();
+    }
+}
+
 pub(crate) struct HostWindow {
     conn: RustConnection,
     window: u32,
@@ -45,6 +132,7 @@ impl HostWindow {
             .ok_or_else(|| err("no screen"))?
             .clone();
         let atoms = Atoms::new(&conn).map_err(err)?.reply().map_err(err)?;
+        intern_wm_atoms(&conn);
         let window = conn.generate_id().map_err(err)?;
         let (w, h) = (clamp_size(width), clamp_size(height));
         conn.create_window(

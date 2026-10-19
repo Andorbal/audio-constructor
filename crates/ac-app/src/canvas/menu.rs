@@ -305,7 +305,7 @@ impl Canvas {
                     return true;
                 }
                 if n.kind == ac_core::PLUGIN_KIND
-                    && ac_host::has_window(&io.doc.node_path(*node).to_string())
+                    && crate::plugins::has_window(&io.doc.node_path(*node).to_string())
                     && item(ui, icons::APP_WINDOW, "Show Plugin Window", None)
                 {
                     io.events.push(CanvasEvent::ShowPluginWindow(*node));

@@ -44,7 +44,7 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node
         });
     let path = io.doc.node_path(id);
     let key = path.to_string();
-    let running = ac_host::running().contains(&key);
+    let running = crate::plugins::running().contains(&key);
     let problem = io
         .engine
         .report
@@ -68,7 +68,7 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node
         ui.label(RichText::new("Plugins don't run in this editor.").color(theme::text_muted()));
     }
     ui.horizontal(|ui| {
-        let has_window = running && ac_host::has_window(&key);
+        let has_window = running && crate::plugins::has_window(&key);
         let b = ui
             .add_enabled(
                 has_window,
@@ -103,13 +103,13 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
         return;
     };
     section(ui, "Plugins");
-    let count = |f: PluginFormat| p.list.iter().filter(|d| d.format == f).count();
+    let count = |f: PluginFormat| p.list().iter().filter(|d| d.format == f).count();
     let line = if p.scanning() {
         "Looking for plugins…".to_string()
     } else {
         format!(
             "{} found: {} CLAP, {} VST3",
-            p.list.len(),
+            p.list().len(),
             count(PluginFormat::Clap),
             count(PluginFormat::Vst3)
         )
@@ -136,7 +136,7 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
         }
     });
     for format in [PluginFormat::Clap, PluginFormat::Vst3] {
-        let dirs: Vec<String> = ac_host::scan::search_paths(format)
+        let dirs: Vec<String> = crate::plugins::search_paths(format)
             .iter()
             .map(|d| d.display().to_string())
             .collect();
@@ -146,13 +146,14 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
                 .color(theme::text_muted()),
         );
     }
-    if !p.failed.is_empty() {
+    if !p.failed().is_empty() {
         egui::CollapsingHeader::new(
-            RichText::new(format!("{} couldn't be opened", p.failed.len())).color(theme::warning()),
+            RichText::new(format!("{} couldn't be opened", p.failed().len()))
+                .color(theme::warning()),
         )
         .id_salt("plugins-failed")
         .show(ui, |ui| {
-            for f in &p.failed {
+            for f in p.failed() {
                 ui.label(RichText::new(&f.path).small());
                 ui.label(
                     RichText::new(format!("    {}", f.reason))

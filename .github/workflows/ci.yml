@@ -175,7 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install system libraries
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip xvfb libgl1-mesa-dri
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Cache the plugin download
@@ -198,6 +198,13 @@ jobs:
           AC_THIRD_PARTY_NAME: Six Sines
           AC_THIRD_PARTY_FORMATS: clap
         run: cargo test -p ac-cli --test third_party_plugins -- --ignored --nocapture
+      - name: Open its window, and ours, in the host's window (virtual display)
+        env:
+          AC_THIRD_PARTY_PLUGINS: ${{ github.workspace }}/third-party/six-sines_assets
+          AC_THIRD_PARTY_NAME: Six Sines
+        run: |
+          xvfb-run -a cargo test -p ac-host --test third_party_window -- --ignored --nocapture
+          xvfb-run -a cargo test -p ac-host --test plugin_window -- --ignored --nocapture
 
   deny:
     name: cargo deny

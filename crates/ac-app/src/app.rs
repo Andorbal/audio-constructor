@@ -350,7 +350,7 @@ impl EditorApp {
             plugins,
         };
         if let Some(p) = &app.plugins {
-            app.palette.plugins = p.list.clone();
+            app.palette.plugins = p.list().to_vec();
         }
         // A plugin window can't go full screen: performance mode fills
         // the window instead.
@@ -1061,9 +1061,9 @@ impl EditorApp {
         // Plugins need their main-thread callbacks and timers answered even
         // while nothing on screen changes; an open plugin window, often.
         if let Some(p) = &self.plugins {
-            let running = ac_host::running();
+            let running = crate::plugins::running();
             if p.scanning() || !running.is_empty() {
-                let open = running.iter().any(|k| ac_host::window_open(k));
+                let open = running.iter().any(|k| crate::plugins::window_open(k));
                 let ms = if open { 16 } else { 100 };
                 ctx.request_repaint_after(std::time::Duration::from_millis(ms));
             }
@@ -1197,9 +1197,9 @@ impl EditorApp {
             return;
         };
         if p.poll_scan() {
-            let n = p.list.len();
-            self.palette.plugins = p.list.clone();
-            let failed = p.failed.len();
+            let n = p.list().len();
+            self.palette.plugins = p.list().to_vec();
+            let failed = p.failed().len();
             let mut msg = format!("Found {n} plugin{}", if n == 1 { "" } else { "s" });
             if failed > 0 {
                 msg.push_str(&format!(
@@ -1212,13 +1212,9 @@ impl EditorApp {
                 self.reload_assets();
             }
         }
-        let Some(p) = self.plugins.as_ref() else {
-            return;
-        };
-        let host = p.host.clone();
-        for event in ac_host::poll() {
+        for event in crate::plugins::poll() {
             match event {
-                ac_host::HostEvent::ParamChanged {
+                crate::plugins::HostEvent::ParamChanged {
                     node_key,
                     socket,
                     value,
@@ -1235,12 +1231,14 @@ impl EditorApp {
                         self.engine.handle.set_param(&path, &socket, value);
                     }
                 }
-                ac_host::HostEvent::Restart { node_key } => {
-                    host.prepare_restart(&node_key);
+                crate::plugins::HostEvent::Restart { node_key } => {
+                    if let Some(p) = self.plugins.as_ref() {
+                        p.prepare_restart(&node_key);
+                    }
                     self.engine.report = self.engine.handle.rebuild(&node_key);
                 }
-                ac_host::HostEvent::StateChanged { .. } => self.doc.changed(false),
-                ac_host::HostEvent::WindowClosed { .. } => {}
+                crate::plugins::HostEvent::StateChanged { .. } => self.doc.changed(false),
+                crate::plugins::HostEvent::WindowClosed { .. } => {}
             }
         }
     }
@@ -1249,7 +1247,7 @@ impl EditorApp {
     /// it).
     fn show_plugin_window(&mut self, node: NodeId, now: f64) {
         let key = self.doc.node_path(node).to_string();
-        if let Err(e) = ac_host::show_window(&key) {
+        if let Err(e) = crate::plugins::show_window(&key) {
             self.warn(format!("Couldn't open the plugin's window: {e}"), now);
         }
     }
@@ -2589,7 +2587,7 @@ impl EditorApp {
         }
         // The old project's plugins mustn't hand their state to this one's.
         if let Some(p) = &self.plugins {
-            p.host.clear_restarts();
+            p.clear_restarts();
         }
         let resources = self.resources();
         self.engine.set_resources(&self.doc.project, resources);

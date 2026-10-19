@@ -93,7 +93,7 @@ pub(super) fn show(
     );
     ui.add_space(4.0);
     // Blocks have their own area below, with its filters.
-    let plugins = io.plugins.map_or(&[][..], |p| p.list.as_slice());
+    let plugins = io.plugins.map_or(&[][..], |p| p.list());
     let all: Vec<Candidate> =
         palette::candidates(io.registry, io.library, io.doc, query, None, plugins)
             .into_iter()

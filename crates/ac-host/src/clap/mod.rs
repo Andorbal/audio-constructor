@@ -22,6 +22,7 @@ use crate::registry::{self, Entry, MainHalf};
 /// Load a CLAP bundle (cached: loading one twice gives the same entry).
 #[allow(unsafe_code)]
 pub(crate) fn load_entry(path: &Path) -> Result<PluginEntry, String> {
+    crate::gui::prepare_display();
     // SAFETY: loading a plugin library runs its initialization code, which
     // can do anything; there is no safe way to host native plugins in
     // process. The path comes from the scanner or the project, and the
@@ -305,6 +306,14 @@ fn param_ids(
                 .flatten()
         })
         .collect()
+}
+
+impl Drop for ClapInstance {
+    fn drop(&mut self) {
+        // The plugin's view goes before the plugin, and the host window
+        // after the view (CLAP: destroy the GUI before the instance).
+        crate::gui::close_clap(self);
+    }
 }
 
 impl ClapInstance {

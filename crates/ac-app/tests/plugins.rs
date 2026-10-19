@@ -8,6 +8,8 @@
 //! `ac-plugin` library `cargo test --workspace` builds; without it, only
 //! the missing-plugin half runs (the hosting is tested in `ac-host`).
 
+#![cfg(feature = "plugins")]
+
 use std::path::{Path, PathBuf};
 
 use ac_app::audio::AudioMode;
@@ -110,7 +112,7 @@ fn harness(plugins: Vec<PluginDesc>) -> Harness<'static, EditorApp> {
 }
 
 fn add(h: &mut Harness<'static, EditorApp>, query: &str) -> ac_core::NodeId {
-    let plugins = h.state().plugins.as_ref().unwrap().list.clone();
+    let plugins = h.state().plugins.as_ref().unwrap().list().to_vec();
     let c = palette::candidates(
         &h.state().registry,
         &h.state().library,
@@ -133,7 +135,7 @@ fn add(h: &mut Harness<'static, EditorApp>, query: &str) -> ac_core::NodeId {
 #[test]
 fn installed_plugins_are_offered_by_name_and_the_bare_node_isnt() {
     let h = harness(vec![absent()]);
-    let plugins = h.state().plugins.as_ref().unwrap().list.clone();
+    let plugins = h.state().plugins.as_ref().unwrap().list().to_vec();
     let all = palette::candidates(
         &h.state().registry,
         &h.state().library,

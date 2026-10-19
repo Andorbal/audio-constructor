@@ -26,7 +26,10 @@ default = ["desktop"]
 # The desktop editor: its own window (eframe, on winit and wgpu) and the
 # system's file dialogs. Without it the editor still builds for a host that
 # gives it somewhere to draw: a plugin window or a test harness.
-desktop = ["dep:eframe", "native-dialogs"]
+desktop = ["dep:eframe", "native-dialogs", "plugins"]
+# Hosting CLAP and VST3 plugins as nodes (ac-host). The editor in our own
+# plugin builds without it.
+plugins = ["dep:ac-host"]
 # The system's file dialogs. Without them the editor asks for a typed path.
 native-dialogs = ["dep:rfd"]
 # Opening the editor in a window a plugin host provides (`ac_app::embed`:
@@ -42,7 +45,7 @@ ac-dsp.workspace = true
 ac-nodes.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true
-ac-host = { path = "../ac-host" }
+ac-host = { path = "../ac-host", optional = true }
 eframe = { workspace = true, optional = true }
 # egui's own fonts back up the bundled ones (symbols Inter lacks); eframe
 # turns them on for the desktop, and a plugin window needs them too.

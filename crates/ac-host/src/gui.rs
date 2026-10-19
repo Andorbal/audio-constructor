@@ -16,7 +16,7 @@ use crate::registry::{self, MainHalf};
 
 mod window;
 
-pub(crate) use window::HostWindow;
+pub(crate) use window::{HostWindow, prepare_display};
 
 /// An open CLAP plugin window.
 pub(crate) struct ClapGui {
@@ -133,15 +133,18 @@ fn open_clap(c: &mut ClapInstance, title: &str) -> Result<(), String> {
 }
 
 pub(crate) fn close_clap(c: &mut ClapInstance) {
-    if c.gui.take().is_some()
-        && let Some(gui) = c.ext.gui
-    {
+    let Some(open) = c.gui.take() else {
+        return;
+    };
+    if let Some(gui) = c.ext.gui {
         let handle = c.instance.plugin_handle();
         let _ = gui.hide(&handle);
         gui.destroy(&handle);
     }
-    // The host window (if any) is dropped with the `ClapGui`, after the
-    // plugin let go of it.
+    // The host window goes only now, after the plugin let go of it: a
+    // toolkit still looking at its parent would fail on a window that's
+    // gone.
+    drop(open);
 }
 
 /// Keep an open window serviced; true when it closed.

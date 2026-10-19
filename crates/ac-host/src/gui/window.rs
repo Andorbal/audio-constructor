@@ -41,3 +41,10 @@ mod imp {
 }
 
 pub(crate) use imp::{AVAILABLE, HostWindow};
+
+/// Get the display ready for plugin toolkits, before the first plugin
+/// library loads (X11: see `x11::prepare_display`).
+pub(crate) fn prepare_display() {
+    #[cfg(all(unix, not(target_os = "macos")))]
+    x11::prepare_display();
+}
