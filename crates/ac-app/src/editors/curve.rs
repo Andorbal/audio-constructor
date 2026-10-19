@@ -296,7 +296,7 @@ pub(super) fn ui(
         let y0 = to_screen(xlo, 0.0).y;
         painter.line_segment(
             [pos2(plot.left(), y0), pos2(plot.right(), y0)],
-            Stroke::new(1.0, theme::GRID_DOT_MAJOR),
+            Stroke::new(1.0, theme::grid_dot_major()),
         );
     }
     let curve = Curve::new(points.clone());
@@ -308,19 +308,19 @@ pub(super) fn ui(
             to_screen(x, y)
         })
         .collect();
-    painter.add(Paint::line(line, Stroke::new(2.0, theme::ACCENT)));
+    painter.add(Paint::line(line, Stroke::new(2.0, theme::accent())));
     if let Some(p) = space
         .sustain
         .and_then(|i| points.get(i.min(points.len() - 1)))
     {
         let at = to_screen(p.x, p.y);
-        painter.circle_stroke(at, 8.0, Stroke::new(1.5, theme::WARNING));
+        painter.circle_stroke(at, 8.0, Stroke::new(1.5, theme::warning()));
         painter.text(
             at + egui::vec2(0.0, -10.0),
             Align2::CENTER_BOTTOM,
             "sustain",
             egui::FontId::proportional(theme::FONT_SMALL),
-            theme::WARNING,
+            theme::warning(),
         );
     }
     for (i, p) in points.iter().enumerate() {
@@ -328,8 +328,12 @@ pub(super) fn ui(
         painter.circle(
             to_screen(p.x, p.y),
             if hot { 5.5 } else { 4.0 },
-            if hot { theme::TEXT_STRONG } else { theme::TEXT },
-            Stroke::new(1.5, theme::WELL_BG),
+            if hot {
+                theme::text_strong()
+            } else {
+                theme::text()
+            },
+            Stroke::new(1.5, theme::well_bg()),
         );
     }
     let small = egui::FontId::proportional(theme::FONT_SMALL);
@@ -338,21 +342,21 @@ pub(super) fn ui(
         Align2::LEFT_BOTTOM,
         format!("{} {}", fmt(xlo), space.x_label),
         small.clone(),
-        theme::TEXT_FAINT,
+        theme::text_faint(),
     );
     painter.text(
         rect.right_bottom() + egui::vec2(-4.0, -3.0),
         Align2::RIGHT_BOTTOM,
         fmt(xhi),
         small.clone(),
-        theme::TEXT_FAINT,
+        theme::text_faint(),
     );
     painter.text(
         rect.left_top() + egui::vec2(4.0, 3.0),
         Align2::LEFT_TOP,
         fmt(yhi),
         small,
-        theme::TEXT_FAINT,
+        theme::text_faint(),
     );
     if let Some(i) = hovered
         && let Some(p) = points.get(i)

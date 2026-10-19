@@ -229,7 +229,7 @@
         "id": "10",
         "kind": "comment",
         "config": {
-          "text": "Demo: while Demo is on, a Clock plays a note every half beat so you can hear the patch without a keyboard (and so `audioc render` has something to play). It stands in for the MIDI Pattern node that arrives in Phase 2. Turn Demo off to play only from MIDI."
+          "text": "Demo: while Demo is on, a Clock plays a note every half beat so you can hear the patch without a keyboard (and so `audioc render` has something to play). For a real melody, swap it for a MIDI Pattern node and draw the notes in its piano roll. Turn Demo off to play only from MIDI."
         },
         "ui": {
           "pos": [

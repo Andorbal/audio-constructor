@@ -11,7 +11,7 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
-## [0.7.0] - 2026-10-18
+## [0.9.0] - 2026-10-18
 
 OSC addresses are now inputs rather than settings, which means a block can
 expose one as a group input and every instance of it can listen to, or send
@@ -50,7 +50,7 @@ to, a different control. Behind that is a new kind of signal: text.
   and saving writes the new form. The examples and blocks that ship with
   the app are already in it.
 
-## [0.6.0] - 2026-10-18
+## [0.8.0] - 2026-10-18
 
 Matching a control surface no longer means guessing: the Devices tab shows
 what your devices actually send, and OSC nodes finally have their settings
@@ -69,13 +69,10 @@ in the Node tab.
 
 ### Fixed
 
-- The Node tab now has settings for OSC In (address, arguments) and OSC
-  Out (host, port, address, arguments). Both nodes kept these in config,
-  but the tab had no rows for them, so a fresh node could only listen to
-  `/fader/1` and could not be pointed at a control surface. The address
-  field shows the default the node uses, and a setting the node can't
-  work with (an address without a leading `/`, a host that isn't an IP
-  address) is called out under the settings.
+- An OSC In's or OSC Out's address and host fields in the Node tab show
+  the default the node uses instead of an empty box, and a setting the
+  node can't work with (an address without a leading `/`, a host that
+  isn't an IP address or `localhost`) is called out under the settings.
 - Text settings in the Node tab (an OSC address, a Comment's text, a File
   Out path) keep what you've typed until you leave the field. They were
   redrawn from the project every frame, so what was typed was lost before
@@ -89,6 +86,205 @@ in the Node tab.
   stops every packet when refused. The node's help also notes that most
   surfaces name controls by page and name (`/1/fader1`) and that the
   address match is exact.
+## [0.7.0] - 2026-10-18
+
+The end of Phase 2: fourteen example projects to learn from, a user guide,
+and an engine that spreads light patches and polyphonic synths across
+cores.
+
+### Added
+
+- Nine new example projects, each a working patch with notes on the canvas
+  saying what each part does and what to try. All of them play when you
+  press Space, and render with `audioc render`, without any hardware:
+  - **Sidechain Pump**: a pad that ducks under a four-on-the-floor kick
+    through the Sidechain Ducker block, with the release set in beats so
+    the pump follows the tempo, and a switch to hear it without.
+  - **Drum Machine**: the Drum Machine block playing from the transport,
+    and its per-drum triggers playing a second kit of Samplers cut from
+    one audio file; a switch flips between the two kits.
+  - **Build a Keyboard**: the Subtractive Synth Voice block made
+    polyphonic and played from the computer keys (Play keys, `Ctrl+K`) and
+    an on-screen Keyboard at once, with velocity, octave, and timbre
+    knobs, all on a **Play** performance panel (`Ctrl+Tab`, `F11`). A demo
+    phrase plays along through a Merge node; turn Demo off to play on your
+    own.
+  - **Gamepad Jam**: drums on a game controller's face buttons, strummed
+    chords stepped by the D-pad, a filter on the left stick, and strum
+    strength and echo on the analog triggers, with bindings for play/stop
+    on Start and for the sticks and triggers, and a **Jam** panel. A demo
+    pattern plays the same parts until you press Select on the controller
+    to take over.
+  - **Multiband Compressor**: a four-track loop through the Multiband
+    Compressor block, with before and after meters, a bypass switch, and a
+    meter per band showing how hard each band is turned down.
+  - **Vocoder**: a saw chord made to talk by the Vocoder block, with a
+    robot voice built from a buzz and two moving formant filters; switch
+    on Audio In to vocode your own voice.
+  - **Generative Patch**: two Euclidean rhythms, random notes snapped to a
+    scale, a plucked string and an FM bass. It plays the same tune every
+    time until you change the project's seed.
+  - **Tape Loop**: phrases recorded onto a four-second loop that saturates,
+    darkens, and wobbles with wow and flutter on every pass until they
+    fade.
+  - **Guitar-to-Synth**: a synth that follows the pitch and dynamics of a
+    guitar on Audio In, with a recorded riff standing in until you switch
+    the guitar on.
+- `audioc bench` has a ninth stress project, `subtractive-voices-16`:
+  sixteen voices of the shipped Subtractive Synth Voice block (two saws, a
+  ladder filter, and an envelope each), all sounding at once. It is the
+  synth the Phase 2 performance target is measured on; the results are in
+  `bench/README.md`.
+- A **user guide** in [docs/guide](docs/guide/README.md), written for
+  musicians and sound designers rather than programmers: getting started
+  and setting up your sound card, the editor, building a first synth and
+  making it polyphonic, live and baked nodes and latency, blocks and
+  packs, performing with panels, MIDI, the computer keyboard, gamepads,
+  phones, and bindings, recording and rendering, every `audioc` command,
+  a tour of every example, and troubleshooting.
+- The **node reference** in [docs/reference](docs/reference/README.md) now
+  opens with an index: every category with a sentence on what's in it and
+  how many nodes it has, then every node under its category with a
+  one-line summary, marking live sources and nodes that need their whole
+  input. `audioc nodes --docs` writes it.
+- **File ▸ Examples** lists every shipped example and opens the one you
+  pick as an untitled copy, so saving never overwrites the example.
+- A **Merge** node (Math & Logic) combines several MIDI or trigger streams
+  into one, so a MIDI keyboard, the computer keys, and a pattern can all
+  play one instrument at once. Its settings choose how many inputs it has
+  (2 to 16) and whether it carries MIDI or triggers. A note played from
+  two sources at once sounds once and ends when the last of them lets go,
+  the sustain pedal stays down while any source holds it, and restarting
+  the transport releases everything still held, so no note hangs.
+
+### Changed
+
+- **More engine threads now speed up patches built from many light
+  nodes.** A run of nodes that only feed each other (an effect chain), and
+  each voice of a Voices node, now runs as one job on one core, so the
+  cores spend their time on audio instead of passing work back and forth.
+  On four threads, eight chains of two dozen filters and delays render
+  2.2–2.7× faster (they gained nothing before) and sixteen voices of the
+  Subtractive Synth Voice about twice as fast (Engine threads in the
+  Devices tab, `audioc run --threads`, `audioc bench --threads`). One
+  thread is as fast as before, and the output is the same sample for
+  sample on any number of threads. The Project tab's Schedule line counts
+  the chains.
+- **Sample & Hold**, **Random Walk**, and **Step Sequencer** are now named
+  in words like every other node (they showed as SampleHold, RandomWalk,
+  and StepSequencer). Projects that use them are unaffected.
+- The **Reverse Delay** example is the real thing now, not a placeholder:
+  a melody whose echoes play backwards, built once on a Clip, where
+  Reverse bakes and plays, and once on Audio In, where it switches itself
+  off while live, with notes on the canvas explaining why.
+
+### Fixed
+
+- Stopping the transport (`Space` or the stop button) now ends recording,
+  as a bound Stop button already did, so a take ends when you stop instead
+  of running on until you press `R` again.
+- Gamepads are numbered from 1 in the Devices tab, `audioc devices`, and
+  `audioc run`, as a Gamepad node's `pad` setting and bindings ("Pad 1")
+  count them. They were listed from 0, one less than the number to use.
+- The Keyboard node's help no longer says it plays from the computer
+  keyboard: you play it with the mouse, and a Keyboard In node (with Play
+  keys on) plays from the computer keys.
+- A newly added OSC In, OSC Out, Gamepad, Keyboard In, Delay, or
+  Oscillator showed none of its settings in the Node tab, so you couldn't
+  set an OSC address, pick a gamepad, choose keys, put a Delay in beats,
+  or make an Oscillator pure without editing the project file. They all
+  have their fields under **Settings** now.
+
+## [0.6.0] - 2026-10-18
+
+Editor conveniences: tidy, align, and wire faster, find anything, keep
+long wires out of the way, see where the time goes, and work in a light
+theme at any size, with help for every node a key away.
+
+### Added
+
+- **Auto-layout** (`Ctrl+L`): tidy the selection, or the whole graph when
+  nothing is selected, into columns that follow the signal from left to
+  right. Loops through a Feedback node read from start to finish, sources
+  and modulators sit next to what they drive, notes line up above or
+  below the patch, frames move and resize with what's in them, and the
+  patch stays where it was on the canvas. One undo step.
+- **Align and distribute** (`Shift+Alt+A` at the pointer, Edit ▸ Align /
+  Distribute, or a node's right-click menu with several selected): line
+  the selected nodes up by their left, center, right, top, middle, or
+  bottom, or space them out with equal gaps.
+- **Lazy connect** (`F`): with two nodes selected, wire the left one into
+  the right one: its first output into the first free input that takes
+  it, with matching names like `out` → `in` first. Press it again for the
+  next free input. It never makes a loop without a Feedback node, and the
+  status line says what it wired or why it couldn't.
+- **Wire selected nodes into a new one**: select two or more nodes and
+  add a node with `Shift+A` (or from the Add menu): they're wired into it
+  in the order you selected them, and it lands to their right. A Mix grows
+  inputs to fit. If they don't all fit, the node is added unwired and the
+  status line says why.
+- **Find** (`Ctrl+F`): find nodes by name, kind, or id anywhere in the
+  project, inside groups too, with the group each is in. Arrow keys
+  choose, Enter jumps there (into the group, selected and centered), and
+  Esc closes.
+- **Light theme**: View ▸ Theme switches between Dark, Light, and Follow
+  System (your operating system's light or dark mode) at once. The light
+  theme keeps text easy to read everywhere (at least 4.5:1 contrast, the
+  level accessibility guidelines ask of body text), and wires, sockets,
+  node headers, meters, and scopes are deepened so they stand out on
+  light cards. The editor remembers your choice.
+- **UI scale**: View ▸ UI Scale makes the whole editor bigger or smaller,
+  canvas text included, in steps from 75 % to 200 %. `Ctrl+=` and
+  `Ctrl+-` step through the sizes and `Ctrl+0` goes back to 100 % (the
+  canvas keeps its own zoom on `+`, `-`, and the wheel). The editor
+  remembers the size too.
+- **Node help**: `F1` on a node (or Node Help in its right-click menu, or
+  the Help button in the Node tab) opens its reference in the side
+  panel's new Help tab: what it does, its "Try this" tip highlighted,
+  every socket with its unit, default, and range, and **Used in**: the
+  blocks in your library and the example projects built with it. Click a
+  block to add it to the canvas, or an example to open it as a new
+  project (after asking about unsaved changes). With nothing selected,
+  the Help tab lists every node and finds them by name or synonym, like
+  the palette. The Node tab shows the tip too.
+- **Portals**: turn a long wire into a pair of named tags, a sender by its
+  source and a receiver by its destination, with no line across the canvas.
+  Right-click a wire or a reroute and choose Make Portal, or select a
+  reroute (or the two nodes a wire joins) and press `Shift+P`. A source has
+  one sender and as many receivers as you like: make portals of its other
+  wires, or copy and paste a receiver. Hover a tag to light up its other
+  end, double-click it to jump there, and press `F2` to rename the whole
+  portal; `Shift+P` on a tag turns it back into a plain wire. Portals work
+  inside groups, pasted portals keep names of their own, and a portal plays
+  exactly like the wire it replaced (older versions open it as two reroutes
+  and a wire).
+- **Minimap**: while your patch doesn't fit the window, a small map of it
+  sits in the canvas's corner, with the nodes in their category colors, the
+  frames, and the part you're looking at outlined. Click or drag in it to
+  go there. It hides itself once everything fits; `Shift+M` or
+  View ▸ Minimap turns it off and on.
+
+### Changed
+
+- Secondary text in the dark theme is a shade lighter, so it stays
+  readable on buttons.
+- **Node timing** (`Ctrl+T`) shows each node's processing time per block
+  in microseconds, held steady over about half a second and colored from
+  cool to hot by its share of the block's time budget, so the expensive
+  parts of a patch stand out. Hover a time to see its share. Groups and
+  Voices show the total of what's inside them (every voice), and inside a
+  Voices body each node shows all its copies. The Node tab shows the
+  selected node's time and share, with a Measure button while timing is
+  off. Timing is still off until you ask for it and costs nothing then.
+  Nodes that run in several steps, such as Feedback, and blocks split by
+  bindings now count all their time.
+
+### Fixed
+
+- Jumping to a node inside a group from the Problems or Project tab now
+  centers that node, and leaving the group returns to the view you had.
+- A project opened right after the editor starts keeps its saved view
+  instead of being reframed.
 
 ## [0.5.0] - 2026-10-18
 
@@ -387,6 +583,8 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.9.0]: https://github.com/Andorbal/audio-constructor/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/Andorbal/audio-constructor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Andorbal/audio-constructor/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Andorbal/audio-constructor/compare/v0.4.0...v0.5.0

@@ -10,6 +10,7 @@
 
 mod bake;
 mod bindings;
+mod chains;
 mod compile;
 mod engine;
 mod flatten;

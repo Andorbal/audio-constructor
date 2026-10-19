@@ -315,9 +315,9 @@ pub struct State {
 
 fn bg(state: State) -> Color32 {
     let c = if state.hovered || state.active {
-        theme::WIDGET_BG_HOVER
+        theme::widget_bg_hover()
     } else {
-        theme::WIDGET_BG
+        theme::widget_bg()
     };
     theme::fade(c, state.alpha)
 }
@@ -340,9 +340,9 @@ pub fn paint_number(
         if w > 0.5 {
             let fr = Rect::from_min_size(rect.min, vec2(w, rect.height()));
             let c = if state.hovered || state.active {
-                theme::WIDGET_FILL_HOVER
+                theme::widget_fill_hover()
             } else {
-                theme::WIDGET_FILL
+                theme::widget_fill()
             };
             painter.rect_filled(fr, r, theme::fade(c, state.alpha));
         }
@@ -351,7 +351,7 @@ pub fn paint_number(
         painter.rect_stroke(
             rect,
             r,
-            Stroke::new(1.0, theme::fade(theme::ACCENT, state.alpha)),
+            Stroke::new(1.0, theme::fade(theme::accent(), state.alpha)),
             StrokeKind::Inside,
         );
     }
@@ -383,13 +383,13 @@ fn label_and_value(
     let vg = painter.layout_no_wrap(
         value.to_string(),
         theme::canvas_font(size, zoom, mono),
-        theme::fade(theme::TEXT_STRONG, alpha),
+        theme::fade(theme::text_strong(), alpha),
     );
     let vx = rect.max.x - pad - right_pad - vg.size().x;
     painter.galley(
         pos2(vx, rect.center().y - vg.size().y / 2.0),
         vg,
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
     let room = vx - rect.min.x - 2.0 * pad;
     if room < 14.0 * zoom {
@@ -399,7 +399,7 @@ fn label_and_value(
         label.to_string(),
         egui::TextFormat::simple(
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
-            theme::fade(theme::TEXT_MUTED, alpha),
+            theme::fade(theme::text_muted(), alpha),
         ),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(room);
@@ -407,7 +407,7 @@ fn label_and_value(
     painter.galley(
         pos2(rect.min.x + pad, rect.center().y - lg.size().y / 2.0),
         lg,
-        theme::TEXT_MUTED,
+        theme::text_muted(),
     );
 }
 
@@ -427,7 +427,7 @@ pub fn paint_text(
         painter.rect_stroke(
             rect,
             r,
-            Stroke::new(1.0, theme::fade(theme::ACCENT, state.alpha)),
+            Stroke::new(1.0, theme::fade(theme::accent(), state.alpha)),
             StrokeKind::Inside,
         );
     }
@@ -439,7 +439,7 @@ pub fn paint_text(
         value.to_string(),
         egui::TextFormat::simple(
             theme::canvas_font(theme::FONT_VALUE, zoom, true),
-            theme::fade(theme::TEXT_STRONG, state.alpha),
+            theme::fade(theme::text_strong(), state.alpha),
         ),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 2.0 * pad);
@@ -448,7 +448,7 @@ pub fn paint_text(
     painter.galley(
         pos2(vx, rect.center().y - vg.size().y / 2.0),
         vg,
-        theme::TEXT_STRONG,
+        theme::text_strong(),
     );
     let room = vx - rect.min.x - 2.0 * pad;
     if room < 14.0 * zoom {
@@ -458,7 +458,7 @@ pub fn paint_text(
         label.to_string(),
         egui::TextFormat::simple(
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
-            theme::fade(theme::TEXT_MUTED, state.alpha),
+            theme::fade(theme::text_muted(), state.alpha),
         ),
     );
     job.wrap = egui::text::TextWrapping::truncate_at_width(room);
@@ -466,7 +466,7 @@ pub fn paint_text(
     painter.galley(
         pos2(rect.min.x + pad, rect.center().y - lg.size().y / 2.0),
         lg,
-        theme::TEXT_MUTED,
+        theme::text_muted(),
     );
 }
 
@@ -491,7 +491,7 @@ pub fn paint_choice(
         Align2::RIGHT_CENTER,
         icons::CARET_DOWN,
         caret,
-        theme::fade(theme::TEXT_MUTED, state.alpha),
+        theme::fade(theme::text_muted(), state.alpha),
     );
     label_and_value(
         painter,
@@ -514,14 +514,14 @@ pub fn paint_check(painter: &Painter, rect: Rect, zoom: f32, label: &str, on: bo
     );
     let r = theme::radius(3.0 * zoom);
     if on {
-        painter.rect_filled(b, r, theme::fade(theme::ACCENT, state.alpha));
+        painter.rect_filled(b, r, theme::fade(theme::accent(), state.alpha));
         if zoom >= 0.35 {
             painter.text(
                 b.center(),
                 Align2::CENTER_CENTER,
                 icons::CHECK,
                 theme::canvas_font(theme::FONT_SMALL, zoom, false),
-                theme::fade(Color32::from_rgb(0x10, 0x14, 0x1C), state.alpha),
+                theme::fade(theme::on_accent(), state.alpha),
             );
         }
     } else {
@@ -529,7 +529,7 @@ pub fn paint_check(painter: &Painter, rect: Rect, zoom: f32, label: &str, on: bo
         painter.rect_stroke(
             b,
             r,
-            Stroke::new(1.0, theme::fade(theme::NODE_OUTLINE, state.alpha)),
+            Stroke::new(1.0, theme::fade(theme::node_outline(), state.alpha)),
             StrokeKind::Inside,
         );
     }
@@ -539,7 +539,7 @@ pub fn paint_check(painter: &Painter, rect: Rect, zoom: f32, label: &str, on: bo
             Align2::LEFT_CENTER,
             label,
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
-            theme::fade(theme::TEXT, state.alpha),
+            theme::fade(theme::text(), state.alpha),
         );
     }
 }
@@ -559,7 +559,7 @@ pub fn paint_fire(
             Align2::LEFT_CENTER,
             label,
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
-            theme::fade(theme::TEXT_MUTED, state.alpha),
+            theme::fade(theme::text_muted(), state.alpha),
         );
     }
     let bw = 26.0 * zoom;
@@ -581,7 +581,7 @@ pub fn paint_fire(
             Align2::CENTER_CENTER,
             icons::LIGHTNING,
             theme::canvas_font(theme::FONT_SMALL, zoom, false),
-            theme::fade(theme::TEXT_STRONG, state.alpha),
+            theme::fade(theme::text_strong(), state.alpha),
         );
     }
     b
@@ -600,12 +600,12 @@ pub fn paint_socket(
     let color = theme::fade(theme::type_color(ty), alpha);
     let edge = Stroke::new(
         (1.2 * (r / 5.0)).max(0.8),
-        theme::fade(Color32::from_rgb(0x12, 0x13, 0x16), alpha),
+        theme::fade(theme::socket_edge(), alpha),
     );
     let fill = if filled {
         color
     } else {
-        theme::fade(theme::NODE_BG, alpha)
+        theme::fade(theme::node_bg(), alpha)
     };
     match theme::socket_shape(ty) {
         theme::SocketShape::Circle => {

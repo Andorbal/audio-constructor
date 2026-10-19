@@ -1,0 +1,1628 @@
+{
+  "schema_version": 2,
+  "name": "Gamepad Jam",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 8.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Gamepad Jam: drums and chords played from a game controller. Press Space and a demo plays the same parts, so the patch makes sound before a controller is plugged in.\n\nConnect a controller (the Devices tab lists it), press its Start button to play, and press Select (back), or click the Controller switch, to take over from the demo. A, B, X, and Y play the kick, snare, closed hat, and open hat. D-pad right strums the next chord (Am, F, C, G) and D-pad left starts the progression over. The left stick sweeps the filter and the right stick its resonance; pull the right trigger to strum harder and the left trigger for echo. Ctrl+Tab shows the Jam panel."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -330.0
+          ],
+          "size": [
+            760.0,
+            168.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "gamepad",
+        "config": {
+          "pad": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Gamepad"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "3",
+        "kind": "comment",
+        "config": {
+          "text": "The Gamepad node turns the controller into signals: every button has a gate and a _press trigger, and the sticks and triggers are numbers. Only its wired sockets show here (Hide Unwired Sockets, Ctrl+H, shows them all again).\n\nThe sticks and triggers reach the patch another way: they are bound to inputs, the way right-click ▸ Bind… binds any unwired input to a control, and so are Start (play/stop) and Select (the Controller switch). The Project tab lists every binding. The Devices tab's Add gamepad transport buttons puts play/stop on A, which here is the kick, so this jam binds Start instead."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ],
+          "size": [
+            466.0,
+            216.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "clock",
+        "params": {
+          "duty": 0.5,
+          "interval": 0.25
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            600.0
+          ],
+          "label": "Demo clock"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "pattern",
+        "config": {
+          "steps": 16,
+          "rows": 5,
+          "cells": [
+            "x.......x.x.....",
+            "....x.......x...",
+            "x.x.x.x.x.x.x...",
+            "..............x.",
+            "x..............."
+          ]
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            600.0
+          ],
+          "label": "Demo pattern"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "The demo: a Clock steps a five-row Pattern every sixteenth note. The top four rows play the drums as A, B, X, and Y would, and the bottom row moves to the next chord at the top of every bar, as D-pad right would. Select the Pattern and click its cells in the Node tab to change the beat."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            950.0
+          ],
+          "size": [
+            466.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ],
+          "label": "Controller"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            0.0
+          ],
+          "label": "Kick hits"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            130.0
+          ],
+          "label": "Snare hits"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            260.0
+          ],
+          "label": "Closed hat hits"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            390.0
+          ],
+          "label": "Open hat hits"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            520.0
+          ],
+          "label": "Next chord"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "comment",
+        "config": {
+          "text": "Each Switch passes on the demo's triggers (a) while the Controller switch is off and the controller's (b) while it's on. The sticks, the analog triggers, and D-pad left aren't switched, so you can play them over the demo too."
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            680.0
+          ],
+          "size": [
+            466.0,
+            104.0
+          ]
+        }
+      },
+      {
+        "id": "e",
+        "kind": "mix",
+        "config": {
+          "inputs": 4
+        },
+        "ui": {
+          "pos": [
+            1620.0,
+            0.0
+          ],
+          "label": "Drums"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.125,
+          "gain": -6.0,
+          "start_point": 0.0
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            0.0
+          ],
+          "label": "Kick"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": 3.0,
+          "note": 48.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            0.0
+          ],
+          "label": "Snare: hat an octave down"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -6.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            380.0
+          ],
+          "label": "Closed hat"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "sampler",
+        "config": {
+          "file": "assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -8.0,
+          "note": 53.0,
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            380.0
+          ],
+          "label": "Open hat: hat lower"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "counter",
+        "params": {
+          "max": 4,
+          "step": 1
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            852.0
+          ],
+          "label": "Chord step"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "select",
+        "config": {
+          "inputs": 4
+        },
+        "params": {
+          "in_0": 55.0,
+          "in_1": 57.0,
+          "in_2": 53.0,
+          "in_3": 48.0
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            1002.0
+          ],
+          "label": "Chord root"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "note_to_midi",
+        "params": {
+          "length": 1.8,
+          "velocity": 0.7
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            852.0
+          ],
+          "label": "Strum"
+        }
+      },
+      {
+        "id": "16",
+        "kind": "chord",
+        "params": {
+          "chord": "major"
+        },
+        "ui": {
+          "pos": [
+            1620.0,
+            852.0
+          ],
+          "label": "Triad"
+        }
+      },
+      {
+        "id": "17",
+        "kind": "midi_transpose",
+        "params": {
+          "root": "A",
+          "scale": "minor",
+          "snap": true
+        },
+        "ui": {
+          "pos": [
+            1890.0,
+            852.0
+          ],
+          "label": "In A minor"
+        }
+      },
+      {
+        "id": "18",
+        "kind": "voices",
+        "config": {
+          "def": "karplus-strong-string",
+          "voices": 8,
+          "steal": "oldest"
+        },
+        "params": {
+          "damping": 0.3,
+          "decay": 3.0,
+          "level": 4.0,
+          "release": 0.3,
+          "tone": 5000.0
+        },
+        "ui": {
+          "pos": [
+            2160.0,
+            852.0
+          ],
+          "label": "Strings"
+        }
+      },
+      {
+        "id": "19",
+        "kind": "ladder",
+        "params": {
+          "mode": "lp24"
+        },
+        "ui": {
+          "pos": [
+            2430.0,
+            852.0
+          ],
+          "label": "Filter"
+        }
+      },
+      {
+        "id": "1a",
+        "kind": "knob",
+        "config": {
+          "min": 150.0,
+          "max": 12000.0,
+          "unit": "hz",
+          "scale": "log"
+        },
+        "params": {
+          "value": 2500.0
+        },
+        "ui": {
+          "pos": [
+            2160.0,
+            1052.0
+          ],
+          "label": "Cutoff (Hz)"
+        }
+      },
+      {
+        "id": "1b",
+        "kind": "knob",
+        "config": {
+          "min": 0.0,
+          "max": 0.9
+        },
+        "params": {
+          "value": 0.25
+        },
+        "ui": {
+          "pos": [
+            2160.0,
+            1202.0
+          ],
+          "label": "Resonance"
+        }
+      },
+      {
+        "id": "1c",
+        "kind": "comment",
+        "config": {
+          "text": "Chord step counts the steps, 0 to 3, and Chord root turns the count into a root note: A, F, C, then G (0 is G, so the first step lands on A). Strum, a Note To MIDI, plays the root for 1.8 s on every step; Triad builds a major chord on it, and In A minor snaps that into the key, so A becomes A minor while F, C, and G stay major. Strings plucks a Karplus-Strong String for every note, and the Filter follows the Cutoff and Resonance knobs, which the sticks move."
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            1052.0
+          ],
+          "size": [
+            736.0,
+            120.0
+          ]
+        }
+      },
+      {
+        "id": "1d",
+        "kind": "knob",
+        "config": {
+          "min": -40.0,
+          "max": 6.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            0.0
+          ],
+          "label": "Strings (dB)"
+        }
+      },
+      {
+        "id": "1e",
+        "kind": "knob",
+        "config": {
+          "min": -40.0,
+          "max": 6.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -4.0
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            150.0
+          ],
+          "label": "Drums (dB)"
+        }
+      },
+      {
+        "id": "1f",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            2970.0,
+            0.0
+          ],
+          "label": "Jam"
+        }
+      },
+      {
+        "id": "20",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.35,
+          "mix": 0.0,
+          "time": 0.375
+        },
+        "ui": {
+          "pos": [
+            3240.0,
+            0.0
+          ],
+          "label": "Echo"
+        }
+      },
+      {
+        "id": "21",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            3510.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "22",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            3780.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "23",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Bind the right stick's x to the Strings' damping: right-click the input, choose Bind…, and move the stick.\n• Show the Gamepad's other sockets (Ctrl+H) and wire left_bumper_press into a fifth Sampler's start, with a fifth input on Drums (Node tab), for a crash.\n• Set Triad to min7 or sus4, or change Chord root's notes for another progression.\n• Set Chord step's max to 2 and the jam rocks between Am and G.\n• Press F11 for the Jam panel full screen and play it from the couch."
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            330.0
+          ],
+          "size": [
+            560.0,
+            168.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "4:trigger",
+        "to": "5:clock"
+      },
+      {
+        "from": "5:trigger_0",
+        "to": "8:a"
+      },
+      {
+        "from": "2:south_press",
+        "to": "8:b"
+      },
+      {
+        "from": "7:out",
+        "to": "8:select"
+      },
+      {
+        "from": "5:trigger_1",
+        "to": "9:a"
+      },
+      {
+        "from": "2:east_press",
+        "to": "9:b"
+      },
+      {
+        "from": "7:out",
+        "to": "9:select"
+      },
+      {
+        "from": "5:trigger_2",
+        "to": "a:a"
+      },
+      {
+        "from": "2:west_press",
+        "to": "a:b"
+      },
+      {
+        "from": "7:out",
+        "to": "a:select"
+      },
+      {
+        "from": "5:trigger_3",
+        "to": "b:a"
+      },
+      {
+        "from": "2:north_press",
+        "to": "b:b"
+      },
+      {
+        "from": "7:out",
+        "to": "b:select"
+      },
+      {
+        "from": "5:trigger_4",
+        "to": "c:a"
+      },
+      {
+        "from": "2:dpad_right_press",
+        "to": "c:b"
+      },
+      {
+        "from": "7:out",
+        "to": "c:select"
+      },
+      {
+        "from": "8:out",
+        "to": "f:start"
+      },
+      {
+        "from": "f:out",
+        "to": "e:in_0"
+      },
+      {
+        "from": "9:out",
+        "to": "10:start"
+      },
+      {
+        "from": "10:out",
+        "to": "e:in_1"
+      },
+      {
+        "from": "a:out",
+        "to": "11:start"
+      },
+      {
+        "from": "11:out",
+        "to": "e:in_2"
+      },
+      {
+        "from": "b:out",
+        "to": "12:start"
+      },
+      {
+        "from": "12:out",
+        "to": "e:in_3"
+      },
+      {
+        "from": "c:out",
+        "to": "13:trigger"
+      },
+      {
+        "from": "2:dpad_left_press",
+        "to": "13:reset"
+      },
+      {
+        "from": "13:count",
+        "to": "14:index"
+      },
+      {
+        "from": "c:out",
+        "to": "15:trigger"
+      },
+      {
+        "from": "14:out",
+        "to": "15:note"
+      },
+      {
+        "from": "15:midi",
+        "to": "16:midi"
+      },
+      {
+        "from": "16:midi",
+        "to": "17:midi"
+      },
+      {
+        "from": "17:midi",
+        "to": "18:midi"
+      },
+      {
+        "from": "18:out",
+        "to": "19:in"
+      },
+      {
+        "from": "1a:out",
+        "to": "19:cutoff"
+      },
+      {
+        "from": "1b:out",
+        "to": "19:resonance"
+      },
+      {
+        "from": "19:out",
+        "to": "1f:in_0"
+      },
+      {
+        "from": "e:out",
+        "to": "1f:in_1"
+      },
+      {
+        "from": "1d:out",
+        "to": "1f:gain_0"
+      },
+      {
+        "from": "1e:out",
+        "to": "1f:gain_1"
+      },
+      {
+        "from": "1f:out",
+        "to": "20:in"
+      },
+      {
+        "from": "20:out",
+        "to": "21:in"
+      },
+      {
+        "from": "21:out",
+        "to": "22:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "The controller",
+        "rect": [
+          -24.0,
+          -52.0,
+          514.0,
+          492.0
+        ]
+      },
+      {
+        "label": "The demo: the same parts from a pattern",
+        "rect": [
+          -24.0,
+          548.0,
+          514.0,
+          546.0
+        ]
+      },
+      {
+        "label": "Who plays: the demo or the controller",
+        "rect": [
+          516.0,
+          -52.0,
+          514.0,
+          860.0
+        ]
+      },
+      {
+        "label": "Drums: four slices of one sample",
+        "rect": [
+          1056.0,
+          -52.0,
+          784.0,
+          799.0
+        ]
+      },
+      {
+        "label": "Chords: strummed strings through a filter",
+        "rect": [
+          1056.0,
+          800.0,
+          1594.0,
+          553.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "karplus-strong-string": {
+      "name": "Karplus-Strong String",
+      "description": "A plucked string, played polyphonically. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one, wire MIDI into its `midi` input, and every note plucks its own string, tuned to the note.\n\n- `damping` (0 to 1) darkens the string: the upper harmonics die away sooner than the fundamental, and high notes ring shorter than low ones, as on a real string. 0 is a bright, metallic wire.\n- `decay` is how long a held note rings, in seconds, before it has faded by 60 dB (with damping, high notes fade sooner).\n- `release` is the same for the time after the note is let go: short mutes the string like a lifted finger; set it to `decay` to let every note ring on like a harp.\n- `tone` (Hz) is the brightness of the pluck itself: low for a soft, thumb-like pluck, high for a hard pick.\n- `level` (dB) is how hard the string is plucked; each note's velocity scales it further.\n- `out` is the string's sound, mono.\n\nInside: a Voice node gives each note's frequency, trigger, gate, and velocity. On every trigger an ADSR opens for exactly one period of the note and lets through a burst of white Noise, scaled by velocity and softened by a lowpass Biquad (`tone`). The burst goes into a feedback Comb whose delay is one period, so it recirculates and rings at the note's pitch (the Karplus-Strong algorithm), while the Comb's damping lowpass, inside the loop, takes a little treble off on every pass. The Ring time row works out the feedback: a Switch picks `decay` while the gate is held and `release` after, and −60 dB divided by the number of periods in that time, as a gain, is what each pass keeps. The Tuning rows subtract the delay the damping filter adds (its phase at the note's frequency, from an atan2) from the period, which keeps the string in tune at any damping. A DC Block removes the offset a burst can leave circulating.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "string",
+        "pluck",
+        "physical model",
+        "polyphonic"
+      ],
+      "source": "shipped:karplus-strong-string",
+      "inputs": [
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.2,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "7:damping",
+            "12:b",
+            "16:in"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 4.0,
+          "range": [
+            0.1,
+            20.0
+          ],
+          "targets": [
+            "9:b"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.5,
+          "range": [
+            0.05,
+            20.0
+          ],
+          "targets": [
+            "9:a"
+          ]
+        },
+        {
+          "name": "tone",
+          "type": "float",
+          "unit": "hz",
+          "default": 8000.0,
+          "range": [
+            200.0,
+            20000.0
+          ],
+          "targets": [
+            "6:cutoff"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "2:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "8:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "noise",
+            "params": {
+              "color": "white",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "linear",
+              "release": 0.0,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                240.0
+              ],
+              "label": "Burst: one period"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Velocity"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "biquad",
+            "params": {
+              "mode": "lowpass",
+              "q": 0.707
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Pick tone"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "comb",
+            "params": {
+              "mix": 1.0,
+              "mode": "feedback"
+            },
+            "ui": {
+              "pos": [
+                2250.0,
+                0.0
+              ],
+              "label": "String"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "dc_block",
+            "ui": {
+              "pos": [
+                2500.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "switch",
+            "ui": {
+              "pos": [
+                1250.0,
+                260.0
+              ],
+              "label": "Decay or release"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                260.0
+              ],
+              "label": "Periods in the ring"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "math",
+            "params": {
+              "a": -60.0,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                260.0
+              ],
+              "label": "dB per period"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                2000.0,
+                260.0
+              ],
+              "label": "Feedback"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "a": 1.0,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                640.0
+              ],
+              "label": "Period (s)"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                640.0
+              ],
+              "label": "Cycles per sample"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "b": 6.283185307179586,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                640.0
+              ],
+              "label": "ω (radians per sample)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "unary",
+            "params": {
+              "op": "sin"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                640.0
+              ]
+            }
+          },
+          {
+            "id": "11",
+            "kind": "unary",
+            "params": {
+              "op": "cos"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                780.0
+              ]
+            }
+          },
+          {
+            "id": "12",
+            "kind": "math",
+            "params": {
+              "a": 0.01,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                920.0
+              ],
+              "label": "Corner ÷ 20 kHz"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                920.0
+              ],
+              "label": "÷ sample rate"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "b": -125663.70614359171,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                920.0
+              ],
+              "label": "× −2π·20 kHz"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "unary",
+            "params": {
+              "op": "exp"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                920.0
+              ]
+            }
+          },
+          {
+            "id": "16",
+            "kind": "map",
+            "params": {
+              "clamp": true,
+              "in_max": 0.05,
+              "in_min": 0.0,
+              "out_max": 1.0,
+              "out_min": 0.0
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                1130.0
+              ],
+              "label": "Fade-in below 0.05"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                920.0
+              ],
+              "label": "Damping pole p"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                640.0
+              ],
+              "label": "p·sin ω"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                780.0
+              ],
+              "label": "p·cos ω"
+            }
+          },
+          {
+            "id": "1a",
+            "kind": "math",
+            "params": {
+              "a": 1.0,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                780.0
+              ],
+              "label": "1 − p·cos ω"
+            }
+          },
+          {
+            "id": "1b",
+            "kind": "math",
+            "params": {
+              "op": "atan2"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                640.0
+              ],
+              "label": "Filter phase"
+            }
+          },
+          {
+            "id": "1c",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                640.0
+              ],
+              "label": "Filter delay (samples)"
+            }
+          },
+          {
+            "id": "1d",
+            "kind": "convert",
+            "params": {
+              "op": "samples_to_seconds"
+            },
+            "ui": {
+              "pos": [
+                1750.0,
+                780.0
+              ],
+              "label": "Filter delay (s)"
+            }
+          },
+          {
+            "id": "1e",
+            "kind": "math",
+            "params": {
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                2000.0,
+                640.0
+              ],
+              "label": "Comb delay"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "3:on"
+          },
+          {
+            "from": "d:out",
+            "to": "3:decay"
+          },
+          {
+            "from": "2:out",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "4:out",
+            "to": "5:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "6:out",
+            "to": "7:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "1:gate",
+            "to": "9:select"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:freq",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:b"
+          },
+          {
+            "from": "b:out",
+            "to": "c:in"
+          },
+          {
+            "from": "c:out",
+            "to": "7:feedback"
+          },
+          {
+            "from": "1:freq",
+            "to": "d:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "e:in"
+          },
+          {
+            "from": "e:out",
+            "to": "f:a"
+          },
+          {
+            "from": "f:out",
+            "to": "10:in"
+          },
+          {
+            "from": "f:out",
+            "to": "11:in"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:a"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "17:a"
+          },
+          {
+            "from": "16:out",
+            "to": "17:b"
+          },
+          {
+            "from": "17:out",
+            "to": "18:a"
+          },
+          {
+            "from": "10:out",
+            "to": "18:b"
+          },
+          {
+            "from": "17:out",
+            "to": "19:a"
+          },
+          {
+            "from": "11:out",
+            "to": "19:b"
+          },
+          {
+            "from": "19:out",
+            "to": "1a:b"
+          },
+          {
+            "from": "18:out",
+            "to": "1b:a"
+          },
+          {
+            "from": "1a:out",
+            "to": "1b:b"
+          },
+          {
+            "from": "1b:out",
+            "to": "1c:a"
+          },
+          {
+            "from": "f:out",
+            "to": "1c:b"
+          },
+          {
+            "from": "1c:out",
+            "to": "1d:in"
+          },
+          {
+            "from": "d:out",
+            "to": "1e:a"
+          },
+          {
+            "from": "1d:out",
+            "to": "1e:b"
+          },
+          {
+            "from": "1e:out",
+            "to": "7:delay"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Pluck",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              578.0
+            ]
+          },
+          {
+            "label": "Ring time",
+            "rect": [
+              1226.0,
+              220.0,
+              994.0,
+              184.0
+            ]
+          },
+          {
+            "label": "String",
+            "rect": [
+              2226.0,
+              -40.0,
+              494.0,
+              250.0
+            ]
+          },
+          {
+            "label": "Tuning: one period, minus the delay of the damping filter",
+            "rect": [
+              226.0,
+              600.0,
+              1994.0,
+              762.0
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "panels": [
+    {
+      "name": "Jam",
+      "items": [
+        {
+          "node": "7"
+        },
+        {
+          "node": "1a"
+        },
+        {
+          "node": "1b"
+        },
+        {
+          "node": "1d"
+        },
+        {
+          "node": "1e"
+        },
+        {
+          "node": "21"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "start"
+      },
+      "target": {
+        "type": "transport",
+        "action": "play_stop"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "select"
+      },
+      "target": {
+        "type": "input",
+        "node": "7",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "gamepad_axis",
+        "axis": "left_x"
+      },
+      "target": {
+        "type": "input",
+        "node": "1a",
+        "socket": "value"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_axis",
+        "axis": "right_y"
+      },
+      "target": {
+        "type": "input",
+        "node": "1b",
+        "socket": "value"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_axis",
+        "axis": "right_trigger"
+      },
+      "target": {
+        "type": "input",
+        "node": "15",
+        "socket": "velocity"
+      },
+      "min": 0.6,
+      "max": 1.0
+    },
+    {
+      "source": {
+        "type": "gamepad_axis",
+        "axis": "left_trigger"
+      },
+      "target": {
+        "type": "input",
+        "node": "20",
+        "socket": "mix"
+      },
+      "min": 0.0,
+      "max": 0.5
+    }
+  ]
+}

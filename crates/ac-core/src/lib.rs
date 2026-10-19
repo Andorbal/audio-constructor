@@ -50,8 +50,8 @@ pub use group::{GroupDef, GroupInput, GroupOutput};
 pub use id::{GroupId, IdGen, NodeId, NodePath};
 pub use io::{
     AudioIn, AudioOut, AutoFlags, BoolIn, BufferRef, FloatIn, FloatOut, FloatSrc, HostAccess,
-    InputSlot, Inputs, IntSrc, Io, MidiOut, OutputSlot, Outputs, ParamSlot, TelemetryAccess,
-    TextSrc, TriggerOut, TriggerSrc,
+    InputSlot, Inputs, IntSrc, Io, LOCAL, Local, MidiOut, OutputSlot, Outputs, ParamSlot,
+    TelemetryAccess, TextSrc, TriggerOut, TriggerSrc,
 };
 pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
@@ -60,7 +60,9 @@ pub use node::{
 pub use panel::{Panel, PanelItem};
 pub use param::{param_text, param_value};
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
-pub use registry::{NodeEntry, Registry, RenderWholeFn, group_signature, voices_signature};
+pub use registry::{
+    NodeEntry, Registry, RenderWholeFn, fuzzy_score, group_signature, voices_signature,
+};
 pub use signal::{
     AutoTrigger, Channels, Conversion, OutRate, Rate, Scale, SignalType, Signature, SocketSpec,
     SpectrumShape, Unit, conversion,

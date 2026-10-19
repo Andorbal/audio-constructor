@@ -59,8 +59,11 @@ pub struct CompileStats {
     pub live_sources: Vec<NodePath>,
     /// Output latency in samples: the most any path to a device output adds.
     pub latency: u32,
-    /// Waves in the schedule (steps in a wave can run on different cores).
+    /// Waves in the schedule (chains in a wave can run on different cores).
     pub waves: usize,
+    /// Chains in the schedule: runs of steps one thread works through in
+    /// order (DECISIONS D114), not counting device-output steps.
+    pub chains: usize,
     /// Nodes that add latency, and how much (samples).
     pub node_latency: Vec<(NodePath, u32)>,
     /// Inputs delayed to line up with slower ones: node, input, samples.

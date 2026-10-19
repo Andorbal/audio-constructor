@@ -144,7 +144,7 @@ pub(super) fn ui(
             // Rows count from 0, like the node's `trigger_0`, `gate_0` outputs.
             format!("{r}"),
             small.clone(),
-            theme::TEXT_FAINT,
+            theme::text_faint(),
         );
         for (s, &on) in row.iter().enumerate() {
             let cell = Rect::from_min_size(
@@ -156,11 +156,11 @@ pub(super) fn ui(
             let fill = if on {
                 on_color
             } else if hover == Some((r, s)) {
-                theme::WIDGET_BG_HOVER
+                theme::widget_bg_hover()
             } else if beat {
-                theme::WIDGET_BG
+                theme::widget_bg()
             } else {
-                theme::PANEL_BG
+                theme::panel_bg()
             };
             painter.rect_filled(cell, theme::radius(2.0), fill);
         }

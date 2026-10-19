@@ -824,6 +824,7 @@ impl Harness {
                     buffers: &buffers,
                     texts: &texts,
                     auto,
+                    local: Default::default(),
                 },
                 outputs: Outputs {
                     slots: &o_slots,

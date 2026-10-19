@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, and the engine's vital signs.
+
 <a id="comment"></a>
 ## Comment
 

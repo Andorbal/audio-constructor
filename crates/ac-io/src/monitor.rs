@@ -1,5 +1,5 @@
 //! The last few messages a device thread received, kept for the editor
-//! (ARCHITECTURE §11, DECISIONS D101).
+//! (ARCHITECTURE §11, DECISIONS D115).
 //!
 //! The engine only ever sees hashed OSC addresses and raw MIDI, which is
 //! what makes receiving allocation-free. The device threads see the whole

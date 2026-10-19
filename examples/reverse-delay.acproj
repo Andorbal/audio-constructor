@@ -1,9 +1,9 @@
 {
   "schema_version": 2,
-  "name": "Reverse Delay (Phase 2 preview)",
+  "name": "Reverse Delay",
   "settings": {
     "sample_rate": 48000,
-    "length": 10.0,
+    "length": 12.0,
     "seed": 0,
     "block_size": 256,
     "tempo": [
@@ -23,21 +23,107 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Placeholder for the Reverse Delay example. It needs the Reverse node, which arrives in Phase 2.\n\nReverse has to hear its whole input before it can play it backwards, so it can't run on a live source. When it lands it will sit between Delay and Audio Out: fed from Audio In it shows a \"disabled while live\" badge and passes silence; fed from a Clip it bakes in the background and plays."
+          "text": "Echoes that play backwards. Press Space to play.\n\nReverse cuts its input into half-second slices and plays each one backwards in its own place. A Delay of the same half second then pushes every reversed slice back until the slice it came from has finished, so each phrase answers itself in reverse, swelling up to the beat.\n\nThe patch is built twice, once on a Clip and once on Audio In, to show what Reverse can and can't do. Look at the badge on each Reverse node."
         },
         "ui": {
           "pos": [
             0.0,
-            -184.0
+            -312.0
           ],
           "size": [
-            600.0,
-            144.0
+            720.0,
+            160.0
           ]
         }
       },
       {
         "id": "2",
+        "kind": "clip",
+        "config": {
+          "file": "assets/lead.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Melody"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "reverse",
+        "config": {
+          "segment": 0.5
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Reverse (from Clip)"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "delay",
+        "config": {
+          "max_time": 2.0
+        },
+        "params": {
+          "feedback": 0.35,
+          "mix": 1.0,
+          "time": 0.5
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            0.0
+          ],
+          "label": "Delay (from Clip)"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": -2.0
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            0.0
+          ],
+          "label": "Dry + reversed (Clip)"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "Baked: everything feeding this Reverse is known ahead of time (a file), so the engine renders the Clip over the whole project in the background and Reverse plays that, in time with the transport. Change anything upstream (the file, its rate) and it bakes again; the old bake plays until the new one is ready."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            250.0
+          ],
+          "size": [
+            1006.0,
+            64.0
+          ]
+        }
+      },
+      {
+        "id": "7",
         "kind": "audio_in",
         "config": {
           "channel": 0,
@@ -46,49 +132,141 @@
         "ui": {
           "pos": [
             0.0,
-            0.0
-          ]
+            560.0
+          ],
+          "label": "Guitar or mic"
         }
       },
       {
-        "id": "3",
+        "id": "8",
+        "kind": "reverse",
+        "config": {
+          "segment": 0.5
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            560.0
+          ],
+          "label": "Reverse (from Audio In)"
+        }
+      },
+      {
+        "id": "9",
         "kind": "delay",
+        "config": {
+          "max_time": 2.0
+        },
         "params": {
-          "feedback": 0.4,
-          "mix": 0.4,
+          "feedback": 0.35,
+          "mix": 1.0,
           "time": 0.5
         },
         "ui": {
           "pos": [
-            270.0,
-            0.0
-          ]
-        }
-      },
-      {
-        "id": "4",
-        "kind": "audio_out",
-        "ui": {
-          "pos": [
             540.0,
-            0.0
-          ]
+            560.0
+          ],
+          "label": "Delay (from Audio In)"
         }
       },
       {
-        "id": "5",
-        "kind": "comment",
+        "id": "a",
+        "kind": "mix",
         "config": {
-          "text": "Until then this is a plain echo, so the project still does something."
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": -2.0
         },
         "ui": {
           "pos": [
-            270.0,
-            160.0
+            810.0,
+            560.0
+          ],
+          "label": "Dry + reversed (Audio In)"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "comment",
+        "config": {
+          "text": "Disabled while live: to play a slice backwards, Reverse needs its end before its start, and nobody knows what you'll play next. So when a live source such as Audio In feeds it, Reverse switches itself off and passes silence, and you hear only the dry signal. Offline it works: `audioc render --input take.wav` knows the whole input in advance, so this path bakes too."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            720.0
           ],
           "size": [
-            300.0,
-            64.0
+            1006.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            1110.0,
+            120.0
+          ],
+          "label": "Use Audio In"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            1110.0,
+            280.0
+          ],
+          "label": "Source"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1380.0,
+            280.0
+          ]
+        }
+      },
+      {
+        "id": "f",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1650.0,
+            280.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Set segment (Reverse, Node tab) and the Delay's time to 1 s together for longer reversed phrases. Keep them equal: the delay has to wait out a whole slice.\n• Raise feedback for reversed echoes that repeat.\n• Swap the Melody's file for assets/drums.wav: reversed kicks swell up into every beat.\n• Turn on Use Audio In, play, and watch the lower Reverse stay disabled."
+        },
+        "ui": {
+          "pos": [
+            1110.0,
+            450.0
+          ],
+          "size": [
+            520.0,
+            160.0
           ]
         }
       }
@@ -101,6 +279,70 @@
       {
         "from": "3:out",
         "to": "4:in"
+      },
+      {
+        "from": "2:out",
+        "to": "5:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in_1"
+      },
+      {
+        "from": "7:out",
+        "to": "8:in"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "7:out",
+        "to": "a:in_0"
+      },
+      {
+        "from": "9:out",
+        "to": "a:in_1"
+      },
+      {
+        "from": "5:out",
+        "to": "d:a"
+      },
+      {
+        "from": "a:out",
+        "to": "d:b"
+      },
+      {
+        "from": "c:out",
+        "to": "d:select"
+      },
+      {
+        "from": "d:out",
+        "to": "e:in"
+      },
+      {
+        "from": "e:out",
+        "to": "f:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "From a Clip: baked",
+        "rect": [
+          -24.0,
+          -52.0,
+          1054.0,
+          390.0
+        ]
+      },
+      {
+        "label": "From Audio In: disabled while live",
+        "rect": [
+          -24.0,
+          508.0,
+          1054.0,
+          316.0
+        ]
       }
     ]
   }

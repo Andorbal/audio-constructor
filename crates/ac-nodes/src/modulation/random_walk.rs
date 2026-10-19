@@ -6,7 +6,7 @@ use ac_dsp::rng::Rng;
 
 node! {
     kind: "random_walk",
-    name: "RandomWalk",
+    name: "Random Walk",
     category: Modulation,
     keywords: ["drift", "wander", "brownian", "smooth random", "jitter", "organic", "noise"],
     /// Smooth random modulation that wanders around `center`, never further

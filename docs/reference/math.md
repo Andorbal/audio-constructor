@@ -2,6 +2,8 @@
 
 [← All nodes](README.md)
 
+Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates.
+
 <a id="accumulate"></a>
 ## Accumulate
 
@@ -475,6 +477,59 @@ ramp (such as `Transport.time`) into a repeating 0..1 sawtooth.
 | --- | --- | --- |
 | `out` | Float | The result. |
 
+<a id="merge"></a>
+## Merge
+
+Kind: `merge` · Also found by: combine, join, midi merge, trigger merge, together, union, funnel
+
+Combines several MIDI or trigger streams into one, so two sources can
+play one instrument at once.
+
+The `inputs` config sets how many inputs there are (2 to 16, default
+2), named `in_0`, `in_1`, …, and the `type` config what they carry:
+`midi` (the default) or `trigger`. `out` has the same type.
+
+- `trigger`: `out` fires on every sample where any input fires; two
+  triggers on one sample are one.
+- `midi`: every input's events in time order; on one sample, a lower
+  input's events come first. A note held from several inputs at once
+  (same channel and note) sounds once: the first note-on passes, and
+  the note-off passes when the last input holding the note lets go.
+  A note-off for a note its input isn't holding is dropped. A note-on
+  for a note that only its own input holds retriggers it: a note-off,
+  then the note-on.
+
+The sustain pedal (CC 64) is merged the same way: it stays down while
+any input holds it down, and a pedal message passes only when no
+other input holds the pedal on its channel. An all-notes-off or
+all-sound-off ends the notes its input holds on that channel, and
+passes on itself only when no other input holds a note or the pedal
+there, so another input's notes keep sounding. Pitch bend, pressure,
+program changes, and other controllers pass as they come.
+
+When a block brings more MIDI than an output can carry, note-ons and
+other messages give way so note-offs and pedal releases always get
+through. Restarting the transport releases every note and pedal still
+held, at the start of the next block.
+
+**Try this:** wire `MIDI In` into `in_0` and a `MIDI Pattern` into
+`in_1`, and `out` into a `Voices` synth: play along with the pattern
+on your MIDI keyboard. With `type` `trigger`, merge two `Euclidean`
+rhythms into one `Sampler`'s `start` for a busier beat.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in_0` | Midi | — |  | MIDI to merge. |
+| `in_1` | Midi | — |  | MIDI to merge. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Midi | Every input's MIDI in time order, each held note once. |
+
 <a id="number-to-text"></a>
 ## Number to Text
 
@@ -595,7 +650,7 @@ render.
 | `out` | Float | The held random value. |
 
 <a id="sample-hold"></a>
-## SampleHold
+## Sample & Hold
 
 Kind: `sample_hold` · Also found by: sample and hold, s&h, latch, freeze, snapshot, track
 

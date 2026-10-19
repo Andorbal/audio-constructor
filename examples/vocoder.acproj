@@ -1,0 +1,1808 @@
+{
+  "schema_version": 2,
+  "name": "Vocoder",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 19.2,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 100.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "A synth that talks. Press Space to play.\n\nThe Vocoder block splits two signals into twelve matching bands: the carrier (a sawtooth chord, what you hear) and the modulator (a voice, what it says). Each band of the carrier is turned up and down by the level of the same band in the modulator, so the chord takes on the voice's vowels and rhythm. Here the voice is a little robot built from parts; switch on Use Audio In and talk into a microphone to make the chord say your words."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -312.0
+          ],
+          "size": [
+            760.0,
+            128.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 16.0,
+          "notes": [
+            [
+              0.0,
+              3.95,
+              48,
+              100
+            ],
+            [
+              0.0,
+              3.95,
+              55,
+              100
+            ],
+            [
+              0.0,
+              3.95,
+              60,
+              100
+            ],
+            [
+              0.0,
+              3.95,
+              63,
+              100
+            ],
+            [
+              0.0,
+              3.95,
+              67,
+              100
+            ],
+            [
+              4.0,
+              3.95,
+              44,
+              100
+            ],
+            [
+              4.0,
+              3.95,
+              51,
+              100
+            ],
+            [
+              4.0,
+              3.95,
+              56,
+              100
+            ],
+            [
+              4.0,
+              3.95,
+              60,
+              100
+            ],
+            [
+              4.0,
+              3.95,
+              63,
+              100
+            ],
+            [
+              8.0,
+              3.95,
+              43,
+              100
+            ],
+            [
+              8.0,
+              3.95,
+              51,
+              100
+            ],
+            [
+              8.0,
+              3.95,
+              55,
+              100
+            ],
+            [
+              8.0,
+              3.95,
+              58,
+              100
+            ],
+            [
+              8.0,
+              3.95,
+              63,
+              100
+            ],
+            [
+              12.0,
+              3.95,
+              46,
+              100
+            ],
+            [
+              12.0,
+              3.95,
+              53,
+              100
+            ],
+            [
+              12.0,
+              3.95,
+              58,
+              100
+            ],
+            [
+              12.0,
+              3.95,
+              62,
+              100
+            ],
+            [
+              12.0,
+              3.95,
+              65,
+              100
+            ]
+          ],
+          "channel": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Chords"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "voices",
+        "config": {
+          "def": "subtractive-synth-voice",
+          "voices": 8,
+          "steal": "oldest"
+        },
+        "params": {
+          "attack": 0.01,
+          "cutoff": 7000.0,
+          "decay": 0.1,
+          "detune": 14.0,
+          "env_amount": 0.0,
+          "level": -12.0,
+          "release": 0.2,
+          "resonance": 0.0,
+          "sustain": 1.0
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            0.0
+          ],
+          "label": "Saw chord"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "noise",
+        "params": {
+          "color": "white",
+          "gain": -30.0
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            300.0
+          ],
+          "label": "Hiss"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            560.0,
+            60.0
+          ],
+          "label": "Carrier"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "A carrier needs energy across the whole spectrum: bright saws, with a little noise so hissing sounds come through too."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            300.0
+          ],
+          "size": [
+            240.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "oscillator",
+        "params": {
+          "freq": 110.0,
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            620.0
+          ],
+          "label": "Vocal cords"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "clock",
+        "params": {
+          "duty": 0.7,
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            890.0
+          ],
+          "label": "Syllables"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "step_sequencer",
+        "config": {
+          "steps": 8,
+          "values": [
+            800.0,
+            400.0,
+            300.0,
+            450.0,
+            325.0,
+            800.0,
+            300.0,
+            600.0
+          ]
+        },
+        "params": {
+          "glide": 0.04
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            890.0
+          ],
+          "label": "Formant 1 (Hz)"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "step_sequencer",
+        "config": {
+          "steps": 8,
+          "values": [
+            1200.0,
+            2300.0,
+            2700.0,
+            800.0,
+            700.0,
+            1200.0,
+            2700.0,
+            1000.0
+          ]
+        },
+        "params": {
+          "glide": 0.04
+        },
+        "ui": {
+          "pos": [
+            270.0,
+            1070.0
+          ],
+          "label": "Formant 2 (Hz)"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "biquad",
+        "params": {
+          "mode": "bandpass",
+          "q": 5.0
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            620.0
+          ],
+          "label": "Mouth: formant 1"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "biquad",
+        "params": {
+          "mode": "bandpass",
+          "q": 7.0
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            790.0
+          ],
+          "label": "Mouth: formant 2"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": 0.0,
+          "gain_1": 6.0
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            620.0
+          ],
+          "label": "Vowel"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.02,
+          "decay": 0.1,
+          "release": 0.06,
+          "sustain": 0.8
+        },
+        "ui": {
+          "pos": [
+            810.0,
+            790.0
+          ],
+          "label": "Syllable envelope"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            620.0
+          ],
+          "label": "Voice"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "comment",
+        "config": {
+          "text": "A crude voice: a 110 Hz buzz (the vocal cords) through two bandpass filters (the mouth). The two step sequencers move the filters through the vowels a, e, i, o, u on every syllable, and an envelope gates the syllables. Draw new values in the sequencers to make it say something else."
+        },
+        "ui": {
+          "pos": [
+            540.0,
+            1020.0
+          ],
+          "size": [
+            736.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "11",
+        "kind": "audio_in",
+        "config": {
+          "channel": 0,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            1080.0,
+            790.0
+          ],
+          "label": "Microphone"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            470.0
+          ],
+          "label": "Use Audio In"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            620.0
+          ],
+          "label": "Modulator"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "group",
+        "config": {
+          "def": "vocoder"
+        },
+        "params": {
+          "attack": 0.005,
+          "level": 28.0,
+          "release": 0.04
+        },
+        "ui": {
+          "pos": [
+            1350.0,
+            60.0
+          ],
+          "label": "Vocoder"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1620.0,
+            60.0
+          ]
+        }
+      },
+      {
+        "id": "16",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1890.0,
+            60.0
+          ]
+        }
+      },
+      {
+        "id": "17",
+        "kind": "comment",
+        "config": {
+          "text": "Try this:\n• Shorten the Vocoder's release to 0.01 s for crisper words, or lengthen it to 0.3 s for a smeared choir.\n• With a real voice, set Hiss's gain to −60 and hear the s and t sounds vanish: only noise carries them.\n• Raise Syllables' interval to 1 beat for a slow, singing robot.\n• With Use Audio In on, wire the Microphone into a Meter first to check your level: quiet voices need more of the Vocoder's level."
+        },
+        "ui": {
+          "pos": [
+            1620.0,
+            270.0
+          ],
+          "size": [
+            540.0,
+            160.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:midi",
+        "to": "3:midi"
+      },
+      {
+        "from": "3:out",
+        "to": "5:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in_1"
+      },
+      {
+        "from": "7:out",
+        "to": "b:in"
+      },
+      {
+        "from": "7:out",
+        "to": "c:in"
+      },
+      {
+        "from": "8:trigger",
+        "to": "9:clock"
+      },
+      {
+        "from": "8:trigger",
+        "to": "a:clock"
+      },
+      {
+        "from": "9:value",
+        "to": "b:cutoff"
+      },
+      {
+        "from": "a:value",
+        "to": "c:cutoff"
+      },
+      {
+        "from": "b:out",
+        "to": "d:in_0"
+      },
+      {
+        "from": "c:out",
+        "to": "d:in_1"
+      },
+      {
+        "from": "8:gate",
+        "to": "e:gate"
+      },
+      {
+        "from": "d:out",
+        "to": "f:a"
+      },
+      {
+        "from": "e:out",
+        "to": "f:b"
+      },
+      {
+        "from": "f:out",
+        "to": "13:a"
+      },
+      {
+        "from": "11:out",
+        "to": "13:b"
+      },
+      {
+        "from": "12:out",
+        "to": "13:select"
+      },
+      {
+        "from": "5:out",
+        "to": "14:carrier"
+      },
+      {
+        "from": "13:out",
+        "to": "14:modulator"
+      },
+      {
+        "from": "14:out",
+        "to": "15:in"
+      },
+      {
+        "from": "15:out",
+        "to": "16:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Carrier: what you hear",
+        "rect": [
+          -24.0,
+          -52.0,
+          804.0,
+          521.0
+        ]
+      },
+      {
+        "label": "Modulator: what it says",
+        "rect": [
+          -24.0,
+          568.0,
+          1324.0,
+          671.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "subtractive-synth-voice": {
+      "name": "Subtractive Synth Voice",
+      "description": "One voice of a classic subtractive synth: two detuned sawtooth oscillators, a resonant ladder filter swept by an envelope, and the same envelope on the volume. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one and wire MIDI into its `midi` input for a polyphonic synth that plays chords, pads, leads, and basses.\n\n- `cutoff` (Hz) is where the filter sits while the envelope is at rest; `resonance` (0 to 1) adds a peak there, and near 1 the filter starts to whistle.\n- `env_amount` (octaves) is how far the envelope opens the filter above `cutoff` at its peak: 3 means three octaves (eight times the frequency). Negative values close the filter instead.\n- `attack`, `decay`, and `release` (seconds) and `sustain` (0 to 1) shape the envelope. It sweeps the filter and sets the volume at once, so a short decay with a low sustain makes a pluck, and a slow attack makes a pad.\n- `detune` (cents) pulls the two oscillators apart, one up and one down by half of it, for a thicker, beating sound; 0 makes them one.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. Half of `detune`, in semitones, becomes a frequency ratio (Convert) that divides one Oscillator's frequency and multiplies the other's. A Mix adds the two saws at −9 dB each, and a 24 dB per octave Ladder filters them. An ADSR follows the gate: multiplied by `env_amount` it is an offset in octaves, 2 raised to it multiplies `cutoff`, and the envelope times velocity drives the VCA, a Math multiply on the filtered sound, followed by a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "subtractive",
+        "polyphonic",
+        "filter"
+      ],
+      "source": "shipped:subtractive-synth-voice",
+      "inputs": [
+        {
+          "name": "cutoff",
+          "type": "float",
+          "unit": "hz",
+          "default": 500.0,
+          "range": [
+            20.0,
+            20000.0
+          ],
+          "targets": [
+            "f:a"
+          ]
+        },
+        {
+          "name": "resonance",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:resonance"
+          ]
+        },
+        {
+          "name": "env_amount",
+          "type": "float",
+          "default": 3.0,
+          "range": [
+            -4.0,
+            8.0
+          ],
+          "targets": [
+            "d:b"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.5,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "c:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.3,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "c:release"
+          ]
+        },
+        {
+          "name": "detune",
+          "type": "float",
+          "default": 12.0,
+          "range": [
+            0.0,
+            100.0
+          ],
+          "targets": [
+            "2:a"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "b:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "b:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "b": 0.005,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Half the detune (st)"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "convert",
+            "params": {
+              "op": "semitones_to_ratio"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                140.0
+              ],
+              "label": "Detune ratio"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Lower pitch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                140.0
+              ],
+              "label": "Upper pitch"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Saw A"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                320.0
+              ],
+              "label": "Saw B"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": -9.0,
+              "gain_1": -9.0
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "ladder",
+            "params": {
+              "drive": 0.0,
+              "mode": "lp24"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Octaves above cutoff"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "math",
+            "params": {
+              "a": 2.0,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "2^octaves"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Filter cutoff"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                840.0
+              ],
+              "label": "Volume"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "1:freq",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "5:a"
+          },
+          {
+            "from": "3:out",
+            "to": "5:b"
+          },
+          {
+            "from": "4:out",
+            "to": "6:freq"
+          },
+          {
+            "from": "5:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "6:out",
+            "to": "8:in_0"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in_1"
+          },
+          {
+            "from": "8:out",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:gate",
+            "to": "c:gate"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "d:out",
+            "to": "e:b"
+          },
+          {
+            "from": "e:out",
+            "to": "f:b"
+          },
+          {
+            "from": "f:out",
+            "to": "9:cutoff"
+          },
+          {
+            "from": "c:out",
+            "to": "10:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "10:b"
+          },
+          {
+            "from": "10:out",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Two detuned saws",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              680.0
+            ]
+          },
+          {
+            "label": "Filter and VCA",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              228.0
+            ]
+          },
+          {
+            "label": "Envelope: filter sweep and volume",
+            "rect": [
+              226.0,
+              640.0,
+              1244.0,
+              344.0
+            ]
+          }
+        ]
+      }
+    },
+    "vocoder": {
+      "name": "Vocoder",
+      "description": "A 12-band vocoder: the `carrier` takes on the changing spectrum of the `modulator`, so a synth can be made to speak. Typically the modulator is a voice (from an Audio In) and the carrier a bright synth chord or noise; what comes out has the synth's pitch and the voice's words.\n\n- `carrier` (audio) is the sound you hear, reshaped. It needs energy all across the spectrum: a sawtooth chord, noise, or both mixed.\n- `modulator` (audio) is the sound whose spectral shape is imposed: its level in each band sets the carrier's level in that band.\n- `attack` and `release` (seconds) are how quickly each band follows the modulator getting louder and quieter: short for crisp, intelligible words, longer for a smoother, smeared sound.\n- `level` (dB) is the output gain. At 0 a carrier band passes unchanged while the matching modulator band peaks at full scale, and drops as that band gets quieter, so quiet modulators need more.\n- `out` is the vocoded carrier, mono or stereo like the carrier.\n\nInside: two Band Splits with the same edges cut the modulator and the carrier into 12 matching bands, half an octave apart from 200 Hz to 6.4 kHz, plus everything below and above. On each modulator band an Envelope Follower measures the level in decibels, and that drives the Gain on the matching carrier band directly, since a Gain takes decibels (and is silent at −60 dB, so bands where the modulator is silent stay closed). A Mix adds the 12 bands back together, with `level` as the gain of every input. The crossover bands overlap the way a classic filter-bank vocoder's do, which softens the contrast between neighbouring bands; for sharper bands, set both Band Splits' `mode` to fft, at the cost of the latency it adds. To change the bands, edit the edges of both Band Splits the same way.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "vocoder",
+        "effect",
+        "spectral",
+        "voice",
+        "filter"
+      ],
+      "source": "shipped:vocoder",
+      "inputs": [
+        {
+          "name": "carrier",
+          "type": "audio",
+          "targets": [
+            "2:in"
+          ]
+        },
+        {
+          "name": "modulator",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            0.5
+          ],
+          "targets": [
+            "4:attack",
+            "6:attack",
+            "8:attack",
+            "a:attack",
+            "c:attack",
+            "e:attack",
+            "10:attack",
+            "12:attack",
+            "14:attack",
+            "16:attack",
+            "18:attack",
+            "1a:attack"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.05,
+          "range": [
+            0.0,
+            2.0
+          ],
+          "targets": [
+            "4:release",
+            "6:release",
+            "8:release",
+            "a:release",
+            "c:release",
+            "e:release",
+            "10:release",
+            "12:release",
+            "14:release",
+            "16:release",
+            "18:release",
+            "1a:release"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 6.0,
+          "range": [
+            -24.0,
+            36.0
+          ],
+          "targets": [
+            "3:gain_0",
+            "3:gain_1",
+            "3:gain_2",
+            "3:gain_3",
+            "3:gain_4",
+            "3:gain_5",
+            "3:gain_6",
+            "3:gain_7",
+            "3:gain_8",
+            "3:gain_9",
+            "3:gain_10",
+            "3:gain_11"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "band_split",
+            "config": {
+              "edges": [
+                200.0,
+                283.0,
+                400.0,
+                566.0,
+                800.0,
+                1131.0,
+                1600.0,
+                2263.0,
+                3200.0,
+                4525.0,
+                6400.0
+              ],
+              "mode": "crossover"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Modulator bands"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "band_split",
+            "config": {
+              "edges": [
+                200.0,
+                283.0,
+                400.0,
+                566.0,
+                800.0,
+                1131.0,
+                1600.0,
+                2263.0,
+                3200.0,
+                4525.0,
+                6400.0
+              ],
+              "mode": "crossover"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                400.0
+              ],
+              "label": "Carrier bands"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "mix",
+            "config": {
+              "inputs": 12
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "4",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Level 0"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Band 0"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                180.0
+              ],
+              "label": "Level 1"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                180.0
+              ],
+              "label": "Band 1"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                360.0
+              ],
+              "label": "Level 2"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                360.0
+              ],
+              "label": "Band 2"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                540.0
+              ],
+              "label": "Level 3"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                540.0
+              ],
+              "label": "Band 3"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                720.0
+              ],
+              "label": "Level 4"
+            }
+          },
+          {
+            "id": "d",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                720.0
+              ],
+              "label": "Band 4"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                900.0
+              ],
+              "label": "Level 5"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                900.0
+              ],
+              "label": "Band 5"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1080.0
+              ],
+              "label": "Level 6"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1080.0
+              ],
+              "label": "Band 6"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1260.0
+              ],
+              "label": "Level 7"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1260.0
+              ],
+              "label": "Band 7"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1440.0
+              ],
+              "label": "Level 8"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1440.0
+              ],
+              "label": "Band 8"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1620.0
+              ],
+              "label": "Level 9"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1620.0
+              ],
+              "label": "Band 9"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1800.0
+              ],
+              "label": "Level 10"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1800.0
+              ],
+              "label": "Band 10"
+            }
+          },
+          {
+            "id": "1a",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                1980.0
+              ],
+              "label": "Level 11"
+            }
+          },
+          {
+            "id": "1b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                500.0,
+                1980.0
+              ],
+              "label": "Band 11"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:band_0",
+            "to": "4:in"
+          },
+          {
+            "from": "4:level_db",
+            "to": "5:gain"
+          },
+          {
+            "from": "2:band_0",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "3:in_0"
+          },
+          {
+            "from": "1:band_1",
+            "to": "6:in"
+          },
+          {
+            "from": "6:level_db",
+            "to": "7:gain"
+          },
+          {
+            "from": "2:band_1",
+            "to": "7:in"
+          },
+          {
+            "from": "7:out",
+            "to": "3:in_1"
+          },
+          {
+            "from": "1:band_2",
+            "to": "8:in"
+          },
+          {
+            "from": "8:level_db",
+            "to": "9:gain"
+          },
+          {
+            "from": "2:band_2",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "3:in_2"
+          },
+          {
+            "from": "1:band_3",
+            "to": "a:in"
+          },
+          {
+            "from": "a:level_db",
+            "to": "b:gain"
+          },
+          {
+            "from": "2:band_3",
+            "to": "b:in"
+          },
+          {
+            "from": "b:out",
+            "to": "3:in_3"
+          },
+          {
+            "from": "1:band_4",
+            "to": "c:in"
+          },
+          {
+            "from": "c:level_db",
+            "to": "d:gain"
+          },
+          {
+            "from": "2:band_4",
+            "to": "d:in"
+          },
+          {
+            "from": "d:out",
+            "to": "3:in_4"
+          },
+          {
+            "from": "1:band_5",
+            "to": "e:in"
+          },
+          {
+            "from": "e:level_db",
+            "to": "f:gain"
+          },
+          {
+            "from": "2:band_5",
+            "to": "f:in"
+          },
+          {
+            "from": "f:out",
+            "to": "3:in_5"
+          },
+          {
+            "from": "1:band_6",
+            "to": "10:in"
+          },
+          {
+            "from": "10:level_db",
+            "to": "11:gain"
+          },
+          {
+            "from": "2:band_6",
+            "to": "11:in"
+          },
+          {
+            "from": "11:out",
+            "to": "3:in_6"
+          },
+          {
+            "from": "1:band_7",
+            "to": "12:in"
+          },
+          {
+            "from": "12:level_db",
+            "to": "13:gain"
+          },
+          {
+            "from": "2:band_7",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "3:in_7"
+          },
+          {
+            "from": "1:band_8",
+            "to": "14:in"
+          },
+          {
+            "from": "14:level_db",
+            "to": "15:gain"
+          },
+          {
+            "from": "2:band_8",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "3:in_8"
+          },
+          {
+            "from": "1:band_9",
+            "to": "16:in"
+          },
+          {
+            "from": "16:level_db",
+            "to": "17:gain"
+          },
+          {
+            "from": "2:band_9",
+            "to": "17:in"
+          },
+          {
+            "from": "17:out",
+            "to": "3:in_9"
+          },
+          {
+            "from": "1:band_10",
+            "to": "18:in"
+          },
+          {
+            "from": "18:level_db",
+            "to": "19:gain"
+          },
+          {
+            "from": "2:band_10",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "3:in_10"
+          },
+          {
+            "from": "1:band_11",
+            "to": "1a:in"
+          },
+          {
+            "from": "1a:level_db",
+            "to": "1b:gain"
+          },
+          {
+            "from": "2:band_11",
+            "to": "1b:in"
+          },
+          {
+            "from": "1b:out",
+            "to": "3:in_11"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Modulator band levels (dB)",
+            "rect": [
+              226.0,
+              -40.0,
+              244.0,
+              2208.0
+            ]
+          },
+          {
+            "label": "Carrier bands at those levels",
+            "rect": [
+              476.0,
+              -40.0,
+              244.0,
+              2142.0
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

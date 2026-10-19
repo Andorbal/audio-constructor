@@ -22,11 +22,11 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
         .show(ui, |ui| {
             ui.label("Audio");
             if !io.engine.is_running() {
-                ui.label(RichText::new("off").color(theme::TEXT_MUTED));
+                ui.label(RichText::new("off").color(theme::text_muted()));
             } else if io.engine.is_null() {
-                ui.label(RichText::new("no device (null)").color(theme::TEXT_STRONG));
+                ui.label(RichText::new("no device (null)").color(theme::text_strong()));
             } else {
-                ui.label(RichText::new(&info.host).color(theme::TEXT_STRONG));
+                ui.label(RichText::new(&info.host).color(theme::text_strong()));
             }
             ui.end_row();
             if io.engine.is_running() && !io.engine.is_null() {
@@ -83,7 +83,11 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
             ui.label("Xruns");
             let x = status.total_xruns();
             ui.colored_label(
-                if x > 0 { theme::WARNING } else { theme::TEXT },
+                if x > 0 {
+                    theme::warning()
+                } else {
+                    theme::text()
+                },
                 x.to_string(),
             )
             .on_hover_text("Engine blocks over budget plus device underruns/overruns");
@@ -92,7 +96,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 if st.input_underruns + st.input_overruns + st.device_errors > 0 {
                     ui.label("Device");
                     ui.colored_label(
-                        theme::WARNING,
+                        theme::warning(),
                         format!(
                             "{} under · {} over · {} errors",
                             st.input_underruns, st.input_overruns, st.device_errors
@@ -102,19 +106,19 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 }
                 if st.realtime_denied {
                     ui.label("Priority");
-                    ui.colored_label(theme::WARNING, "real-time scheduling was denied");
+                    ui.colored_label(theme::warning(), "real-time scheduling was denied");
                     ui.end_row();
                 }
                 if st.disconnected {
                     ui.label("Status");
-                    ui.colored_label(theme::ERROR, "device disconnected");
+                    ui.colored_label(theme::error(), "device disconnected");
                     ui.end_row();
                 }
             }
             ui.label("Latency");
             match &io.engine.latency {
                 LatencyState::Idle => {
-                    ui.label(RichText::new("not measured").color(theme::TEXT_MUTED));
+                    ui.label(RichText::new("not measured").color(theme::text_muted()));
                 }
                 LatencyState::Running => {
                     ui.horizontal(|ui| {
@@ -125,29 +129,29 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 LatencyState::Done(Ok(l)) => {
                     ui.label(
                         RichText::new(format!("{:.2} ms round trip", l.ms))
-                            .color(theme::TEXT_STRONG),
+                            .color(theme::text_strong()),
                     )
                     .on_hover_text(l.to_string());
                 }
                 LatencyState::Done(Err(e)) => {
-                    ui.colored_label(theme::WARNING, e.to_string());
+                    ui.colored_label(theme::warning(), e.to_string());
                 }
             }
             ui.end_row();
         });
     if let Some(e) = &io.engine.device_error {
-        ui.colored_label(theme::WARNING, format!("{} {e}", icons::WARNING));
+        ui.colored_label(theme::warning(), format!("{} {e}", icons::WARNING));
         ui.label(
             RichText::new("Running on the silent null stream so the editor keeps working.")
                 .small()
-                .color(theme::TEXT_FAINT),
+                .color(theme::text_faint()),
         );
     }
     for n in &info.notes {
         ui.label(
             RichText::new(format!("{} {n}", icons::INFO))
                 .small()
-                .color(theme::TEXT_MUTED),
+                .color(theme::text_muted()),
         );
     }
     ui.add_space(4.0);
@@ -172,7 +176,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     let hosts = state.hosts.clone().unwrap_or_default();
     let draft = state.draft.get_or_insert_with(|| io.engine.config.clone());
     if hosts.is_empty() {
-        ui.label(RichText::new("No audio hosts on this machine.").color(theme::TEXT_MUTED));
+        ui.label(RichText::new("No audio hosts on this machine.").color(theme::text_muted()));
     } else {
         let host_name = draft
             .host
@@ -339,7 +343,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                     ui.end_row();
                     if let Some(e) = &h.error {
                         ui.label("");
-                        ui.colored_label(theme::WARNING, e);
+                        ui.colored_label(theme::warning(), e);
                         ui.end_row();
                     }
                 }
@@ -365,20 +369,20 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     section(ui, "MIDI inputs");
     match io.engine.midi.as_mut() {
         None => {
-            ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::text_muted()));
         }
         Some(m) => {
             let connected = m.connected();
             if let Some(e) = m.last_error() {
-                ui.label(RichText::new(e.to_string()).color(theme::TEXT_MUTED));
+                ui.label(RichText::new(e.to_string()).color(theme::text_muted()));
             } else if connected.is_empty() {
-                ui.label(RichText::new("No MIDI inputs found.").color(theme::TEXT_MUTED));
+                ui.label(RichText::new("No MIDI inputs found.").color(theme::text_muted()));
             }
             for p in &connected {
                 ui.label(format!("{}  {p}", icons::MUSIC_NOTES));
             }
             if m.dropped() > 0 {
-                ui.colored_label(theme::WARNING, format!("{} events dropped", m.dropped()));
+                ui.colored_label(theme::warning(), format!("{} events dropped", m.dropped()));
             }
             if !connected.is_empty() {
                 // What each port last sent, to find a knob's controller
@@ -389,7 +393,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                     ui.label(
                         RichText::new("Last messages")
                             .small()
-                            .color(theme::TEXT_MUTED),
+                            .color(theme::text_muted()),
                     );
                     if !seen.is_empty() && ui.small_button("Clear").clicked() {
                         m.clear_recent();
@@ -397,7 +401,8 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 });
                 if seen.is_empty() {
                     ui.label(
-                        RichText::new("None yet. Play or turn something.").color(theme::TEXT_MUTED),
+                        RichText::new("None yet. Play or turn something.")
+                            .color(theme::text_muted()),
                     );
                 } else {
                     let now = ac_io::clock::now_ns();
@@ -414,13 +419,15 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                     );
                                     if !one_port {
                                         ui.label(
-                                            RichText::new(&e.port).small().color(theme::TEXT_MUTED),
+                                            RichText::new(&e.port)
+                                                .small()
+                                                .color(theme::text_muted()),
                                         );
                                     }
                                     ui.label(
                                         RichText::new(age_text(now, e.time_ns))
                                             .small()
-                                            .color(theme::TEXT_FAINT),
+                                            .color(theme::text_faint()),
                                     );
                                 });
                             }
@@ -447,7 +454,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
 
 fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     if io.engine.midi_out.is_none() {
-        ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::TEXT_MUTED));
+        ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::text_muted()));
         return;
     }
     if state.midi_outputs.is_none() {
@@ -460,7 +467,7 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     let ports = state.midi_outputs.clone().unwrap_or_default();
     let choice = io.engine.midi_out_choice.clone();
     let mut pick = None;
-    ui.label(RichText::new("MIDI Out nodes send to:").color(theme::TEXT_MUTED));
+    ui.label(RichText::new("MIDI Out nodes send to:").color(theme::text_muted()));
     if ui.radio(choice == MidiSelect::None, "nowhere").clicked() {
         pick = Some(MidiSelect::None);
     }
@@ -480,12 +487,15 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     }
     if let Some(m) = io.engine.midi_out.as_ref() {
         if let Some(e) = m.last_error() {
-            ui.label(RichText::new(e.to_string()).color(theme::TEXT_MUTED));
+            ui.label(RichText::new(e.to_string()).color(theme::text_muted()));
         } else if ports.is_empty() {
-            ui.label(RichText::new("No MIDI outputs found.").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("No MIDI outputs found.").color(theme::text_muted()));
         }
         if m.dropped() > 0 {
-            ui.colored_label(theme::WARNING, format!("{} messages dropped", m.dropped()));
+            ui.colored_label(
+                theme::warning(),
+                format!("{} messages dropped", m.dropped()),
+            );
         }
     }
     if ui.button(format!("{}  Refresh", icons::REDO)).clicked() {
@@ -557,7 +567,7 @@ fn midi_text(msg: &ac_core::MidiMsg) -> String {
 /// Gamepads, OSC in and out, and the computer keys.
 fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
     let muted = |ui: &mut egui::Ui, t: &str| {
-        ui.label(RichText::new(t).color(theme::TEXT_MUTED));
+        ui.label(RichText::new(t).color(theme::text_muted()));
     };
 
     section(ui, "Gamepads");
@@ -574,10 +584,10 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                 ui.label(format!(
                     "{}  {}  {}",
                     icons::GAME_CONTROLLER,
-                    p.index,
+                    p.number(),
                     p.name
                 ))
-                .on_hover_text(format!("Gamepad {} in Gamepad nodes and bindings", p.index));
+                .on_hover_text(format!("Pad {} in Gamepad nodes and bindings", p.number()));
             }
             // Hot-plugging shows up without a click.
             ui.ctx()
@@ -611,7 +621,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         );
     });
     if let Some(e) = &io.engine.osc_error {
-        ui.colored_label(theme::WARNING, format!("{} {e}", icons::WARNING));
+        ui.colored_label(theme::warning(), format!("{} {e}", icons::WARNING));
     }
     if let Some(l) = io.engine.osc_in.as_ref() {
         let port = l.port();
@@ -621,7 +631,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             Some(ip) => format!("Send to {ip}:{port}"),
             None => format!("Send to this computer, port {port}"),
         };
-        ui.label(RichText::new(to).color(theme::TEXT_STRONG));
+        ui.label(RichText::new(to).color(theme::text_strong()));
         let mut line = format!("{} messages", st.messages);
         if st.malformed > 0 {
             line.push_str(&format!(" · {} not OSC", st.malformed));
@@ -629,7 +639,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         if st.dropped > 0 {
             line.push_str(&format!(" · {} dropped", st.dropped));
         }
-        ui.label(RichText::new(line).small().color(theme::TEXT_MUTED));
+        ui.label(RichText::new(line).small().color(theme::text_muted()));
         if st.packets == 0 {
             // The usual silent failure: a phone or tablet refused the app's
             // local-network permission, so nothing ever leaves the device.
@@ -640,7 +650,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                      asks once; if refused, the app sends nothing and shows no error).",
                 )
                 .small()
-                .color(theme::TEXT_MUTED),
+                .color(theme::text_muted()),
             );
         }
         // The newest messages as the surface wrote them, so an address can
@@ -653,7 +663,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             ui.label(
                 RichText::new("Last messages")
                     .small()
-                    .color(theme::TEXT_MUTED),
+                    .color(theme::text_muted()),
             );
             if !seen.is_empty() && ui.small_button("Clear").clicked() {
                 clear = true;
@@ -691,7 +701,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                             ui.label(
                                 RichText::new(age_text(now, m.time_ns))
                                     .small()
-                                    .color(theme::TEXT_FAINT),
+                                    .color(theme::text_faint()),
                             );
                         });
                     }
@@ -721,7 +731,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             if o.dropped() > 0 {
                 line.push_str(&format!(" · {} dropped", o.dropped()));
             }
-            ui.label(RichText::new(line).small().color(theme::TEXT_MUTED));
+            ui.label(RichText::new(line).small().color(theme::text_muted()));
         }
     }
 
@@ -731,13 +741,13 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             "Turn on Play keys (the keyboard button in the transport bar) to send key \
              presses to the patch instead of running shortcuts.",
         )
-        .color(theme::TEXT_MUTED),
+        .color(theme::text_muted()),
     );
     if let Some(c) = io.engine.controls.as_ref()
         && c.dropped() > 0
     {
         ui.colored_label(
-            theme::WARNING,
+            theme::warning(),
             format!("{} control events dropped", c.dropped()),
         );
     }
@@ -751,17 +761,17 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
             ui.label(
                 RichText::new(icons::CHECK_CIRCLE)
                     .size(30.0)
-                    .color(theme::OK),
+                    .color(theme::ok()),
             );
-            ui.label(RichText::new("No problems").color(theme::TEXT_MUTED));
+            ui.label(RichText::new("No problems").color(theme::text_muted()));
         });
         return;
     }
     for d in &report.diagnostics {
         let (icon, color) = match d.severity {
-            Severity::Error => (icons::WARNING_CIRCLE, theme::ERROR),
-            Severity::Warning => (icons::WARNING, theme::WARNING),
-            Severity::Info => (icons::INFO, theme::ACCENT),
+            Severity::Error => (icons::WARNING_CIRCLE, theme::error()),
+            Severity::Warning => (icons::WARNING, theme::warning()),
+            Severity::Info => (icons::INFO, theme::accent()),
         };
         // The node id tells apart nodes that share a name (two "Math" nodes).
         let where_ = d
@@ -781,7 +791,7 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
                 ui.horizontal_top(|ui| {
                     ui.colored_label(color, icon);
                     ui.vertical(|ui| {
-                        ui.label(RichText::new(text).small().color(theme::TEXT_MUTED));
+                        ui.label(RichText::new(text).small().color(theme::text_muted()));
                         ui.label(&d.message);
                     });
                 });
@@ -792,7 +802,7 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
             ui.painter().rect_stroke(
                 resp.rect,
                 theme::radius(5.0),
-                egui::Stroke::new(1.0, theme::BORDER),
+                egui::Stroke::new(1.0, theme::border()),
                 egui::StrokeKind::Inside,
             );
         }

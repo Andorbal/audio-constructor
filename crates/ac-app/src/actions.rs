@@ -33,6 +33,24 @@ pub enum Action {
     Group,
     Ungroup,
     EnterLeaveGroup,
+    /// Turn wires into portals, or portals back into wires.
+    Portal,
+
+    /// Lay out the selection (or everything) in layers, left to right.
+    AutoLayout,
+    /// The align and distribute menu, at the pointer.
+    ArrangeMenu,
+    AlignLeft,
+    AlignCenter,
+    AlignRight,
+    AlignTop,
+    AlignMiddle,
+    AlignBottom,
+    DistributeHorizontally,
+    DistributeVertically,
+    /// Wire two selected nodes ("lazy connect").
+    LazyConnect,
+    Find,
 
     Mute,
     Collapse,
@@ -43,8 +61,13 @@ pub enum Action {
     FitSelection,
     ZoomIn,
     ZoomOut,
+    /// The whole interface bigger or smaller (egui's zoom factor), or at 100 %.
+    UiScaleUp,
+    UiScaleDown,
+    UiScaleReset,
     ToggleSidePanel,
     ShowTiming,
+    Minimap,
 
     Pin,
     TogglePanels,
@@ -84,6 +107,13 @@ const CMD_ALT: Modifiers = Modifiers {
     mac_cmd: false,
     command: true,
 };
+const SHIFT_ALT: Modifiers = Modifiers {
+    alt: true,
+    ctrl: false,
+    shift: true,
+    mac_cmd: false,
+    command: false,
+};
 
 impl Action {
     pub const ALL: &'static [Action] = &[
@@ -112,6 +142,19 @@ impl Action {
         Action::Group,
         Action::Ungroup,
         Action::EnterLeaveGroup,
+        Action::Portal,
+        Action::AutoLayout,
+        Action::ArrangeMenu,
+        Action::AlignLeft,
+        Action::AlignCenter,
+        Action::AlignRight,
+        Action::AlignTop,
+        Action::AlignMiddle,
+        Action::AlignBottom,
+        Action::DistributeHorizontally,
+        Action::DistributeVertically,
+        Action::LazyConnect,
+        Action::Find,
         Action::Mute,
         Action::Collapse,
         Action::HideUnwired,
@@ -120,8 +163,12 @@ impl Action {
         Action::FitSelection,
         Action::ZoomIn,
         Action::ZoomOut,
+        Action::UiScaleUp,
+        Action::UiScaleDown,
+        Action::UiScaleReset,
         Action::ToggleSidePanel,
         Action::ShowTiming,
+        Action::Minimap,
         Action::Pin,
         Action::TogglePanels,
         Action::PerformanceMode,
@@ -162,6 +209,19 @@ impl Action {
             Action::Group => "Make Group",
             Action::Ungroup => "Ungroup",
             Action::EnterLeaveGroup => "Enter / Leave Group",
+            Action::Portal => "Make Portal / Back to Wire",
+            Action::AutoLayout => "Auto-Layout",
+            Action::ArrangeMenu => "Align / Distribute…",
+            Action::AlignLeft => "Align Left",
+            Action::AlignCenter => "Align Center",
+            Action::AlignRight => "Align Right",
+            Action::AlignTop => "Align Top",
+            Action::AlignMiddle => "Align Middle",
+            Action::AlignBottom => "Align Bottom",
+            Action::DistributeHorizontally => "Distribute Horizontally",
+            Action::DistributeVertically => "Distribute Vertically",
+            Action::LazyConnect => "Connect Selected",
+            Action::Find => "Find…",
             Action::Mute => "Mute",
             Action::Collapse => "Collapse",
             Action::HideUnwired => "Hide Unwired Sockets",
@@ -170,8 +230,12 @@ impl Action {
             Action::FitSelection => "Frame Selected",
             Action::ZoomIn => "Zoom In",
             Action::ZoomOut => "Zoom Out",
+            Action::UiScaleUp => "Bigger Interface",
+            Action::UiScaleDown => "Smaller Interface",
+            Action::UiScaleReset => "Interface at 100 %",
             Action::ToggleSidePanel => "Side Panel",
             Action::ShowTiming => "Node Timing",
+            Action::Minimap => "Minimap",
             Action::Pin => "Pin to Panel",
             Action::TogglePanels => "Canvas / Panels",
             Action::PerformanceMode => "Performance Mode",
@@ -214,6 +278,20 @@ impl Action {
             Action::Group => sc(CMD, Key::G),
             Action::Ungroup => sc(CMD_ALT, Key::G),
             Action::EnterLeaveGroup => sc(NONE, Key::Tab),
+            Action::Portal => sc(SHIFT, Key::P),
+            Action::AutoLayout => sc(CMD, Key::L),
+            // `Alt+A` is Select None (D101).
+            Action::ArrangeMenu => sc(SHIFT_ALT, Key::A),
+            Action::AlignLeft
+            | Action::AlignCenter
+            | Action::AlignRight
+            | Action::AlignTop
+            | Action::AlignMiddle
+            | Action::AlignBottom
+            | Action::DistributeHorizontally
+            | Action::DistributeVertically => None,
+            Action::LazyConnect => sc(NONE, Key::F),
+            Action::Find => sc(CMD, Key::F),
             Action::Mute => sc(NONE, Key::M),
             Action::Collapse => sc(NONE, Key::H),
             Action::HideUnwired => sc(CMD, Key::H),
@@ -222,8 +300,12 @@ impl Action {
             Action::FitSelection => sc(NONE, Key::Period),
             Action::ZoomIn => sc(NONE, Key::Plus),
             Action::ZoomOut => sc(NONE, Key::Minus),
+            Action::UiScaleUp => sc(CMD, Key::Equals),
+            Action::UiScaleDown => sc(CMD, Key::Minus),
+            Action::UiScaleReset => sc(CMD, Key::Num0),
             Action::ToggleSidePanel => sc(NONE, Key::N),
             Action::ShowTiming => sc(CMD, Key::T),
+            Action::Minimap => sc(SHIFT, Key::M),
             Action::Pin => sc(NONE, Key::P),
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
@@ -236,6 +318,22 @@ impl Action {
             Action::Shortcuts => sc(CMD, Key::Slash),
             Action::About => None,
         }
+    }
+
+    /// The alignment an align or distribute command applies.
+    pub fn align(self) -> Option<crate::edit::align::Align> {
+        use crate::edit::align::Align;
+        Some(match self {
+            Action::AlignLeft => Align::Left,
+            Action::AlignCenter => Align::Center,
+            Action::AlignRight => Align::Right,
+            Action::AlignTop => Align::Top,
+            Action::AlignMiddle => Align::Middle,
+            Action::AlignBottom => Align::Bottom,
+            Action::DistributeHorizontally => Align::Horizontally,
+            Action::DistributeVertically => Align::Vertically,
+            _ => return None,
+        })
     }
 
     /// Commands that work while the panels are shown instead of the canvas
@@ -261,6 +359,9 @@ impl Action {
                 | Action::ToggleLoop
                 | Action::Rewind
                 | Action::PlayKeys
+                | Action::UiScaleUp
+                | Action::UiScaleDown
+                | Action::UiScaleReset
                 | Action::Shortcuts
                 | Action::About
         )
@@ -276,6 +377,9 @@ impl Action {
                 | Action::New
                 | Action::Quit
                 | Action::ExportWav
+                | Action::UiScaleUp
+                | Action::UiScaleDown
+                | Action::UiScaleReset
         )
     }
 }
@@ -337,6 +441,9 @@ mod tests {
         );
         assert_eq!(for_key(Key::Q, Modifiers::NONE), None);
         assert_eq!(for_key(Key::P, Modifiers::NONE), Some(Action::Pin));
+        assert_eq!(for_key(Key::P, Modifiers::SHIFT), Some(Action::Portal));
+        assert_eq!(for_key(Key::M, Modifiers::NONE), Some(Action::Mute));
+        assert_eq!(for_key(Key::M, Modifiers::SHIFT), Some(Action::Minimap));
         assert_eq!(
             for_key(Key::Tab, Modifiers::CTRL),
             Some(Action::TogglePanels)
@@ -349,5 +456,40 @@ mod tests {
             for_key(Key::F11, Modifiers::NONE),
             Some(Action::PerformanceMode)
         );
+        // Alt+A stays Select None; the align menu adds Shift (D101).
+        assert_eq!(for_key(Key::A, SHIFT_ALT), Some(Action::ArrangeMenu));
+        assert_eq!(for_key(Key::L, Modifiers::CTRL), Some(Action::AutoLayout));
+        assert_eq!(for_key(Key::L, Modifiers::NONE), Some(Action::SelectLinked));
+        assert_eq!(for_key(Key::F, Modifiers::NONE), Some(Action::LazyConnect));
+        assert_eq!(for_key(Key::F, Modifiers::CTRL), Some(Action::Find));
+    }
+
+    #[test]
+    fn every_alignment_has_a_command() {
+        for how in crate::edit::align::Align::ALL {
+            assert!(
+                Action::ALL.iter().any(|a| a.align() == Some(how)),
+                "{how:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn ui_scale_keys_leave_canvas_zoom_alone() {
+        assert_eq!(for_key(Key::Minus, Modifiers::NONE), Some(Action::ZoomOut));
+        assert_eq!(
+            for_key(Key::Minus, Modifiers::CTRL),
+            Some(Action::UiScaleDown)
+        );
+        assert_eq!(
+            for_key(Key::Equals, Modifiers::CTRL),
+            Some(Action::UiScaleUp)
+        );
+        assert_eq!(
+            for_key(Key::Num0, Modifiers::CTRL),
+            Some(Action::UiScaleReset)
+        );
+        assert_eq!(for_key(Key::Num0, Modifiers::NONE), None);
+        assert_eq!(for_key(Key::F1, Modifiers::NONE), Some(Action::NodeHelp));
     }
 }

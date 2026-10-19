@@ -1,26 +1,32 @@
 //! The compiled graph: a flat schedule the audio thread runs without
 //! traversal, hashing, or allocation (ARCHITECTURE §7).
 //!
-//! Steps are grouped into waves. No step in a wave reads another's outputs,
-//! so a wave's steps can run in any order or at the same time. Each wave
-//! runs in three phases:
+//! Steps are grouped into chains, and chains into waves (`chains.rs`). A
+//! chain's steps run in order on one thread; no chain in a wave reads
+//! another's outputs, so a wave's chains can run in any order or at the
+//! same time. Each wave runs in three phases:
 //!
 //! 1. Move out: every step's output buffers and its node's state are swapped
-//!    out of the shared pool into a work slot (pointer swaps, no allocation;
-//!    DECISIONS D23).
-//! 2. Run: the pool is now only read, so steps run on the audio thread or
+//!    out of the shared pool into the wave's work space (pointer swaps, no
+//!    allocation; DECISIONS D23), laid out step after step, so a chain's
+//!    outputs are one contiguous run of it.
+//! 2. Run: the pool is now only read, so chains run on the audio thread or
 //!    spread across the real-time worker pool, each writing only its own
-//!    slot. Steps that write device outputs run last, one at a time, in
-//!    schedule order, so outputs sum the same way on any number of cores.
+//!    part of the work space. A step reads what earlier steps of its chain
+//!    wrote from that part ([`ac_core::LOCAL`] indices) and everything else
+//!    from the pool. Steps that write device outputs run last, one at a
+//!    time, in schedule order, so outputs sum the same way on any number of
+//!    cores.
 //! 3. Move back.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use ac_core::{
-    AutoFlags, BufferRef, ControlEvent, EngineInfo, HostAccess, InputSlot, Inputs, Io, MidiEvent,
-    Node, NodeMeta, NodePath, OscMessage, OutputSlot, Outputs, ParamSlot, Phase, PrepareCtx,
-    ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TextBuf, TransportView,
+    AutoFlags, BufferRef, ControlEvent, EngineInfo, HostAccess, InputSlot, Inputs, Io, LOCAL,
+    Local, MidiEvent, Node, NodeMeta, NodePath, OscMessage, OutputSlot, Outputs, ParamSlot, Phase,
+    PrepareCtx, ProcessCtx, Signature, SpectrumBuf, TelemetryAccess, TempoMap, TextBuf,
+    TransportView,
 };
 
 use crate::pool::{Job, RtPool};
@@ -110,6 +116,15 @@ pub(crate) struct Step {
     pub o_spectra: Range,
     pub o_buffers: Range,
     pub o_texts: Range,
+    /// The chain's own sample buffers, in [`Work`]'s stash: the whole
+    /// chain's range on its first step, empty on the rest.
+    pub o_stash: Range,
+    /// Entries of [`CompiledGraph::recycle`] to apply before the step runs
+    /// (stash → output slot) and after (slot → stash).
+    pub acquire: Range,
+    pub release: Range,
+    /// Reads something an earlier step of its chain wrote.
+    pub reads_chain: bool,
     pub tele_values: Range,
     pub tele_scope: Range,
     pub tele_scope_pos: Option<u32>,
@@ -118,13 +133,16 @@ pub(crate) struct Step {
     pub socket_tele: Range,
 }
 
-/// Steps `start..end` of the schedule; `start..parallel_end` may run at the
-/// same time, `parallel_end..end` write device outputs and run one by one.
+/// Steps `start..end` of the schedule; `start..parallel_end` are the
+/// chains `chains` (indices into [`CompiledGraph::chains`]), which may run
+/// at the same time; `parallel_end..end` write device outputs and run one
+/// by one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Wave {
     pub start: u32,
     pub parallel_end: u32,
     pub end: u32,
+    pub chains: Range,
 }
 
 /// Every buffer and value wires carry, shared by all steps.
@@ -141,10 +159,107 @@ pub(crate) struct Pool {
     pub texts: Vec<TextBuf>,
 }
 
-/// One step's outputs and node state while its wave runs.
-pub(crate) struct StepWork {
-    node: Box<dyn Node>,
-    load_pending: bool,
+/// A position in the schedule's output layout: a step, and where its
+/// outputs of each kind start (or, as an end, where the previous step's
+/// end). Steps' outputs are laid out in schedule order, so a wave's, a
+/// chain's, and a step's outputs of each kind are one contiguous range.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct At {
+    pub step: usize,
+    pub samples: usize,
+    pub scalars: usize,
+    pub ints: usize,
+    pub triggers: usize,
+    pub midi: usize,
+    pub spectra: usize,
+    pub buffers: usize,
+    pub texts: usize,
+    pub stash: usize,
+}
+
+impl At {
+    /// Where step `k`'s outputs start.
+    pub fn start(steps: &[Step], k: usize) -> At {
+        match steps.get(k) {
+            Some(s) => At {
+                step: k,
+                samples: s.o_samples.0 as usize,
+                scalars: s.o_scalars.0 as usize,
+                ints: s.o_ints.0 as usize,
+                triggers: s.o_triggers.0 as usize,
+                midi: s.o_midi.0 as usize,
+                spectra: s.o_spectra.0 as usize,
+                buffers: s.o_buffers.0 as usize,
+                texts: s.o_texts.0 as usize,
+                stash: s.o_stash.0 as usize,
+            },
+            None => At::end(steps, k),
+        }
+    }
+
+    /// Where the outputs of the steps before step `k` end.
+    pub fn end(steps: &[Step], k: usize) -> At {
+        match k.checked_sub(1).and_then(|p| steps.get(p)) {
+            Some(s) => At {
+                step: k,
+                samples: s.o_samples.1 as usize,
+                scalars: s.o_scalars.1 as usize,
+                ints: s.o_ints.1 as usize,
+                triggers: s.o_triggers.1 as usize,
+                midi: s.o_midi.1 as usize,
+                spectra: s.o_spectra.1 as usize,
+                buffers: s.o_buffers.1 as usize,
+                texts: s.o_texts.1 as usize,
+                stash: s.o_stash.1 as usize,
+            },
+            None => At::default(),
+        }
+    }
+
+    /// The larger of each field.
+    pub fn max(self, o: At) -> At {
+        At {
+            step: self.step.max(o.step),
+            samples: self.samples.max(o.samples),
+            scalars: self.scalars.max(o.scalars),
+            ints: self.ints.max(o.ints),
+            triggers: self.triggers.max(o.triggers),
+            midi: self.midi.max(o.midi),
+            spectra: self.spectra.max(o.spectra),
+            buffers: self.buffers.max(o.buffers),
+            texts: self.texts.max(o.texts),
+            stash: self.stash.max(o.stash),
+        }
+    }
+
+    /// `self` relative to `base` (which comes no later).
+    pub fn minus(self, base: At) -> At {
+        At {
+            step: self.step.saturating_sub(base.step),
+            samples: self.samples.saturating_sub(base.samples),
+            scalars: self.scalars.saturating_sub(base.scalars),
+            ints: self.ints.saturating_sub(base.ints),
+            triggers: self.triggers.saturating_sub(base.triggers),
+            midi: self.midi.saturating_sub(base.midi),
+            spectra: self.spectra.saturating_sub(base.spectra),
+            buffers: self.buffers.saturating_sub(base.buffers),
+            texts: self.texts.saturating_sub(base.texts),
+            stash: self.stash.saturating_sub(base.stash),
+        }
+    }
+}
+
+/// The outputs and node states of a wave's steps while the wave runs, laid
+/// out like the wave's part of the schedule (see [`At`]). Sized for the
+/// widest wave; between waves it holds empty buffers and vacant nodes.
+///
+/// A sample buffer that only its own chain reads never goes through the
+/// pool: the chain takes one from its part of `stash` just before the step
+/// that writes it and puts it back after the last step that reads it, so a
+/// long chain gets by with two or three buffers.
+pub(crate) struct Work {
+    nodes: Vec<Box<dyn Node>>,
+    load: Vec<bool>,
     samples: Vec<Vec<f32>>,
     scalars: Vec<f32>,
     ints: Vec<i32>,
@@ -153,45 +268,206 @@ pub(crate) struct StepWork {
     spectra: Vec<SpectrumBuf>,
     buffers: Vec<BufferRef>,
     texts: Vec<TextBuf>,
+    stash: Vec<Vec<f32>>,
 }
 
-impl StepWork {
-    /// Room for a step with up to these many outputs of each kind.
-    #[allow(clippy::too_many_arguments)]
-    pub fn sized(
-        samples: usize,
-        scalars: usize,
-        ints: usize,
-        triggers: usize,
-        midi: usize,
-        spectra: usize,
-        buffers: usize,
-        texts: usize,
-    ) -> Self {
-        StepWork {
-            node: Box::new(Vacant),
-            load_pending: false,
-            samples: (0..samples).map(|_| Vec::new()).collect(),
-            scalars: vec![0.0; scalars],
-            ints: vec![0; ints],
-            triggers: (0..triggers).map(|_| Vec::new()).collect(),
-            midi: (0..midi).map(|_| Vec::new()).collect(),
-            spectra: (0..spectra).map(|_| SpectrumBuf::default()).collect(),
-            buffers: vec![None; buffers],
-            texts: vec![TextBuf::EMPTY; texts],
+impl Work {
+    /// Room for `size.step` steps with `size.samples` sample outputs, etc.,
+    /// and `size.stash` chain buffers of `max_block` samples.
+    pub fn sized(size: At, max_block: usize) -> Work {
+        Work {
+            nodes: (0..size.step)
+                .map(|_| Box::new(Vacant) as Box<dyn Node>)
+                .collect(),
+            load: vec![false; size.step],
+            samples: (0..size.samples).map(|_| Vec::new()).collect(),
+            scalars: vec![0.0; size.scalars],
+            ints: vec![0; size.ints],
+            triggers: (0..size.triggers).map(|_| Vec::new()).collect(),
+            midi: (0..size.midi).map(|_| Vec::new()).collect(),
+            spectra: (0..size.spectra).map(|_| SpectrumBuf::default()).collect(),
+            buffers: vec![None; size.buffers],
+            texts: vec![TextBuf::EMPTY; size.texts],
+            stash: (0..size.stash).map(|_| vec![0.0; max_block]).collect(),
         }
     }
 
-    pub fn clone_empty(&self) -> Self {
-        Self::sized(
-            self.samples.len(),
-            self.scalars.len(),
-            self.ints.len(),
-            self.triggers.len(),
-            self.midi.len(),
-            self.spectra.len(),
-            self.buffers.len(),
-            self.texts.len(),
+    fn view(&mut self) -> WorkMut<'_> {
+        WorkMut {
+            nodes: &mut self.nodes,
+            load: &mut self.load,
+            samples: &mut self.samples,
+            scalars: &mut self.scalars,
+            ints: &mut self.ints,
+            triggers: &mut self.triggers,
+            midi: &mut self.midi,
+            spectra: &mut self.spectra,
+            buffers: &mut self.buffers,
+            texts: &mut self.texts,
+            stash: &mut self.stash,
+        }
+    }
+}
+
+/// Part of the work space: some consecutive steps' outputs and nodes.
+struct WorkMut<'w> {
+    nodes: &'w mut [Box<dyn Node>],
+    load: &'w mut [bool],
+    samples: &'w mut [Vec<f32>],
+    scalars: &'w mut [f32],
+    ints: &'w mut [i32],
+    triggers: &'w mut [Vec<u32>],
+    midi: &'w mut [Vec<MidiEvent>],
+    spectra: &'w mut [SpectrumBuf],
+    buffers: &'w mut [BufferRef],
+    texts: &'w mut [TextBuf],
+    stash: &'w mut [Vec<f32>],
+}
+
+/// `split_at_mut` that clamps instead of panicking.
+fn split<T>(v: &mut [T], at: usize) -> (&mut [T], &mut [T]) {
+    let at = at.min(v.len());
+    v.split_at_mut(at)
+}
+
+impl<'w> WorkMut<'w> {
+    /// Everything before `at` (relative to this view) and everything from it.
+    fn split_at(self, at: At) -> (WorkMut<'w>, WorkMut<'w>) {
+        let (n0, n1) = split(self.nodes, at.step);
+        let (l0, l1) = split(self.load, at.step);
+        let (s0, s1) = split(self.samples, at.samples);
+        let (c0, c1) = split(self.scalars, at.scalars);
+        let (i0, i1) = split(self.ints, at.ints);
+        let (t0, t1) = split(self.triggers, at.triggers);
+        let (m0, m1) = split(self.midi, at.midi);
+        let (p0, p1) = split(self.spectra, at.spectra);
+        let (b0, b1) = split(self.buffers, at.buffers);
+        let (tx0, tx1) = split(self.texts, at.texts);
+        let (x0, x1) = split(self.stash, at.stash);
+        (
+            WorkMut {
+                nodes: n0,
+                load: l0,
+                samples: s0,
+                scalars: c0,
+                ints: i0,
+                triggers: t0,
+                midi: m0,
+                spectra: p0,
+                buffers: b0,
+                texts: tx0,
+                stash: x0,
+            },
+            WorkMut {
+                nodes: n1,
+                load: l1,
+                samples: s1,
+                scalars: c1,
+                ints: i1,
+                triggers: t1,
+                midi: m1,
+                spectra: p1,
+                buffers: b1,
+                texts: tx1,
+                stash: x1,
+            },
+        )
+    }
+
+    fn reborrow(&mut self) -> WorkMut<'_> {
+        WorkMut {
+            nodes: self.nodes,
+            load: self.load,
+            samples: self.samples,
+            scalars: self.scalars,
+            ints: self.ints,
+            triggers: self.triggers,
+            midi: self.midi,
+            spectra: self.spectra,
+            buffers: self.buffers,
+            texts: self.texts,
+            stash: self.stash,
+        }
+    }
+
+    /// Swap chain buffers between the stash and output slots, by
+    /// `(stash, slot)` pairs relative to `at`; zero what lands in a slot
+    /// when `clear` (a step's outputs start silent).
+    fn recycle(&mut self, moves: &[(u32, u32)], at: At, frames: usize, clear: bool) {
+        for &(j, q) in moves {
+            if let (Some(s), Some(b)) = (
+                self.stash.get_mut(at.stash + j as usize),
+                self.samples.get_mut(at.samples + q as usize),
+            ) {
+                std::mem::swap(s, b);
+                if clear {
+                    let n = frames.min(b.len());
+                    b[..n].fill(0.0);
+                }
+            }
+        }
+    }
+
+    /// One step's part, `at..end`, and, when `chain`, what the steps from
+    /// `from` up to it wrote, read-only (all relative to this view).
+    fn step(&mut self, from: At, at: At, end: At, chain: bool) -> (WorkMut<'_>, Local<'_>) {
+        /// `v[at..end]`, and `v[from..at]` when `chain`.
+        fn cut<T>(
+            v: &mut [T],
+            from: usize,
+            at: usize,
+            end: usize,
+            chain: bool,
+        ) -> (&[T], &mut [T]) {
+            let (before, rest) = split(v, at);
+            let (mine, _) = split(rest, end.saturating_sub(at));
+            let before = if chain {
+                before.get(from..).unwrap_or(&[])
+            } else {
+                &[]
+            };
+            (before, mine)
+        }
+        let (_, nodes) = cut(self.nodes, 0, at.step, end.step, false);
+        let (_, load) = cut(self.load, 0, at.step, end.step, false);
+        let (l_samples, samples) = cut(self.samples, from.samples, at.samples, end.samples, chain);
+        let (l_scalars, scalars) = cut(self.scalars, from.scalars, at.scalars, end.scalars, chain);
+        let (l_ints, ints) = cut(self.ints, from.ints, at.ints, end.ints, chain);
+        let (l_triggers, triggers) = cut(
+            self.triggers,
+            from.triggers,
+            at.triggers,
+            end.triggers,
+            chain,
+        );
+        let (l_midi, midi) = cut(self.midi, from.midi, at.midi, end.midi, chain);
+        let (l_spectra, spectra) = cut(self.spectra, from.spectra, at.spectra, end.spectra, chain);
+        let (l_buffers, buffers) = cut(self.buffers, from.buffers, at.buffers, end.buffers, chain);
+        let (l_texts, texts) = cut(self.texts, from.texts, at.texts, end.texts, chain);
+        (
+            WorkMut {
+                nodes,
+                load,
+                samples,
+                scalars,
+                ints,
+                triggers,
+                midi,
+                spectra,
+                buffers,
+                texts,
+                stash: &mut [],
+            },
+            Local {
+                scalars: l_scalars,
+                ints: l_ints,
+                samples: l_samples,
+                triggers: l_triggers,
+                midi: l_midi,
+                spectra: l_spectra,
+                buffers: l_buffers,
+                texts: l_texts,
+            },
         )
     }
 }
@@ -206,6 +482,11 @@ pub struct CompiledGraph {
     pub(crate) carry: Vec<(u32, u32)>,
     pub(crate) steps: Vec<Step>,
     pub(crate) waves: Vec<Wave>,
+    /// Step ranges of the chains that run in parallel, wave by wave.
+    pub(crate) chains: Vec<Range>,
+    /// Chain buffer moves, `(stash, sample slot)` relative to the chain's
+    /// first step (see [`Step::acquire`]).
+    pub(crate) recycle: Vec<(u32, u32)>,
     pub(crate) input_slots: Vec<InputSlot>,
     pub(crate) output_slots: Vec<OutputSlot>,
     pub(crate) out_samples: Vec<u32>,
@@ -225,8 +506,8 @@ pub struct CompiledGraph {
     pub(crate) active_params: Vec<u32>,
     pub(crate) telemetry: Arc<TelemetryStore>,
     pub(crate) socket_tele: Vec<SocketTele>,
-    /// One work slot per step of the widest wave.
-    pub(crate) work: Vec<StepWork>,
+    /// Room for the outputs and nodes of the widest wave.
+    pub(crate) work: Work,
     pub(crate) level_decay: f32,
     /// Output latency in samples.
     pub(crate) latency: u32,
@@ -238,6 +519,7 @@ pub struct CompiledGraph {
 /// across threads).
 struct Shared<'a> {
     steps: &'a [Step],
+    recycle: &'a [(u32, u32)],
     input_slots: &'a [InputSlot],
     output_slots: &'a [OutputSlot],
     chan_table: &'a [u32],
@@ -260,23 +542,49 @@ struct Shared<'a> {
     host_controls: &'a [ControlEvent],
 }
 
-/// A run of steps for one worker: `steps[i]` uses `work[i]`.
+/// Consecutive chains for one thread: `work` holds their outputs, starting
+/// at schedule position `base`.
 struct Chunk<'a, 'b> {
     shared: &'b Shared<'a>,
-    steps: &'b [Step],
-    work: &'b mut [StepWork],
+    chains: &'b [Range],
+    work: WorkMut<'b>,
+    base: At,
 }
 
 impl Job for Chunk<'_, '_> {
     fn run(&mut self) {
-        for (step, work) in self.steps.iter().zip(self.work.iter_mut()) {
-            run_step(self.shared, step, work, &mut [], None, None);
+        for &chain in self.chains {
+            run_chain(self.shared, chain, self.work.reborrow(), self.base);
         }
     }
 }
 
-/// Upper bound on jobs per wave; more parallel steps share jobs.
+/// Upper bound on jobs per wave; more chains share jobs.
 const MAX_JOBS: usize = 64;
+
+/// Run a chain's steps in order. `work` holds the chain's outputs (and
+/// maybe more), starting at schedule position `base`.
+fn run_chain(shared: &Shared<'_>, chain: Range, mut work: WorkMut<'_>, base: At) {
+    let steps = shared.steps;
+    let (k0, k1) = (chain.0 as usize, chain.1 as usize);
+    let first = At::start(steps, k0).minus(base);
+    for k in k0..k1 {
+        let Some(step) = steps.get(k) else {
+            return;
+        };
+        let frames = shared.frames;
+        if step.acquire.0 < step.acquire.1 {
+            work.recycle(range(shared.recycle, step.acquire), first, frames, true);
+        }
+        let at = At::start(steps, k).minus(base);
+        let end = At::end(steps, k + 1).minus(base);
+        let (mine, local) = work.step(first, at, end, step.reads_chain);
+        run_step(shared, step, mine, local, &mut [], None, None);
+        if step.release.0 < step.release.1 {
+            work.recycle(range(shared.recycle, step.release), first, frames, false);
+        }
+    }
+}
 
 impl CompiledGraph {
     pub fn generation(&self) -> u64 {
@@ -388,17 +696,9 @@ impl CompiledGraph {
         engine: EngineInfo,
     ) {
         let frames = frames.min(self.max_block).max(1);
-        let transport = TransportView {
-            playing: block.playing,
-            recording: block.recording,
-            position: block.position,
-            tempo: &self.tempo,
-            started: block.started,
-            stopped: block.stopped,
-        };
         let auto = AutoFlags {
-            play: transport.started,
-            stop: transport.stopped,
+            play: block.started,
+            stop: block.stopped,
             load: false,
         };
         for wi in 0..self.waves.len() {
@@ -408,31 +708,22 @@ impl CompiledGraph {
                 wave.parallel_end as usize,
                 wave.end as usize,
             );
-            let Some(steps) = self.steps.get(start..end) else {
+            if start >= end || end > self.steps.len() {
                 continue;
-            };
-            for (k, step) in steps.iter().enumerate() {
-                if let Some(work) = self.work.get_mut(k) {
-                    move_out(
-                        step,
-                        work,
-                        &mut self.nodes,
-                        &mut self.pool,
-                        &self.out_samples,
-                        &self.out_scalars,
-                        &self.out_ints,
-                        &self.out_triggers,
-                        &self.out_midi,
-                        &self.out_spectra,
-                        &self.out_buffers,
-                        &self.out_texts,
-                        frames,
-                    );
-                }
             }
+            self.move_out(start, end, frames);
             {
+                let transport = TransportView {
+                    playing: block.playing,
+                    recording: block.recording,
+                    position: block.position,
+                    tempo: &self.tempo,
+                    started: block.started,
+                    stopped: block.stopped,
+                };
                 let shared = Shared {
                     steps: &self.steps,
+                    recycle: &self.recycle,
                     input_slots: &self.input_slots,
                     output_slots: &self.output_slots,
                     chan_table: &self.chan_table,
@@ -454,72 +745,207 @@ impl CompiledGraph {
                     host_midi: host.midi,
                     host_controls: host.controls,
                 };
-                let parallel = mid - start;
-                let width = (end - start).min(self.work.len());
-                let work = &mut self.work[..width];
-                let (par_work, serial_work) = work.split_at_mut(parallel.min(work.len()));
-                let par_steps = &shared.steps[start..mid];
+                let steps = shared.steps;
+                let base = At::start(steps, start);
+                let serial_base = At::start(steps, mid);
+                let chains = self
+                    .chains
+                    .get(wave.chains.0 as usize..wave.chains.1 as usize)
+                    .unwrap_or(&[]);
+                let (mut par_work, mut serial_work) =
+                    self.work.view().split_at(serial_base.minus(base));
                 match workers {
-                    Some(rt) if parallel >= 2 && rt.workers() > 0 => {
-                        run_parallel(rt, &shared, par_steps, par_work);
+                    Some(rt) if chains.len() >= 2 && rt.workers() > 0 => {
+                        run_parallel(rt, &shared, chains, par_work, base);
                     }
                     _ => {
-                        for (step, w) in par_steps.iter().zip(par_work.iter_mut()) {
-                            run_step(&shared, step, w, &mut [], None, None);
+                        for &chain in chains {
+                            run_chain(&shared, chain, par_work.reborrow(), base);
                         }
                     }
                 }
-                let serial_steps = &shared.steps[mid..end];
-                for (step, w) in serial_steps.iter().zip(serial_work.iter_mut()) {
+                for k in mid..end {
+                    let Some(step) = steps.get(k) else {
+                        break;
+                    };
+                    let at = At::start(steps, k).minus(serial_base);
+                    let end = At::end(steps, k + 1).minus(serial_base);
+                    let (mine, _) = serial_work.step(at, at, end, false);
                     run_step(
                         &shared,
                         step,
-                        w,
+                        mine,
+                        Local::default(),
                         host.output,
                         host.midi_out.as_deref_mut(),
                         host.osc_out.as_deref_mut(),
                     );
                 }
             }
-            for (k, step) in self.steps[start..end].iter().enumerate() {
-                if let Some(work) = self.work.get_mut(k) {
-                    move_back(
-                        step,
-                        work,
-                        &mut self.nodes,
-                        &mut self.pool,
-                        &self.out_samples,
-                        &self.out_scalars,
-                        &self.out_ints,
-                        &self.out_triggers,
-                        &self.out_midi,
-                        &self.out_spectra,
-                        &self.out_buffers,
-                        &self.out_texts,
-                    );
+            self.move_back(start, end);
+        }
+    }
+
+    /// Swap the outputs and nodes of steps `start..end` (one wave) out of
+    /// the pool into the work space, cleared for the block.
+    fn move_out(&mut self, start: usize, end: usize, frames: usize) {
+        let (a, e) = (At::start(&self.steps, start), At::end(&self.steps, end));
+        let work = &mut self.work;
+        let pool = &mut self.pool;
+        let steps = self.steps.get(start..end).unwrap_or(&[]);
+        for (k, step) in steps.iter().enumerate() {
+            if let StepKind::Node { node, .. } = step.kind
+                && let (Some(nb), Some(slot), Some(load)) = (
+                    self.nodes.get_mut(node as usize),
+                    work.nodes.get_mut(k),
+                    work.load.get_mut(k),
+                )
+            {
+                std::mem::swap(&mut nb.node, slot);
+                *load = nb.load_pending;
+            }
+        }
+        for (&g, b) in span(&self.out_samples, a.samples, e.samples).zip(&mut work.samples) {
+            if let Some(p) = pool.samples.get_mut(g as usize) {
+                std::mem::swap(p, b);
+                let n = frames.min(b.len());
+                b[..n].fill(0.0);
+            }
+        }
+        for (&g, b) in span(&self.out_triggers, a.triggers, e.triggers).zip(&mut work.triggers) {
+            if let Some(p) = pool.triggers.get_mut(g as usize) {
+                std::mem::swap(p, b);
+                b.clear();
+            }
+        }
+        for (&g, b) in span(&self.out_midi, a.midi, e.midi).zip(&mut work.midi) {
+            if let Some(p) = pool.midi.get_mut(g as usize) {
+                std::mem::swap(p, b);
+                b.clear();
+            }
+        }
+        for (&g, b) in span(&self.out_spectra, a.spectra, e.spectra).zip(&mut work.spectra) {
+            if let Some(p) = pool.spectra.get_mut(g as usize) {
+                std::mem::swap(p, b);
+                b.clear();
+            }
+        }
+        for (&g, b) in span(&self.out_buffers, a.buffers, e.buffers).zip(&mut work.buffers) {
+            if let Some(p) = pool.buffers.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, s) in span(&self.out_scalars, a.scalars, e.scalars).zip(&mut work.scalars) {
+            *s = pool.scalars.get(g as usize).copied().unwrap_or(0.0);
+        }
+        for (&g, s) in span(&self.out_ints, a.ints, e.ints).zip(&mut work.ints) {
+            *s = pool.ints.get(g as usize).copied().unwrap_or(0);
+        }
+        for (&g, s) in span(&self.out_texts, a.texts, e.texts).zip(&mut work.texts) {
+            *s = pool
+                .texts
+                .get(g as usize)
+                .copied()
+                .unwrap_or(TextBuf::EMPTY);
+        }
+    }
+
+    /// Undo [`Self::move_out`].
+    fn move_back(&mut self, start: usize, end: usize) {
+        let (a, e) = (At::start(&self.steps, start), At::end(&self.steps, end));
+        let work = &mut self.work;
+        let pool = &mut self.pool;
+        let steps = self.steps.get(start..end).unwrap_or(&[]);
+        for (k, step) in steps.iter().enumerate() {
+            if let StepKind::Node { node, phase } = step.kind
+                && let (Some(nb), Some(slot)) =
+                    (self.nodes.get_mut(node as usize), work.nodes.get_mut(k))
+            {
+                std::mem::swap(&mut nb.node, slot);
+                if phase != Phase::FeedbackRead {
+                    nb.load_pending = false;
                 }
+            }
+        }
+        for (&g, b) in span(&self.out_samples, a.samples, e.samples).zip(&mut work.samples) {
+            if let Some(p) = pool.samples.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, b) in span(&self.out_triggers, a.triggers, e.triggers).zip(&mut work.triggers) {
+            if let Some(p) = pool.triggers.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, b) in span(&self.out_midi, a.midi, e.midi).zip(&mut work.midi) {
+            if let Some(p) = pool.midi.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, b) in span(&self.out_spectra, a.spectra, e.spectra).zip(&mut work.spectra) {
+            if let Some(p) = pool.spectra.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, b) in span(&self.out_buffers, a.buffers, e.buffers).zip(&mut work.buffers) {
+            if let Some(p) = pool.buffers.get_mut(g as usize) {
+                std::mem::swap(p, b);
+            }
+        }
+        for (&g, s) in span(&self.out_scalars, a.scalars, e.scalars).zip(&work.scalars) {
+            if let Some(d) = pool.scalars.get_mut(g as usize) {
+                *d = *s;
+            }
+        }
+        for (&g, s) in span(&self.out_ints, a.ints, e.ints).zip(&work.ints) {
+            if let Some(d) = pool.ints.get_mut(g as usize) {
+                *d = *s;
+            }
+        }
+        for (&g, s) in span(&self.out_texts, a.texts, e.texts).zip(&work.texts) {
+            if let Some(d) = pool.texts.get_mut(g as usize) {
+                *d = *s;
             }
         }
     }
 }
 
-/// Split a wave's parallel steps into jobs and run them on the pool.
-fn run_parallel(rt: &RtPool, shared: &Shared<'_>, steps: &[Step], work: &mut [StepWork]) {
+/// `v[a..e]`, or nothing if that's out of range.
+fn span(v: &[u32], a: usize, e: usize) -> std::slice::Iter<'_, u32> {
+    v.get(a..e).unwrap_or(&[]).iter()
+}
+
+/// Split a wave's chains into jobs of about equal length and run them on
+/// the pool. `work` holds the chains' outputs from schedule position `base`.
+fn run_parallel(rt: &RtPool, shared: &Shared<'_>, chains: &[Range], work: WorkMut<'_>, base: At) {
     let threads = rt.workers() + 1;
-    // A few jobs per thread so a slow step doesn't hold up the wave.
-    let jobs = (threads * 4).min(steps.len()).clamp(1, MAX_JOBS);
-    let per = steps.len().div_ceil(jobs);
+    // A few jobs per thread so a slow chain doesn't hold up the wave.
+    let jobs = (threads * 4).min(chains.len()).clamp(1, MAX_JOBS);
+    let total: usize = chains.iter().map(|c| (c.1 - c.0) as usize).sum();
+    let target = total.div_ceil(jobs).max(1);
     let mut chunks: [Option<Chunk<'_, '_>>; MAX_JOBS] = std::array::from_fn(|_| None);
-    let mut n = 0;
-    for (s, w) in steps.chunks(per).zip(work.chunks_mut(per)) {
+    let (mut rest, mut at) = (work, base);
+    let (mut n, mut i) = (0, 0);
+    while i < chains.len() && n < MAX_JOBS {
+        let first = i;
+        let mut steps = 0;
+        while i < chains.len() && (i == first || steps < target || n == MAX_JOBS - 1) {
+            steps += (chains[i].1 - chains[i].0) as usize;
+            i += 1;
+        }
+        let last = chains.get(i.saturating_sub(1)).map_or(0, |c| c.1 as usize);
+        let end = At::end(shared.steps, last);
+        let (mine, after) = rest.split_at(end.minus(at));
         if let Some(slot) = chunks.get_mut(n) {
             *slot = Some(Chunk {
                 shared,
-                steps: s,
-                work: w,
+                chains: chains.get(first..i).unwrap_or(&[]),
+                work: mine,
+                base: at,
             });
-            n += 1;
         }
+        (rest, at) = (after, end);
+        n += 1;
     }
     rt.run(&mut chunks[..n]);
 }
@@ -532,153 +958,15 @@ impl<J: Job> Job for Option<J> {
     }
 }
 
-/// Swap a step's output buffers and node out of the pool into its work slot.
-#[allow(clippy::too_many_arguments)]
-fn move_out(
-    step: &Step,
-    work: &mut StepWork,
-    nodes: &mut [NodeBox],
-    pool: &mut Pool,
-    out_samples: &[u32],
-    out_scalars: &[u32],
-    out_ints: &[u32],
-    out_triggers: &[u32],
-    out_midi: &[u32],
-    out_spectra: &[u32],
-    out_buffers: &[u32],
-    out_texts: &[u32],
-    frames: usize,
-) {
-    if let StepKind::Node { node, .. } = step.kind
-        && let Some(nb) = nodes.get_mut(node as usize)
-    {
-        std::mem::swap(&mut nb.node, &mut work.node);
-        work.load_pending = nb.load_pending;
-    }
-    for (k, &g) in range(out_samples, step.o_samples).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.samples.get_mut(g as usize), work.samples.get_mut(k)) {
-            std::mem::swap(a, b);
-            let n = frames.min(b.len());
-            b[..n].fill(0.0);
-        }
-    }
-    for (k, &g) in range(out_triggers, step.o_triggers).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.triggers.get_mut(g as usize), work.triggers.get_mut(k)) {
-            std::mem::swap(a, b);
-            b.clear();
-        }
-    }
-    for (k, &g) in range(out_midi, step.o_midi).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.midi.get_mut(g as usize), work.midi.get_mut(k)) {
-            std::mem::swap(a, b);
-            b.clear();
-        }
-    }
-    for (k, &g) in range(out_spectra, step.o_spectra).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.spectra.get_mut(g as usize), work.spectra.get_mut(k)) {
-            std::mem::swap(a, b);
-            b.clear();
-        }
-    }
-    for (k, &g) in range(out_buffers, step.o_buffers).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.buffers.get_mut(g as usize), work.buffers.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_scalars, step.o_scalars).iter().enumerate() {
-        if let Some(s) = work.scalars.get_mut(k) {
-            *s = pool.scalars.get(g as usize).copied().unwrap_or(0.0);
-        }
-    }
-    for (k, &g) in range(out_ints, step.o_ints).iter().enumerate() {
-        if let Some(s) = work.ints.get_mut(k) {
-            *s = pool.ints.get(g as usize).copied().unwrap_or(0);
-        }
-    }
-    for (k, &g) in range(out_texts, step.o_texts).iter().enumerate() {
-        if let Some(s) = work.texts.get_mut(k) {
-            *s = pool
-                .texts
-                .get(g as usize)
-                .copied()
-                .unwrap_or(TextBuf::EMPTY);
-        }
-    }
-}
-
-/// Undo [`move_out`].
-#[allow(clippy::too_many_arguments)]
-fn move_back(
-    step: &Step,
-    work: &mut StepWork,
-    nodes: &mut [NodeBox],
-    pool: &mut Pool,
-    out_samples: &[u32],
-    out_scalars: &[u32],
-    out_ints: &[u32],
-    out_triggers: &[u32],
-    out_midi: &[u32],
-    out_spectra: &[u32],
-    out_buffers: &[u32],
-    out_texts: &[u32],
-) {
-    if let StepKind::Node { node, phase } = step.kind
-        && let Some(nb) = nodes.get_mut(node as usize)
-    {
-        std::mem::swap(&mut nb.node, &mut work.node);
-        if phase != Phase::FeedbackRead {
-            nb.load_pending = false;
-        }
-    }
-    for (k, &g) in range(out_samples, step.o_samples).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.samples.get_mut(g as usize), work.samples.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_triggers, step.o_triggers).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.triggers.get_mut(g as usize), work.triggers.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_midi, step.o_midi).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.midi.get_mut(g as usize), work.midi.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_spectra, step.o_spectra).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.spectra.get_mut(g as usize), work.spectra.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_buffers, step.o_buffers).iter().enumerate() {
-        if let (Some(a), Some(b)) = (pool.buffers.get_mut(g as usize), work.buffers.get_mut(k)) {
-            std::mem::swap(a, b);
-        }
-    }
-    for (k, &g) in range(out_scalars, step.o_scalars).iter().enumerate() {
-        if let (Some(d), Some(s)) = (pool.scalars.get_mut(g as usize), work.scalars.get(k)) {
-            *d = *s;
-        }
-    }
-    for (k, &g) in range(out_ints, step.o_ints).iter().enumerate() {
-        if let (Some(d), Some(s)) = (pool.ints.get_mut(g as usize), work.ints.get(k)) {
-            *d = *s;
-        }
-    }
-    for (k, &g) in range(out_texts, step.o_texts).iter().enumerate() {
-        if let (Some(d), Some(s)) = (pool.texts.get_mut(g as usize), work.texts.get(k)) {
-            *d = *s;
-        }
-    }
-}
-
-/// Run one step whose outputs are in `work`. `host_output`, `midi_out`,
-/// and `osc_out` are the device outputs for serial steps, and empty for the
-/// rest.
+/// Run one step whose outputs and node are in `work` (exactly this step's
+/// part of the work space). `local` holds what earlier steps of its chain
+/// wrote. `host_output`, `midi_out`, and `osc_out` are the device outputs
+/// for serial steps, and empty for the rest.
 fn run_step(
     shared: &Shared<'_>,
     step: &Step,
-    work: &mut StepWork,
+    work: WorkMut<'_>,
+    local: Local<'_>,
     host_output: &mut [f32],
     midi_out: Option<&mut Vec<MidiEvent>>,
     osc_out: Option<&mut Vec<OscMessage>>,
@@ -686,12 +974,12 @@ fn run_step(
     let frames = shared.frames;
     let phase = match step.kind {
         StepKind::FillFromScalar { scalar } => {
-            let v = shared
-                .pool
-                .scalars
-                .get(scalar as usize)
-                .copied()
-                .unwrap_or(0.0);
+            let v = if scalar & LOCAL == 0 {
+                shared.pool.scalars.get(scalar as usize)
+            } else {
+                local.scalars.get((scalar & !LOCAL) as usize)
+            };
+            let v = v.copied().unwrap_or(0.0);
             if let Some(buf) = work.samples.first_mut() {
                 let n = frames.min(buf.len());
                 buf[..n].fill(v);
@@ -700,8 +988,11 @@ fn run_step(
         }
         StepKind::Node { phase, .. } => phase,
     };
+    let Some(node) = work.nodes.first_mut() else {
+        return;
+    };
     let mut auto = shared.auto;
-    auto.load = work.load_pending;
+    auto.load = work.load.first().copied().unwrap_or(false);
     let in_slots = range(shared.input_slots, step.inputs);
     let out_slots = range(shared.output_slots, step.outputs);
     let (vs, ve) = (step.tele_values.0 as usize, step.tele_values.1 as usize);
@@ -714,14 +1005,6 @@ fn run_step(
             .tele_scope_pos
             .and_then(|p| telemetry.scope_pos.get(p as usize)),
     };
-    let n_s = (step.o_samples.1 - step.o_samples.0) as usize;
-    let n_sc = (step.o_scalars.1 - step.o_scalars.0) as usize;
-    let n_i = (step.o_ints.1 - step.o_ints.0) as usize;
-    let n_t = (step.o_triggers.1 - step.o_triggers.0) as usize;
-    let n_m = (step.o_midi.1 - step.o_midi.0) as usize;
-    let n_sp = (step.o_spectra.1 - step.o_spectra.0) as usize;
-    let n_b = (step.o_buffers.1 - step.o_buffers.0) as usize;
-    let n_tx = (step.o_texts.1 - step.o_texts.0) as usize;
     let out_channels = if host_output.is_empty() {
         0
     } else {
@@ -744,18 +1027,19 @@ fn run_step(
                 buffers: &pool.buffers,
                 texts: &pool.texts,
                 auto,
+                local,
             },
             outputs: Outputs {
                 slots: out_slots,
                 frames,
-                samples: work.samples.get_mut(..n_s).unwrap_or(&mut []),
-                scalars: work.scalars.get_mut(..n_sc).unwrap_or(&mut []),
-                ints: work.ints.get_mut(..n_i).unwrap_or(&mut []),
-                triggers: work.triggers.get_mut(..n_t).unwrap_or(&mut []),
-                midi: work.midi.get_mut(..n_m).unwrap_or(&mut []),
-                spectra: work.spectra.get_mut(..n_sp).unwrap_or(&mut []),
-                buffers: work.buffers.get_mut(..n_b).unwrap_or(&mut []),
-                texts: work.texts.get_mut(..n_tx).unwrap_or(&mut []),
+                samples: &mut *work.samples,
+                scalars: &mut *work.scalars,
+                ints: &mut *work.ints,
+                triggers: &mut *work.triggers,
+                midi: &mut *work.midi,
+                spectra: &mut *work.spectra,
+                buffers: &mut *work.buffers,
+                texts: &mut *work.texts,
             },
             host: HostAccess {
                 input: shared.host_input,
@@ -783,22 +1067,29 @@ fn run_step(
         if step.muted {
             bypass(step.bypass, &mut io);
         } else {
-            work.node.process(&ctx, &mut io);
+            node.process(&ctx, &mut io);
         }
+        // Summed over the node's steps and sub-blocks, published when the
+        // host block ends (`TelemetryStore::publish_node_times`).
         if let (Some(t0), Some(c), Some(slot)) = (t0, shared.clock, step.tele_time)
-            && let Some(a) = telemetry.node_time.get(slot as usize)
+            && let Some(a) = telemetry.node_time_acc.get(slot as usize)
         {
-            a.store(
+            a.fetch_add(
                 c().saturating_sub(t0).min(u64::from(u32::MAX)) as u32,
                 Ordering::Relaxed,
             );
         }
     }
-    socket_telemetry(shared, step, work, out_slots);
+    socket_telemetry(shared, step, &work, out_slots);
 }
 
 /// Publish per-socket levels, values, and event counts for a step.
-fn socket_telemetry(shared: &Shared<'_>, step: &Step, work: &StepWork, out_slots: &[OutputSlot]) {
+fn socket_telemetry(
+    shared: &Shared<'_>,
+    step: &Step,
+    work: &WorkMut<'_>,
+    out_slots: &[OutputSlot],
+) {
     let frames = shared.frames;
     let telemetry = shared.telemetry;
     let st = range(shared.socket_tele, step.socket_tele);

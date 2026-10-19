@@ -434,6 +434,7 @@ mod tests {
                 buffers: &[],
                 texts: &[],
                 auto: AutoFlags::default(),
+                local: Default::default(),
             },
             outputs: Outputs {
                 slots: &out_slots,

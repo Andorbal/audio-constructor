@@ -8,8 +8,11 @@ node! {
     name: "Keyboard",
     category: Controls,
     keywords: ["piano", "keys", "notes", "midi", "play", "virtual keyboard", "synth"],
-    /// A piano keyboard you play with the mouse or the computer keyboard;
-    /// it sends the notes out as MIDI.
+    /// A piano keyboard you play with the mouse, on the canvas or on a
+    /// panel; it sends the notes out as MIDI.
+    ///
+    /// To play notes from the computer keyboard, use a `Keyboard In` node
+    /// and turn on Play keys.
     ///
     /// The `keys` config (1–88, default 25) sets how many keys it has and
     /// `low` the MIDI note of the leftmost one (default 48, the C below

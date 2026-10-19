@@ -47,7 +47,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
             ac_core::Source::Key { .. } => icons::KEYBOARD,
             _ => icons::LINK,
         };
-        ui.label(RichText::new(format!("{icon} {}", b.source.label())).color(theme::TEXT_STRONG));
+        ui.label(RichText::new(format!("{icon} {}", b.source.label())).color(theme::text_strong()));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
                 .small_button(icons::X)
@@ -66,9 +66,9 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                 Target::Input { node, .. } => {
                     let missing = io.doc.project.node_at(node).is_none();
                     let text = RichText::new(format!("→ {label}")).color(if missing {
-                        theme::WARNING
+                        theme::warning()
                     } else {
-                        theme::ACCENT
+                        theme::accent()
                     });
                     if ui
                         .add(egui::Button::new(text).frame(false))
@@ -79,7 +79,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                     }
                 }
                 Target::Transport { .. } => {
-                    ui.label(RichText::new(format!("→ {label}")).color(theme::TEXT));
+                    ui.label(RichText::new(format!("→ {label}")).color(theme::text()));
                 }
             }
         }
@@ -89,9 +89,9 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                 let (lo, hi) = b.range(spec);
                 let (mut lo, mut hi) = (lo, hi);
                 let speed = ((hi - lo).abs() / 200.0).max(0.001);
-                ui.label(RichText::new("from").small().color(theme::TEXT_MUTED));
+                ui.label(RichText::new("from").small().color(theme::text_muted()));
                 let r1 = ui.add(egui::DragValue::new(&mut lo).speed(speed));
-                ui.label(RichText::new("to").small().color(theme::TEXT_MUTED));
+                ui.label(RichText::new("to").small().color(theme::text_muted()));
                 let r2 = ui.add(egui::DragValue::new(&mut hi).speed(speed));
                 if r1.changed() {
                     io.doc.edit_binding(index, "min", now, |b| b.min = Some(lo));
@@ -107,7 +107,7 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                     ui.label(
                         RichText::new(widgets::format(f64::from(v), spec))
                             .font(theme::mono_font(theme::FONT_SMALL))
-                            .color(theme::TEXT_MUTED),
+                            .color(theme::text_muted()),
                     )
                     .on_hover_text("Where the control last set it");
                 }
@@ -132,17 +132,17 @@ fn row(ui: &mut egui::Ui, io: &mut PanelIo, index: usize, show_target: bool) -> 
                 ui.label(
                     RichText::new("fires on press")
                         .small()
-                        .color(theme::TEXT_MUTED),
+                        .color(theme::text_muted()),
                 );
             }
             _ if matches!(b.target, Target::Transport { .. }) => {
-                ui.label(RichText::new("on press").small().color(theme::TEXT_MUTED));
+                ui.label(RichText::new("on press").small().color(theme::text_muted()));
             }
             _ => {
                 ui.label(
                     RichText::new("does nothing (see Problems)")
                         .small()
-                        .color(theme::WARNING),
+                        .color(theme::warning()),
                 );
             }
         }
@@ -200,7 +200,7 @@ pub(super) fn project_section(ui: &mut egui::Ui, io: &mut PanelIo) {
                 "No bindings. Right-click an input (or a control's title) and choose Bind… \
                  to drive it from a MIDI controller, a key, a gamepad, or OSC.",
             )
-            .color(theme::TEXT_MUTED),
+            .color(theme::text_muted()),
         );
         return;
     }
@@ -236,7 +236,7 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
                 "Right-click an unwired input and choose Bind… to drive it from a control.",
             )
             .small()
-            .color(theme::TEXT_MUTED),
+            .color(theme::text_muted()),
         );
         return;
     }
@@ -251,7 +251,7 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: ac_core::Nod
             }
             Target::Transport { .. } => continue,
         };
-        ui.label(RichText::new(socket).small().color(theme::TEXT_MUTED));
+        ui.label(RichText::new(socket).small().color(theme::text_muted()));
         let a = row(ui, io, i, false);
         if apply(io, i, a) {
             break;
@@ -314,7 +314,7 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
         ui.label(
             RichText::new("No transport buttons yet.")
                 .small()
-                .color(theme::TEXT_MUTED),
+                .color(theme::text_muted()),
         );
     }
     for i in list {
@@ -326,6 +326,6 @@ pub(super) fn transport_section(ui: &mut egui::Ui, io: &mut PanelIo, choice: &mu
     ui.label(
         RichText::new("Transport buttons are stored in the project, like other bindings.")
             .small()
-            .color(theme::TEXT_FAINT),
+            .color(theme::text_faint()),
     );
 }
