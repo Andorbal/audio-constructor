@@ -708,7 +708,11 @@ loop step, one sample at a time (`crates/ac-engine/src/loops.rs`).
   3.12 → 3.26, effect-chain-200 3.87 → 3.93, mono-synths-16 15.0 → 16.0,
   parallel-chains-8 8.33 → 8.58, poly-synth-16 25.2 → 23.5 (medians 20.4
   → 22.6), subtractive-voices-16 10.05 → 10.31, fft-chains-16 24.6 →
-  26.6, pitch-shift-16 7.67 → 8.28, diffuser-16 4.35 → 4.50.
+  26.6, pitch-shift-16 7.67 → 8.28, diffuser-16 4.35 → 4.50. Rerun at
+  the milestone's last commit (the engine unchanged since, the new nodes
+  in no bench project), four alternated runs: best-of-four changes from
+  −6.7 % (mono-synths-16) to +10.8 % (diffuser-16), with the two builds'
+  ranges overlapping on every project.
 
 The seven nodes, one file each, with a "Try this" tip and the DSP source
 cited in the code (`cargo test -p ac-nodes`):
@@ -782,12 +786,27 @@ and the libraries:
   so like JACK it could only be an opt-in build. That is a feature flag
   and a CI job away if a limitation turns up.
 
-Needs manual verification (in the PR), on a PipeWire desktop:
-- a release build plays and records through the default device, and
-  `audioc latency` with a loopback cable reports the round trip;
-- a JACK build under `pw-jack` with `PIPEWIRE_QUANTUM=128/48000` runs
-  with 128-frame buffers (the Devices tab shows the size) and a lower
-  measured round trip.
+Example: `examples/plucked-strings.acproj` plays a string built on a
+single-sample loop into a Convolution hall, with Chaos and a Spectrogram
+(`cargo test -p ac-cli --test examples`: its loop and latency, and the
+same render at block sizes 64 and 1024). Its impulse response,
+`examples/assets/hall-ir.wav`, was rendered with `audioc` from the
+shipped Hall Reverb block. Every example still lays out without
+overlaps.
+
+Needs manual verification (in the PR):
+- listening: the new goldens, the Plucked Strings example (in tune, with
+  its Feedback set to sample; flat with it set to block), Formant's
+  vowels, Granular clouds, Spectral Freeze holding a chord, Time Stretch
+  at 0.5 and 2, and Convolution with a real room's impulse response;
+- by eye: the Spectrogram on a card and on a performance panel, in both
+  themes;
+- on a PipeWire desktop, a release build plays and records through the
+  default device, and `audioc latency` with a loopback cable reports the
+  round trip;
+- also on PipeWire, a JACK build under `pw-jack` with
+  `PIPEWIRE_QUANTUM=128/48000` runs with 128-frame buffers (the Devices
+  tab shows the size) and a lower measured round trip.
 
 ### M3.5 Product
 - [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.
