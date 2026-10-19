@@ -21,6 +21,7 @@ use super::{AfterConfirm, EditorApp};
 use crate::dialogs::FilePurpose;
 use crate::files::ImportedAsset;
 use crate::help;
+use crate::i18n::{tr, tr_args};
 
 /// What a [`FileRequest::Save`] holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,7 +141,7 @@ impl EditorApp {
     /// alone (its preview renders in the desktop editor).
     fn host_export_block(&mut self, what: &crate::dialogs::BlockToExport, now: f64) {
         let Some(block) = self.block_to_export(what) else {
-            return self.warn(crate::i18n::tr("status-export-block-gone"), now);
+            return self.warn(tr("status-export-block-gone"), now);
         };
         self.file_requests.push(FileRequest::Save {
             name: format!(
@@ -191,12 +192,7 @@ impl EditorApp {
         let audio = ac_io::assets::referenced_assets(&project, &self.registry).len();
         if audio > 0 {
             self.say(
-                format!(
-                    "Saving… The project's {audio} audio file{} stay{} in this browser tab: \
-                     Export Pack saves them with the project",
-                    plural(audio),
-                    if audio == 1 { "s" } else { "" }
-                ),
+                tr_args("status-saving-audio-stays", &[("count", audio.into())]),
                 now,
             );
         }
@@ -218,10 +214,12 @@ impl EditorApp {
                 if !report.missing.is_empty() {
                     let n = report.missing.len();
                     self.warn(
-                        format!(
-                            "Left out {n} missing audio file{}: {}",
-                            plural(n),
-                            report.missing.join(", ")
+                        tr_args(
+                            "status-pack-left-out-audio",
+                            &[
+                                ("count", n.into()),
+                                ("files", report.missing.join(", ").into()),
+                            ],
                         ),
                         now,
                     );
@@ -234,7 +232,13 @@ impl EditorApp {
                     revision: self.doc.revision,
                 });
             }
-            Err(e) => self.warn(format!("Couldn't make the pack: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-make-pack",
+                    &[("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -250,9 +254,13 @@ impl EditorApp {
             Ok((bytes, s)) => {
                 let secs = s.frames as f64 / f64::from(s.sample_rate.max(1));
                 self.say(
-                    format!(
-                        "Rendered {secs:.2} s × {} ch at {} Hz; saving…",
-                        s.channels, s.sample_rate
+                    tr_args(
+                        "status-rendered-saving",
+                        &[
+                            ("seconds", format!("{secs:.2}").into()),
+                            ("channels", s.channels.to_string().into()),
+                            ("rate", s.sample_rate.to_string().into()),
+                        ],
                     ),
                     now,
                 );
@@ -264,7 +272,7 @@ impl EditorApp {
                     revision: self.doc.revision,
                 });
             }
-            Err(e) => self.warn(format!("Export failed: {e}"), now),
+            Err(e) => self.warn(tr_args("status-export-failed", &[("error", e.into())]), now),
         }
     }
 
@@ -277,7 +285,7 @@ impl EditorApp {
             self.doc.mark_saved_at(revision);
             self.epoch += 1;
         }
-        self.say(format!("Saved {name}"), now);
+        self.say(tr_args("status-saved", &[("path", name.into())]), now);
         if kind == SaveKind::Project
             && !self.doc.is_dirty()
             && let Some(after) = self.after_host_save.take()
@@ -292,7 +300,7 @@ impl EditorApp {
         self.pack_after_save = false;
         self.after_host_save = None;
         if let Some(e) = error {
-            self.warn(format!("Couldn't save: {e}"), now);
+            self.warn(tr_args("status-couldnt-save", &[("error", e.into())]), now);
         }
     }
 
@@ -302,7 +310,7 @@ impl EditorApp {
             self.asset_bank
                 .get(path)
                 .map(|b| b.as_ref().clone())
-                .ok_or_else(|| "not opened in this browser tab: Locate it".to_string())
+                .ok_or_else(|| tr("asset-not-in-tab"))
         })
     }
 
@@ -340,23 +348,26 @@ impl EditorApp {
                     let assets = self.bank_assets_for(&u.project);
                     let missing = assets.issues.len();
                     self.replace_document(u.project, None, PathBuf::from("."), assets);
-                    let mut text = format!("Opened {name} as a new project");
+                    let mut text = tr_args("status-opened-as-new", &[("name", name.into())]);
                     if adopted > 0 {
-                        text.push_str(&format!(
-                            " · added {adopted} block{} from it to your library",
-                            plural(adopted)
+                        text.push_str(" · ");
+                        text.push_str(&tr_args(
+                            "status-pack-blocks-added",
+                            &[("count", adopted.into())],
                         ));
                     }
                     if missing > 0 {
-                        text.push_str(&format!(
-                            " — {missing} audio file problem(s); see the Project tab"
+                        text.push_str(" — ");
+                        text.push_str(&tr_args(
+                            "status-audio-file-problems",
+                            &[("count", missing.into())],
                         ));
                         self.warn(text, now);
                     } else {
                         self.say(text, now);
                     }
                 }
-                Err(e) => self.warn(format!("Couldn't open {name}: {e}"), now),
+                Err(e) => self.warn(couldnt_open(name, &e.to_string()), now),
             }
             return;
         }
@@ -373,25 +384,26 @@ impl EditorApp {
                     assets,
                 );
                 let blocks = self.library.import_unknown(&self.doc.project);
-                let mut text = format!("Opened {name}");
+                let mut text = tr_args("status-opened", &[("path", name.into())]);
                 if blocks > 0 {
-                    text.push_str(&format!(
-                        " · added {blocks} block{} it uses to your library",
-                        plural(blocks)
+                    text.push_str(" · ");
+                    text.push_str(&tr_args(
+                        "status-project-blocks-added",
+                        &[("count", blocks.into())],
                     ));
                 }
                 if missing > 0 {
-                    text.push_str(&format!(
-                        " — {missing} audio file{} to locate in the Project tab \
-                         (or open the project's pack, which carries them)",
-                        plural(missing)
+                    text.push_str(" — ");
+                    text.push_str(&tr_args(
+                        "status-audio-files-to-locate",
+                        &[("count", missing.into())],
                     ));
                     self.warn(text, now);
                 } else {
                     self.say(text, now);
                 }
             }
-            Err(e) => self.warn(format!("Couldn't open {name}: {e}"), now),
+            Err(e) => self.warn(couldnt_open(name, &e.to_string()), now),
         }
     }
 
@@ -401,7 +413,15 @@ impl EditorApp {
         let now = self.clock.last;
         let data = match ac_io::wav::read_wav_bytes(&bytes) {
             Ok(d) => d,
-            Err(e) => return self.warn(format!("Couldn't use {name}: {e}"), now),
+            Err(e) => {
+                return self.warn(
+                    tr_args(
+                        "status-couldnt-use-named",
+                        &[("name", name.into()), ("error", e.to_string().into())],
+                    ),
+                    now,
+                );
+            }
         };
         let hash = ac_core::util::content_hash(&bytes);
         let file_name = Path::new(name).file_name().map_or_else(
@@ -446,13 +466,17 @@ impl EditorApp {
                 let name = help::example_of(path.to_path_buf(), &project).name;
                 self.replace_document(project, None, PathBuf::from("."), store);
                 self.say(
-                    format!(
-                        "Opened the example “{name}” as a new project: Save As keeps your changes"
-                    ),
+                    tr_args("status-opened-example", &[("name", name.into())]),
                     now,
                 );
             }
-            Err(e) => self.warn(format!("Couldn't open the example: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-open-example",
+                    &[("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -474,6 +498,10 @@ impl EditorApp {
     }
 }
 
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+/// "Couldn't open <name>: <why>".
+fn couldnt_open(name: &str, error: &str) -> String {
+    tr_args(
+        "status-couldnt-open-path",
+        &[("path", name.into()), ("error", error.into())],
+    )
 }

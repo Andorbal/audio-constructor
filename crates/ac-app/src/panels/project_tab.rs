@@ -43,9 +43,15 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
                     .map_or_else(|| u.def.0.clone(), |d| d.name.clone());
                 ui.label(RichText::new(name).color(theme::text()));
                 ui.label(
-                    RichText::new(format!("v{} → v{}", u.from, u.to))
-                        .font(theme::mono_font(theme::FONT_VALUE))
-                        .color(theme::text_muted()),
+                    RichText::new(tr_args(
+                        "project-update-versions",
+                        &[
+                            ("from", u.from.to_string().into()),
+                            ("to", u.to.to_string().into()),
+                        ],
+                    ))
+                    .font(theme::mono_font(theme::FONT_VALUE))
+                    .color(theme::text_muted()),
                 );
                 if icons::spoken(ui.small_button(format!(
                     "{}  {}",

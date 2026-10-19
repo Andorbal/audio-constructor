@@ -33,9 +33,11 @@ pub const ENGLISH: &[(&str, &str)] = &[
     ("menus.ftl", include_str!("../locales/en/menus.ftl")),
     ("panels.ftl", include_str!("../locales/en/panels.ftl")),
     ("perform.ftl", include_str!("../locales/en/perform.ftl")),
+    ("plugins.ftl", include_str!("../locales/en/plugins.ftl")),
     ("product.ftl", include_str!("../locales/en/product.ftl")),
     ("transport.ftl", include_str!("../locales/en/transport.ftl")),
     ("undo.ftl", include_str!("../locales/en/undo.ftl")),
+    ("web.ftl", include_str!("../locales/en/web.ftl")),
 ];
 
 /// A language the editor can show.

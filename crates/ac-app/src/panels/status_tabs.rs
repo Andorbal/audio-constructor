@@ -717,41 +717,82 @@ fn age_text(now_ns: u64, t_ns: u64) -> String {
     }
 }
 
-/// A MIDI message as people read it ("Note on C4 · vel 100 · ch 1").
-fn midi_text(msg: &ac_core::MidiMsg) -> String {
+/// A MIDI message as people read it ("Note on C4 · vel 100 · ch 1"), here
+/// and in the browser's Devices section.
+pub fn midi_text(msg: &ac_core::MidiMsg) -> String {
     use ac_core::MidiMsg;
     use ac_core::binding::note_name;
-    let ch = |c: u8| format!("ch {}", u16::from(c) + 1);
+    let ch = |c: u8| {
+        tr_args(
+            "devices-midi-channel",
+            &[("number", (u16::from(c) + 1).to_string().into())],
+        )
+    };
     match *msg {
         MidiMsg::NoteOn {
             channel,
             note,
             velocity,
-        } => format!(
-            "Note on {} · vel {velocity} · {}",
-            note_name(note),
-            ch(channel)
+        } => tr_args(
+            "devices-midi-note-on",
+            &[
+                ("note", note_name(note).into()),
+                ("velocity", velocity.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
         ),
-        MidiMsg::NoteOff { channel, note, .. } => {
-            format!("Note off {} · {}", note_name(note), ch(channel))
-        }
+        MidiMsg::NoteOff { channel, note, .. } => tr_args(
+            "devices-midi-note-off",
+            &[
+                ("note", note_name(note).into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
         MidiMsg::ControlChange {
             channel,
             controller,
             value,
-        } => format!("CC {controller} = {value} · {}", ch(channel)),
-        MidiMsg::PitchBend { channel, value } => format!("Pitch bend {value} · {}", ch(channel)),
-        MidiMsg::ChannelPressure { channel, value } => {
-            format!("Pressure {value} · {}", ch(channel))
-        }
+        } => tr_args(
+            "devices-midi-cc",
+            &[
+                ("controller", controller.to_string().into()),
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::PitchBend { channel, value } => tr_args(
+            "devices-midi-pitch-bend",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::ChannelPressure { channel, value } => tr_args(
+            "devices-midi-pressure",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
         MidiMsg::PolyPressure {
             channel,
             note,
             value,
-        } => format!("Pressure {} {value} · {}", note_name(note), ch(channel)),
-        MidiMsg::ProgramChange { channel, program } => {
-            format!("Program {program} · {}", ch(channel))
-        }
+        } => tr_args(
+            "devices-midi-poly-pressure",
+            &[
+                ("note", note_name(note).into()),
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::ProgramChange { channel, program } => tr_args(
+            "devices-midi-program",
+            &[
+                ("program", program.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
     }
 }
 

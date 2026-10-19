@@ -1,7 +1,8 @@
 # Translating
 
 The editor's own words (its menus, panel and tab titles, the transport
-bar, dialogs, the status line, and the help and settings chrome) come from
+bar, dialogs, the status line, and the help and settings chrome, in the
+desktop editor, a plugin's window, and the browser) come from
 [Fluent](https://projectfluent.org) catalogs, one folder per language:
 
 ```
@@ -13,9 +14,11 @@ crates/ac-app/locales/
     menus.ftl   the menu bar and every command's name
     panels.ftl  the side panel's tabs, and the node editors
     perform.ftl the panels and performance mode
+    plugins.ftl plugins on this computer: the Node, Devices, and Library tabs
     product.ftl the update check and crash reports
     transport.ftl
     undo.ftl    what Edit ▸ Undo names each step
+    web.ftl     the browser: its files, its Devices section, and its notices
 ```
 
 Not translated yet, and so left out of the catalogs: node names, node
@@ -23,7 +26,9 @@ documentation and the Help tab's text about each node, socket names and
 types, the settings each node lists in the Node tab, value units, and
 anything in a project (names, notes, panel and frame titles). Those come
 with the nodes and the projects themselves; translating them is future
-work.
+work. Plugin format names (CLAP, VST3) and what a plugin says about
+itself (its name, vendor, and why it failed to load) stay as they are,
+and so do the details of errors the file and device code reports.
 
 ## Adding a language
 
@@ -51,8 +56,8 @@ work.
    extend the catalog tests in `crates/ac-app/tests/catalogs.rs` to it.
 3. Run `cargo test -p ac-app`. The catalog tests check that every file
    parses, that no message is defined twice, that every id the code asks
-   for exists in English, and that English has no message nothing asks
-   for.
+   for (in ac-app and in the web page, `crates/ac-web`) exists in English,
+   and that English has no message nothing asks for.
 
 ## Finding text that isn't translated
 
@@ -62,6 +67,16 @@ wrapped in brackets, `[Åďď Ñöďé…··]`. Text without brackets didn't co
 from a catalog, and text that's cut off or overflows shows where a longer
 language won't fit. A test opens every menu in Pseudo and fails on any
 label without brackets.
+
+A test reads the source, too, and fails on text written straight into
+the code where a person would read it: a string literal (or `format!` of
+one) given to the status line (`say`, `warn`, `notify`), or with a
+letter in it given to a label (colored or selectable), `RichText`, a
+button, a checkbox, a tooltip, a heading, a hint, or a section title.
+Its short `ALLOWED` list, in `crates/ac-app/tests/catalogs.rs`, names
+the few literals that aren't words to translate (punctuation around a
+file name or between two messages, the shape of a link, the product's
+name), each with why; unit tests are left out.
 
 ## Adding a message
 

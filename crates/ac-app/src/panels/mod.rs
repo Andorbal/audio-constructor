@@ -25,6 +25,7 @@ use crate::theme;
 
 pub use help_tab::HelpView;
 pub use library::{BlockFilter, LibraryItem, filter_blocks, first_sentence};
+pub use status_tabs::midi_text;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {

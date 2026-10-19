@@ -208,11 +208,7 @@ pub fn import_audio(src: &Path, project_path: Option<&Path>) -> Result<ImportedA
             file: abs.to_string_lossy().to_string(),
             channels,
             hash,
-            note: Some(
-                "The project isn't saved yet, so the clip refers to the file where it is. \
-                 Saving the project copies it into the project's assets folder."
-                    .into(),
-            ),
+            note: Some(crate::i18n::tr("status-clip-outside-project")),
         });
     };
     let rel = copy_into_assets(src, &bytes, &hash, &project_dir(project_path))?;
