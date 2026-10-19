@@ -1240,6 +1240,11 @@ mod tests {
         );
         let back = stream.stop().expect("stopped");
         assert!(back.ports.controls.is_some() && back.ports.osc_out.is_some());
+        // As above: the message can arrive a moment before it's counted.
+        let t0 = std::time::Instant::now();
+        while osc.sent() < 1 && t0.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         assert_eq!(osc.sent(), 1);
     }
 
