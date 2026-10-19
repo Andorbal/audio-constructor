@@ -151,6 +151,44 @@ jobs:
           path: target/bundled/
           if-no-files-found: error
 
+  third-party-plugin:
+    name: Third-party plugin as a node (Linux)
+    # Phase 3 acceptance: "A third-party CLAP synth runs as a node inside a
+    # project." Six Sines (an FM synth; MIT source, and its release archive
+    # carries GPL-3.0 for the bundled binaries) is downloaded at a pinned
+    # release, checked against its SHA-256, and only run here: never linked
+    # or redistributed (DECISIONS D136).
+    runs-on: ubuntu-latest
+    env:
+      SIX_SINES_URL: https://github.com/baconpaul/six-sines/releases/download/v1.2.1/six-sines-Linux-2026-07-20-18ecb36.zip
+      SIX_SINES_SHA256: 9b5353eebfec3e462c80ed8c0f53c965e6262bb38537518159cce71de7eace41
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache the plugin download
+        uses: actions/cache@v4
+        with:
+          path: third-party/six-sines.zip
+          key: six-sines-${{ env.SIX_SINES_SHA256 }}
+      - name: Download and verify the plugin
+        run: |
+          mkdir -p third-party
+          if [ ! -f third-party/six-sines.zip ]; then
+            curl -fsSL --retry 3 -o third-party/six-sines.zip "$SIX_SINES_URL"
+          fi
+          echo "$SIX_SINES_SHA256  third-party/six-sines.zip" | sha256sum -c -
+          unzip -q -o third-party/six-sines.zip -d third-party
+          ls -R third-party/six-sines_assets
+      - name: Play it as a node in a project
+        env:
+          AC_THIRD_PARTY_PLUGINS: ${{ github.workspace }}/third-party/six-sines_assets
+          AC_THIRD_PARTY_NAME: Six Sines
+          AC_THIRD_PARTY_FORMATS: clap
+        run: cargo test -p ac-cli --test third_party_plugins -- --ignored --nocapture
+
   deny:
     name: cargo deny
     runs-on: ubuntu-latest

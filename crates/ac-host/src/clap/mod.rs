@@ -213,8 +213,10 @@ pub(crate) fn instantiate(
     state: Option<&[u8]>,
 ) -> Result<Box<dyn PluginProcessor>, String> {
     let has_it = entry.get_plugin_factory().is_some_and(|f| {
-        f.plugin_descriptors()
-            .any(|d| d.id().is_some_and(|id| id.to_bytes() == req.desc.id.as_bytes()))
+        f.plugin_descriptors().any(|d| {
+            d.id()
+                .is_some_and(|id| id.to_bytes() == req.desc.id.as_bytes())
+        })
     });
     if !has_it {
         return Err("isn't installed on this computer".into());

@@ -37,6 +37,21 @@ use clack_extensions::thread_check::{HostThreadCheck, HostThreadCheckImpl};
 use clack_extensions::timer::{HostTimer, HostTimerImpl, PluginTimer, TimerId};
 use clack_host::prelude::*;
 
+thread_local! {
+    /// Set while this thread calls a plugin's audio-thread functions: the
+    /// thread is the audio thread for those calls, whichever it is (an
+    /// offline render's is the main thread too).
+    static AUDIO: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Run `f` as the audio thread (for the thread check).
+pub(crate) fn as_audio_thread<R>(f: impl FnOnce() -> R) -> R {
+    let was = AUDIO.with(|a| a.replace(true));
+    let r = f();
+    AUDIO.with(|a| a.set(was));
+    r
+}
+
 /// The handler types of every CLAP instance this crate creates.
 pub(crate) struct AcClap;
 
@@ -158,7 +173,7 @@ impl HostLogImpl for ClapShared {
     fn log(&self, severity: LogSeverity, message: &str) {
         // Printing locks stderr; the audio thread mustn't, so its messages
         // are only counted.
-        if !self.on_owner() {
+        if !self.on_owner() || AUDIO.with(Cell::get) {
             self.requests.dropped_logs.fetch_add(1, Ordering::Relaxed);
             return;
         }
@@ -181,7 +196,7 @@ impl HostThreadCheckImpl for ClapShared {
     }
 
     fn is_audio_thread(&self) -> bool {
-        !self.on_owner()
+        AUDIO.with(Cell::get)
     }
 }
 

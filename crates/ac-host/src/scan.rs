@@ -291,18 +291,29 @@ impl Scanner {
                 None => "it crashed while being described".into(),
             });
         }
-        serde_json::from_slice(&out)
-            .map_err(|e| format!("the scanner's answer was unreadable: {e}"))
+        // Plugins print to standard output too; the answer is its own line.
+        let text = String::from_utf8_lossy(&out);
+        let line = text
+            .lines()
+            .rev()
+            .find_map(|l| l.strip_prefix(RESULT_PREFIX))
+            .ok_or("the scanner gave no answer")?;
+        serde_json::from_str(line).map_err(|e| format!("the scanner's answer was unreadable: {e}"))
     }
 }
 
+/// The start of the line a scanner child answers on.
+const RESULT_PREFIX: &str = "ac-scan-result: ";
+
 /// What a scanner child does: describe `bundle` and print the JSON list
-/// on standard output. Returns the exit code.
+/// on standard output, on a line of its own after `ac-scan-result: `
+/// (whatever the plugin prints itself goes around it). Returns the exit
+/// code.
 pub fn child_main(bundle: &Path) -> i32 {
     match describe_bundle(bundle) {
         Ok(list) => match serde_json::to_string(&list) {
             Ok(json) => {
-                println!("{json}");
+                println!("\n{RESULT_PREFIX}{json}");
                 0
             }
             Err(e) => {

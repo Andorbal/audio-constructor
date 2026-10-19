@@ -23,7 +23,7 @@ use clack_host::events::{EventFlags, EventHeader, Match, Pckn, UnknownEvent};
 use clack_host::prelude::*;
 use clack_host::utils::{BeatTime, SecondsTime};
 
-use super::host::{AcClap, Requests};
+use super::host::{AcClap, Requests, as_audio_thread};
 
 /// Most events one block sends a plugin (the node sends at most
 /// `PLUGIN_EVENT_CAPACITY` too).
@@ -338,7 +338,7 @@ impl PluginProcessor for ClapProcessor {
             let Audio::Stopped(stopped) = std::mem::replace(&mut self.audio, Audio::Failed) else {
                 return false;
             };
-            self.audio = match stopped.start_processing() {
+            self.audio = match as_audio_thread(|| stopped.start_processing()) {
                 Ok(started) => Audio::Started(started),
                 Err(_) => Audio::Failed,
             };
@@ -374,15 +374,17 @@ impl PluginProcessor for ClapProcessor {
         // The plugin's own code is not ours to police: it has its own
         // allocator, and may allocate in its process call. The guard stays
         // on for everything around it (DECISIONS D133).
-        let result = assert_no_alloc::permit_alloc(|| {
-            audio.process(
-                &inputs,
-                &mut outputs,
-                &events,
-                &mut out_events,
-                Some(self.steady),
-                Some(&transport),
-            )
+        let result = as_audio_thread(|| {
+            assert_no_alloc::permit_alloc(|| {
+                audio.process(
+                    &inputs,
+                    &mut outputs,
+                    &events,
+                    &mut out_events,
+                    Some(self.steady),
+                    Some(&transport),
+                )
+            })
         });
         self.steady = self.steady.wrapping_add(frames as u64);
         let ok = result.is_ok();
@@ -406,7 +408,7 @@ impl PluginProcessor for ClapProcessor {
 
     fn reset(&mut self) {
         if let Audio::Started(a) = &mut self.audio {
-            a.reset();
+            as_audio_thread(|| a.reset());
         }
     }
 }
@@ -418,7 +420,9 @@ impl Drop for ClapProcessor {
         // case: garbage is collected on the main thread), else at the
         // owner's next poll.
         match std::mem::replace(&mut self.audio, Audio::Failed) {
-            Audio::Started(a) => drop(a.stop_processing()),
+            // The graph is retired: no audio thread runs it any more, so
+            // this one stands in for it.
+            Audio::Started(a) => drop(as_audio_thread(|| a.stop_processing())),
             other => drop(other),
         }
         if std::thread::current().id() == self.owner {
