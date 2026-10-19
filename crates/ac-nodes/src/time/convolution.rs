@@ -67,14 +67,15 @@ node! {
         /// The response in use (or coming in), to notice a new one.
         current: Option<Arc<AudioData>>,
         /// The response's partitions, per channel (two, a mono response
-        /// copied), each `2(B + 1)` interleaved bins.
-        ir: [Vec<f32>; 2],
+        /// copied), each `B + 1` bins, real and imaginary parts apart so the
+        /// multiply-accumulate runs on whole vectors.
+        ir: [Planes; 2],
         /// Partitions with anything in them.
         active: usize,
         /// A response coming in partition by partition.
         loading: Option<Load>,
         /// Spectra of the last `max_parts` input blocks, per channel.
-        fdl: [Vec<f32>; 2],
+        fdl: [Planes; 2],
         head: usize,
         /// The last two input blocks (overlap-save), per channel.
         input: [Vec<f32>; 2],
@@ -82,7 +83,53 @@ node! {
         output: [Vec<f32>; 2],
         fill: usize,
         time: Vec<f32>,
-        acc: Vec<f32>,
+        /// One spectrum, interleaved as the FFT reads and writes it.
+        spec: Vec<f32>,
+        acc: Planes,
+    }
+}
+
+/// Spectra stored as planes: `re[k * m + j]`, `im[k * m + j]` for bin `j`
+/// of spectrum `k`, `m` bins each.
+#[derive(Clone, Debug, Default)]
+struct Planes {
+    re: Vec<f32>,
+    im: Vec<f32>,
+}
+
+impl Planes {
+    fn new(len: usize) -> Planes {
+        Planes {
+            re: vec![0.0; len],
+            im: vec![0.0; len],
+        }
+    }
+
+    /// Spectrum `k` of `m` bins, read-only.
+    fn get(&self, k: usize, m: usize) -> Option<(&[f32], &[f32])> {
+        Some((
+            self.re.get(k * m..(k + 1) * m)?,
+            self.im.get(k * m..(k + 1) * m)?,
+        ))
+    }
+
+    /// Store the interleaved spectrum `spec` as spectrum `k`.
+    fn put(&mut self, k: usize, m: usize, spec: &[f32]) {
+        let (Some(re), Some(im)) = (
+            self.re.get_mut(k * m..(k + 1) * m),
+            self.im.get_mut(k * m..(k + 1) * m),
+        ) else {
+            return;
+        };
+        for ((r, i), pair) in re.iter_mut().zip(im.iter_mut()).zip(spec.chunks_exact(2)) {
+            *r = pair[0];
+            *i = pair[1];
+        }
+    }
+
+    fn clear(&mut self) {
+        self.re.fill(0.0);
+        self.im.fill(0.0);
     }
 }
 
@@ -142,8 +189,9 @@ fn sample(ch: &[f32], k: isize) -> f32 {
 }
 
 impl Convolution {
+    /// Bins per spectrum.
     fn bins(&self) -> usize {
-        2 * (self.part + 1)
+        self.part + 1
     }
 
     /// Partitions a response needs at the engine rate, up to the reserve.
@@ -160,13 +208,11 @@ impl Convolution {
     /// Transform partition `k` of `src` (at the engine rate) into both
     /// channels' response spectra; past its end, the partition is silent.
     fn transform(&mut self, src: Option<&AudioData>, k: usize) {
-        let (b, n) = (self.part, self.bins());
+        let (b, m) = (self.part, self.bins());
         for ch in 0..2 {
-            let Some(dst) = self.ir[ch].get_mut(k * n..(k + 1) * n) else {
-                continue;
-            };
             let Some(d) = src.filter(|d| d.frames() > 0) else {
-                dst.fill(0.0);
+                self.spec.fill(0.0);
+                self.ir[ch].put(k, m, &self.spec);
                 continue;
             };
             let data = d
@@ -194,7 +240,8 @@ impl Convolution {
                     )
                 };
             }
-            self.fft.forward(&self.time, dst);
+            self.fft.forward(&self.time, &mut self.spec);
+            self.ir[ch].put(k, m, &self.spec);
         }
     }
 
@@ -218,33 +265,30 @@ impl Convolution {
                 self.loading = Some(load);
             }
         }
-        let (b, n, p) = (self.part, self.bins(), self.max_parts.max(1));
+        let (b, m, p) = (self.part, self.bins(), self.max_parts.max(1));
         self.head = (self.head + 1) % p;
         for c in 0..self.channels {
-            let at = self.head * n;
-            if let Some(dst) = self.fdl[c].get_mut(at..at + n) {
-                self.fft.forward(&self.input[c], dst);
-            }
-            self.acc.fill(0.0);
+            self.fft.forward(&self.input[c], &mut self.spec);
+            self.fdl[c].put(self.head, m, &self.spec);
+            self.acc.clear();
+            let (ar, ai) = (&mut self.acc.re[..], &mut self.acc.im[..]);
             for k in 0..sum.min(p) {
                 let slot = (self.head + p - k) % p;
-                let (Some(x), Some(h)) = (
-                    self.fdl[c].get(slot * n..(slot + 1) * n),
-                    self.ir[c].get(k * n..(k + 1) * n),
-                ) else {
+                let (Some((xr, xi)), Some((hr, hi))) =
+                    (self.fdl[c].get(slot, m), self.ir[c].get(k, m))
+                else {
                     continue;
                 };
-                for ((a, x), h) in self
-                    .acc
-                    .chunks_exact_mut(2)
-                    .zip(x.chunks_exact(2))
-                    .zip(h.chunks_exact(2))
-                {
-                    a[0] += x[0] * h[0] - x[1] * h[1];
-                    a[1] += x[0] * h[1] + x[1] * h[0];
+                for j in 0..m.min(ar.len()).min(ai.len()) {
+                    ar[j] += xr[j] * hr[j] - xi[j] * hi[j];
+                    ai[j] += xr[j] * hi[j] + xi[j] * hr[j];
                 }
             }
-            self.fft.inverse(&self.acc, &mut self.time);
+            for ((pair, r), i) in self.spec.chunks_exact_mut(2).zip(ar.iter()).zip(ai.iter()) {
+                pair[0] = *r;
+                pair[1] = *i;
+            }
+            self.fft.inverse(&self.spec, &mut self.time);
             // The second half is the linear part of the circular result.
             self.output[c].copy_from_slice(&self.time[b..2 * b]);
             self.input[c].copy_within(b..2 * b, 0);
@@ -280,7 +324,7 @@ impl Node for Convolution {
         let rate = ctx.sample_rate.max(1.0);
         let part = partition(config);
         let max_parts = ((max_length(config) * rate / part as f64).ceil() as usize).max(1);
-        let n = 2 * (part + 1);
+        let m = part + 1;
         let path = config.get_str_or("file", "");
         let asset = if path.is_empty() {
             None
@@ -298,16 +342,17 @@ impl Node for Convolution {
             file: file.clone(),
             missing,
             current: file.clone(),
-            ir: [vec![0.0; max_parts * n], vec![0.0; max_parts * n]],
+            ir: [Planes::new(max_parts * m), Planes::new(max_parts * m)],
             active: 0,
             loading: None,
-            fdl: [vec![0.0; max_parts * n], vec![0.0; max_parts * n]],
+            fdl: [Planes::new(max_parts * m), Planes::new(max_parts * m)],
             head: 0,
             input: [vec![0.0; 2 * part], vec![0.0; 2 * part]],
             output: [vec![0.0; part], vec![0.0; part]],
             fill: 0,
             time: vec![0.0; 2 * part],
-            acc: vec![0.0; n],
+            spec: vec![0.0; 2 * m],
+            acc: Planes::new(m),
         };
         // The file's response is ready from the start.
         let parts = node.parts_of(file.as_deref());
@@ -383,7 +428,7 @@ impl Node for Convolution {
 
     fn reset(&mut self) {
         for c in 0..2 {
-            self.fdl[c].fill(0.0);
+            self.fdl[c].clear();
             self.input[c].fill(0.0);
             self.output[c].fill(0.0);
         }

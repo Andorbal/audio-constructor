@@ -15,6 +15,11 @@ fixes and smaller changes.
 
 ### Added
 
+- **Plucked Strings** example: a string built from parts on a
+  single-sample feedback loop, in tune at any buffer size, played by
+  seeded random notes, its brightness wandering with Chaos, ringing in a
+  hall through Convolution (with an impulse response rendered from the
+  Hall Reverb block), with a Spectrogram to watch.
 - **Running on PipeWire** is now documented in the guide: the released
   downloads play through PipeWire's ALSA layer, shared with other
   programs, and a JACK build started with `pw-jack` runs at PipeWire's
