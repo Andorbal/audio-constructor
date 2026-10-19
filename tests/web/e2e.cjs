@@ -119,6 +119,121 @@ async function open(page, port, example) {
   return until(page, (s) => s.worklet === "ready" && s.audio === "running" && s.inStep && s.project !== "Untitled");
 }
 
+// A project to open: the Pedalboard example, renamed.
+async function projectText(page, name) {
+  return page.evaluate(async (name) => {
+    const p = JSON.parse(await (await fetch("examples/guitar-pedalboard.acproj")).text());
+    p.name = name;
+    return JSON.stringify(p);
+  }, name);
+}
+
+// What the stand-in pickers saw, once `n` files are saved (or 5 s on).
+async function files_after(page, n) {
+  const t0 = Date.now();
+  let f = null;
+  while (Date.now() - t0 < 5000) {
+    f = await page.evaluate(() => window.__acFiles);
+    if (f.saved.length >= n) break;
+    await sleep(100);
+  }
+  return f;
+}
+
+async function ready(page, port) {
+  await page.goto(`http://127.0.0.1:${port}/?example=start`);
+  await until(page, (s) => s.worklet === "ready" && s.project === "Start");
+  // Keys go to the editor once its canvas has focus.
+  await page.mouse.click(700, 760);
+}
+
+// Opening and saving through the File System Access API (pickers stood in
+// for, as a person's choices), then through the upload-and-download
+// fallback for browsers without it.
+async function files(browser, port, errors) {
+  // The API: Save writes back to the file the project was opened from.
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => {
+    const store = { saved: [], asked: 0, next: null };
+    window.__acFiles = store;
+    const writable = (name) => ({
+      write: async (d) => store.saved.push({ name, text: new TextDecoder().decode(d) }),
+      close: async () => {},
+    });
+    window.showOpenFilePicker = async () => {
+      const f = store.next;
+      return [{ kind: "file", name: f.name, getFile: async () => f, createWritable: async () => writable(f.name) }];
+    };
+    window.showSaveFilePicker = async (o) => {
+      store.asked++;
+      return { kind: "file", name: o.suggestedName, createWritable: async () => writable(o.suggestedName) };
+    };
+  });
+  let page = await ctx.newPage();
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await ready(page, port);
+  const text = await projectText(page, "Mine");
+  await page.evaluate((t) => {
+    window.__acFiles.next = new File([t], "mine.acproj", { type: "application/json" });
+  }, text);
+  await page.keyboard.press("Control+o");
+  let s = await until(page, (x) => x.project === "Mine", 10000);
+  check(s && s.project === "Mine", "File ▸ Open reads a project through the file picker", s && s.project);
+  await page.keyboard.press("Control+s");
+  let saved = await files_after(page, 1);
+  const back = saved.saved.length ? JSON.parse(saved.saved[0].text) : {};
+  check(
+    saved.saved.length === 1 && saved.saved[0].name === "mine.acproj" && back.name === "Mine",
+    "File ▸ Save writes it back to the same file",
+    JSON.stringify(saved.saved.map((x) => x.name)),
+  );
+  check(saved.asked === 0, "without asking where");
+  await page.keyboard.press("Control+Shift+s");
+  saved = await files_after(page, 2);
+  check(saved.asked === 1 && saved.saved.length === 2, "Save As asks where", saved.asked);
+  // An edit makes the page's title say so, and leaving asks first.
+  await page.keyboard.press("a");
+  await page.keyboard.press("x");
+  s = await until(page, (x) => x.dirty, 5000);
+  const title = await page.title();
+  check(s && s.dirty && title.startsWith("●"), "an unsaved edit shows in the title", title);
+  let asked = false;
+  page.on("dialog", async (d) => {
+    asked = d.type() === "beforeunload";
+    await d.accept();
+  });
+  await page.close({ runBeforeUnload: true });
+  await sleep(500);
+  check(asked, "leaving with unsaved changes asks first");
+  await ctx.close();
+
+  // Without the API: an upload and a download.
+  const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+  await ctx2.addInitScript(() => {
+    window.showOpenFilePicker = undefined;
+    window.showSaveFilePicker = undefined;
+  });
+  page = await ctx2.newPage();
+  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await ready(page, port);
+  const text2 = await projectText(page, "Uploaded");
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), page.keyboard.press("Control+o")]);
+  await chooser.setFiles({ name: "uploaded.acproj", mimeType: "application/json", buffer: Buffer.from(text2) });
+  s = await until(page, (x) => x.project === "Uploaded", 10000);
+  check(s && s.project === "Uploaded", "without the API, File ▸ Open takes an upload", s && s.project);
+  const [download] = await Promise.all([page.waitForEvent("download"), page.keyboard.press("Control+s")]);
+  const file = await download.path();
+  const got = JSON.parse(fs.readFileSync(file, "utf8"));
+  check(
+    download.suggestedFilename() === "uploaded.acproj" && got.name === "Uploaded",
+    "and File ▸ Save downloads the project",
+    download.suggestedFilename(),
+  );
+  await ctx2.close();
+}
+
 async function main() {
   if (!fs.existsSync(path.join(SITE, "index.html"))) throw new Error(`no site in ${SITE}: run scripts/build_web.py`);
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -209,6 +324,17 @@ async function main() {
     check(after.rms < heard.rms / 4, "and stops after note off", after.rms.toFixed(5));
     s = await status(page);
     check(s.dropped === 0, "no ring records were dropped", s.dropped);
+
+    // Four Tracks: an example with audio files, which come from the site too.
+    s = await open(page, port, "four-tracks");
+    check(s && s.project === "Four Tracks", "the Four Tracks example loads", s && s.project);
+    check(s && s.missingFiles === 0, "with its audio files", s && s.missingFiles);
+    await page.evaluate(() => window.audioConstructor.play());
+    await sleep(1500);
+    heard = await listen(page);
+    check(heard.rms > 0.01, "and its clips play", heard.rms.toFixed(4));
+
+    await files(browser, port, errors);
   } finally {
     await browser.close();
     server.kill();

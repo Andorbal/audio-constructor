@@ -82,7 +82,9 @@ impl WebHandle {
     /// `worklet`, `playing`, `position` (samples), `seconds`, `peak`
     /// (left and right output levels), `sampleRate`, `inStep` (the worklet
     /// runs the project the editor shows), `project`, `errors` (compile
-    /// errors), and `midiInputs`.
+    /// errors), `missingFiles` (audio files the project can't find),
+    /// `dirty` (unsaved changes), `midiInputs`, `mic`, and `dropped` (ring
+    /// records that didn't fit).
     pub fn status(&self) -> String {
         let Some(app) = self.runner.app_mut::<WebApp>() else {
             return "{}".into();
@@ -102,6 +104,8 @@ impl WebHandle {
             "inStep": st.link.in_step,
             "project": app.editor.document().title(),
             "errors": app.editor.engine.report.errors().count(),
+            "missingFiles": app.editor.assets().issues.len(),
+            "dirty": app.editor.document().is_dirty(),
             "midiInputs": st.devices.inputs,
             "mic": js::mic_status(),
             "dropped": st.link.dropped,
