@@ -179,8 +179,9 @@ jobs:
       SIX_SINES_SHA256: 9b5353eebfec3e462c80ed8c0f53c965e6262bb38537518159cce71de7eace41
     steps:
       - uses: actions/checkout@v4
+      # Mesa's GLX: our own instrument's window draws with OpenGL.
       - name: Install system libraries
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip xvfb libgl1-mesa-dri
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip xvfb libgl1 libglx-mesa0 libgl1-mesa-dri mesa-utils
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Cache the plugin download
@@ -208,9 +209,12 @@ jobs:
           AC_THIRD_PARTY_PLUGINS: ${{ github.workspace }}/third-party/six-sines_assets
           AC_THIRD_PARTY_NAME: Six Sines
           AC_THIRD_PARTY_FORMATS: clap,vst3
+          # Our plugin logs why a window couldn't open to stderr.
+          NICE_LOG: stderr
         run: |
-          xvfb-run -a cargo test -p ac-host --test third_party_window -- --ignored --nocapture
-          xvfb-run -a cargo test -p ac-host --test plugin_window -- --ignored --nocapture
+          xvfb-run -a -s "-screen 0 1280x1024x24" sh -c 'glxinfo -B &&
+            cargo test -p ac-host --test third_party_window -- --ignored --nocapture &&
+            cargo test -p ac-host --test plugin_window -- --ignored --nocapture'
 
   deny:
     name: cargo deny
