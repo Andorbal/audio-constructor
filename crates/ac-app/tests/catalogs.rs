@@ -263,7 +263,8 @@ enum Rule {
 }
 
 /// Calls whose text a person reads, and the rule for the string literal
-/// (or `format!` of one) they're given. `button(` covers `small_button(`.
+/// (or `format!` of one) they're given first. `button(` covers
+/// `small_button(`.
 const GUARDED: &[(&str, Rule)] = &[
     ("say(", Rule::Any),
     ("warn(", Rule::Any),
@@ -279,6 +280,10 @@ const GUARDED: &[(&str, Rule)] = &[
     ("hint_text(", Rule::Words),
     ("section(ui,", Rule::Words),
 ];
+
+/// Calls whose text is their second argument (after a color, a flag, or a
+/// value), with the same rule as a widget's.
+const GUARDED_SECOND: &[&str] = &["colored_label(", "checkbox(", "selectable_label("];
 
 /// Literals the guard lets through, by file and text, each with why. A
 /// stale entry fails the test too, so the list stays short and true.
@@ -305,8 +310,10 @@ struct Hit {
 
 /// The guarded calls in `text` given untranslated literals.
 fn untranslated(text: &str) -> Vec<Hit> {
+    let first = GUARDED.iter().map(|&(call, rule)| (call, rule, false));
+    let second = GUARDED_SECOND.iter().map(|&call| (call, Rule::Words, true));
     let mut out = Vec::new();
-    for &(call, rule) in GUARDED {
+    for (call, rule, skip_one) in first.chain(second) {
         let mut from = 0;
         while let Some(at) = text[from..].find(call) {
             let start = from + at;
@@ -317,7 +324,13 @@ fn untranslated(text: &str) -> Vec<Hit> {
             {
                 continue;
             }
-            let Some((value, formatted)) = first_literal(&text[from..]) else {
+            let args = &text[from..];
+            let args = if skip_one {
+                after_first_arg(args)
+            } else {
+                Some(args)
+            };
+            let Some((value, formatted)) = args.and_then(first_literal) else {
                 continue;
             };
             let words = if formatted {
@@ -363,6 +376,34 @@ fn first_literal(args: &str) -> Option<(String, bool)> {
                 other => value.push(other),
             },
             _ => value.push(c),
+        }
+    }
+    None
+}
+
+/// What follows an argument list's first argument and its comma, if it
+/// has a second.
+fn after_first_arg(args: &str) -> Option<&str> {
+    let mut depth = 0;
+    let mut in_str = false;
+    let mut escaped = false;
+    for (i, c) in args.char_indices() {
+        if in_str {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '"' => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' if depth == 0 => return None,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => return Some(&args[i + 1..]),
+            _ => {}
         }
     }
     None
@@ -435,6 +476,9 @@ fn the_guard_finds_literals_and_skips_messages() {
             "Two lines, \
              one text",
         );
+        ui.colored_label(theme::warning(), "Blocked");
+        ui.colored_label(theme::warning(), icons::WARNING);
+        ui.checkbox(&mut on, "");
         essay("not a call");
     "#;
     let hits: Vec<(usize, &str, String)> = untranslated(code)
@@ -450,6 +494,7 @@ fn the_guard_finds_literals_and_skips_messages() {
             (6, "RichText::new(", "Running".to_string()),
             (7, "button(", "{}  Rescan".to_string()),
             (11, "on_hover_text(", "Two lines, one text".to_string()),
+            (15, "colored_label(", "Blocked".to_string()),
         ]
     );
     // Test modules are left out, and keep the line numbers after them.

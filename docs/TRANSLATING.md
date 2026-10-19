@@ -70,13 +70,13 @@ label without brackets.
 
 A test reads the source, too, and fails on text written straight into
 the code where a person would read it: a string literal (or `format!` of
-one) given to the status line (`say`, `warn`, `notify`), or with a letter
-in it given to a label, `RichText`, a button, a tooltip, a heading, a
-hint, or a section title. Its short `ALLOWED` list, in
-`crates/ac-app/tests/catalogs.rs`, names the few literals that aren't
-words to translate (punctuation around a file name or between two
-messages, the shape of a link, the product's name), each with why; unit
-tests are left out.
+one) given to the status line (`say`, `warn`, `notify`), or with a
+letter in it given to a label (colored or selectable), `RichText`, a
+button, a checkbox, a tooltip, a heading, a hint, or a section title.
+Its short `ALLOWED` list, in `crates/ac-app/tests/catalogs.rs`, names
+the few literals that aren't words to translate (punctuation around a
+file name or between two messages, the shape of a link, the product's
+name), each with why; unit tests are left out.
 
 ## Adding a message
 
