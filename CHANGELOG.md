@@ -15,6 +15,24 @@ fixes and smaller changes.
 
 ### Added
 
+- **Installers.** Each release now has an installer for every system,
+  carrying the editor, `audioc`, the examples, and the CLAP and VST3
+  plugins:
+  - Windows: a setup program that installs into Program Files, adds a
+    Start-menu entry, opens project, pack, and block files in the editor,
+    puts the plugins where hosts look (each a choice), and uninstalls from
+    Installed apps;
+  - macOS: an installer package that puts Audio Constructor in
+    Applications, `audioc` on the terminal's path, and the plugins in
+    `/Library/Audio/Plug-Ins` (each a choice);
+  - Linux: a `.deb` with a menu entry, file types, and the plugins in
+    `/usr/lib/clap` and `/usr/lib/vst3`.
+
+  The archives remain, now with the plugins in a `plugins/` folder, and the
+  Linux one has an `install.sh` that installs everything into your home
+  folder without root (`--uninstall` removes it). Releases list every
+  file's SHA-256 in `SHA256SUMS.txt`, and are signed (and on macOS
+  notarized) once signing certificates are set up for the project.
 - The editor has an icon, in its window, the taskbar or dock, and the
   desktop's menus.
 - `audio-constructor --version` prints the version without opening a

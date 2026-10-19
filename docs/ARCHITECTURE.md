@@ -21,6 +21,7 @@ Contents
 12. [Persistence: projects, blocks, assets](#12-persistence-projects-blocks-assets)
 13. [Hosts: app, CLI, plugin, web](#13-hosts-app-cli-plugin-web)
 14. [Testing and performance](#14-testing-and-performance)
+15. [Packaging and releases](#15-packaging-and-releases)
 
 ---
 
@@ -735,3 +736,42 @@ through the `Engine` API.
 - **Runtime instrumentation**: the xrun counter and per-thread load are
   always collected; per-node CPU time is collected while the editor shows
   it (`Ctrl+T`) and by `audioc bench`, and costs nothing otherwise.
+
+## 15. Packaging and releases
+
+Every merge to `main` is a release (CLAUDE.md): once CI passes on a
+`main` commit whose version has no tag, `.github/workflows/release.yml`
+builds on Linux (x86-64), macOS (Apple silicon), and Windows (x86-64)
+with `python3 scripts/package.py --build --target <triple>`, tags the
+commit, and publishes the packages with the changelog section as the
+notes and a `SHA256SUMS.txt` (D170).
+
+| Platform | Packages | Installs |
+| --- | --- | --- |
+| Linux | `audio-constructor_X.Y.Z_amd64.deb`; `audio-constructor-vX.Y.Z-<triple>.tar.gz` with `install.sh` | programs in `/usr/bin`, examples in `/usr/share/audio-constructor`, plugins in `/usr/lib/clap` and `/usr/lib/vst3`, a menu entry, icons, and file types; `install.sh` puts the same under `~/.local`, `~/.clap`, `~/.vst3` |
+| macOS | `audio-constructor-vX.Y.Z-<triple>.pkg`; the `.tar.gz` | `Audio Constructor.app` in Applications (both programs inside, the examples in `Contents/Resources`), `audioc` linked into `/usr/local/bin`, and the plugins (optional) in `/Library/Audio/Plug-Ins` |
+| Windows | `audio-constructor-vX.Y.Z-<triple>-setup.exe`; the `.zip` | Program Files, a Start-menu entry, the plugins (optional) in `Common Files\CLAP` and `\VST3`, file types, and an uninstaller in Installed apps; `/S` installs silently |
+
+Package sources live in `packaging/`: the icon set (drawn by
+`scripts/make_icon.py`), the Linux menu entry, file types, and install
+script, the macOS entitlements, and the Windows NSIS script. The editor
+looks for the examples beside its executable, in `Resources/` (the app
+bundle), and in `share/audio-constructor/` beside a `bin/` (D172).
+
+Signing (D171) is switched on by repository secrets; without them every
+package is built unsigned. `release.yml` reads:
+
+| Secret | Use |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD` | a base64 `.p12` holding the Developer ID Application and Installer identities, imported into a temporary keychain |
+| `MACOS_SIGNING_IDENTITY` | the Developer ID Application identity's name: signs the programs, the app, and the plugin bundles (hardened runtime, `packaging/macos/entitlements.plist`) |
+| `MACOS_INSTALLER_IDENTITY` | the Developer ID Installer identity's name: signs the `.pkg` |
+| `MACOS_NOTARY_APPLE_ID`, `MACOS_NOTARY_TEAM_ID`, `MACOS_NOTARY_PASSWORD` | notarize the signed `.pkg` (an app-specific password) and staple the ticket |
+| `WINDOWS_CERTIFICATE_PFX`, `WINDOWS_CERTIFICATE_PASSWORD` | a base64 Authenticode `.pfx`: signs both programs, the plugin library, the setup program, and its uninstaller (timestamped) |
+
+CI's *Bundles and installers* job builds the same packages on every
+change, installs each one on its runner, runs both programs from where
+they landed, renders an example with the installed `audioc`, and
+uninstalls; the packages are kept as the run's artifacts for two weeks,
+so a change can be tried before it's released.
+

@@ -10,22 +10,51 @@ work.
 
 Each release on the
 [releases page](https://github.com/Andorbal/audio-constructor/releases)
-has an archive for Linux (x86-64), macOS (Apple silicon), and Windows
-(x86-64). Unpack it anywhere. Inside are two programs and the example
-projects:
+has an installer for your system:
+
+- **Windows (x86-64):** `audio-constructor-v…-x86_64-pc-windows-msvc-setup.exe`.
+  It installs the editor and `audioc` into Program Files, adds Audio
+  Constructor to the Start menu, makes project, pack, and block files open
+  in the editor, and, unless you untick them, puts the plugins in
+  `Common Files\CLAP` and `Common Files\VST3`. Remove it from **Installed
+  apps** like any other program.
+- **macOS (Apple silicon):** `audio-constructor-v…-aarch64-apple-darwin.pkg`.
+  It puts **Audio Constructor** in Applications, `audioc` in
+  `/usr/local/bin` for the terminal, and, unless you untick them under
+  **Customize**, the plugins in `/Library/Audio/Plug-Ins`.
+- **Linux (x86-64):** `audio-constructor_…_amd64.deb` for Debian, Ubuntu,
+  and their relatives: `sudo apt install ./audio-constructor_…_amd64.deb`.
+  It adds the editor to your desktop's menus, `audioc` to the path, the
+  examples to `/usr/share/audio-constructor`, and the plugins to
+  `/usr/lib/clap` and `/usr/lib/vst3`. Remove it with
+  `sudo apt remove audio-constructor`.
+
+There's also a plain archive for each system (`.tar.gz`, or `.zip` on
+Windows). Unpack it anywhere and run the programs from there:
 
 - `audio-constructor`, the editor;
 - `audioc`, the command line (see [The command line](command-line.md));
 - `examples/`, the example projects. Keep this folder next to the
-  programs: the editor opens the Start example from it on launch.
+  programs: the editor opens the Start example from it on launch;
+- `plugins/`, the CLAP and VST3 plugins (see [The plugin](plugin.md));
+- on Linux, `install.sh`, which installs all of it for you alone, without
+  root: the programs into `~/.local/bin`, a menu entry, and the plugins
+  into `~/.clap` and `~/.vst3`. `./install.sh --uninstall` takes it away
+  again.
 
-The programs aren't signed yet, so your system may refuse to open them the
-first time:
+Until a release is signed, your system may warn you the first time:
 
-- **macOS:** clear the quarantine flag once, in a terminal:
-  `xattr -dr com.apple.quarantine <the unpacked folder>`.
-- **Windows:** when Windows warns that it protected your PC, choose
+- **Windows:** when SmartScreen says it protected your PC, choose
   **More info → Run anyway**.
+- **macOS:** if the installer is refused because it's from an unidentified
+  developer, open **System Settings ▸ Privacy & Security** and choose
+  **Open Anyway** next to its name. For the archive, clear the quarantine
+  flag once, in a terminal:
+  `xattr -dr com.apple.quarantine <the unpacked folder>`.
+
+A release whose packages are signed (and, on macOS, notarized) opens
+without these warnings. Each release lists every file's SHA-256 checksum in
+`SHA256SUMS.txt`.
 
 ### Build it yourself
 

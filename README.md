@@ -80,12 +80,14 @@ to building, playing, and rendering your own patches, step by step.
 
 Every release on the
 [releases page](https://github.com/Andorbal/audio-constructor/releases)
-has archives for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64)
-holding `audio-constructor`, `audioc`, and the examples. The binaries aren't
-signed yet: on macOS, clear the quarantine flag with
-`xattr -dr com.apple.quarantine <unpacked folder>`; on Windows, choose
-**More info → Run anyway**. What changed in each version is in
-[CHANGELOG.md](CHANGELOG.md).
+has an installer for Linux (x86-64, a `.deb`), macOS (Apple silicon, a
+`.pkg`), and Windows (x86-64, a setup program). Each installs the editor,
+`audioc`, the examples, and the CLAP and VST3 plugins where music software
+finds them. Plain archives are there too, to unpack and run anywhere (the
+Linux one has an `install.sh` that installs into your home folder). The
+[guide](docs/guide/getting-started.md#install) says what goes where and
+what to do if your system warns about an unsigned download. What changed
+in each version is in [CHANGELOG.md](CHANGELOG.md).
 
 ### Build
 

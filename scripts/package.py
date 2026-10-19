@@ -107,6 +107,16 @@ def target_dir() -> Path:
     return Path(env) if env else ROOT / "target"
 
 
+def default_bin_dir(target: str) -> Path:
+    """Where cargo put the release programs: `target/<triple>/release` after
+    a `--target` build, `target/release` after a plain one on this machine."""
+    explicit = target_dir() / target / "release"
+    plain = target_dir() / "release"
+    if not (explicit / "audioc").exists() and not (explicit / "audioc.exe").exists() and target == host_target():
+        return plain
+    return explicit
+
+
 @dataclass
 class Build:
     version: str
@@ -578,7 +588,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--target", help="the target triple (default: this machine's)")
     p.add_argument("--build", action="store_true", help="build the programs and plugins in release first")
-    p.add_argument("--bin-dir", type=Path, help="where the release programs are (default: target/<target>/release)")
+    p.add_argument("--bin-dir", type=Path, help="where the release programs are (default: target/<target>/release, or target/release)")
     p.add_argument("--plugins", type=Path, help="where the plugin bundles are (default: target/bundled)")
     p.add_argument("--out", type=Path, default=ROOT / "dist", help="where the packages go (default: dist/)")
     p.add_argument("--formats", help="comma-separated: archive, deb, pkg, setup (default: all of this platform's)")
@@ -601,7 +611,7 @@ def main() -> int:
             target=target,
             os=os_name,
             cpu=cpu_of(target),
-            bin_dir=args.bin_dir or target_dir() / target / "release",
+            bin_dir=args.bin_dir or default_bin_dir(target),
             plugins_dir=args.plugins or target_dir() / "bundled",
             out=args.out.resolve(),
             work=(args.out / ".work").resolve(),
