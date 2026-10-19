@@ -163,6 +163,9 @@ and with a screen reader.
 - **Enter / Leave Group is now Ctrl+Enter** (it was Tab, which now moves
   the keyboard from node to node). Double-clicking a group still goes
   inside.
+- In the browser, the Devices tab's list of MIDI messages names notes
+  ("Note on C4 · vel 100 · ch 1") the way the desktop editor does,
+  instead of by number.
 
 ## [0.13.0] - 2026-10-19
 
