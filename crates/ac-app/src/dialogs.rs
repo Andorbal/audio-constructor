@@ -2,7 +2,6 @@
 //! the system has no file dialog), keyboard shortcuts, and About.
 
 use std::path::PathBuf;
-use std::time::Instant;
 
 use egui::{Key, RichText};
 
@@ -37,6 +36,7 @@ impl FilePurpose {
         }
     }
 
+    #[cfg(feature = "native-dialogs")]
     fn saving(&self) -> bool {
         matches!(
             self,
@@ -52,6 +52,7 @@ pub struct NoDialog;
 /// Ask for a file with the system dialog. Returns `Err(NoDialog)` when no
 /// system dialog is available (it returned at once), so the caller can fall
 /// back to typing a path.
+#[cfg(feature = "native-dialogs")]
 pub fn native(
     purpose: &FilePurpose,
     suggested: Option<&std::path::Path>,
@@ -82,7 +83,7 @@ pub fn native(
             d = d.set_file_name(name.to_string_lossy());
         }
     }
-    let t0 = Instant::now();
+    let t0 = std::time::Instant::now();
     let r = if purpose.saving() {
         d.save_file()
     } else {
@@ -94,6 +95,16 @@ pub fn native(
         return Err(NoDialog);
     }
     Ok(r)
+}
+
+/// A build without the system's file dialogs (`native-dialogs` off) has
+/// none to show: the caller asks for a typed path.
+#[cfg(not(feature = "native-dialogs"))]
+pub fn native(
+    _purpose: &FilePurpose,
+    _suggested: Option<&std::path::Path>,
+) -> Result<Option<PathBuf>, NoDialog> {
+    Err(NoDialog)
 }
 
 /// Typing a path instead of a system dialog.

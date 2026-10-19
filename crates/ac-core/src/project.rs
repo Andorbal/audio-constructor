@@ -196,6 +196,38 @@ impl Project {
     }
 }
 
+/// `(path, stored hash)` for every asset reference in a project.
+pub fn referenced_assets(
+    project: &Project,
+    registry: &crate::registry::Registry,
+) -> Vec<(String, Option<String>)> {
+    let mut out = Vec::new();
+    let graphs =
+        std::iter::once(&project.graph).chain(project.group_defs.values().map(|d| &d.graph));
+    for g in graphs {
+        for n in &g.nodes {
+            let Some(entry) = registry.get(&n.kind) else {
+                continue;
+            };
+            for key in entry.meta.asset_keys {
+                if let Some(p) = n.config.get(*key).and_then(|v| v.as_str())
+                    && !p.is_empty()
+                {
+                    let hash = n
+                        .config
+                        .get("hash")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string);
+                    out.push((p.to_string(), hash));
+                }
+            }
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// Canonical pretty JSON with a trailing newline.
 pub fn to_canonical_json<T: Serialize>(value: &T) -> String {
     // Serializing our own types to a String can only fail on non-string map

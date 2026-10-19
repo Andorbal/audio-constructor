@@ -11,19 +11,15 @@ use ac_app::{AppOptions, EditorApp};
 
 fn main() -> eframe::Result {
     let project = std::env::args_os().nth(1).map(std::path::PathBuf::from);
-    let seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(1, |d| d.as_nanos() as u64);
     let opts = AppOptions {
         audio: AudioMode::Device(ac_io::AudioConfig::default()),
         project,
         start_example: true,
         recent: Recent::load_default(),
         native_dialogs: std::env::var_os("AC_NO_NATIVE_DIALOGS").is_none(),
-        seed,
+        seed: ac_app::clock_seed(),
         settings: ac_app::settings::AppSettings::load_default(),
-        library: directories::ProjectDirs::from("", "", "Audio Constructor")
-            .map(|d| d.data_dir().join("blocks")),
+        library: ac_app::files::default_library_dir(),
     };
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

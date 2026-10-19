@@ -114,6 +114,57 @@ jobs:
           cargo run -p ac-cli --features asio -- devices | tee devices.txt
           grep -q '^ASIO' devices.txt
 
+  plugin:
+    name: Plugin bundles (${{ matrix.os }})
+    # The test job already runs the plugin's tests on a debug build (a real
+    # CLAP host loads it, aborting on audio-thread allocations); this one
+    # builds the release .clap and .vst3 bundles people install and runs the
+    # same host tests against the binary inside them.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # The editor links the device layer (ALSA, udev); xvfb and Mesa's GLX
+      # give the window test below a display and OpenGL to open the editor on.
+      - name: Install system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev xvfb libgl1 libglx-mesa0 libgl1-mesa-dri mesa-utils
+      - run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the bundles
+        shell: bash
+        run: |
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/bundle_plugin.py
+      - name: Run the host tests against the bundled binary
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = macOS ]; then
+            lib="target/bundled/Audio Constructor.clap/Contents/MacOS/Audio Constructor"
+          else
+            lib="target/bundled/Audio Constructor.clap"
+          fi
+          # Windows tools need a Windows path; Git Bash's `pwd -W` gives one.
+          root=$(pwd -W 2>/dev/null || pwd)
+          AC_PLUGIN_LIBRARY="$root/$lib" cargo test -p ac-plugin --test clap_host --test vst3_factory
+      - name: Open the editor in a host window (Linux, virtual display)
+        if: runner.os == 'Linux'
+        env:
+          # The plugin logs why a window couldn't open to stderr.
+          NICE_LOG: stderr
+          AC_PLUGIN_LIBRARY: ${{ github.workspace }}/target/bundled/Audio Constructor.clap
+        run: |
+          xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
+            'glxinfo -B && cargo test -p ac-plugin --test clap_host -- --ignored'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-bundles-${{ matrix.os }}
+          path: target/bundled/
+          if-no-files-found: error
+
   deny:
     name: cargo deny
     runs-on: ubuntu-latest

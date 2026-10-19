@@ -1,7 +1,9 @@
 //! Running the engine live: the control half ([`EngineHandle`]) lives with
 //! the editor; the audio half ([`Processor`]) runs in an `ac-io` stream on
 //! the chosen audio device, or on the paced null stream when there is no
-//! device (this falls back silently, so the editor always runs).
+//! device (this falls back silently, so the editor always runs). In a plugin
+//! ([`AudioMode::Hosted`]) the host's audio thread runs the processor and
+//! the editor opens no devices at all.
 //!
 //! Switching devices at the same rate moves the processor to the new stream
 //! without rebuilding the engine; a different rate rebuilds the engine at
@@ -37,6 +39,54 @@ pub enum AudioMode {
     Null,
     /// Nothing runs the processor (unit tests tick it by hand).
     Off,
+    /// A host runs the processor on its own audio thread (a plugin): the
+    /// editor keeps the control half and opens no devices, MIDI ports,
+    /// gamepads, or OSC sockets. The host takes the processor with
+    /// [`EngineHost::take_processor`].
+    Hosted(HostAudio),
+}
+
+/// The audio a host provides when it runs the processor itself (a plugin
+/// host's sample rate, largest block, and channels).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HostAudio {
+    /// What the Devices tab and the status bar call the host.
+    pub host: String,
+    pub sample_rate: u32,
+    /// The most frames the host passes to one `process` call. Longer calls
+    /// are fine too: the processor splits them.
+    pub max_block: usize,
+    pub in_channels: usize,
+    pub out_channels: usize,
+}
+
+impl Default for HostAudio {
+    /// Stand-in values until the host says what it runs at (a plugin is
+    /// created before it's activated).
+    fn default() -> Self {
+        HostAudio {
+            host: "plugin host".into(),
+            sample_rate: NULL_RATE,
+            max_block: 512,
+            in_channels: 2,
+            out_channels: 2,
+        }
+    }
+}
+
+impl HostAudio {
+    fn info(&self) -> StreamInfo {
+        StreamInfo {
+            host: self.host.clone(),
+            output_device: None,
+            input_device: None,
+            sample_rate: self.sample_rate.max(1),
+            buffer_size: u32::try_from(self.max_block.max(1)).unwrap_or(u32::MAX),
+            in_channels: self.in_channels,
+            out_channels: self.out_channels,
+            notes: Vec::new(),
+        }
+    }
 }
 
 /// A latency measurement's progress.
@@ -93,6 +143,16 @@ pub struct EngineHost {
     /// [`EngineHost::tick_idle`] can feed it control events.
     idle_ports: EventPorts,
     idle_controls: Vec<ControlEvent>,
+    /// What the host provides, when a host runs the processor
+    /// (`AudioMode::Hosted`).
+    hosted: Option<HostAudio>,
+    /// The host keeps the project and the engine (a plugin's session): the
+    /// editor compiles nothing itself and leaves the engine's upkeep and
+    /// transport to the host. See [`EngineHost::keep_in_host`].
+    in_host: bool,
+    /// The project the engine should run next, waiting for the host
+    /// (while `in_host`).
+    outgoing: Option<Project>,
 }
 
 fn engine_at(
@@ -114,6 +174,14 @@ fn engine_at(
     );
     let (h, p) = engine.split();
     (h, p, report)
+}
+
+/// A processor a host's audio thread runs measures its load with the same
+/// clock the device streams give theirs.
+fn timed(mut processor: Processor) -> Processor {
+    ac_io::clock::init();
+    processor.set_clock(Some(ac_io::clock::now_ns));
+    processor
 }
 
 fn null_host(project: &Project, rate: u32) -> NullAudio {
@@ -145,12 +213,17 @@ impl EngineHost {
                 Some(Box::new(null_host(project, NULL_RATE))),
                 AudioConfig::default(),
             ),
-            AudioMode::Off => (None, AudioConfig::default()),
+            AudioMode::Off | AudioMode::Hosted(_) => (None, AudioConfig::default()),
         };
-        let info = host
-            .as_ref()
-            .map(|h| h.info().clone())
-            .unwrap_or_else(|| null_host(project, NULL_RATE).info().clone());
+        let hosted = match mode {
+            AudioMode::Hosted(a) => Some(a.clone()),
+            _ => None,
+        };
+        let info = match (&host, &hosted) {
+            (Some(h), _) => h.info().clone(),
+            (None, Some(a)) => a.info(),
+            (None, None) => null_host(project, NULL_RATE).info().clone(),
+        };
         let (handle, processor, report) = engine_at(project, registry, resources, &info);
         let mut me = EngineHost {
             handle,
@@ -166,7 +239,7 @@ impl EngineHost {
             device_error,
             latency: LatencyState::Idle,
             synced_revision: 0,
-            mode_off: host.is_none(),
+            mode_off: host.is_none() && hosted.is_none(),
             baker: Baker::new(),
             controls: None,
             keys: None,
@@ -179,6 +252,9 @@ impl EngineHost {
             osc_out: None,
             idle_ports: EventPorts::default(),
             idle_controls: Vec::with_capacity(CONTROL_CAPACITY),
+            hosted,
+            in_host: false,
+            outgoing: None,
         };
         let mut ports = if me.device_sources {
             EventPorts {
@@ -202,12 +278,126 @@ impl EngineHost {
         ports.controls = Some(me.new_controls());
         match host {
             Some(h) => me.run(h, processor, ports, project),
+            None if me.hosted.is_some() => {
+                me.idle = Some(timed(processor));
+                me.idle_ports = ports;
+            }
             None => {
                 me.idle = Some(processor);
                 me.idle_ports = ports;
             }
         }
         me
+    }
+
+    /// What the host provides, when a host runs the processor
+    /// (`AudioMode::Hosted`).
+    pub fn hosted(&self) -> Option<&HostAudio> {
+        self.hosted.as_ref()
+    }
+
+    /// The audio-thread half, for a host that runs it (`AudioMode::Hosted`;
+    /// tests in `AudioMode::Off` can take it too). `None` once taken: the
+    /// next one comes from [`EngineHost::restart_hosted`].
+    pub fn take_processor(&mut self) -> Option<Processor> {
+        self.idle.take()
+    }
+
+    /// The control events (Play keys) for a host that runs the processor:
+    /// its audio thread drains them into each block's `HostIo::controls`
+    /// (`ControlReceiver::drain` is real-time safe). `None` once taken. The
+    /// receiver outlives engine restarts.
+    pub fn take_control_receiver(&mut self) -> Option<ControlReceiver> {
+        self.idle_ports.controls.take()
+    }
+
+    /// The host runs at a new rate or block size (a plugin reactivated):
+    /// build a new engine for `project` there and hand back its processor.
+    /// The old processor's graphs are the old engine's; drop it with the old
+    /// handle. Nothing changes outside `AudioMode::Hosted`.
+    pub fn restart_hosted(
+        &mut self,
+        audio: HostAudio,
+        project: &Project,
+        registry: Arc<Registry>,
+        resources: Arc<dyn Resources>,
+    ) -> Option<Processor> {
+        self.hosted.as_ref()?;
+        let info = audio.info();
+        let (handle, processor, report) = engine_at(project, registry, resources, &info);
+        self.adopt(handle, report, audio);
+        Some(timed(processor))
+    }
+
+    /// Use an engine the host built (its processor runs on the host's audio
+    /// thread at `audio`'s rate). Turns the editor into `AudioMode::Hosted`
+    /// if it wasn't, closing any device stream it had.
+    pub fn attach_hosted(&mut self, handle: EngineHandle, audio: HostAudio) {
+        if let Some(s) = self.stream.take() {
+            drop(s.stop());
+        }
+        let report = handle.report().clone();
+        self.adopt(handle, report, audio);
+    }
+
+    /// The host keeps the project and the engine from now on (a plugin's
+    /// session, `AudioMode::Hosted` only): edits wait in
+    /// [`EngineHost::take_outgoing`] for the host to compile, and the
+    /// host's own thread drops retired graphs, bakes, and runs the
+    /// transport. The editor's handle is a stand-in between the frames the
+    /// host lends it its own (`EditorApp::with_engine`).
+    pub fn keep_in_host(&mut self) {
+        if self.hosted.is_some() {
+            self.in_host = true;
+        }
+    }
+
+    /// Whether the host keeps the project ([`EngineHost::keep_in_host`]).
+    pub fn in_host(&self) -> bool {
+        self.in_host
+    }
+
+    /// The project the engine should run now, if the document changed in a
+    /// way the engine hears since the last call (while the host keeps it).
+    pub fn take_outgoing(&mut self) -> Option<Project> {
+        self.outgoing.take()
+    }
+
+    /// Swap `handle` (the host's, lent for a frame) with the editor's own,
+    /// and take the host's rate and block size from it. Swapping again
+    /// gives it back.
+    pub(crate) fn swap_handle(&mut self, handle: &mut EngineHandle, follow_rate: bool) {
+        std::mem::swap(&mut self.handle, handle);
+        if !follow_rate {
+            return;
+        }
+        let rate = self.handle.options().sample_rate;
+        let block = self.handle.options().max_block;
+        if let Some(h) = self.hosted.as_mut() {
+            let rate = rate.round().clamp(1.0, f64::from(u32::MAX)) as u32;
+            if h.sample_rate != rate || h.max_block != block {
+                h.sample_rate = rate;
+                h.max_block = block;
+                self.info = h.info();
+            }
+        }
+    }
+
+    /// Whether Play keys reaches the engine: a host running the processor
+    /// has to take the keys' events ([`EngineHost::take_control_receiver`]).
+    pub fn keys_reach_engine(&self) -> bool {
+        self.hosted.is_none() || self.idle_ports.controls.is_none()
+    }
+
+    fn adopt(&mut self, handle: EngineHandle, report: CompileReport, audio: HostAudio) {
+        self.handle = handle;
+        self.report = report;
+        self.info = audio.info();
+        self.hosted = Some(audio);
+        self.idle = None;
+        self.mode_off = false;
+        self.device_error = None;
+        self.latency = LatencyState::Idle;
     }
 
     /// Fresh control rings: the computer keys, gamepads (with a device
@@ -357,6 +547,11 @@ impl EngineHost {
         registry: Arc<Registry>,
         resources: Arc<dyn Resources>,
     ) {
+        if self.hosted.is_some() {
+            // The Devices tab offers no devices then; nothing to switch.
+            self.device_error = Some("the host provides audio".into());
+            return;
+        }
         let host = match CpalAudio::open(&config) {
             Ok(h) => h,
             Err(e) => {
@@ -408,12 +603,30 @@ impl EngineHost {
         self.run(Box::new(host), processor, ports, project);
     }
 
-    /// Recompile with the editor's project (state carries over).
+    /// Recompile with the editor's project (state carries over). While the
+    /// host keeps the project, it waits for the host instead.
     pub fn replace(&mut self, project: &Project, revision: u64) {
-        self.report = self
-            .handle
-            .edit(GraphEdit::Replace(Box::new(project.clone())));
+        if self.in_host {
+            self.outgoing = Some(project.clone());
+        } else {
+            self.report = self
+                .handle
+                .edit(GraphEdit::Replace(Box::new(project.clone())));
+        }
         self.synced_revision = revision;
+    }
+
+    /// What the host's compile of the outgoing project found. `None`: the
+    /// host has no engine running (a plugin the host hasn't activated), so
+    /// the editor compiles `project` on its stand-in engine to show the
+    /// problems anyway.
+    pub fn host_compiled(&mut self, report: Option<CompileReport>, project: &Project) {
+        self.report = match report {
+            Some(r) => r,
+            None => self
+                .handle
+                .edit(GraphEdit::Replace(Box::new(project.clone()))),
+        };
     }
 
     /// Whether a whole-input node at `path` is being baked right now.
@@ -427,6 +640,11 @@ impl EngineHost {
 
     /// New assets or recorder: rebuild nodes with them.
     pub fn set_resources(&mut self, project: &Project, resources: Arc<dyn Resources>) {
+        if self.in_host {
+            // The host's engine reads the host's own copies of the files.
+            self.outgoing = Some(project.clone());
+            return;
+        }
         // The handle recompiles from its own copy of the project; make it current first.
         let _ = self
             .handle
@@ -437,9 +655,12 @@ impl EngineHost {
     /// Per-frame upkeep: drop retired graphs and MIDI ports, rescan MIDI
     /// now and then, bake whole-input nodes, and pick up a latency result.
     pub fn tick(&mut self) {
-        self.handle.collect_garbage();
-        if self.baker.poll(&mut self.handle) {
-            self.report = self.handle.report().clone();
+        // The host looks after its own engine (a plugin's control thread).
+        if !self.in_host {
+            self.handle.collect_garbage();
+            if self.baker.poll(&mut self.handle) {
+                self.report = self.handle.report().clone();
+            }
         }
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();
@@ -482,12 +703,15 @@ impl EngineHost {
         };
     }
 
+    /// Whether the engine runs on the silent null stream (or nothing runs
+    /// it). A host running the processor is not null.
     pub fn is_null(&self) -> bool {
-        self.stream.as_ref().is_none_or(|s| s.info().host == "null")
+        self.hosted.is_none() && self.stream.as_ref().is_none_or(|s| s.info().host == "null")
     }
 
+    /// Whether something runs the processor: a stream, or the host.
     pub fn is_running(&self) -> bool {
-        self.stream.is_some()
+        self.stream.is_some() || self.hosted.is_some()
     }
 
     pub fn is_off(&self) -> bool {
@@ -500,10 +724,16 @@ impl EngineHost {
 
     /// A one-line description: "no device (null) · 48000 Hz · 256 frames".
     pub fn describe(&self) -> String {
+        let i = &self.info;
+        if let Some(h) = &self.hosted {
+            return format!(
+                "{} · {} Hz · {} frames",
+                h.host, i.sample_rate, i.buffer_size
+            );
+        }
         if self.stream.is_none() {
             return "audio off".into();
         }
-        let i = &self.info;
         let dev = if self.is_null() {
             "no device (null)".to_string()
         } else {
@@ -623,6 +853,77 @@ mod tests {
         host.set_osc_in(None);
         assert!(host.osc_in.is_none());
         assert_eq!(host.osc_port, free, "the port is remembered");
+    }
+
+    #[test]
+    fn hosted_mode_opens_nothing_and_hands_out_the_processor() {
+        let registry = Arc::new(ac_nodes::registry());
+        let audio = HostAudio {
+            host: "DAW".into(),
+            sample_rate: 44_100,
+            max_block: 100,
+            in_channels: 0,
+            out_channels: 2,
+        };
+        let mut host = EngineHost::start(
+            &Project::default(),
+            registry.clone(),
+            Arc::new(ac_core::NoResources),
+            &AudioMode::Hosted(audio.clone()),
+        );
+        assert_eq!(host.hosted(), Some(&audio));
+        assert!(host.midi.is_none() && host.midi_out.is_none() && host.gamepads.is_none());
+        assert!(host.osc_out.is_none() && host.stats().is_none());
+        assert!(host.is_running() && !host.is_null() && !host.is_off());
+        assert_eq!(host.describe(), "DAW · 44100 Hz · 100 frames");
+        assert_eq!(host.handle.options().sample_rate, 44_100.0);
+        assert_eq!(host.handle.options().max_block, 100);
+        // Switching devices is the host's business.
+        host.switch(
+            AudioConfig::default(),
+            &Project::default(),
+            registry.clone(),
+            Arc::new(ac_core::NoResources),
+        );
+        assert!(host.hosted().is_some() && host.stats().is_none());
+        // The host takes the processor and the keys' control events.
+        let mut p = host
+            .take_processor()
+            .expect("the processor waits for the host");
+        assert!(host.take_processor().is_none());
+        let mut keys = host.take_control_receiver().expect("keys for the host");
+        host.send_key(Key::from_name("A").unwrap(), true);
+        let mut events = Vec::with_capacity(8);
+        keys.drain(ac_io::clock::now_ns(), 64, 44_100.0, &mut events);
+        assert_eq!(events.len(), 1);
+        host.handle.play();
+        let mut out = vec![0.0f32; 2 * 64];
+        let mut io = HostIo {
+            frames: 64,
+            input: &[],
+            in_channels: 0,
+            output: &mut out,
+            out_channels: 2,
+            midi: &[],
+            midi_out: None,
+            controls: &events,
+            osc_out: None,
+        };
+        p.process(&mut io);
+        assert_eq!(host.handle.position(), 64);
+        // A new rate: a new engine, and its processor for the host.
+        let p2 = host.restart_hosted(
+            HostAudio {
+                sample_rate: 96_000,
+                ..audio
+            },
+            &Project::default(),
+            registry,
+            Arc::new(ac_core::NoResources),
+        );
+        assert!(p2.is_some());
+        assert_eq!(host.info.sample_rate, 96_000);
+        assert_eq!(host.handle.position(), 0, "the transport starts over");
     }
 
     #[test]

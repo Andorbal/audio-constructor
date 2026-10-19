@@ -151,6 +151,8 @@ pub struct PanelIo<'a> {
     pub timing: Option<&'a crate::timing::Timings>,
     pub requests: Vec<PanelRequest>,
     pub now: f64,
+    /// The host's automatable parameters (a plugin's macros), if any.
+    pub host: Option<&'a mut Box<dyn crate::host::HostControls>>,
 }
 
 /// Set one config key on a node, as one undo step ("Change setting").
