@@ -60,6 +60,28 @@ impl BindingValues {
         v.is_finite().then_some(v)
     }
 
+    /// Copy every value into `out` as raw words (unset ones included), for
+    /// a mirror engine in another address space (DECISIONS D150). Writes at
+    /// most `out.len()` and returns [`BindingValues::len`]. Real-time safe.
+    pub fn export(&self, out: &mut [u32]) -> usize {
+        for (w, a) in out.iter_mut().zip(self.values.iter()) {
+            *w = a.load(Ordering::Relaxed);
+        }
+        self.values.len()
+    }
+
+    /// Take the words another engine's [`BindingValues::export`] wrote.
+    /// Returns false, changing nothing, unless there's one per binding.
+    pub fn import(&self, data: &[u32]) -> bool {
+        if data.len() != self.values.len() {
+            return false;
+        }
+        for (a, w) in self.values.iter().zip(data) {
+            a.store(*w, Ordering::Relaxed);
+        }
+        true
+    }
+
     fn set(&self, index: u32, v: f32) {
         if let Some(a) = self.values.get(index as usize) {
             a.store(v.to_bits(), Ordering::Relaxed);
