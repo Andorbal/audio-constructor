@@ -52,18 +52,48 @@ impl AssetStore {
         }
     }
 
+    /// Load every asset the project's nodes reference (inside groups too)
+    /// through `read`, which gives a file's bytes or says why it can't: a
+    /// host whose files aren't on disk (the web build keeps them in
+    /// memory) loads the same way as one whose files are.
+    pub fn load_with(
+        project: &Project,
+        registry: &Registry,
+        mut read: impl FnMut(&str) -> Result<Vec<u8>, String>,
+    ) -> AssetStore {
+        let mut store = AssetStore::default();
+        for (path, hash) in referenced_assets(project, registry) {
+            if !store.assets.contains_key(&path) {
+                let bytes = read(&path);
+                store.load_bytes(&path, hash.as_deref(), bytes);
+            }
+        }
+        store
+    }
+
     /// Load one asset (no-op if already loaded). Returns whether it's available.
     pub fn load(&mut self, path: &str, expected_hash: Option<&str>) -> bool {
         if self.assets.contains_key(path) {
             return true;
         }
         let full = self.resolve(path);
-        let bytes = match std::fs::read(&full) {
+        let bytes = std::fs::read(&full).map_err(|e| e.to_string());
+        self.load_bytes(path, expected_hash, bytes)
+    }
+
+    /// Decode a file's bytes as the asset at config path `path`.
+    fn load_bytes(
+        &mut self,
+        path: &str,
+        expected_hash: Option<&str>,
+        bytes: Result<Vec<u8>, String>,
+    ) -> bool {
+        let bytes = match bytes {
             Ok(b) => b,
-            Err(e) => {
+            Err(reason) => {
                 self.issues.push(AssetIssue::Missing {
                     path: path.to_string(),
-                    reason: e.to_string(),
+                    reason,
                 });
                 return false;
             }

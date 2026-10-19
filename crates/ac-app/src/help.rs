@@ -69,20 +69,26 @@ pub fn load_examples(dir: &Path) -> Vec<Example> {
         .filter(|p| p.extension().is_some_and(|x| x == "acproj"))
         .filter_map(|path| {
             let project = ac_io::load_project(&path).ok()?;
-            let name = if project.name.trim().is_empty() {
-                title_from_stem(&path)
-            } else {
-                project.name.trim().to_string()
-            };
-            Some(Example {
-                name,
-                kinds: project_kinds(&project),
-                path,
-            })
+            Some(example_of(path, &project))
         })
         .collect();
     out.sort_by_key(|e| e.name.to_lowercase());
     out
+}
+
+/// An example the host already read: its name and kinds from `project`,
+/// `path` being where the host finds it again.
+pub fn example_of(path: PathBuf, project: &Project) -> Example {
+    let name = if project.name.trim().is_empty() {
+        title_from_stem(&path)
+    } else {
+        project.name.trim().to_string()
+    };
+    Example {
+        name,
+        kinds: project_kinds(project),
+        path,
+    }
 }
 
 /// The examples holding `kind`.

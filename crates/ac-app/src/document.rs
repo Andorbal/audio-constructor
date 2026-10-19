@@ -73,6 +73,13 @@ impl Document {
         self.saved_revision = self.revision;
     }
 
+    /// The document as it was at `revision` is saved (a save that finished
+    /// later, while the person kept editing, leaves the newer edits
+    /// unsaved).
+    pub fn mark_saved_at(&mut self, revision: u64) {
+        self.saved_revision = revision;
+    }
+
     /// Display name: the project name, else the file name, else "Untitled".
     pub fn title(&self) -> String {
         if !self.project.name.trim().is_empty() {

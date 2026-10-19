@@ -23,3 +23,6 @@ pub mod link;
 pub mod ring;
 pub mod snapshot;
 pub mod wire;
+
+#[cfg(all(target_arch = "wasm32", feature = "worklet"))]
+mod worklet_abi;

@@ -91,6 +91,26 @@ impl HostAudio {
     }
 }
 
+/// `Send` where the editor must be (everywhere but a browser page, whose
+/// devices live on its one thread).
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send> MaybeSend for T {}
+/// `Send` where the editor must be (everywhere but a browser page, whose
+/// devices live on its one thread).
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T> MaybeSend for T {}
+
+/// What a host that runs the processor shows in the Devices tab under its
+/// audio (the web build: the microphone, MIDI ports, and gamepads it gives
+/// the engine). Without one the tab says the host provides audio and MIDI.
+pub trait DevicesPanel: MaybeSend {
+    fn show(&mut self, ui: &mut egui::Ui);
+}
+
 /// A latency measurement's progress.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LatencyState {
@@ -148,6 +168,8 @@ pub struct EngineHost {
     /// What the host provides, when a host runs the processor
     /// (`AudioMode::Hosted`).
     hosted: Option<HostAudio>,
+    /// The host's own devices, shown in the Devices tab.
+    pub devices_panel: Option<Box<dyn DevicesPanel>>,
 }
 
 fn engine_at(
@@ -248,6 +270,7 @@ impl EngineHost {
             idle_ports: EventPorts::default(),
             idle_controls: Vec::with_capacity(CONTROL_CAPACITY),
             hosted,
+            devices_panel: None,
         };
         let mut ports = if me.device_sources {
             EventPorts {

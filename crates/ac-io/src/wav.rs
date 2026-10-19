@@ -96,9 +96,29 @@ pub fn write_wav(
     sample_rate: u32,
     depth: BitDepth,
 ) -> Result<(), WavError> {
-    let n_ch = channels.len().max(1);
-    let spec = hound::WavSpec {
-        channels: n_ch as u16,
+    let spec = spec(channels, sample_rate, depth);
+    let w = hound::WavWriter::create(path, spec)
+        .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
+    write_samples(w, channels, depth)
+}
+
+/// A WAV file of non-interleaved channels, in memory (a host that saves
+/// through something other than a path: the web build's downloads).
+/// Written exactly as [`write_wav`] writes a file.
+pub fn wav_bytes(
+    channels: &[Vec<f32>],
+    sample_rate: u32,
+    depth: BitDepth,
+) -> Result<Vec<u8>, WavError> {
+    let mut out = std::io::Cursor::new(Vec::new());
+    let w = hound::WavWriter::new(&mut out, spec(channels, sample_rate, depth))?;
+    write_samples(w, channels, depth)?;
+    Ok(out.into_inner())
+}
+
+fn spec(channels: &[Vec<f32>], sample_rate: u32, depth: BitDepth) -> hound::WavSpec {
+    hound::WavSpec {
+        channels: channels.len().max(1) as u16,
         sample_rate,
         bits_per_sample: match depth {
             BitDepth::Pcm16 => 16,
@@ -109,9 +129,15 @@ pub fn write_wav(
             BitDepth::Float32 => hound::SampleFormat::Float,
             _ => hound::SampleFormat::Int,
         },
-    };
-    let mut w = hound::WavWriter::create(path, spec)
-        .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
+    }
+}
+
+fn write_samples<W: std::io::Write + std::io::Seek>(
+    mut w: hound::WavWriter<W>,
+    channels: &[Vec<f32>],
+    depth: BitDepth,
+) -> Result<(), WavError> {
+    let n_ch = channels.len().max(1);
     let frames = channels.first().map_or(0, Vec::len);
     for i in 0..frames {
         for c in 0..n_ch {
@@ -161,6 +187,19 @@ mod tests {
                 assert!((a - b).abs() <= tol + 1e-7, "{depth}: {a} vs {b}");
             }
         }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn bytes_match_the_file() {
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chans = vec![vec![0.25f32, -0.5, 1.0], vec![0.0, 0.125, -1.0]];
+        let p = dir.join("t.wav");
+        write_wav(&p, &chans, 44_100, BitDepth::Pcm24).unwrap();
+        let bytes = wav_bytes(&chans, 44_100, BitDepth::Pcm24).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), bytes);
+        assert_eq!(read_wav_bytes(&bytes).unwrap().channels.len(), 2);
         std::fs::remove_dir_all(&dir).ok();
     }
 

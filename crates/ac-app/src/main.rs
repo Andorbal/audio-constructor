@@ -20,6 +20,7 @@ fn main() -> eframe::Result {
         seed: ac_app::clock_seed(),
         settings: ac_app::settings::AppSettings::load_default(),
         library: ac_app::files::default_library_dir(),
+        host_files: false,
     };
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
