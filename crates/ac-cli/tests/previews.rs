@@ -360,6 +360,30 @@ fn a_library_is_indexed_shared_and_imported() {
         text(&o)
     );
     assert!(!lib.join("imported/limiter.acblock").exists());
+    // A pack's link is saved where -o says and unpacked beside itself.
+    let work = temp("pack-work");
+    let song = work.join("song.acproj");
+    std::fs::copy(root().join("examples/start.acproj"), &song).unwrap();
+    let o = audioc(&["pack", p(&song), "-o", p(&shared.join("song.acpack"))]);
+    assert!(o.status.success(), "{}", text(&o));
+    let out = temp("pack-out");
+    let o = audioc(&[
+        "block-import",
+        &format!("{base}/lib/song.acpack"),
+        "-o",
+        p(&out),
+        "--library",
+        p(&lib),
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(out.join("song.acpack").is_file());
+    assert!(
+        out.join("song").join("song.acproj").is_file(),
+        "{}",
+        text(&o)
+    );
+    std::fs::remove_dir_all(&work).ok();
+    std::fs::remove_dir_all(&out).ok();
     // Plain http elsewhere is refused before anything is fetched.
     let o = audioc(&[
         "block-import",

@@ -733,7 +733,10 @@ fn blocks_packs_and_libraries_come_from_links() {
     h.state_mut().import_link(&format!("{base}/lib/"), 0.0);
     wait_for(&mut h, "the library", |a| a.online.importing.is_empty());
     let link = format!("{base}/lib/index.json");
-    assert_eq!(h.state().settings().prefs.libraries, std::slice::from_ref(&link));
+    assert_eq!(
+        h.state().settings().prefs.libraries,
+        std::slice::from_ref(&link)
+    );
     assert!(status(&h).starts_with("Added the library Shared Things (2 blocks)"));
     assert_eq!(h.state().side.tab, Tab::Library);
     // Searching narrows shared libraries too (and keeps them on screen).
