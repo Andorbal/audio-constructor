@@ -37,6 +37,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "web-time",
 ]
 
 [[package]]
@@ -102,6 +103,7 @@ dependencies = [
  "rtrb",
  "serde_json",
  "thread-priority",
+ "web-time",
 ]
 
 [[package]]
@@ -135,6 +137,14 @@ dependencies = [
 [[package]]
 name = "ac-web"
 version = "0.12.0"
+dependencies = [
+ "ac-app",
+ "ac-core",
+ "ac-engine",
+ "ac-io",
+ "ac-nodes",
+ "serde_json",
+]
 
 [[package]]
 name = "accesskit"

@@ -90,8 +90,8 @@ impl AppOptions {
 
 /// A seed for node ids that differs from run to run.
 pub fn clock_seed() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
         .map_or(1, |d| d.as_nanos() as u64)
 }
 
@@ -201,6 +201,8 @@ impl Clock {
 // The embedding host shares the editor between its own thread and the
 // window's (egui-baseview runs a window on its own thread on X11), so the
 // editor must stay `Send`; this fails to compile if a field stops being.
+// A browser page has one thread, and its devices aren't `Send`.
+#[cfg(not(target_arch = "wasm32"))]
 const _: () = {
     const fn sendable<T: Send>() {}
     sendable::<EditorApp>();
@@ -367,6 +369,12 @@ impl EditorApp {
 
     pub fn document(&self) -> &Document {
         &self.doc
+    }
+
+    /// The audio files the project plays, as loaded (a host running the
+    /// engine elsewhere sends them along with the project).
+    pub fn assets(&self) -> &AssetStore {
+        &self.assets
     }
 
     // ------------------------------------------------------------ hosting

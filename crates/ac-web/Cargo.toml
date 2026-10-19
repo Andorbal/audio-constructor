@@ -1,6 +1,6 @@
 [package]
 name = "ac-web"
-description = "Placeholder for the Phase 3 web build (AudioWorklet host)."
+description = "Audio Constructor in a browser: the engine in an audio worklet, the editor on the page."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +9,30 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+# The cdylib is a wasm module (`scripts/build_web.py` builds it twice: the
+# page's with `ui`, the audio worklet's with `worklet`); the rlib lets the
+# native tests drive both sides.
+crate-type = ["cdylib", "rlib"]
+
 [lints]
 workspace = true
 
-[dependencies]
+[features]
+default = []
+# The page: the editor on eframe's web target, the browser's devices and
+# files, and the link to the worklet. Builds for wasm32 only.
+ui = []
+# The audio worklet's module: the engine behind a few exported functions,
+# with no bindings generator (the worklet instantiates it directly).
+worklet = []
 
+[dependencies]
+ac-core.workspace = true
+ac-nodes.workspace = true
+ac-engine.workspace = true
+
+[dev-dependencies]
+ac-app = { path = "../ac-app", default-features = false }
+ac-io.workspace = true
+serde_json.workspace = true

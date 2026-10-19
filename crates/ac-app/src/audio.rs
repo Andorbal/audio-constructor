@@ -15,7 +15,9 @@
 //! through a sender thread here.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 use ac_core::{CONTROL_CAPACITY, Control, ControlEvent, Key, Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};

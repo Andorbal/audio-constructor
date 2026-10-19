@@ -51,6 +51,7 @@ serde.workspace = true
 serde_json.workspace = true
 rfd = { version = "0.17", optional = true }
 directories = "6.0"
+web-time.workspace = true
 # The plugin window: egui on baseview (MIT OR Apache-2.0), with the OpenGL
 # renderer (DECISIONS D121). It needs a logging facade to build; `log` is
 # the one plugin frameworks route to the host's log.
