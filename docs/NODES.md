@@ -105,7 +105,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Comb` | P2 | Feed-forward/feed-back comb with `delay`, `feedback`, `damping`, `mix`; `max_delay` config. Reverb and Karplus-Strong ingredient. |
 | `Allpass` | P2 | Schroeder allpass; `delay` (modulatable, allpass-interpolated so it stays lossless), `gain`. Reverb ingredient. |
 | `DcBlock` | P2 | Removes DC offset (a one-pole highpass at `cutoff`, 10 Hz by default). |
-| `Formant` | P3 | Vowel filter bank with morphing. |
+| `Formant` | P3 | Vowel filter bank: three resonances at measured formants (`voice`: man, woman, child) of a, e, i, o, u; `vowel` (0–4) morphs between them, plus `shift` (semitones), `resonance`, `mix`. |
 
 ## Time
 
@@ -168,7 +168,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints drawn in the editor) with a sustain point and loop points; `gate`, `trigger`, `time_scale`. |
 | `StepSequencer` | P2 | N steps of `Float` values (drawn in the editor); advances on `clock`; `direction`, `length`, `glide`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
 | `RandomWalk` | P2 | Smooth random modulation; `rate`, `range`, `seed`. |
-| `Chaos` | P3 | Lorenz/Rössler attractor outputs. |
+| `Chaos` | P3 | A Lorenz or Rössler attractor (`system`) as three sample-rate outputs `x`, `y`, `z`, about −1..1; `rate` (about loops a second), `chaos` (steady or looping at 0, wilder towards 1), `reset`; the start is nudged by the seed. |
 
 ## Triggers and gates
 

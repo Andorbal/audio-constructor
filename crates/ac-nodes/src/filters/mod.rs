@@ -8,6 +8,7 @@ pub mod allpass;
 pub mod biquad;
 pub mod comb;
 pub mod dc_block;
+pub mod formant;
 pub mod ladder;
 pub mod svf;
 
@@ -19,6 +20,7 @@ pub fn register(r: &mut Registry) {
     r.register::<comb::Comb>();
     r.register::<allpass::Allpass>();
     r.register::<dc_block::DcBlock>();
+    r.register::<formant::Formant>();
 }
 
 /// Default `max_delay` for the delay-based filters, in seconds.

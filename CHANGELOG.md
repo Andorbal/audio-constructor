@@ -27,6 +27,15 @@ fixes and smaller changes.
   one block of delay, and the Problems tab names the node in the way.
   `audioc validate` lists each single-sample loop. Existing projects
   sound exactly as before.
+- **Chaos** (Modulation): three smooth signals, `x`, `y`, and `z`, from a
+  Lorenz or Rössler strange attractor. They swirl in a pattern that never
+  quite repeats, at about `rate` loops a second; `chaos` takes them from
+  steady (or a plain loop) to wild. The same project always draws the same
+  curves, and two Chaos nodes drift apart.
+- **Formant** (Filters): a vowel filter. Three resonances sit where a
+  man's, a woman's, or a child's voice puts them for a, e, i, o, and u;
+  `vowel` morphs between them, `shift` moves them up or down, and an LFO
+  or envelope on `vowel` makes a synth talk.
 
 ## [0.12.0] - 2026-10-19
 

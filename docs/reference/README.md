@@ -10,18 +10,18 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-117 nodes in 13 categories.
+119 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
 | [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
 | [Generators](#generators) | 8 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
-| [Filters](#filters) | 6 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
+| [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
 | [Spectral](#spectral) | 6 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
 | [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
-| [Modulation](#modulation) | 5 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
+| [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
@@ -90,6 +90,7 @@ Filters for shaping tone, for synth sounds, and for building reverbs and resonat
 | [Biquad](filters.md#biquad) | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Comb](filters.md#comb) | A comb filter: a copy of the input delayed by `delay`, fed back (a resonator ringing at 1 / `delay`) or added once (evenly spaced notches). |
 | [DC Block](filters.md#dc-block) | Removes DC offset: a gentle one-pole highpass that pulls a signal back to center without touching anything you can hear. |
+| [Formant](filters.md#formant) | A vowel filter: three resonances placed where a voice puts them for "a", "e", "i", "o", and "u", so a bright sound fed through it seems to speak. |
 | [Ladder](filters.md#ladder) | A four-pole transistor-ladder filter with drive: warm, squelchy, and able to self-oscillate. |
 | [SVF](filters.md#svf) | A resonant state-variable filter with lowpass, bandpass, highpass, and notch outputs at once: the synth filter. |
 
@@ -157,6 +158,7 @@ Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' i
 | Node | What it does |
 | --- | --- |
 | [ADSR](modulation.md#adsr) | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
+| [Chaos](modulation.md#chaos) | Modulation from a strange attractor: three signals, `x`, `y`, and `z`, that swirl in a pattern that never quite repeats, each between about −1 and 1. |
 | [Envelope](modulation.md#envelope) | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |
 | [LFO](modulation.md#lfo) | A low-frequency oscillator for modulation: a cheap, block-rate wave to move other parameters. |
 | [Random Walk](modulation.md#random-walk) | Smooth random modulation that wanders around `center`, never further than `range` from it. |
