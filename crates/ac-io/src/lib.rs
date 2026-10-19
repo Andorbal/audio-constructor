@@ -53,6 +53,7 @@ pub mod convert;
 pub mod engine_threads;
 pub mod gamepad;
 pub mod hash;
+pub mod index;
 pub mod latency;
 pub mod library;
 pub mod midi;
@@ -69,6 +70,8 @@ pub mod preview;
 pub mod priority;
 pub mod project_file;
 pub mod record;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod remote;
 pub mod rings;
 pub mod runtime;
 pub mod wav;

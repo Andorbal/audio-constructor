@@ -27,6 +27,17 @@ fixes and smaller changes.
   plays. The preview is rendered offline, so the same block always gives
   the same file, and the block file records the preview's name and
   SHA-256.
+- **Shared libraries**: `audioc library-index <folder>` writes an
+  `index.json` describing a folder of blocks and their previews (the
+  library's name and description; each block's version, author, tags,
+  size, and SHA-256), so the folder can be shared from any web host that
+  serves files. Blocks that don't load are reported and left out of the
+  index, and `--check` says whether an index is up to date.
+- `audioc block-import <link>` imports a block, a pack, or a whole
+  library (or some of it, with `--only`) from an https link, into your
+  library or the one `--library` names. Blocks from a library are checked
+  against its index and refused if they've changed; `--list` shows what a
+  library holds.
 
 ## [0.10.0] - 2026-10-19
 

@@ -1,10 +1,14 @@
-//! Block previews from the command line (DECISIONS D190): every shipped
-//! block's preview against its golden hash, and `audioc block-export`.
+//! Block previews and shared libraries from the command line
+//! (DECISIONS D190–D192): every shipped block's preview against its golden
+//! hash, `audioc block-export`, `audioc library-index`, and
+//! `audioc block-import` from a server on this machine.
 //!
 //! Regenerate the preview hashes with
 //! `GOLDEN_UPDATE=1 cargo test -p ac-cli --test previews`.
 
 use std::collections::BTreeMap;
+use std::io::{BufRead, BufReader, Write};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::Arc;
@@ -201,4 +205,170 @@ fn block_export_writes_the_block_and_the_preview_the_library_renders() {
         text(&o)
     );
     std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Serve the files in `dir` under `/lib/` on this machine; returns the base.
+fn serve(dir: &Path) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    let dir = dir.to_path_buf();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut first = String::new();
+            let _ = reader.read_line(&mut first);
+            let mut line = String::new();
+            while reader.read_line(&mut line).unwrap_or(0) > 0 && line != "\r\n" {
+                line.clear();
+            }
+            let path = first.split(' ').nth(1).unwrap_or("/");
+            let body = path
+                .strip_prefix("/lib/")
+                .filter(|f| !f.contains(['/', '\\']) && !f.starts_with('.'))
+                .and_then(|f| std::fs::read(dir.join(f)).ok());
+            let response = match body {
+                Some(b) => {
+                    let mut r = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        b.len()
+                    )
+                    .into_bytes();
+                    r.extend_from_slice(&b);
+                    r
+                }
+                None => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    .to_vec(),
+            };
+            let _ = stream.write_all(&response);
+        }
+    });
+    base
+}
+
+#[test]
+fn a_library_is_indexed_shared_and_imported() {
+    let shared = temp("shared");
+    // Someone's own takes on two shipped blocks (the shipped ones are in
+    // every library already).
+    let work = temp("work");
+    for (id, name) in [("chorus", "Wide Chorus"), ("limiter", "Hard Limiter")] {
+        let text_in = std::fs::read_to_string(root().join(format!("blocks/{id}.acblock"))).unwrap();
+        let mut b = Block::from_json(&text_in).unwrap();
+        b.def.name = name.into();
+        let src = work.join(format!("{id}.acblock"));
+        std::fs::write(&src, b.to_json()).unwrap();
+        let o = audioc(&[
+            "block-export",
+            p(&src),
+            "-o",
+            p(&shared.join(format!("{id}.acblock"))),
+        ]);
+        assert!(o.status.success(), "{}", text(&o));
+    }
+    std::fs::remove_dir_all(&work).ok();
+    std::fs::write(shared.join("broken.acblock"), "{\"name\": 3}").unwrap();
+
+    // A broken block is reported and left out; the rest is indexed.
+    let o = audioc(&[
+        "library-index",
+        p(&shared),
+        "--name",
+        "Shared Things",
+        "--description",
+        "For the test.",
+    ]);
+    assert_eq!(o.status.code(), Some(2), "{}", text(&o));
+    let t = text(&o);
+    assert!(
+        t.contains("broken.acblock") && t.contains("indexed 2 blocks (2 with a preview)"),
+        "{t}"
+    );
+    let index: Value =
+        serde_json::from_str(&std::fs::read_to_string(shared.join("index.json")).unwrap()).unwrap();
+    assert_eq!(index["format"], "audio-constructor/library");
+    assert_eq!(index["version"], 1);
+    assert_eq!(index["name"], "Shared Things");
+    let ids: Vec<&str> = index["blocks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["chorus", "limiter"]);
+    assert_eq!(index["blocks"][0]["preview"]["file"], "chorus.preview.wav");
+    // Once it's fixed, --check says whether the index is current.
+    std::fs::remove_file(shared.join("broken.acblock")).unwrap();
+    let o = audioc(&["library-index", p(&shared), "--check"]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(text(&o).contains("up to date"), "{}", text(&o));
+
+    // Listed and imported from a link.
+    let base = serve(&shared);
+    let lib = temp("lib");
+    let o = audioc(&["block-import", &format!("{base}/lib/index.json"), "--list"]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(
+        text(&o).contains("Shared Things (2 blocks)"),
+        "{}",
+        text(&o)
+    );
+    let o = audioc(&[
+        "block-import",
+        &format!("{base}/lib/"),
+        "--library",
+        p(&lib),
+        "--only",
+        "chorus",
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(
+        text(&o).contains("imported Wide Chorus → imported:chorus"),
+        "{}",
+        text(&o)
+    );
+    assert!(lib.join("imported/chorus.acblock").exists());
+    assert_eq!(
+        std::fs::read(lib.join("imported/chorus.preview.wav")).unwrap(),
+        std::fs::read(shared.join("chorus.preview.wav")).unwrap()
+    );
+    assert!(!lib.join("imported/limiter.acblock").exists());
+    // The same block again changes nothing (D83's file-import rule).
+    let o = audioc(&[
+        "block-import",
+        &format!("{base}/lib/chorus.acblock"),
+        "--library",
+        p(&lib),
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    assert!(text(&o).contains("already in the library"), "{}", text(&o));
+    // A changed block no longer matches the index and isn't kept.
+    let mut bytes = std::fs::read(shared.join("limiter.acblock")).unwrap();
+    let at = bytes.windows(4).position(|w| w == b"Hard").unwrap();
+    bytes[at] = b'W';
+    std::fs::write(shared.join("limiter.acblock"), bytes).unwrap();
+    let o = audioc(&[
+        "block-import",
+        &format!("{base}/lib/"),
+        "--library",
+        p(&lib),
+    ]);
+    assert_eq!(o.status.code(), Some(2), "{}", text(&o));
+    assert!(
+        text(&o).contains("doesn't match the library's index"),
+        "{}",
+        text(&o)
+    );
+    assert!(!lib.join("imported/limiter.acblock").exists());
+    // Plain http elsewhere is refused before anything is fetched.
+    let o = audioc(&[
+        "block-import",
+        "http://example.org/x.acblock",
+        "--library",
+        p(&lib),
+    ]);
+    assert!(!o.status.success());
+    assert!(text(&o).contains("https"), "{}", text(&o));
+    std::fs::remove_dir_all(&shared).ok();
+    std::fs::remove_dir_all(&lib).ok();
 }
