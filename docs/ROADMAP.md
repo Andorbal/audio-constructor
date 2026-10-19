@@ -614,8 +614,48 @@ plugins run as nodes, and the product is packaged for people who are not
 developers.
 
 ### M3.1 Plugin build
-- [ ] `ac-plugin` with nih-plug: CLAP and VST3, effect and instrument variants, host-automatable parameters chosen from the project, editor in the plugin window.
-- [ ] State save/restore through the host; sample rate and block size from the host.
+- [x] `ac-plugin` with nice-plug (D117): CLAP and VST3, effect and instrument variants, host-automatable parameters chosen from the project, editor in the plugin window.
+- [x] State save/restore through the host; sample rate and block size from the host.
+
+*Verified:* `crates/ac-plugin` builds one library holding **Audio
+Constructor Effect** and **Audio Constructor Instrument**, each as CLAP and
+VST3. `scripts/bundle_plugin.py` lays out the bundles, and CI's *Plugin
+bundles* job builds them in release on Linux, macOS, and Windows and runs
+the host tests against the binary inside them.
+
+`crates/ac-plugin/tests/clap_host.rs` loads the plugin in a real CLAP host
+(clack-host), with debug builds aborting on any allocation in `process`:
+- `a_project_runs_as_a_clap_effect_with_automatable_macros`: a sine passes
+  at 0 dB; automating Macro 1 to 0.25 at frame 100 leaves the earlier
+  samples alone and settles at −12 dB (within 0.05 dB); uneven block sizes
+  up to the host's maximum work. This is Phase 3 acceptance #1.
+- `state_restores_the_project_and_macros_in_a_second_instance`: a state
+  saved from one instance gives bit-identical output in a second; the
+  restored patch measures the calculated −32.0 dB.
+- `a_state_that_cant_be_used_leaves_a_working_default`: broken or newer
+  states fall back to the default patch with a report.
+- `the_patch_follows_the_hosts_transport` and
+  `the_instrument_plays_host_notes_on_their_samples` (a note starts on its
+  exact sample).
+- `both_plugins_offer_an_embedded_resizable_editor` (the gui extension,
+  the platform's embedded API, resizing, 1200×760), and
+  `the_editor_opens_in_the_hosts_window_and_closes_again` (ignored by
+  default; CI runs it under Xvfb against the release bundle: the editor
+  opens in a real X11 parent three times while audio plays).
+- `crates/ac-plugin/tests/vst3_factory.rs` checks the VST3 factory exports
+  both classes with their categories and creates each one.
+
+"Parameters chosen from the project" are sixteen fixed macros that the
+project maps with ordinary bindings (D119), so hosts see a stable
+parameter list and automation lands on the right sample. The editor
+(`crates/ac-plugin/src/editor`, egui_kittest tests in `editor/tests.rs`)
+borrows the session's engine per frame: palette edits reach the session,
+a state reset reloads the document, and a macro dragged in the Devices tab
+goes through the host's parameter setter as one gesture. The editor is in
+the CLAP plugins only; the VST3 plugins have no window for now (D128).
+
+Needs a human with a host and a screen: the steps are in the M3.1 merge
+request.
 
 ### M3.2 Plugin hosting
 - [ ] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.

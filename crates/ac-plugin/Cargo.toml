@@ -18,27 +18,40 @@ crate-type = ["cdylib", "rlib"]
 workspace = true
 
 [features]
-default = []
-# The plugin window. Needs the embeddable editor; off until it lands (see
-# `editor.rs` for the seam).
-editor = ["nice-plug/editor"]
+default = ["editor"]
+# The plugin window (CLAP): the node editor from ac-app, drawn in the host's
+# window with egui-baseview (see `editor.rs`). Without it the plugin has no
+# window and hosts show their generic controls for the macros.
+editor = ["nice-plug/editor", "dep:ac-app", "dep:ac-io", "dep:egui"]
 
 [dependencies]
 ac-core.workspace = true
 ac-nodes.workspace = true
 ac-engine.workspace = true
+# The editor, without the desktop window (eframe), with the system's file
+# dialogs.
+ac-app = { path = "../ac-app", default-features = false, features = ["embed", "native-dialogs"], optional = true }
+ac-io = { workspace = true, optional = true }
+egui = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 hound.workspace = true
 assert_no_alloc.workspace = true
 # CLAP and VST3 wrappers. The `vst3` feature uses the MIT/Apache `vst3`
-# bindings (DECISIONS D116); no default logger, no editor unless asked.
+# bindings (DECISIONS D118); no default logger; the window comes with the
+# `editor` feature.
 nice-plug = { version = "0.4.2", default-features = false, features = ["vst3"] }
 
 [dev-dependencies]
 # A real CLAP host for the integration tests: loads the built plugin.
 clack-host = "0.2"
-clack-extensions = { version = "0.2", features = ["clack-host", "params", "state"] }
+clack-extensions = { version = "0.2", features = ["clack-host", "gui", "params", "state"] }
 # The VST3 smoke test opens the same library and asks its factory.
 libloading = "0.8"
 vst3 = "0.3"
+# The editor's frames, driven without a window.
+egui_kittest.workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# A parent window for the (ignored) test that opens the editor on a display.
+x11-dl = "2.21"

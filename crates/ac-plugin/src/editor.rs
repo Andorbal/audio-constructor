@@ -1,59 +1,61 @@
-//! The seam for the editor in the plugin window.
+//! The editor in the plugin window: the node editor from `ac-app`, drawn
+//! in the host's window with egui-baseview (`ac_app::embed`), on the
+//! instance's [`Session`](crate::Session) (ARCHITECTURE §13).
 //!
-//! The plugin builds and runs without a window: hosts show their generic
-//! controls for the macros. The node editor comes from `ac-app`, embedded
-//! in the host's window (an egui-baseview window); until that lands,
-//! [`PluginEditor`] is `()` and [`create`] returns `None`, so hosts show no
-//! editor button. The `editor` feature turns on the framework's window
-//! support for that work; nothing else in the plugin changes.
+//! The CLAP plugins offer it ([`WithEditor`]); the VST3 plugins have no
+//! window for now ([`NoEditor`]): the same code would run there, but only
+//! CLAP hosts have been tried, and a VST3 host without a window shows its
+//! generic controls for the macros, as before. Without the `editor` feature
+//! neither has one.
 //!
-//! # What the embedded editor gets
+//! # How the window and the session meet
 //!
-//! [`create`] receives an [`EditorContext`] when the host first asks for
-//! an editor, and returns the editor type the plugin declares. Through it:
+//! One `EditorApp` lives as long as the plugin instance (made when the host
+//! first opens the window), so its undo history, selection, and view
+//! survive closing and reopening. Each frame, on the window's thread,
+//! [`frame`] locks the session ([`Shared::lock`], never taken on the audio
+//! thread) and:
 //!
-//! - **The project and engine**: lock [`EditorContext::shared`] once per
-//!   frame ([`Shared::lock`], never on the audio thread) for the
-//!   [`Session`](crate::Session):
-//!   - [`Session::project`](crate::Session::project) is the project to show
-//!     (build the editor's document from it when the window opens and
-//!     after [`Session::revision`](crate::Session::revision) changes, as a
-//!     state load replaces it);
-//!   - [`Session::engine`](crate::Session::engine) is the running engine's
-//!     `EngineHandle` (`None` while the host has the plugin inactive): its
-//!     telemetry, `set_param` / `fire` for inline controls,
-//!     `binding_values`, and `set_input_monitor` / `take_input_events` for
-//!     learning work exactly as in the app;
-//!   - push every project change with
-//!     [`Session::set_project`](crate::Session::set_project): it recompiles
-//!     off the audio thread and swaps the graph in at the next block (and
-//!     keeps the macro readouts current). Don't call the handle's `edit`
-//!     directly;
-//!   - [`Session::add_asset`](crate::Session::add_asset) when someone picks
-//!     an audio file for a Clip or Sampler (the bytes go into the host's
-//!     saved state), and
-//!     [`Session::load_project_file`](crate::Session::load_project_file) /
-//!     [`Session::reset_to_default`](crate::Session::reset_to_default) for
-//!     Open and New; [`Session::report`](crate::Session::report) says what
-//!     the last load found.
-//! - **The macros**: [`EditorContext::params`]'s `macros[i].value` are the
-//!   host-visible parameters. Read them for display; change them through
-//!   the framework's `ParamSetter` (from the `GuiContext` the editor's
-//!   `spawn` receives) with `begin_set_parameter` / `set_parameter` /
-//!   `end_set_parameter`, so the host records the gesture as automation.
-//!   [`Shared::labels`] names each macro's target and formats its value.
-//!   Bindings to macros are ordinary project bindings with
-//!   `Source::Macro { number }`; learning one works through the input
-//!   monitor, which sees macro moves as `Control::Macro` events.
-//! - **The transport** belongs to the host: the engine follows its play,
-//!   stop, and position every block, so the editor should hide its own
-//!   transport buttons (or show the host's state, read from
-//!   `EngineHandle::is_playing` / `position`).
+//! - when [`Session::revision`](crate::Session::revision) moved (a state
+//!   restore, a file load, going back to the default), loads the session's
+//!   project and audio files into the editor's document;
+//! - lends the editor the session's `EngineHandle` for the frame, so
+//!   telemetry, inline controls (`set_param`, `fire`), binding values, and
+//!   learning work exactly as in the app;
+//! - hands every change back with
+//!   [`Session::set_project`](crate::Session::set_project) (at once for
+//!   what the engine hears, at most every quarter second for moves and
+//!   other layout), which recompiles off the audio thread and keeps the
+//!   macro readouts current;
+//! - does what the editor asked of the host: New
+//!   ([`Session::reset_to_default`](crate::Session::reset_to_default)),
+//!   Open ([`Session::load_project_file`](crate::Session::load_project_file)),
+//!   and keeping a picked audio file
+//!   ([`Session::add_asset`](crate::Session::add_asset)).
+//!
+//! The macros show in the editor's Devices tab and move through the
+//! framework's `ParamSetter` (`begin_set_parameter` / `set_parameter` /
+//! `end_set_parameter`), so the host records the gesture as automation;
+//! [`Shared::labels`] names each macro's target and formats its value. The
+//! transport belongs to the host: the editor shows whether it plays and
+//! offers no transport buttons.
 
 use std::sync::Arc;
 
 use crate::params::PluginParams;
 use crate::session::Shared;
+
+#[cfg(feature = "editor")]
+mod frame;
+#[cfg(feature = "editor")]
+mod host_macros;
+#[cfg(all(test, feature = "editor"))]
+mod tests;
+#[cfg(feature = "editor")]
+mod window;
+
+#[cfg(feature = "editor")]
+pub use window::{AcEditor, AcEditorHandle};
 
 /// What the plugin hands its editor.
 #[derive(Clone)]
@@ -62,10 +64,55 @@ pub struct EditorContext {
     pub params: Arc<PluginParams>,
 }
 
-/// The editor type the plugin declares. `()` means none.
-pub type PluginEditor = ();
+/// Which window a plugin build offers.
+pub trait WindowKind: Send + 'static {
+    #[cfg(feature = "editor")]
+    type Editor: nice_plug::editor::Editor;
+    #[cfg(not(feature = "editor"))]
+    type Editor;
+
+    /// The editor for an instance, or `None` for no window.
+    fn create(context: EditorContext) -> Option<Self::Editor>;
+}
+
+/// The node editor in the plugin window (the CLAP plugins).
+#[derive(Debug)]
+pub struct WithEditor;
+
+/// No window: hosts show their generic controls for the macros. The VST3
+/// plugins, until a VST3 host has been tried with the editor.
+#[derive(Debug)]
+pub struct NoEditor;
+
+impl WindowKind for NoEditor {
+    type Editor = ();
+
+    fn create(_context: EditorContext) -> Option<()> {
+        None
+    }
+}
+
+impl WindowKind for WithEditor {
+    #[cfg(feature = "editor")]
+    type Editor = AcEditor;
+    #[cfg(not(feature = "editor"))]
+    type Editor = ();
+
+    #[cfg(feature = "editor")]
+    fn create(context: EditorContext) -> Option<AcEditor> {
+        Some(AcEditor::new(context))
+    }
+
+    #[cfg(not(feature = "editor"))]
+    fn create(_context: EditorContext) -> Option<()> {
+        None
+    }
+}
+
+/// The editor the CLAP plugins declare.
+pub type PluginEditor = <WithEditor as WindowKind>::Editor;
 
 /// Make the editor for the plugin window, or `None` for no window.
-pub fn create(_context: EditorContext) -> Option<PluginEditor> {
-    None
+pub fn create(context: EditorContext) -> Option<PluginEditor> {
+    WithEditor::create(context)
 }

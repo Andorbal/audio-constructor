@@ -29,7 +29,80 @@ pub fn position_text(tempo: &TempoMap, sample: u64) -> (String, String) {
     (bars, time)
 }
 
+/// A transport button's icon.
+fn big(icon: &str, on: bool, color: Color32) -> RichText {
+    RichText::new(icon)
+        .family(theme::icons_fill_family())
+        .size(18.0)
+        .color(if on { color } else { theme::text() })
+}
+
 impl TransportState {
+    /// Go to start, play/stop, record, and loop: the editor's own
+    /// transport (not shown when a host runs it).
+    fn transport_buttons(
+        &self,
+        ui: &mut egui::Ui,
+        doc: &Document,
+        playing: bool,
+        recording: bool,
+        actions: &mut Vec<Action>,
+    ) {
+        if ui
+            .add(
+                egui::Button::new(big(icons::SKIP_BACK, false, theme::text()))
+                    .min_size(vec2(32.0, 28.0)),
+            )
+            .on_hover_text("Go to start")
+            .clicked()
+        {
+            actions.push(Action::Rewind);
+        }
+        let play = if playing { icons::STOP } else { icons::PLAY };
+        if ui
+            .add(
+                egui::Button::new(big(play, playing, theme::play()))
+                    .selected(playing)
+                    .min_size(vec2(40.0, 28.0)),
+            )
+            .on_hover_text(if playing {
+                "Stop (Space)"
+            } else {
+                "Play (Space) · from start: Shift+Space"
+            })
+            .clicked()
+        {
+            actions.push(Action::PlayStop);
+        }
+        if ui
+            .add(
+                egui::Button::new(big(icons::RECORD, recording, theme::record()))
+                    .selected(recording)
+                    .min_size(vec2(32.0, 28.0)),
+            )
+            .on_hover_text("Record (R)")
+            .clicked()
+        {
+            actions.push(Action::Record);
+        }
+        let looping = doc.project.settings.loop_region.is_some();
+        if ui
+            .add(
+                egui::Button::new(RichText::new(icons::REPEAT).size(17.0).color(if looping {
+                    theme::accent()
+                } else {
+                    theme::text()
+                }))
+                .selected(looping)
+                .min_size(vec2(32.0, 28.0)),
+            )
+            .on_hover_text("Loop")
+            .clicked()
+        {
+            actions.push(Action::ToggleLoop);
+        }
+    }
+
     /// Draw the bar; returns commands to run. `panels`: the panels are
     /// shown instead of the canvas.
     pub fn show(
@@ -51,97 +124,57 @@ impl TransportState {
 
         ui.horizontal_centered(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
-            let big = |icon: &str, on: bool, color: Color32| {
-                RichText::new(icon)
-                    .family(theme::icons_fill_family())
-                    .size(18.0)
-                    .color(if on { color } else { theme::text() })
-            };
-            if ui
-                .add(
-                    egui::Button::new(big(icons::SKIP_BACK, false, theme::text()))
-                        .min_size(vec2(32.0, 28.0)),
-                )
-                .on_hover_text("Go to start")
-                .clicked()
-            {
-                actions.push(Action::Rewind);
-            }
-            let play = if playing { icons::STOP } else { icons::PLAY };
-            if ui
-                .add(
-                    egui::Button::new(big(play, playing, theme::play()))
-                        .selected(playing)
-                        .min_size(vec2(40.0, 28.0)),
-                )
-                .on_hover_text(if playing {
-                    "Stop (Space)"
+            if engine.in_host() {
+                // A plugin follows the host's transport: show it, and offer
+                // no buttons that would fight it.
+                let (icon, state) = if playing {
+                    (icons::PLAY, "The host is playing")
                 } else {
-                    "Play (Space) · from start: Shift+Space"
-                })
-                .clicked()
-            {
-                actions.push(Action::PlayStop);
+                    (icons::STOP, "The host is stopped")
+                };
+                ui.add_sized(
+                    vec2(40.0, 28.0),
+                    egui::Label::new(big(icon, playing, theme::play())),
+                )
+                .on_hover_text(format!(
+                    "{state}. The patch follows the host's transport: play, stop, and loop it \
+                     in the host."
+                ));
+            } else {
+                self.transport_buttons(ui, doc, playing, recording, &mut actions);
             }
-            if ui
-                .add(
-                    egui::Button::new(big(icons::RECORD, recording, theme::record()))
-                        .selected(recording)
+            if engine.keys_reach_engine()
+                && ui
+                    .add(
+                        egui::Button::new(RichText::new(icons::KEYBOARD).size(17.0).color(
+                            if play_keys {
+                                theme::accent()
+                            } else {
+                                theme::text()
+                            },
+                        ))
+                        .selected(play_keys)
                         .min_size(vec2(32.0, 28.0)),
-                )
-                .on_hover_text("Record (R)")
-                .clicked()
-            {
-                actions.push(Action::Record);
-            }
-            let looping = doc.project.settings.loop_region.is_some();
-            if ui
-                .add(
-                    egui::Button::new(RichText::new(icons::REPEAT).size(17.0).color(if looping {
-                        theme::accent()
-                    } else {
-                        theme::text()
-                    }))
-                    .selected(looping)
-                    .min_size(vec2(32.0, 28.0)),
-                )
-                .on_hover_text("Loop")
-                .clicked()
-            {
-                actions.push(Action::ToggleLoop);
-            }
-            if ui
-                .add(
-                    egui::Button::new(RichText::new(icons::KEYBOARD).size(17.0).color(
+                    )
+                    .on_hover_text({
+                        let sc = Action::PlayKeys
+                            .shortcut()
+                            .map(|s| ui.ctx().format_shortcut(&s))
+                            .unwrap_or_default();
                         if play_keys {
-                            theme::accent()
+                            format!("Play keys is on: computer keys go to the patch ({sc})")
                         } else {
-                            theme::text()
-                        },
-                    ))
-                    .selected(play_keys)
-                    .min_size(vec2(32.0, 28.0)),
-                )
-                .on_hover_text({
-                    let sc = Action::PlayKeys
-                        .shortcut()
-                        .map(|s| ui.ctx().format_shortcut(&s))
-                        .unwrap_or_default();
-                    if play_keys {
-                        format!("Play keys is on: computer keys go to the patch ({sc})")
-                    } else {
-                        format!(
-                            "Play keys: send computer keys to the patch instead of shortcuts \
-                             ({sc})"
-                        )
-                    }
-                })
-                .clicked()
+                            format!(
+                                "Play keys: send computer keys to the patch instead of shortcuts \
+                                 ({sc})"
+                            )
+                        }
+                    })
+                    .clicked()
             {
                 actions.push(Action::PlayKeys);
             }
             ui.add_space(10.0);
-
             // Position: bars:beats, large; time underneath.
             let (bars, time) = position_text(&tempo, pos);
             let (rect, _) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());

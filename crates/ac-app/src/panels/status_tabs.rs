@@ -105,18 +105,91 @@ fn hosted_devices(
             .color(theme::text_muted()),
         );
     }
-    section(ui, "Computer keys");
+    if let Some(controls) = io.host.as_mut() {
+        host_params(ui, controls.as_mut());
+    }
+    if io.engine.keys_reach_engine() {
+        section(ui, "Computer keys");
+        ui.label(
+            RichText::new(
+                "Turn on Play keys (the keyboard button in the transport bar) to send key \
+                 presses to the patch instead of running shortcuts.",
+            )
+            .color(theme::text_muted()),
+        );
+    }
+    // Transport buttons bind to the editor's transport; a host that keeps
+    // the project runs its own.
+    if !io.engine.in_host() {
+        let choice = state
+            .transport_choice
+            .get_or_insert(ac_core::TransportAction::PlayStop);
+        super::bindings_ui::transport_section(ui, io, choice);
+    }
+}
+
+/// The host's automatable parameters (a plugin's macros): what each drives
+/// and a slider that moves it through the host, so the host records it.
+fn host_params(ui: &mut egui::Ui, host: &mut dyn crate::host::HostControls) {
+    section(ui, "Macros");
     ui.label(
         RichText::new(
-            "Turn on Play keys (the keyboard button in the transport bar) to send key \
-             presses to the patch instead of running shortcuts.",
+            "The host automates these. To drive an input from one, right-click the input, \
+             choose Bind…, and move the macro here or in the host.",
         )
         .color(theme::text_muted()),
     );
-    let choice = state
-        .transport_choice
-        .get_or_insert(ac_core::TransportAction::PlayStop);
-    super::bindings_ui::transport_section(ui, io, choice);
+    ui.add_space(4.0);
+    let params = host.params();
+    egui::Grid::new("host-params")
+        .num_columns(3)
+        .spacing(egui::vec2(8.0, 4.0))
+        .show(ui, |ui| {
+            for (i, p) in params.iter().enumerate() {
+                let name = ui.label(RichText::new(&p.name).color(match p.target {
+                    Some(_) => theme::text_strong(),
+                    None => theme::text_muted(),
+                }));
+                name.on_hover_text(match &p.target {
+                    Some(t) => format!("Drives {t}"),
+                    None => "Drives nothing yet".into(),
+                });
+                let mut v = p.value;
+                let r = ui.add(
+                    egui::Slider::new(&mut v, 0.0..=1.0)
+                        .show_value(false)
+                        .clamping(egui::SliderClamping::Always),
+                );
+                // One gesture from press to release, as the host records it.
+                let dragging = r.dragged() || r.drag_stopped();
+                if r.drag_started() {
+                    host.begin(i);
+                }
+                if r.changed() {
+                    if dragging || r.drag_started() {
+                        host.set(i, v);
+                    } else {
+                        host.begin(i);
+                        host.set(i, v);
+                        host.end(i);
+                    }
+                }
+                if r.drag_stopped() {
+                    host.end(i);
+                }
+                let text = if r.changed() {
+                    host.format(i, v)
+                } else {
+                    p.text.clone()
+                };
+                ui.label(
+                    RichText::new(text)
+                        .font(theme::mono_font(theme::FONT_SMALL))
+                        .color(theme::text()),
+                );
+                ui.end_row();
+            }
+        });
 }
 
 pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {

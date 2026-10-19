@@ -2,7 +2,7 @@
 //!
 //! - **Macros**: [`MACRO_COUNT`] parameters with stable ids `macro_1` …
 //!   `macro_16`, named `Macro 1` … in every host, 0–1, 0.5 by default.
-//!   The project's bindings say what each one drives (DECISIONS D117).
+//!   The project's bindings say what each one drives (DECISIONS D119).
 //! - **State**: one persisted field holding the session's state document
 //!   (see [`crate::state`]); the framework saves it with the macro values.
 
