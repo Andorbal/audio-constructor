@@ -8,7 +8,7 @@ use nice_plug::prelude::*;
 
 use crate::bridge::{Bridge, HostTransport, midi_to_note, note_to_midi};
 use crate::control_thread::ControlThread;
-use crate::editor::PluginEditor;
+use crate::editor::{NoEditor, WindowKind, WithEditor};
 use crate::params::PluginParams;
 use crate::session::{Kind, Shared};
 
@@ -97,18 +97,23 @@ impl Variant for InstrumentVariant {
     const MIDI_OUT: bool = true;
 }
 
-/// Audio Constructor Effect.
+/// Audio Constructor Effect, with the editor in its window (CLAP).
 pub type Effect = AcPlugin<EffectVariant>;
-/// Audio Constructor Instrument.
+/// Audio Constructor Instrument, with the editor in its window (CLAP).
 pub type Instrument = AcPlugin<InstrumentVariant>;
+/// The effect as VST3: no window yet, so hosts show their generic controls
+/// (see `editor.rs`).
+pub type Vst3Effect = AcPlugin<EffectVariant, NoEditor>;
+/// The instrument as VST3, without a window like [`Vst3Effect`].
+pub type Vst3Instrument = AcPlugin<InstrumentVariant, NoEditor>;
 
-/// One plugin instance.
-pub struct AcPlugin<V: Variant> {
+/// One plugin instance. `W` says whether it has a window.
+pub struct AcPlugin<V: Variant, W: WindowKind = WithEditor> {
     shared: Arc<Shared>,
     params: Arc<PluginParams>,
     audio: Option<AudioSide>,
     control: Option<ControlThread>,
-    _variant: PhantomData<V>,
+    _variant: PhantomData<(V, W)>,
 }
 
 struct AudioSide {
@@ -117,7 +122,7 @@ struct AudioSide {
     latency: u32,
 }
 
-impl<V: Variant> AcPlugin<V> {
+impl<V: Variant, W: WindowKind> AcPlugin<V, W> {
     /// What the instance shares with its editor and the host's threads.
     pub fn shared(&self) -> &Arc<Shared> {
         &self.shared
@@ -133,7 +138,7 @@ impl<V: Variant> AcPlugin<V> {
     }
 }
 
-impl<V: Variant> Default for AcPlugin<V> {
+impl<V: Variant, W: WindowKind> Default for AcPlugin<V, W> {
     fn default() -> Self {
         let shared = Shared::new(V::KIND);
         AcPlugin {
@@ -146,7 +151,7 @@ impl<V: Variant> Default for AcPlugin<V> {
     }
 }
 
-impl<V: Variant> Drop for AcPlugin<V> {
+impl<V: Variant, W: WindowKind> Drop for AcPlugin<V, W> {
     fn drop(&mut self) {
         // Join the control thread before the host can unload this code.
         if let Some(mut c) = self.control.take() {
@@ -155,7 +160,7 @@ impl<V: Variant> Drop for AcPlugin<V> {
     }
 }
 
-impl<V: Variant> Plugin for AcPlugin<V> {
+impl<V: Variant, W: WindowKind> Plugin for AcPlugin<V, W> {
     const NAME: &'static str = V::NAME;
     const VENDOR: &'static str = VENDOR;
     const URL: &'static str = URL;
@@ -171,7 +176,7 @@ impl<V: Variant> Plugin for AcPlugin<V> {
     // The framework splits blocks where host parameters change, so a macro
     // lands on its sample like any bound control.
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
-    type Editor = PluginEditor;
+    type Editor = W::Editor;
     type SysExMessage = ();
     type BackgroundTask = ();
 
@@ -181,7 +186,7 @@ impl<V: Variant> Plugin for AcPlugin<V> {
 
     #[cfg(feature = "editor")]
     fn editor(&mut self, _executor: AsyncExecutor<Self>) -> Option<Self::Editor> {
-        crate::editor::create(crate::editor::EditorContext {
+        W::create(crate::editor::EditorContext {
             shared: self.shared.clone(),
             params: self.params.clone(),
         })
@@ -283,7 +288,7 @@ fn host_transport(t: &Transport) -> Option<HostTransport> {
     })
 }
 
-impl<V: Variant> ClapPlugin for AcPlugin<V> {
+impl<V: Variant, W: WindowKind> ClapPlugin for AcPlugin<V, W> {
     const CLAP_ID: &'static str = V::CLAP_ID;
     const CLAP_DESCRIPTION: Option<&'static str> = Some(V::DESCRIPTION);
     const CLAP_MANUAL_URL: Option<&'static str> = Some(URL);
@@ -301,7 +306,7 @@ impl<V: Variant> ClapPlugin for AcPlugin<V> {
     }
 }
 
-impl<V: Variant> Vst3Plugin for AcPlugin<V> {
+impl<V: Variant, W: WindowKind> Vst3Plugin for AcPlugin<V, W> {
     const VST3_CLASS_ID: [u8; 16] = V::VST3_CLASS_ID;
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = V::VST3_SUBCATEGORIES;
 }

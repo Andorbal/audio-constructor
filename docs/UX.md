@@ -235,7 +235,11 @@ A resizable panel (`N` toggles) with tabs:
   with their age, so a control's number or address is read off the list
   rather than guessed. Click an OSC address to copy it; with one OSC In
   selected, **Use** beside each address sets that node's address. Clear
-  empties a list (D115).
+  empties a list (D115). In a plugin's window the host owns the devices:
+  the tab says so, shows the rate, buffer, channels, and load the host
+  runs the patch at, and lists the **macros** (name, what each drives,
+  its value as the host shows it, and a slider that moves the host's
+  parameter as one gesture the host records) (D127).
 - **Problems**: compile errors and disabled nodes, click to jump.
 - **Help**: a node's reference (`F1`, D110): its name and category, what
   it does, its "Try this" tip in a highlighted box, every socket with its
@@ -260,7 +264,10 @@ Play/stop/record, position in bars:beats and time, tempo and time signature
 xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
 **Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
 `R` records, `Shift+Space` plays from the start. At its right end, a
-**Canvas | Panels** switch and the performance-mode button.
+**Canvas | Panels** switch and the performance-mode button. In a plugin's
+window the host's transport plays the patch: the bar shows whether the
+host plays instead of the play, record, rewind, and loop buttons, and
+`Space`, `Shift+Space`, and `R` are the host's (D127).
 
 The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
 keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)

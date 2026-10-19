@@ -127,6 +127,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # The editor links the device layer (ALSA, udev); xvfb and Mesa give
+      # the window test below a display to open the editor on.
+      - name: Install system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev xvfb libgl1-mesa-dri
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Build the bundles
@@ -145,6 +150,11 @@ jobs:
           # Windows tools need a Windows path; Git Bash's `pwd -W` gives one.
           root=$(pwd -W 2>/dev/null || pwd)
           AC_PLUGIN_LIBRARY="$root/$lib" cargo test -p ac-plugin --test clap_host --test vst3_factory
+      - name: Open the editor in a host window (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: |
+          AC_PLUGIN_LIBRARY="$(pwd)/target/bundled/Audio Constructor.clap" \
+            xvfb-run -a cargo test -p ac-plugin --test clap_host -- --ignored
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-bundles-${{ matrix.os }}

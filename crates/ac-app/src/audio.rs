@@ -146,6 +146,13 @@ pub struct EngineHost {
     /// What the host provides, when a host runs the processor
     /// (`AudioMode::Hosted`).
     hosted: Option<HostAudio>,
+    /// The host keeps the project and the engine (a plugin's session): the
+    /// editor compiles nothing itself and leaves the engine's upkeep and
+    /// transport to the host. See [`EngineHost::keep_in_host`].
+    in_host: bool,
+    /// The project the engine should run next, waiting for the host
+    /// (while `in_host`).
+    outgoing: Option<Project>,
 }
 
 fn engine_at(
@@ -246,6 +253,8 @@ impl EngineHost {
             idle_ports: EventPorts::default(),
             idle_controls: Vec::with_capacity(CONTROL_CAPACITY),
             hosted,
+            in_host: false,
+            outgoing: None,
         };
         let mut ports = if me.device_sources {
             EventPorts {
@@ -329,6 +338,55 @@ impl EngineHost {
         }
         let report = handle.report().clone();
         self.adopt(handle, report, audio);
+    }
+
+    /// The host keeps the project and the engine from now on (a plugin's
+    /// session, `AudioMode::Hosted` only): edits wait in
+    /// [`EngineHost::take_outgoing`] for the host to compile, and the
+    /// host's own thread drops retired graphs, bakes, and runs the
+    /// transport. The editor's handle is a stand-in between the frames the
+    /// host lends it its own (`EditorApp::with_engine`).
+    pub fn keep_in_host(&mut self) {
+        if self.hosted.is_some() {
+            self.in_host = true;
+        }
+    }
+
+    /// Whether the host keeps the project ([`EngineHost::keep_in_host`]).
+    pub fn in_host(&self) -> bool {
+        self.in_host
+    }
+
+    /// The project the engine should run now, if the document changed in a
+    /// way the engine hears since the last call (while the host keeps it).
+    pub fn take_outgoing(&mut self) -> Option<Project> {
+        self.outgoing.take()
+    }
+
+    /// Swap `handle` (the host's, lent for a frame) with the editor's own,
+    /// and take the host's rate and block size from it. Swapping again
+    /// gives it back.
+    pub(crate) fn swap_handle(&mut self, handle: &mut EngineHandle, follow_rate: bool) {
+        std::mem::swap(&mut self.handle, handle);
+        if !follow_rate {
+            return;
+        }
+        let rate = self.handle.options().sample_rate;
+        let block = self.handle.options().max_block;
+        if let Some(h) = self.hosted.as_mut() {
+            let rate = rate.round().clamp(1.0, f64::from(u32::MAX)) as u32;
+            if h.sample_rate != rate || h.max_block != block {
+                h.sample_rate = rate;
+                h.max_block = block;
+                self.info = h.info();
+            }
+        }
+    }
+
+    /// Whether Play keys reaches the engine: a host running the processor
+    /// has to take the keys' events ([`EngineHost::take_control_receiver`]).
+    pub fn keys_reach_engine(&self) -> bool {
+        self.hosted.is_none() || self.idle_ports.controls.is_none()
     }
 
     fn adopt(&mut self, handle: EngineHandle, report: CompileReport, audio: HostAudio) {
@@ -545,12 +603,30 @@ impl EngineHost {
         self.run(Box::new(host), processor, ports, project);
     }
 
-    /// Recompile with the editor's project (state carries over).
+    /// Recompile with the editor's project (state carries over). While the
+    /// host keeps the project, it waits for the host instead.
     pub fn replace(&mut self, project: &Project, revision: u64) {
-        self.report = self
-            .handle
-            .edit(GraphEdit::Replace(Box::new(project.clone())));
+        if self.in_host {
+            self.outgoing = Some(project.clone());
+        } else {
+            self.report = self
+                .handle
+                .edit(GraphEdit::Replace(Box::new(project.clone())));
+        }
         self.synced_revision = revision;
+    }
+
+    /// What the host's compile of the outgoing project found. `None`: the
+    /// host has no engine running (a plugin the host hasn't activated), so
+    /// the editor compiles `project` on its stand-in engine to show the
+    /// problems anyway.
+    pub fn host_compiled(&mut self, report: Option<CompileReport>, project: &Project) {
+        self.report = match report {
+            Some(r) => r,
+            None => self
+                .handle
+                .edit(GraphEdit::Replace(Box::new(project.clone()))),
+        };
     }
 
     /// Whether a whole-input node at `path` is being baked right now.
@@ -564,6 +640,11 @@ impl EngineHost {
 
     /// New assets or recorder: rebuild nodes with them.
     pub fn set_resources(&mut self, project: &Project, resources: Arc<dyn Resources>) {
+        if self.in_host {
+            // The host's engine reads the host's own copies of the files.
+            self.outgoing = Some(project.clone());
+            return;
+        }
         // The handle recompiles from its own copy of the project; make it current first.
         let _ = self
             .handle
@@ -574,9 +655,12 @@ impl EngineHost {
     /// Per-frame upkeep: drop retired graphs and MIDI ports, rescan MIDI
     /// now and then, bake whole-input nodes, and pick up a latency result.
     pub fn tick(&mut self) {
-        self.handle.collect_garbage();
-        if self.baker.poll(&mut self.handle) {
-            self.report = self.handle.report().clone();
+        // The host looks after its own engine (a plugin's control thread).
+        if !self.in_host {
+            self.handle.collect_garbage();
+            if self.baker.poll(&mut self.handle) {
+                self.report = self.handle.report().clone();
+            }
         }
         if let Some(m) = self.midi.as_mut() {
             m.collect_garbage();

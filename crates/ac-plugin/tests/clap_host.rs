@@ -23,6 +23,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use ac_core::{Binding, Endpoint, NodeId, NodeInstance, NodePath, Project, Source, Wire};
 use ac_plugin::Kind;
 use ac_plugin::assets::AssetBank;
+use clack_extensions::gui::{
+    GuiApiType, GuiConfiguration, GuiSize, HostGui, HostGuiImpl, PluginGui,
+};
 use clack_extensions::params::{ParamInfoBuffer, PluginParams};
 use clack_extensions::state::PluginState;
 use clack_host::events::event_types::{
@@ -45,12 +48,32 @@ impl HostHandlers for TestHost {
     type Shared<'a> = HostShared;
     type MainThread<'a> = ();
     type AudioProcessor<'a> = ();
+
+    fn declare_extensions(builder: &mut HostExtensions<Self>, _shared: &Self::Shared<'_>) {
+        // A host with windows: the plugin's editor needs this to open.
+        builder.register::<HostGui>();
+    }
+}
+
+impl HostGuiImpl for HostShared {
+    fn resize_hints_changed(&self) {}
+    fn request_resize(&self, _new_size: GuiSize) -> Result<(), HostError> {
+        Ok(())
+    }
+    fn request_show(&self) -> Result<(), HostError> {
+        Ok(())
+    }
+    fn request_hide(&self) -> Result<(), HostError> {
+        Ok(())
+    }
+    fn closed(&self, _was_destroyed: bool) {}
 }
 
 #[derive(Default)]
 struct HostShared {
     state: OnceLock<Option<PluginState>>,
     params: OnceLock<Option<PluginParams>>,
+    gui: OnceLock<Option<PluginGui>>,
     callback: AtomicBool,
 }
 
@@ -58,6 +81,7 @@ impl<'a> SharedHandler<'a> for HostShared {
     fn initializing(&self, instance: InitializingPluginHandle<'a>) {
         let _ = self.state.set(instance.get_extension());
         let _ = self.params.set(instance.get_extension());
+        let _ = self.gui.set(instance.get_extension());
     }
     fn request_restart(&self) {}
     fn request_process(&self) {}
@@ -123,6 +147,12 @@ impl Instance {
         self.plugin
             .access_shared_handler(|h| *h.params.get().expect("initialized"))
             .expect("the plugin has the params extension")
+    }
+
+    /// The window extension, if the plugin has one.
+    fn gui_ext(&mut self) -> Option<PluginGui> {
+        self.plugin
+            .access_shared_handler(|h| *h.gui.get().expect("initialized"))
     }
 
     fn save_state(&mut self) -> Vec<u8> {
@@ -463,6 +493,38 @@ fn the_factory_lists_both_plugins() {
 }
 
 #[test]
+fn both_plugins_offer_an_embedded_resizable_editor() {
+    let entry = load();
+    // Opening the window needs a display, which CI doesn't have; what the
+    // host asks before it opens one doesn't.
+    let api = GuiApiType::default_for_current_platform().expect("a windowing API here");
+    for (id, ins) in [(EFFECT, 2), (INSTRUMENT, 0)] {
+        let mut p = Instance::new(entry, id, ins, 2);
+        let gui = p.gui_ext();
+        if !cfg!(feature = "editor") {
+            assert!(gui.is_none(), "no window without the editor feature");
+            continue;
+        }
+        let gui = gui.expect("the plugin has a window");
+        let handle = &mut p.plugin.plugin_handle();
+        let embedded = GuiConfiguration {
+            api_type: api,
+            is_floating: false,
+        };
+        assert!(gui.is_api_supported(handle, embedded), "{id:?}");
+        assert!(gui.can_resize(handle));
+        assert_eq!(
+            gui.get_size(handle),
+            Some(GuiSize {
+                width: 1200,
+                height: 760
+            }),
+            "the size the window opens at"
+        );
+    }
+}
+
+#[test]
 fn a_project_runs_as_a_clap_effect_with_automatable_macros() {
     let entry = load();
     let mut fx = Instance::new(entry, EFFECT, 2, 2);
@@ -711,4 +773,67 @@ fn the_instrument_plays_host_notes_on_their_samples() {
     let m1 = synth.param_id("Macro 1");
     let text = synth.value_text(m1, 1.0);
     assert!(text.ends_with("kHz"), "{text}");
+}
+
+/// The editor in a real window, opened and closed three times: the host
+/// makes an X11 window, the plugin opens its editor inside it and draws
+/// for a while (the host answering the window thread's calls on the main
+/// thread, the patch playing), then closes it. Needs a display:
+/// `xvfb-run cargo test -p ac-plugin --test clap_host -- --ignored`.
+#[test]
+#[cfg(all(target_os = "linux", feature = "editor"))]
+#[ignore = "needs an X display (xvfb-run)"]
+fn the_editor_opens_in_the_hosts_window_and_closes_again() {
+    use clack_extensions::gui::Window;
+    use std::time::{Duration, Instant};
+    use x11_dl::xlib::Xlib;
+
+    let xlib = Xlib::open().expect("libX11");
+    // SAFETY: Xlib's calls, as documented: a display opened here and a
+    // plain window on it, used only from this thread and closed below.
+    let display = unsafe { (xlib.XOpenDisplay)(std::ptr::null()) };
+    assert!(!display.is_null(), "no X display: set DISPLAY");
+    // SAFETY: as above, on the display just checked.
+    let parent = unsafe {
+        let screen = (xlib.XDefaultScreen)(display);
+        let root = (xlib.XRootWindow)(display, screen);
+        let w = (xlib.XCreateSimpleWindow)(display, root, 0, 0, 1200, 760, 0, 0, 0);
+        (xlib.XMapWindow)(display, w);
+        (xlib.XFlush)(display);
+        w
+    };
+    let entry = load();
+    let mut fx = Instance::new(entry, EFFECT, 2, 2);
+    fx.activate();
+    let gui = fx.gui_ext().expect("the plugin has a window");
+    let x11 = GuiConfiguration {
+        api_type: GuiApiType::X11,
+        is_floating: false,
+    };
+    for _ in 0..3 {
+        {
+            let handle = &mut fx.plugin.plugin_handle();
+            gui.create(handle, x11).expect("the editor opens");
+            // SAFETY: the parent window outlives the editor (destroyed below).
+            unsafe { gui.set_parent(handle, Window::from_x11_handle(parent)) }
+                .expect("it embeds in the host's window");
+            gui.show(handle).expect("it shows");
+        }
+        let t0 = Instant::now();
+        while t0.elapsed() < Duration::from_millis(800) {
+            fx.main_thread();
+            fx.process(&blocks_of_sine(1, 256, 0));
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let handle = &mut fx.plugin.plugin_handle();
+        assert!(gui.get_size(handle).is_some());
+        gui.hide(handle).expect("it hides");
+        gui.destroy(handle);
+    }
+    fx.deactivate();
+    // SAFETY: the editor is gone; nothing uses the window or display now.
+    unsafe {
+        (xlib.XDestroyWindow)(display, parent);
+        (xlib.XCloseDisplay)(display);
+    }
 }

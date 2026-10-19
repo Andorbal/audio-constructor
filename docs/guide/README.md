@@ -37,7 +37,9 @@ need them.
    examples.
 9. [Examples tour](examples.md): what each example project teaches and
    what to try in it.
-10. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
+10. [The plugin](plugin.md): running a patch inside other music software
+    as an effect or an instrument, its macros, and how sessions save it.
+11. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
     devices that don't show up, and other problems.
 
 "Try this" boxes like the one below suggest something to do with what a
@@ -86,7 +88,9 @@ written with `Ctrl` use `Cmd` instead.
 | Live source | Something that comes from outside as you play: a microphone, MIDI, a gamepad. |
 | Bake | Render part of a patch ahead of time, in the background, so a node that needs to hear all of its input first can play it. |
 | Panel | A page of knobs, buttons, and meters picked from the patch, for playing it. |
-| Binding | A link from a hardware control (a MIDI knob, a key, a gamepad button) to a node's input. |
+| Binding | A link from a hardware control (a MIDI knob, a key, a gamepad button, or a plugin's macro) to a node's input. |
+| Plugin | Audio Constructor running inside other music software, as an effect or an instrument on a track. |
+| Macro | One of the plugin's sixteen parameters that the host can automate; bindings say what each one drives. |
 
 ## More
 

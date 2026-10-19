@@ -20,6 +20,7 @@ pub mod export;
 pub mod files;
 pub mod find;
 pub mod help;
+pub mod host;
 pub mod icons;
 pub mod menubar;
 pub mod palette;

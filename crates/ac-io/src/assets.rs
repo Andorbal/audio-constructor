@@ -96,6 +96,12 @@ impl AssetStore {
         self.assets.insert(path.to_string(), Arc::new(data));
     }
 
+    /// [`AssetStore::insert`] for audio another owner keeps too (a plugin's
+    /// saved state), without copying it.
+    pub fn insert_shared(&mut self, path: &str, data: Arc<AudioData>) {
+        self.assets.insert(path.to_string(), data);
+    }
+
     pub fn get(&self, path: &str) -> Option<Arc<AudioData>> {
         self.assets.get(path).cloned()
     }
