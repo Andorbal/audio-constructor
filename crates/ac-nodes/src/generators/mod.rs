@@ -3,6 +3,7 @@
 use ac_core::Registry;
 
 pub mod clip;
+pub mod granular;
 pub mod graph;
 pub mod impulse;
 pub mod noise;
@@ -15,6 +16,7 @@ pub mod wavetable;
 pub fn register(r: &mut Registry) {
     r.register::<clip::Clip>();
     r.register::<graph::Graph>();
+    r.register::<granular::Granular>();
     r.register::<impulse::Impulse>();
     r.register::<noise::Noise>();
     r.register::<oscillator::Oscillator>();

@@ -1,0 +1,202 @@
+{
+  "schema_version": 2,
+  "name": "Chaos: Lorenz and Rossler",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "chaos",
+        "params": {
+          "chaos": 0.5,
+          "rate": 3.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "chaos",
+        "config": {
+          "seed": 7
+        },
+        "params": {
+          "chaos": 0.8,
+          "rate": 5.0,
+          "system": "rossler"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "b": 0.5,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "config": {
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "audio_out",
+        "config": {
+          "channel": 1,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "Channel 0: a Lorenz attractor's x. Channel 1: half a Rossler attractor's y, plus its z spikes, reset by a Clock every quarter second."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "clock",
+        "params": {
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "b": 0.25,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "math",
+        "params": {
+          "b": 0.25,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1600.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:x",
+        "to": "4:in"
+      },
+      {
+        "from": "2:y",
+        "to": "3:a"
+      },
+      {
+        "from": "2:z",
+        "to": "8:a"
+      },
+      {
+        "from": "8:out",
+        "to": "9:a"
+      },
+      {
+        "from": "9:out",
+        "to": "6:a"
+      },
+      {
+        "from": "3:out",
+        "to": "6:b"
+      },
+      {
+        "from": "6:out",
+        "to": "5:in"
+      },
+      {
+        "from": "7:trigger",
+        "to": "2:reset"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}

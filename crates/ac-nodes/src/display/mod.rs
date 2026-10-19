@@ -7,6 +7,7 @@ pub mod analyzer;
 pub mod meter;
 pub mod readout;
 pub mod scope;
+pub mod spectrogram;
 
 /// Register every node in this category.
 pub fn register(r: &mut Registry) {
@@ -14,6 +15,7 @@ pub fn register(r: &mut Registry) {
     r.register::<scope::Scope>();
     r.register::<readout::Readout>();
     r.register::<analyzer::Analyzer>();
+    r.register::<spectrogram::Spectrogram>();
 }
 
 /// Copy every channel of `input` to `out` bit for bit, so a display node can

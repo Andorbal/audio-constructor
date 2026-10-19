@@ -60,7 +60,7 @@ fn finite(v: f32) -> f64 {
 
 /// The node's seed: the project/path seed mixed with the `seed` config
 /// (any integer; fractions are truncated, anything else counts as 0).
-fn mixed_seed(config: &Config, seed: u64) -> u64 {
+pub(crate) fn mixed_seed(config: &Config, seed: u64) -> u64 {
     let mut s = config
         .get("seed")
         .and_then(|v| {

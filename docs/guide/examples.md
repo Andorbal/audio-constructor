@@ -28,6 +28,7 @@ A good order for a first tour is the order below.
 | [Generative Patch](#generative-patch) | `generative-patch.acproj` | Euclidean rhythms and seeded random notes |
 | [Tape Loop](#tape-loop) | `tape-loop.acproj` | A feedback loop with wow and flutter |
 | [Guitar-to-Synth](#guitar-to-synth) | `guitar-to-synth.acproj` | Pitch and level tracking |
+| [Plucked Strings](#plucked-strings) | `plucked-strings.acproj` | A string from a single-sample loop, in a convolution hall |
 
 ## Start
 
@@ -230,5 +231,24 @@ follows one note at a time.
 
 **Try:** lengthen Glide to 0.1 s for portamento between notes; wire Pitch
 Detect's `onset` into an ADSR for a fresh attack on every note.
+
+## Plucked Strings
+
+`examples/plucked-strings.acproj`
+
+A plucked string built from parts (the Karplus-Strong recipe): each note
+is a 4 ms burst of noise into a loop of a Delay, a lowpass, and a Gain
+just under 0 dB, closed by a Feedback node set to one sample. The loop
+runs one sample at a time, so it's exactly as long as the Delay plus one
+sample and the string plays in tune at any buffer size; the Delay time is
+worked out from the note (one cycle, less one sample). Random notes
+snapped to D dorian play it, a Chaos node wanders its brightness, and it
+rings in a hall through Convolution, whose impulse response is the Hall
+Reverb block's echo of a click. A Spectrogram shows the harmonics fade.
+
+**Try:** set the Feedback node's delay back to **block** (Node tab) and
+hear every note go flat; lower Sustain to −0.03 dB for strings that ring
+for seconds; put a Formant after the dry-and-hall Mix with an LFO on its
+`vowel`.
 
 Next: [Troubleshooting](troubleshooting.md).

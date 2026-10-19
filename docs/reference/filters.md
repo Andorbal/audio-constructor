@@ -190,6 +190,55 @@ offset and choke.
 | --- | --- | --- |
 | `out` | Audio | The signal without DC. |
 
+<a id="formant"></a>
+## Formant
+
+Kind: `formant` · Also found by: vowel, voice, talk, talkbox, speech, aeiou, mouth, wah, filter bank
+
+A vowel filter: three resonances placed where a voice puts them for
+"a", "e", "i", "o", and "u", so a bright sound fed through it seems
+to speak.
+
+`vowel` morphs through the five vowels in that order: 0 is "a" (as
+in *father*), 1 "e" (*bed*), 2 "i" (*see*), 3 "o" (*law*), 4 "u"
+(*food*); in between, the resonances glide from one vowel's to the
+next. `voice` picks the measured resonances of a man, a woman, or a
+child, and `shift` moves them all up or down in semitones (a
+smaller or bigger "mouth"). `resonance` sharpens (above 1) or
+widens (below 1) the peaks, and `mix` blends the filtered sound with
+the input (1: only the vowel). Everything is read every sample, so
+an LFO or an envelope on `vowel` makes it talk.
+
+The filter works on each channel of `in` (up to 64) separately.
+Resonances above about 45 % of the sample rate are held there.
+Since only three narrow bands pass (each at most at the input's
+level), the vowel is quieter than its input: a 110 Hz sawtooth
+comes out 11 to 18 dB down, depending on the vowel, so a `Gain`
+after it is usual. NaN or infinite input clears
+the filter and gives silence until the input is finite again.
+
+**Try this:** feed a saw `Oscillator` at 110 Hz into a Formant and
+wire a slow `LFO` (0..4) into `vowel` for a choir that sings
+"a-e-i-o-u"; or put it after a `Noise` with `vowel` on a `Knob` for
+whispered vowels.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Sound to shape (bright ones work best). |
+| `vowel` | Float | 0 | 0 … 4 | 0 a, 1 e, 2 i, 3 o, 4 u; fractions morph. |
+| `voice` | Int | `man` | `man`, `woman`, `child` | Whose vowels. |
+| `shift` | Float (st) | 0 | -12 … 12 | Moves every resonance up or down. |
+| `resonance` | Float (×) | 1 | 0.25 … 4 | Sharper peaks above 1, wider below. |
+| `mix` | Float | 1 | 0 … 1 | Input (0) to vowel (1). |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The vowel-shaped sound. |
+
 <a id="ladder"></a>
 ## Ladder
 

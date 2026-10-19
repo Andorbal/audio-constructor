@@ -755,3 +755,123 @@ fn play_keys_leave_text_fields_their_typing() {
     assert_eq!(h.state().engine.keys_sent(), 0, "typing isn't played");
     assert!(h.state().canvas.is_typing());
 }
+
+/// Cells of a Spectrogram's picture drawn inside `body`: each as (band
+/// from the bottom, opacity), from the meshes of the last frame.
+fn spectrogram_cells(
+    h: &Harness<'static, EditorApp>,
+    body: Rect,
+    bands: usize,
+) -> Vec<(usize, u8)> {
+    let row = body.height() / bands as f32;
+    let mut cells = Vec::new();
+    for clipped in &h.output().shapes {
+        let egui::Shape::Mesh(mesh) = &clipped.shape else {
+            continue;
+        };
+        let inside = mesh
+            .vertices
+            .iter()
+            .all(|v| body.expand(1.0).contains(v.pos));
+        if !inside || mesh.vertices.is_empty() {
+            continue;
+        }
+        for quad in mesh.vertices.chunks_exact(4) {
+            let cy = quad.iter().map(|v| v.pos.y).sum::<f32>() / 4.0;
+            let band = ((body.max.y - cy) / row).floor().max(0.0) as usize;
+            cells.push((band, quad[0].color.a()));
+        }
+    }
+    cells
+}
+
+#[test]
+fn a_spectrogram_draws_what_it_hears() {
+    // A 1 kHz sine into a Spectrogram (1 s across) into the output.
+    let mut p = Project::default();
+    let mut osc = NodeInstance::new(NodeId(1), "oscillator").at(0.0, 0.0);
+    osc.params.insert("freq".into(), Value::Float(1000.0));
+    osc.params.insert("shape".into(), Value::from("sine"));
+    let mut spec = NodeInstance::new(NodeId(2), "spectrogram").at(320.0, 0.0);
+    spec.params.insert("window".into(), Value::Float(1.0));
+    p.graph.nodes.extend([
+        osc,
+        spec,
+        NodeInstance::new(NodeId(3), "audio_out").at(680.0, 0.0),
+    ]);
+    for (a, o, b, i) in [(1, "out", 2, "in"), (2, "out", 3, "in")] {
+        p.graph.wires.push(Wire::new(
+            Endpoint::new(NodeId(a), o),
+            Endpoint::new(NodeId(b), i),
+        ));
+    }
+    let mut h = harness(Some(p));
+    let body = h
+        .state()
+        .canvas
+        .body_screen_rect(NodeId(2))
+        .expect("the spectrogram has a body");
+    assert!(body.width() > 50.0 && body.height() > 50.0, "{body:?}");
+    // Before anything plays, the picture is empty (once the node has run:
+    // the null stream starts on its own thread).
+    let path = ac_core::NodePath::root(NodeId(2));
+    let t0 = std::time::Instant::now();
+    while t0.elapsed() < std::time::Duration::from_secs(5)
+        && h.state()
+            .engine
+            .handle
+            .telemetry()
+            .node_value(&path, 0)
+            .unwrap_or(0.0)
+            <= 0.0
+    {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    steps(&mut h, 2);
+    let bands = ac_nodes::display::analyzer::TELEMETRY_BANDS;
+    let before = spectrogram_cells(&h, body, bands);
+    assert!(before.is_empty(), "{before:?}");
+    assert!(h.state().engine.is_null());
+    let edges = ac_nodes::display::analyzer::band_edges(48_000.0);
+    let k = (1..bands - 1)
+        .find(|&k| 1000.0 >= edges[k] && 1000.0 < edges[k + 1])
+        .unwrap_or(1);
+    let per_row = |cells: &[(usize, u8)]| {
+        let mut rows = vec![0usize; bands];
+        for &(b, a) in cells {
+            if a > 200 && b < bands {
+                rows[b] += 1;
+            }
+        }
+        rows
+    };
+    h.state_mut().engine.handle.play();
+    // The null stream runs in real time: wait for a dozen columns.
+    let t0 = std::time::Instant::now();
+    let mut rows = vec![0; bands];
+    while t0.elapsed() < std::time::Duration::from_secs(10) {
+        h.step();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        rows = per_row(&spectrogram_cells(&h, body, bands));
+        if rows[k.saturating_sub(1)..=k + 1]
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(0)
+            >= 12
+        {
+            break;
+        }
+    }
+    h.state_mut().engine.handle.stop();
+    // The 1 kHz row (or a neighbour) is lit in every new column; rows far
+    // from it only in the columns whose FFT frames (2048 samples, about
+    // five columns of 375) hold the tone's first click.
+    let lit = rows[k - 1..=k + 1].iter().max().copied().unwrap_or(0);
+    assert!(lit >= 12, "the 1 kHz row has {lit} bright cells: {rows:?}");
+    for (b, &n) in rows.iter().enumerate() {
+        if b.abs_diff(k) > 3 {
+            assert!(n <= 6, "row {b} has {n} bright cells: {rows:?}");
+        }
+    }
+}

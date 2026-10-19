@@ -1,0 +1,140 @@
+{
+  "schema_version": 2,
+  "name": "Spectrogram: a sweep pictured and passed through",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 4000.0,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "b": 100.0,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "params": {
+          "shape": "sine"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "spectrogram",
+        "config": {
+          "size": 1024
+        },
+        "params": {
+          "window": 2.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "A sine sweeping from 100 Hz to 4.1 kHz through a Spectrogram, which passes it on unchanged."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:time",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:a"
+      },
+      {
+        "from": "3:out",
+        "to": "4:freq"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}

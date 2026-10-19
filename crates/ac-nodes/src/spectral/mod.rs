@@ -9,6 +9,7 @@ pub mod band_split;
 pub mod fft;
 pub mod ifft;
 pub mod pitch_detect;
+pub mod spectral_freeze;
 pub mod spectral_gate;
 pub mod spectral_shift;
 
@@ -19,6 +20,7 @@ pub fn register(r: &mut Registry) {
     r.register::<band_split::BandSplit>();
     r.register::<spectral_gate::SpectralGate>();
     r.register::<spectral_shift::SpectralShift>();
+    r.register::<spectral_freeze::SpectralFreeze>();
     r.register::<pitch_detect::PitchDetect>();
 }
 

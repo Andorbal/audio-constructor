@@ -431,7 +431,7 @@ fn speak(io: &CanvasIo, live: &Live, meters: &LiveState, n: &NodeView) -> Spoken
             s.role = Role::Status;
             s.value = Some(controls::readout_text(live.node_value(n.id, 0)));
         }
-        Body::Scope | Body::Analyzer => s.role = Role::Image,
+        Body::Scope | Body::Analyzer | Body::Spectrogram => s.role = Role::Image,
         Body::Clip => {
             s.role = Role::Button;
             s.presses = true;

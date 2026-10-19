@@ -953,7 +953,8 @@ fn grows_wide(b: Body) -> bool {
 }
 
 /// The cells a node's widget takes by default, `[columns, rows]`: bigger
-/// widgets (the Keyboard, Scope, Analyzer, XY Pad) get bigger cells.
+/// widgets (the Keyboard, Scope, Analyzer, Spectrogram, XY Pad) get bigger
+/// cells.
 pub fn natural_span(registry: &Registry, node: &ac_core::NodeInstance) -> [u32; 2] {
     match Body::of(&node.kind) {
         Some(Body::Keyboard) => {
@@ -966,7 +967,7 @@ pub fn natural_span(registry: &Registry, node: &ac_core::NodeInstance) -> [u32; 
             ]
         }
         Some(Body::XyPad) => [2, 2],
-        Some(Body::Scope | Body::Analyzer) => [3, 2],
+        Some(Body::Scope | Body::Analyzer | Body::Spectrogram) => [3, 2],
         Some(Body::Slider | Body::Meter | Body::Clip | Body::Record | Body::AudioOut) => [2, 1],
         Some(_) | None => [1, 1],
     }
@@ -1018,9 +1019,13 @@ pub fn place(spans: &[[u32; 2]], columns: u32) -> Vec<(u32, u32)> {
 /// sit in the middle.
 fn fit_body(body: Body, content: Rect, zoom: f32) -> Rect {
     match body {
-        Body::Button | Body::Knob | Body::XyPad | Body::Keyboard | Body::Scope | Body::Analyzer => {
-            content
-        }
+        Body::Button
+        | Body::Knob
+        | Body::XyPad
+        | Body::Keyboard
+        | Body::Scope
+        | Body::Analyzer
+        | Body::Spectrogram => content,
         _ => {
             let h = (body.height() * zoom).min(content.height());
             Rect::from_center_size(content.center(), vec2(content.width(), h))
@@ -1180,6 +1185,7 @@ mod tests {
         assert_eq!(span("xy_pad", serde_json::json!({})), [2, 2]);
         assert_eq!(span("scope", serde_json::json!({})), [3, 2]);
         assert_eq!(span("analyzer", serde_json::json!({})), [3, 2]);
+        assert_eq!(span("spectrogram", serde_json::json!({})), [3, 2]);
         assert_eq!(span("keyboard", serde_json::json!({})), [3, 1]);
         let long = span("keyboard", serde_json::json!({"low": 21, "keys": 88}));
         assert_eq!(long, [ac_core::panel::MAX_SPAN, 1]);

@@ -4,6 +4,65 @@
 
 Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion.
 
+<a id="convolution"></a>
+## Convolution
+
+Kind: `convolution` · Also found by: convolve, impulse response, ir, reverb, cabinet, cab, room, fir
+
+Plays its input through a recorded *impulse response*: the sound of
+a room, a speaker cabinet, a spring, or any filter, captured as the
+echo of a single click. Every sample of the input sets off a copy
+of the response, scaled by that sample, and the copies add up
+(convolution), so the input sounds as if it were played in that
+room or through that cabinet.
+
+**Response.** A wired `buffer` (a `Record` node's take, say) is the
+response; with `buffer` unwired, the `file` config (an audio file in
+the project) is, converted to the engine's rate when the project
+loads. A buffer at another rate is converted with cubic
+interpolation as it comes in. Responses are used as they are,
+without normalizing (`gain` sets the level), and are cut at
+`max_length` seconds (config, default 5, up to 60). A mono response
+is used for every channel; a stereo one gives the left output its
+left channel and the right its right. Nothing to convolve with
+gives silence.
+
+**Latency.** The work is done in blocks of `partition` samples
+(config, a power of two from 64 to 4096, default 256), so the output
+comes `partition` samples late (5.3 ms at 48 kHz by default). The
+node reports it, and the engine delays parallel paths to match, so
+the dry signal mixed back in with a `Mix` lines up. Smaller
+partitions mean less delay and more CPU.
+
+**Changing the response.** A new buffer takes over one partition at
+a time, so the cost is spread out: sound that came in before the
+change finishes ringing with the old response, and sound after it
+uses the new one.
+
+The output has `channels` channels (config, 1 or 2, default 2); a
+mono input feeds both. NaN or infinite input samples count as
+silence.
+
+**Try this:** load a room's impulse response into `file`, feed a dry
+`Clip` into `in`, and mix the Convolution's output with the dry clip
+at about −12 dB in a `Mix` for a natural reverb; or record yourself
+clapping in a stairwell into a `Record` node and wire its `buffer`
+here.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to play through the response. |
+| `buffer` | Buffer | — |  | Impulse response; unwired, the `file` config is used. |
+| `gain` | Float (dB) | 0 | -60 … 12 | Level of the result in decibels. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The input through the response, `partition` samples late. |
+
 <a id="delay"></a>
 ## Delay
 
@@ -261,4 +320,53 @@ or put a `Delay` after it for the classic reverse-echo swell.
 | Socket | Type | Description |
 | --- | --- | --- |
 | `out` | Audio | The input, backwards. |
+
+<a id="time-stretch"></a>
+## Time Stretch
+
+Kind: `time_stretch` · whole input (baked) · Also found by: stretch, slow down, speed up, tempo, phase vocoder, timescale, whole input
+
+Plays its input slower or faster without changing its pitch.
+
+`stretch` is how many times longer the sound lasts: 2 plays it at
+half speed (twice as long), 0.5 at double speed, 1 leaves it as it
+is; anything from 0.25 to 4. It can change over time: the sound
+moves through the input at `1 / stretch` of real time at each
+moment, so a rising `stretch` slows the sound down as it goes. The
+output runs as long as the project; a stretched sound longer than
+that is cut there, and after a shortened one comes silence.
+
+Like `Reverse`, it needs its whole input before it can play, so it
+doesn't run live: when everything feeding it is known ahead of time
+(a `Clip`, an `Oscillator`, a `Pattern`) the engine **bakes** it in
+the background and plays the result in time with the transport, and
+when a live source such as `Audio In` feeds it, it's **disabled**
+and silent. Offline renders always work.
+
+It's a phase vocoder: the input is cut into overlapping frames
+(`size` samples, config, a power of two from 256 to 16384, default
+2048), each frame's partials keep their pitch while the frames are
+spread further apart or closer together, and the frames are added
+back up. Bigger frames keep tones and chords smoother; smaller ones
+keep drums and consonants sharper (a phase vocoder always softens
+attacks a little). Each channel is stretched on its own. NaN or
+infinite input samples count as silence.
+
+**Try this:** wire a drum or vocal `Clip` through a Time Stretch
+with `stretch` at 4 for a slow, smeared ambience; or drive `stretch`
+from a `Graph` that ramps from 1 to 3 for a tape-stop that keeps its
+pitch.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to stretch. |
+| `stretch` | Float (×) | 1 | 0.25 … 4 | How many times longer it lasts (2: half speed). |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The input, slower or faster, at its pitch. |
 

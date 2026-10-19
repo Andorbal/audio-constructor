@@ -139,8 +139,8 @@ safe to compare, automate, and redo.
   a note on beat 3 always starts on the same sample, at any tempo.
 - **Block size.** Almost everything comes out the same at any block size.
   Two things depend on it: a **Feedback** node delays its loop by one
-  block, and a few values change once per block by nature (an LFO, a
-  bar count). The Project tab's **Render block** sets the block size for
+  block (unless its delay is set to **sample**), and a few values change
+  once per block by nature (an LFO, a bar count). The Project tab's **Render block** sets the block size for
   renders (and for baking), so renders stay the same; `--block-size`
   overrides it.
 

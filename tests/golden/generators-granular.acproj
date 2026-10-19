@@ -1,0 +1,171 @@
+{
+  "schema_version": 2,
+  "name": "Granular: a tone scattered into a cloud",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 0.8,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ],
+          "label": "Scan the sound"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "granular",
+        "config": {
+          "file": "assets/tone.wav"
+        },
+        "params": {
+          "density": 40.0,
+          "pitch": 7.0,
+          "size": 0.06,
+          "spray": 0.03,
+          "spread": 1.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "granular",
+        "config": {
+          "file": "assets/tone.wav",
+          "seed": 1
+        },
+        "params": {
+          "density": 8.0,
+          "gain": -6.0,
+          "pitch": -12.0,
+          "position": 0.5,
+          "size": 0.2,
+          "spray": 0.0,
+          "spread": 0.0
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "clock",
+        "params": {
+          "interval": 1.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "Two clouds from one tone: one scans the sound a fifth up, scattered across the stereo field; the other holds the middle an octave down. A Clock stops the second one halfway through."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:time",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:position"
+      },
+      {
+        "from": "3:out",
+        "to": "5:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in_1"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "7:trigger",
+        "to": "4:stop"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}

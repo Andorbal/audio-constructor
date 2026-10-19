@@ -72,6 +72,10 @@ overruns.
   live, or make them smaller; see [Latency](live-and-baked.md#latency).
 - **On Windows**, an interface's ASIO driver may give lower latency than
   WASAPI; that needs an [ASIO build](getting-started.md#asio-windows).
+- **On Linux with PipeWire**, the ALSA route adds PipeWire's own buffer
+  (often 1024 frames) on top of yours. A JACK build started with `pw-jack`
+  runs at PipeWire's quantum instead, which you can set to 128 or 64; see
+  [PipeWire](getting-started.md#pipewire-linux).
 
 ## MIDI not seen
 

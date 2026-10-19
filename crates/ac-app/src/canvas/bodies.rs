@@ -4,7 +4,7 @@
 
 use std::f32::consts::PI;
 
-use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
+use egui::{Align2, Color32, Mesh, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, pos2, vec2};
 
 use crate::canvas::live::MeterChannel;
 use crate::canvas::piano;
@@ -575,6 +575,97 @@ pub fn meter_bar(painter: &Painter, bar: Rect, zoom: f32, c: MeterChannel, alpha
     }
 }
 
+/// Lowest level the spectrogram shows, in dB.
+pub const SPECTROGRAM_FLOOR_DB: f32 = -96.0;
+
+/// A spectrogram cell's brightness for a level: 0 at the floor, 1 at 0 dB.
+pub fn spectrogram_level(db: f32) -> f32 {
+    if db.is_nan() {
+        return 0.0;
+    }
+    ((db - SPECTROGRAM_FLOOR_DB) / -SPECTROGRAM_FLOOR_DB).clamp(0.0, 1.0)
+}
+
+/// A spectrogram cell's color at brightness `t` (0..1): fading in from the
+/// background through the meter's low color, then on to its mid and high
+/// colors near full scale, so the picture reads like the meters.
+pub fn spectrogram_color(t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let low = theme::meter_low();
+    if t < 0.5 {
+        theme::fade(low, t * 2.0)
+    } else if t < 0.8 {
+        theme::mix(low, theme::meter_mid(), (t - 0.5) / 0.3)
+    } else {
+        theme::mix(theme::meter_mid(), theme::meter_high(), (t - 0.8) / 0.2)
+    }
+}
+
+/// The Spectrogram's picture: `ring` holds columns of `bands` levels (dB,
+/// lowest band first), oldest column first, drawn left to right so the
+/// newest is at the right edge, each band a row from the bottom (the bands
+/// are spaced evenly in pitch, so the rows make a log frequency axis from
+/// 20 Hz to Nyquist), with lines at 100 Hz, 1 kHz, and 10 kHz. Cells at
+/// the floor are left out, so the mesh is only as big as what sounded.
+/// Returns whether anything is above the floor (so the canvas keeps
+/// repainting).
+pub fn spectrogram(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    ring: Option<&[f32]>,
+    bands: usize,
+    sample_rate: f64,
+    alpha: f32,
+) -> bool {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::scope_bg(), alpha),
+    );
+    let nyquist = (sample_rate / 2.0).max(40.0);
+    let span = (nyquist / 20.0).ln();
+    let grid = theme::fade(theme::scope_grid(), alpha * 0.7);
+    for hz in [100.0, 1_000.0, 10_000.0] {
+        if hz < nyquist {
+            let y = rect.max.y - ((hz / 20.0f64).ln() / span) as f32 * rect.height();
+            painter.line_segment(
+                [pos2(rect.min.x, y), pos2(rect.max.x, y)],
+                Stroke::new(1.0, grid),
+            );
+        }
+    }
+    let Some(ring) = ring else {
+        return false;
+    };
+    let bands = bands.max(1);
+    let columns = ring.len() / bands;
+    if columns == 0 {
+        return false;
+    }
+    let (w, h) = (rect.width() / columns as f32, rect.height() / bands as f32);
+    let mut mesh = Mesh::default();
+    for (c, col) in ring.chunks_exact(bands).enumerate() {
+        let x0 = rect.min.x + c as f32 * w;
+        for (k, &db) in col.iter().enumerate() {
+            let t = spectrogram_level(db);
+            if t <= 0.0 {
+                continue;
+            }
+            let y1 = rect.max.y - k as f32 * h;
+            mesh.add_colored_rect(
+                Rect::from_min_max(pos2(x0, y1 - h), pos2(x0 + w, y1)),
+                theme::fade(spectrogram_color(t), alpha),
+            );
+        }
+    }
+    let any = !mesh.is_empty();
+    if any {
+        painter.add(Shape::mesh(mesh));
+    }
+    any
+}
+
 /// The scope: the ring, aligned on the last trigger when there is one.
 /// Lowest level an analyzer bar shows, in dB.
 pub const ANALYZER_FLOOR_DB: f32 = -96.0;
@@ -1014,6 +1105,91 @@ mod tests {
         assert_eq!(pts[0], on_circle(c, 10.0, knob_angle(0.0)));
         // A zero-length arc is still a valid line.
         assert_eq!(arc(c, 10.0, 1.0, 1.0).len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod spectrogram_tests {
+    use super::*;
+
+    #[test]
+    fn levels_map_from_the_floor_to_full_scale() {
+        assert_eq!(spectrogram_level(0.0), 1.0);
+        assert_eq!(spectrogram_level(SPECTROGRAM_FLOOR_DB), 0.0);
+        assert_eq!(spectrogram_level(-120.0), 0.0);
+        assert_eq!(spectrogram_level(f32::NAN), 0.0);
+        assert!((spectrogram_level(-48.0) - 0.5).abs() < 1e-6);
+        // Quiet cells fade in; loud ones are opaque.
+        assert_eq!(spectrogram_color(0.0).a(), 0);
+        assert!(spectrogram_color(0.25).a() < spectrogram_color(0.45).a());
+        assert_eq!(spectrogram_color(1.0), theme::meter_high());
+    }
+
+    #[test]
+    fn the_picture_puts_each_column_and_band_in_its_place() {
+        let ctx = egui::Context::default();
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 30.0));
+        // Four columns of three bands: one loud cell in the newest column's
+        // top band, one quieter in the oldest column's bottom band.
+        let mut ring = vec![-120.0f32; 12];
+        ring[9 + 2] = 0.0;
+        ring[0] = -48.0;
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let painter = ui.ctx().layer_painter(egui::LayerId::background());
+            assert!(spectrogram(
+                &painter,
+                rect,
+                1.0,
+                Some(&ring),
+                3,
+                48_000.0,
+                1.0
+            ));
+            assert!(!spectrogram(
+                &painter,
+                rect,
+                1.0,
+                Some(&[-120.0; 12]),
+                3,
+                48_000.0,
+                1.0
+            ));
+            assert!(!spectrogram(&painter, rect, 1.0, None, 3, 48_000.0, 1.0));
+            assert!(!spectrogram(
+                &painter,
+                rect,
+                1.0,
+                Some(&[]),
+                3,
+                48_000.0,
+                1.0
+            ));
+        });
+        let meshes: Vec<&Mesh> = out
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                Shape::Mesh(m) => Some(m.as_ref()),
+                _ => None,
+            })
+            .collect();
+        // Only the first call had anything to draw: two cells, 10 × 10.
+        assert_eq!(meshes.len(), 1);
+        let m = meshes[0];
+        assert_eq!(m.vertices.len(), 8);
+        let cell = |i: usize| Rect::from_two_pos(m.vertices[i].pos, m.vertices[i + 3].pos);
+        assert_eq!(
+            cell(0),
+            Rect::from_min_max(pos2(0.0, 20.0), pos2(10.0, 30.0))
+        );
+        assert_eq!(
+            cell(4),
+            Rect::from_min_max(pos2(30.0, 0.0), pos2(40.0, 10.0))
+        );
+        assert_eq!(m.vertices[0].color, spectrogram_color(0.5));
+        assert_eq!(m.vertices[4].color, theme::meter_high());
+        // No renderer here to take the font atlas.
+        out.textures_delta.clear();
     }
 }
 

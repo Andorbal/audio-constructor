@@ -242,6 +242,30 @@ fn every_phase2_node_in_the_catalog_is_registered() {
     }
 }
 
+/// The nodes M3.4 adds to the catalog (rows marked P3 in docs/NODES.md).
+const ENGINE_EXTRAS: &[&str] = &[
+    "TimeStretch",
+    "Convolution",
+    "Granular",
+    "Formant",
+    "Chaos",
+    "SpectralFreeze",
+    "Spectrogram",
+];
+
+#[test]
+fn the_engine_extras_in_the_catalog_are_registered() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/NODES.md"))
+        .expect("docs/NODES.md");
+    let reg = ac_nodes::registry();
+    for name in ENGINE_EXTRAS {
+        let row = format!("| `{name}` | P3");
+        assert!(text.contains(&row), "{name} has no P3 row in NODES.md");
+        let kind = kind_of(name);
+        assert!(reg.contains(&kind), "{name} ({kind}) isn't registered");
+    }
+}
+
 #[test]
 fn catalog_names_map_to_kinds() {
     assert_eq!(kind_of("EnvelopeFollower"), "envelope_follower");
@@ -251,6 +275,8 @@ fn catalog_names_map_to_kinds() {
     assert_eq!(kind_of("SVF"), "svf");
     assert_eq!(kind_of("DcBlock"), "dc_block");
     assert_eq!(kind_of("LFO"), "lfo");
+    assert_eq!(kind_of("SpectralFreeze"), "spectral_freeze");
+    assert_eq!(kind_of("TimeStretch"), "time_stretch");
 }
 
 #[test]

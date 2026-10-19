@@ -996,6 +996,14 @@ pub fn paint(
                 state.active = true;
             }
         }
+        Body::Spectrogram => {
+            let ring = live.scope(n.id);
+            let rate = io.engine.options().sample_rate;
+            let bands = ac_nodes::display::analyzer::TELEMETRY_BANDS;
+            if bodies::spectrogram(painter, rect, z, ring.as_deref(), bands, rate, alpha) {
+                state.active = true;
+            }
+        }
         Body::Readout => {
             let text = readout_text(live.node_value(n.id, 0));
             bodies::readout(painter, rect, z, &text, alpha);

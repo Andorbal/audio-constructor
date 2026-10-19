@@ -45,16 +45,9 @@ node! {
         fft: Fft,
         bins: Vec<f32>,
         power: Vec<f32>,
-        /// First bin of each band (end exclusive), or empty.
-        ranges: [(usize, usize); TELEMETRY_BANDS],
-        /// Center of each band in (fractional) bins.
-        centers: [f32; TELEMETRY_BANDS],
+        bands: Bands,
         /// Smoothed level of each band in dB.
         levels: [f32; TELEMETRY_BANDS],
-        /// Scales a sum of bin powers to sine power (A²).
-        sum_scale: f32,
-        /// Scales one bin's power to sine power, for interpolated bands.
-        peak_scale: f32,
         fresh: bool,
     }
 }
@@ -93,29 +86,97 @@ fn fft_size(config: &Config) -> usize {
     pow2_size(config.get_f64_or("size", 4096.0), MIN_SIZE, MAX_SIZE, 4096)
 }
 
-impl Analyzer {
-    /// Band power (sine-amplitude² units) from `self.power`.
-    fn band_power(&self, k: usize) -> f32 {
+/// How the 64 bands read a spectrum of one FFT size at one rate: shared by
+/// the Analyzer and the Spectrogram.
+#[derive(Clone, Debug)]
+pub(crate) struct Bands {
+    /// First bin of each band (end exclusive), or empty.
+    ranges: [(usize, usize); TELEMETRY_BANDS],
+    /// Center of each band in (fractional) bins.
+    centers: [f32; TELEMETRY_BANDS],
+    /// Scales a sum of bin powers to sine power (A²).
+    sum_scale: f32,
+    /// Scales one bin's power to sine power, for interpolated bands.
+    peak_scale: f32,
+}
+
+impl Bands {
+    /// Bands for a Hann-windowed FFT of `size` points at `rate`.
+    pub(crate) fn new(size: usize, rate: f64) -> Bands {
+        let bins = size / 2 + 1;
+        let rate = rate.max(1.0);
+        let edges = band_edges(rate);
+        let to_bin = size as f64 / rate;
+        let mut ranges = [(0, 0); TELEMETRY_BANDS];
+        let mut centers = [0.0; TELEMETRY_BANDS];
+        for k in 0..TELEMETRY_BANDS {
+            let lo = (edges[k] * to_bin).ceil() as usize;
+            let hi = if k + 1 == TELEMETRY_BANDS {
+                bins
+            } else {
+                ((edges[k + 1] * to_bin).ceil() as usize).min(bins)
+            };
+            ranges[k] = (lo.min(bins), hi);
+            centers[k] = ((edges[k] * edges[k + 1]).sqrt() * to_bin) as f32;
+        }
+        let window = Window::Hann.table(size);
+        let sum_w2: f64 = window.iter().map(|w| f64::from(*w).powi(2)).sum();
+        let coherent = f64::from(Window::Hann.coherent_gain()) * size as f64 / 2.0;
+        Bands {
+            ranges,
+            centers,
+            // One-sided Parseval: a sine of amplitude A puts N·A²·Σw²/4
+            // into its positive-frequency bins.
+            sum_scale: (4.0 / (size as f64 * sum_w2)) as f32,
+            peak_scale: (1.0 / (coherent * coherent)) as f32,
+        }
+    }
+
+    /// Band `k`'s power (sine-amplitude² units) from bin powers `power`.
+    pub(crate) fn power(&self, power: &[f32], k: usize) -> f32 {
         let (lo, hi) = self.ranges[k];
         if lo < hi {
-            self.power[lo..hi].iter().sum::<f32>() * self.sum_scale
+            power.get(lo..hi).map_or(0.0, |p| p.iter().sum::<f32>()) * self.sum_scale
         } else {
             let p = self.centers[k].max(0.0);
             let i = p as usize;
             let frac = p - i as f32;
-            let a = self.power.get(i).copied().unwrap_or(0.0);
-            let b = self.power.get(i + 1).copied().unwrap_or(a);
+            let a = power.get(i).copied().unwrap_or(0.0);
+            let b = power.get(i + 1).copied().unwrap_or(a);
             (a + (b - a) * frac) * self.peak_scale
         }
     }
 
+    /// Band `k`'s level in dB (0 dB: a full-scale sine), floored.
+    pub(crate) fn db(&self, power: &[f32], k: usize) -> f32 {
+        let p = self.power(power, k);
+        if p > 1e-12 {
+            (10.0 * p.log10()).max(FLOOR_DB)
+        } else {
+            FLOOR_DB
+        }
+    }
+}
+
+/// Add the spectrum power of the frame `a` holds into `power`, weighted.
+pub(crate) fn accumulate(
+    a: &mut StftAnalysis,
+    fft: &mut Fft,
+    bins: &mut [f32],
+    power: &mut [f32],
+    weight: f32,
+) {
+    a.analyze(fft, bins);
+    for (p, pair) in power.iter_mut().zip(bins.chunks_exact(2)) {
+        *p += (pair[0] * pair[0] + pair[1] * pair[1]) * weight;
+    }
+}
+
+impl Analyzer {
     /// Add channel `c`'s spectrum power into `self.power`.
     fn accumulate(&mut self, c: usize, weight: f32) {
         if let Some(a) = self.analysis.get_mut(c) {
-            a.analyze(&mut self.fft, &mut self.bins);
-        }
-        for (p, pair) in self.power.iter_mut().zip(self.bins.chunks_exact(2)) {
-            *p += (pair[0] * pair[0] + pair[1] * pair[1]) * weight;
+            accumulate(a, &mut self.fft, &mut self.bins, &mut self.power, weight);
         }
     }
 }
@@ -141,24 +202,6 @@ impl Node for Analyzer {
         let hop = size / 4;
         let fft = Fft::new(size);
         let bins = fft.bins();
-        let rate = ctx.sample_rate.max(1.0);
-        let edges = band_edges(rate);
-        let to_bin = size as f64 / rate;
-        let mut ranges = [(0, 0); TELEMETRY_BANDS];
-        let mut centers = [0.0; TELEMETRY_BANDS];
-        for k in 0..TELEMETRY_BANDS {
-            let lo = (edges[k] * to_bin).ceil() as usize;
-            let hi = if k + 1 == TELEMETRY_BANDS {
-                bins
-            } else {
-                ((edges[k + 1] * to_bin).ceil() as usize).min(bins)
-            };
-            ranges[k] = (lo.min(bins), hi);
-            centers[k] = ((edges[k] * edges[k + 1]).sqrt() * to_bin) as f32;
-        }
-        let window = Window::Hann.table(size);
-        let sum_w2: f64 = window.iter().map(|w| f64::from(*w).powi(2)).sum();
-        let coherent = f64::from(Window::Hann.coherent_gain()) * size as f64 / 2.0;
         Analyzer {
             analysis: [
                 StftAnalysis::new(size, hop, Window::Hann),
@@ -167,13 +210,8 @@ impl Node for Analyzer {
             fft,
             bins: vec![0.0; 2 * bins],
             power: vec![0.0; bins],
-            ranges,
-            centers,
+            bands: Bands::new(size, ctx.sample_rate),
             levels: [FLOOR_DB; TELEMETRY_BANDS],
-            // One-sided Parseval: a sine of amplitude A puts N·A²·Σw²/4
-            // into its positive-frequency bins.
-            sum_scale: (4.0 / (size as f64 * sum_w2)) as f32,
-            peak_scale: (1.0 / (coherent * coherent)) as f32,
             fresh: true,
         }
     }
@@ -205,12 +243,7 @@ impl Node for Analyzer {
                 f32::INFINITY
             };
             for k in 0..TELEMETRY_BANDS {
-                let p = self.band_power(k);
-                let db = if p > 1e-12 {
-                    (10.0 * p.log10()).max(FLOOR_DB)
-                } else {
-                    FLOOR_DB
-                };
+                let db = self.bands.db(&self.power, k);
                 let held = if self.fresh {
                     FLOOR_DB
                 } else {

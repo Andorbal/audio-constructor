@@ -1,0 +1,213 @@
+{
+  "schema_version": 2,
+  "name": "Spectral Freeze: a gliding tone caught and held",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "math",
+        "params": {
+          "b": 600.0,
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "math",
+        "params": {
+          "b": 300.0,
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ],
+          "label": "300 Hz rising 600 Hz a second"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "oscillator",
+        "params": {
+          "shape": "saw"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "fft",
+        "config": {
+          "size": 2048,
+          "overlap": 4
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "compare",
+        "params": {
+          "b": 0.4,
+          "op": "greater"
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ],
+          "label": "Hold after 0.4 s"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "spectral_freeze",
+        "params": {
+          "glide": 0.1
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "ifft",
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "gain",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            1600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "audio_out",
+        "config": {
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "A saw glides up from 300 Hz; at 0.4 s Spectral Freeze catches it (with a 0.1 s glide) and holds that chord while the saw keeps rising underneath."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:time",
+        "to": "2:a"
+      },
+      {
+        "from": "2:out",
+        "to": "3:a"
+      },
+      {
+        "from": "3:out",
+        "to": "4:freq"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:spectrum",
+        "to": "7:spectrum"
+      },
+      {
+        "from": "1:time",
+        "to": "6:a"
+      },
+      {
+        "from": "6:out",
+        "to": "7:hold"
+      },
+      {
+        "from": "7:spectrum",
+        "to": "8:spectrum"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:out",
+        "to": "10:in"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}
