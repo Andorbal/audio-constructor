@@ -13,6 +13,7 @@ use crate::icons;
 use crate::palette::Candidate;
 use crate::settings::UI_SCALES;
 use crate::theme::{self, ThemeChoice};
+use crate::user_themes::UserThemes;
 
 /// What a menu click asks for.
 pub enum MenuCommand {
@@ -25,6 +26,10 @@ pub enum MenuCommand {
     Add(Candidate),
     /// View ▸ Theme.
     SetTheme(ThemeChoice),
+    /// View ▸ Theme ▸ Reload Themes: read the themes folder again.
+    ReloadThemes,
+    /// View ▸ Theme ▸ Open Themes Folder.
+    OpenThemesFolder,
     /// View ▸ UI Scale (1 is 100 %).
     SetUiScale(f32),
 }
@@ -42,7 +47,9 @@ pub struct MenuState<'a> {
     pub playing: bool,
     pub looping: bool,
     pub play_keys: bool,
-    pub theme: ThemeChoice,
+    pub theme: &'a ThemeChoice,
+    /// The person's own themes, listed after the built-in ones.
+    pub themes: &'a UserThemes,
     pub ui_scale: f32,
     pub recent: &'a Recent,
     /// The shipped examples, by name.
@@ -78,6 +85,81 @@ fn entry_labeled(
 fn toggle(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, on: bool) {
     let icon = if on { icons::CHECK } else { "    " };
     entry(ui, out, action, icon, true);
+}
+
+/// View ▸ Theme: the built-in themes, the person's own (warning about
+/// any whose text is hard to read, or whose file had problems), files that
+/// couldn't be used, and the folder they live in.
+fn theme_menu(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, s: &MenuState) {
+    let mut item = |ui: &mut egui::Ui, choice: &ThemeChoice, note: Option<String>| {
+        let icon = if s.theme == choice {
+            icons::CHECK
+        } else {
+            "    "
+        };
+        let mut r = ui.button(format!("{icon}  {}", choice.label()));
+        if let Some(note) = note {
+            r = r.on_hover_text(note);
+        }
+        if r.clicked() {
+            out.push(MenuCommand::SetTheme(choice.clone()));
+            ui.close();
+        }
+    };
+    for t in &ThemeChoice::BUILT_IN {
+        item(ui, t, None);
+    }
+    if !s.themes.themes.is_empty() {
+        ui.separator();
+    }
+    for t in &s.themes.themes {
+        let choice = ThemeChoice::User(t.name.clone());
+        let mut notes = Vec::new();
+        if t.low_contrast() {
+            notes.push(format!(
+                "Text contrast {:.1}:1 ({}), under 4.5:1: text may be hard to read",
+                t.text_contrast.0, t.text_contrast.1
+            ));
+        }
+        notes.extend(t.notes.iter().cloned());
+        let note = (!notes.is_empty()).then(|| format!("{}\n{}", t.file, notes.join("\n")));
+        item(ui, &choice, note);
+        if t.low_contrast() {
+            ui.label(
+                RichText::new(format!(
+                    "{}  low text contrast ({:.1}:1)",
+                    icons::WARNING,
+                    t.text_contrast.0
+                ))
+                .small()
+                .color(theme::warning()),
+            );
+        }
+    }
+    for p in &s.themes.problems {
+        ui.label(
+            RichText::new(format!("{}  {p}", icons::WARNING))
+                .small()
+                .color(theme::warning()),
+        );
+    }
+    ui.separator();
+    if s.themes.dir.is_some() {
+        if ui
+            .button(format!("{}  Open Themes Folder", icons::FOLDER_OPEN))
+            .clicked()
+        {
+            out.push(MenuCommand::OpenThemesFolder);
+            ui.close();
+        }
+        if ui
+            .button(format!("{}  Reload Themes", icons::ARROWS_CLOCKWISE))
+            .clicked()
+        {
+            out.push(MenuCommand::ReloadThemes);
+            ui.close();
+        }
+    }
 }
 
 pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
@@ -266,13 +348,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::ZoomOut, icons::MINUS, true);
             ui.separator();
             ui.menu_button(format!("{}  Theme", icons::CIRCLE_HALF), |ui| {
-                for t in ThemeChoice::ALL {
-                    let icon = if s.theme == t { icons::CHECK } else { "    " };
-                    if ui.button(format!("{icon}  {}", t.label())).clicked() {
-                        out.push(MenuCommand::SetTheme(t));
-                        ui.close();
-                    }
-                }
+                theme_menu(ui, &mut out, s);
             });
             ui.menu_button(format!("{}  UI Scale", icons::TEXT_AA), |ui| {
                 for step in UI_SCALES {

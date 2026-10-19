@@ -13,6 +13,27 @@ fixes and smaller changes.
 
 ## [0.14.0] - 2026-10-19
 
+### Added
+
+- **High Contrast theme** (View ▸ Theme ▸ High Contrast): white text on
+  black at 7:1 or more on every surface, white outlines on node cards,
+  buttons, and fields, thicker outlines, a yellow ring around whatever has
+  keyboard focus, and socket colors brightened so every type still stands
+  out on black.
+- **Your own themes**: put a small JSON file in the themes folder next to
+  the editor's settings (View ▸ Theme ▸ Open Themes Folder), give it a
+  name and a base (Dark, Light, or High Contrast), and change any of the
+  base's colors by name. Your themes are listed under the built-in ones;
+  Reload Themes picks up edits at once. The editor remembers your choice
+  by name, and shows Dark if the file goes away. The guide's new
+  [Themes](docs/guide/themes.md) chapter lists every color with its value
+  in each built-in theme.
+- A theme file with a mistake never stops the editor: a file it can't use
+  is listed in View ▸ Theme with the reason, a misspelled color name
+  (with a suggestion) or a color that doesn't read is skipped, and a theme
+  whose text would be hard to read (under 4.5:1 contrast) is marked and
+  says which color is the problem.
+
 ## [0.10.0] - 2026-10-19
 
 Audio Constructor now runs inside other music software as a plugin: a

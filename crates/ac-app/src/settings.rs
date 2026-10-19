@@ -1,6 +1,7 @@
 //! The editor's own settings (theme, UI scale), kept in `settings.json` in
-//! the platform config folder next to the recent list. They belong to the
-//! person, not to a project, so they never travel with project files.
+//! the platform config folder next to the recent list, with the person's
+//! own themes in a `themes` folder beside it. They belong to the person,
+//! not to a project, so they never travel with project files.
 
 use std::path::{Path, PathBuf};
 
@@ -101,6 +102,12 @@ impl AppSettings {
         self.file.as_deref()
     }
 
+    /// The folder of the person's own themes (`themes/` beside the
+    /// settings file), if the settings have a file.
+    pub fn themes_dir(&self) -> Option<PathBuf> {
+        Some(self.file.as_deref()?.parent()?.join("themes"))
+    }
+
     pub fn set_theme(&mut self, theme: ThemeChoice) {
         if self.prefs.theme != theme {
             self.prefs.theme = theme;
@@ -136,11 +143,10 @@ fn parse(text: &str) -> Prefs {
         return Prefs::default();
     };
     let mut prefs = Prefs::default();
-    if let Some(t) = map
-        .get("theme")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        prefs.theme = t;
+    // Built-in themes by id, theme files by name; a name that matches no
+    // file shows Dark until one does.
+    if let Some(t) = map.get("theme").and_then(serde_json::Value::as_str) {
+        prefs.theme = ThemeChoice::from_name(t);
     }
     if let Some(s) = map.get("ui_scale").and_then(serde_json::Value::as_f64) {
         prefs.ui_scale = s as f32;
@@ -178,6 +184,10 @@ mod tests {
         s.set_ui_scale(1.25);
         let again = AppSettings::load_from(Some(file.clone()));
         assert_eq!(again.prefs.theme, ThemeChoice::Light);
+        assert_eq!(s.themes_dir(), Some(dir.join("nested").join("themes")));
+        s.set_theme(ThemeChoice::User("Night Shift".into()));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(text.contains(r#""theme": "Night Shift""#), "{text}");
         assert_eq!(again.prefs.ui_scale, 1.25);
         std::fs::remove_dir_all(dir).ok();
     }
@@ -186,9 +196,16 @@ mod tests {
     fn bad_files_give_defaults_field_by_field() {
         assert_eq!(parse("not json"), Prefs::default());
         assert_eq!(parse("[1, 2]"), Prefs::default());
-        let p = parse(r#"{"theme": "sepia", "ui_scale": 1.5}"#);
+        let p = parse(r#"{"theme": 7, "ui_scale": 1.5}"#);
         assert_eq!(p.theme, ThemeChoice::Dark);
         assert_eq!(p.ui_scale, 1.5);
+        // A name that isn't a built-in is a theme file's, kept by name.
+        let p = parse(r#"{"theme": "Sepia"}"#);
+        assert_eq!(p.theme, ThemeChoice::User("Sepia".into()));
+        assert_eq!(
+            parse(r#"{"theme": "high_contrast"}"#).theme,
+            ThemeChoice::HighContrast
+        );
         let p = parse(r#"{"theme": "system", "ui_scale": "big"}"#);
         assert_eq!(p.theme, ThemeChoice::System);
         assert_eq!(p.ui_scale, 1.0);

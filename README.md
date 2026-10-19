@@ -133,7 +133,8 @@ wire, `Ctrl+Z` to undo. Pick your audio interface in the side panel's
 **Devices** tab (`N` toggles the panel); MIDI inputs are opened on their own
 and listed there. `F1` on a node opens
 its help, with a "Try this" tip and the blocks and examples that use it.
-View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
+View ▸ Theme has light and high-contrast themes (and your own, from
+theme files), and View ▸ UI Scale sizes the whole
 interface from 75 % to 200 %.
 
 The examples in `examples/` are good places to start. Each is a working

@@ -24,13 +24,32 @@ patterns; the look is our own.
 
 ## Look
 
-- Own look on every platform, like Blender. Dark theme by default, and a
-  light theme: View ▸ Theme picks **Dark**, **Light**, or **Follow
-  System** (the operating system's light or dark mode, followed while the
-  editor runs), switching at once and remembered in the editor's settings
-  (D107, D109). All colors, radii, spacing, and type scale live in one theme
-  module (`ac-app/src/theme.rs`) so the look can be tuned in one place:
-  each theme is a `Palette` of every color the editor draws with.
+- Own look on every platform, like Blender. Dark theme by default, a
+  light theme, and a high-contrast one: View ▸ Theme picks **Dark**,
+  **Light**, **High Contrast**, or **Follow System** (the operating
+  system's light or dark mode, followed while the editor runs), then the
+  person's own themes, switching at once and remembered in the editor's
+  settings by name (D107, D109, D180). All colors, radii, spacing, and type
+  scale live in one theme module (`ac-app/src/theme.rs`) so the look can be
+  tuned in one place: each theme is a `Palette` of every color the editor
+  draws with.
+- **High Contrast** is white text on black, at least 7:1 on every surface
+  (WCAG AAA), with white outlines on cards, buttons, and fields, outlines
+  drawn twice as thick, a yellow focus ring unlike any other color on
+  screen, and socket colors brightened so types that share a shape stay
+  far apart in color.
+- **Theme files** (D181): JSON in `themes/` beside `settings.json`, each
+  with a `name`, a `base` (`dark`, `light`, or `high_contrast`), an
+  optional `header_mix`, and `colors` overriding any `Palette` color by
+  its field name (`#RRGGBB` or `#RRGGBBAA`); anything left out is the
+  base's. View ▸ Theme lists them after the built-ins, with **Open Themes
+  Folder** and **Reload Themes**. A file that can't be used is listed in
+  the menu with why (and said at startup); a misspelled name or a bad
+  color is skipped and noted on hover; a theme whose body text falls
+  under 4.5:1 on any surface is marked in the menu and says so when
+  chosen. A saved theme whose file is gone shows Dark. The guide's
+  [Themes](guide/themes.md) chapter lists every field with the built-in
+  values (a test keeps it complete and current).
 - Readable in both themes: body text has at least 4.5:1 contrast on every
   panel and card (the WCAG AA level), and signal colors at least 3:1 on the
   canvas and on cards; tests check both. The light theme keeps the dark
@@ -416,8 +435,9 @@ all honor them (DECISIONS D92).
   typing or with the panels shown. It is egui's zoom factor, so everything
   scales, canvas text included; the canvas's own zoom is separate. The
   scale is remembered in the editor's settings (D108, D109).
-- A light theme (View ▸ Theme) with the same contrast rules as the dark
-  one (see "Look").
+- A light theme and a High Contrast theme (View ▸ Theme) with the same
+  contrast rules as the dark one, and High Contrast's stricter ones (see
+  "Look").
 - Socket shapes carry type information in addition to color.
 - All canvas actions have keyboard equivalents; the palette is fully
   keyboard driven.

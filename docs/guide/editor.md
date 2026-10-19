@@ -291,9 +291,11 @@ When it's narrow, tabs show only their icons.
 
 ## Theme and size
 
-- **View ▸ Theme** picks **Dark** (the default), **Light**, or **Follow
-  System**, which follows your system's light or dark setting while the
-  editor runs.
+- **View ▸ Theme** picks **Dark** (the default), **Light**, **High
+  Contrast** (white on black, strong outlines, and a yellow focus ring),
+  or **Follow System**, which follows your system's light or dark setting
+  while the editor runs. Your own themes, small files in a themes folder,
+  are listed below them; [Themes](themes.md) says how to make one.
 - **View ▸ UI Scale** sizes the whole interface from 75 % to 200 %.
   `Ctrl+=` and `Ctrl+-` step up and down and `Ctrl+0` goes back to 100 %,
   even while typing. The canvas zoom (`+`, `-`, the wheel) is separate.

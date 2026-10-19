@@ -33,6 +33,7 @@ use crate::play_keys::{KeyInput, PlayKeys};
 use crate::settings::{self, AppSettings};
 use crate::theme::{self, ThemeChoice};
 use crate::transport::TransportState;
+use crate::user_themes::UserThemes;
 
 mod sharing;
 
@@ -165,6 +166,8 @@ pub struct EditorApp {
     palette_feed: Vec<NodeId>,
     /// Theme and UI scale (View menu), saved as they change.
     settings: AppSettings,
+    /// The person's own themes (the themes folder beside the settings).
+    themes: UserThemes,
     /// The editor's time, kept from going backwards when it moves to
     /// another context (a reopened plugin window's clock starts at zero).
     clock: Clock,
@@ -332,6 +335,7 @@ impl EditorApp {
             find: FindBar::default(),
             selection_order: SelectionOrder::default(),
             palette_feed: Vec::new(),
+            themes: UserThemes::load(opts.settings.themes_dir()),
             settings: opts.settings,
             clock: Clock::default(),
             epoch: 0,
@@ -347,8 +351,39 @@ impl EditorApp {
             app.open(&p, 0.0);
         }
         app.report_library_issues();
+        app.report_theme_issues();
         app.host_seen = app.change_stamp();
         app
+    }
+
+    /// Theme files that couldn't be used, and a saved theme that's gone,
+    /// said once at startup (after anything else worth saying).
+    fn report_theme_issues(&mut self) {
+        let mut text = Vec::new();
+        if let (_, Some(missing)) = self.themes.look(&self.settings.prefs.theme) {
+            text.push(format!(
+                "The theme “{missing}” isn't in your themes folder, so the editor is Dark"
+            ));
+        }
+        if let Some(first) = self.themes.problems.first() {
+            let n = self.themes.problems.len();
+            text.push(format!(
+                "{n} theme file{} couldn't be used ({first})",
+                plural(n)
+            ));
+        }
+        if text.is_empty() {
+            return;
+        }
+        let text = text.join(" · ");
+        match &mut self.status {
+            Some((s, _, warn)) => {
+                s.push_str(" · ");
+                s.push_str(&text);
+                *warn = true;
+            }
+            None => self.status = Some((text, 0.0, true)),
+        }
     }
 
     /// Block files in the library folder that couldn't be read, said once
@@ -635,15 +670,76 @@ impl EditorApp {
 
     /// Show the settings' theme and scale in `ctx`.
     fn apply_settings(&self, ctx: &egui::Context) {
-        theme::set_choice(ctx, self.settings.prefs.theme);
+        let (look, _) = self.themes.look(&self.settings.prefs.theme);
+        theme::set_look(ctx, look);
         ctx.set_zoom_factor(self.settings.prefs.ui_scale);
     }
 
-    /// View ▸ Theme: switch now and remember the choice.
+    /// The person's own themes, as View ▸ Theme lists them.
+    pub fn user_themes(&self) -> &UserThemes {
+        &self.themes
+    }
+
+    /// View ▸ Theme: switch now and remember the choice. A theme file
+    /// whose text is hard to read says so.
     pub fn set_theme(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
-        self.settings.set_theme(choice);
-        theme::set_choice(ctx, choice);
+        let now = self.clock.last;
+        self.settings.set_theme(choice.clone());
+        let (look, missing) = self.themes.look(&choice);
+        theme::set_look(ctx, look);
         ctx.request_repaint();
+        if let Some(name) = missing {
+            self.warn(
+                format!("The theme “{name}” isn't in your themes folder, so the editor is Dark"),
+                now,
+            );
+        } else if let ThemeChoice::User(name) = &choice
+            && let Some(t) = self.themes.get(name)
+        {
+            if t.low_contrast() {
+                self.warn(
+                    format!(
+                        "“{name}” has text at {:.1}:1 ({}), under the 4.5:1 that keeps text \
+                         readable",
+                        t.text_contrast.0, t.text_contrast.1
+                    ),
+                    now,
+                );
+            } else if let Some(note) = t.notes.first() {
+                self.warn(format!("{}: {note}", t.file), now);
+            }
+        }
+    }
+
+    /// View ▸ Theme ▸ Reload Themes: read the themes folder again, and
+    /// show the chosen theme as its file now says.
+    pub fn reload_themes(&mut self, ctx: &egui::Context, now: f64) {
+        self.themes = UserThemes::load(self.settings.themes_dir());
+        self.apply_settings(ctx);
+        let n = self.themes.themes.len();
+        let mut text = format!("{n} theme{} in your themes folder", plural(n));
+        if let Some(first) = self.themes.problems.first() {
+            let bad = self.themes.problems.len();
+            text.push_str(&format!(
+                " · {bad} file{} couldn't be used ({first})",
+                plural(bad)
+            ));
+            self.warn(text, now);
+        } else {
+            self.say(text, now);
+        }
+    }
+
+    /// View ▸ Theme ▸ Open Themes Folder.
+    fn open_themes_folder(&mut self, now: f64) {
+        let Some(dir) = self.settings.themes_dir() else {
+            self.warn("Themes aren't kept anywhere in this session", now);
+            return;
+        };
+        match files::open_folder(&dir) {
+            Ok(()) => self.say(format!("Themes folder: {}", dir.display()), now),
+            Err(e) => self.warn(format!("Couldn't open the themes folder: {e}"), now),
+        }
     }
 
     /// View ▸ UI Scale: everything (canvas text included) scales by
@@ -783,7 +879,8 @@ impl EditorApp {
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
                     play_keys: self.play_keys.is_on(),
-                    theme: self.settings.prefs.theme,
+                    theme: &self.settings.prefs.theme,
+                    themes: &self.themes,
                     ui_scale: self.settings.prefs.ui_scale,
                     recent: &self.recent,
                     examples,
@@ -1542,6 +1639,8 @@ impl EditorApp {
             MenuCommand::ClearRecent => self.recent.clear(),
             MenuCommand::OpenExample(p) => self.request(AfterConfirm::OpenExample(p), now),
             MenuCommand::SetTheme(t) => self.set_theme(ctx, t),
+            MenuCommand::ReloadThemes => self.reload_themes(ctx, now),
+            MenuCommand::OpenThemesFolder => self.open_themes_folder(now),
             MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
