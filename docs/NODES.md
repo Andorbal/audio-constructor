@@ -129,7 +129,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `SpectralGate` | P2 | Turn down bins below `threshold` (absolute dB per bin) to `floor`, gliding over `smoothing`. |
 | `SpectralShift` | P2 | Shift (`shift`, Hz) and scale (`scale`, ratio) bin frequencies with a peak-locked phase vocoder. |
 | `PitchDetect` | P2 | `in: Audio` → `freq: Float(Hz)`, `confidence: Float`, `note: Int`, `onset: Trigger` (YIN; `min_freq`, `max_freq`, `threshold`). Guitar-to-synth. |
-| `SpectralFreeze` | P3 | Hold a spectral frame. |
+| `SpectralFreeze` | P3 | Holds a spectral frame while `hold` is on: levels kept, each bin turning at its partial's measured frequency (phase-locked to its peak), so a frozen chord sustains smoothly; `glide` crossfades live and frozen. |
 
 ## Math and logic
 
@@ -231,7 +231,7 @@ Panels (UX.md) to make a performance surface.
 | `Scope` | P1 | Oscilloscope on `Audio`/`Float`, with `trigger` input for stable display; passes through. |
 | `Readout` | P1 | Shows the current value of any `Float`/`Int`/`Bool` input. |
 | `Analyzer` | P2 | Spectrum analyzer display: 64 log-spaced bands from 20 Hz to Nyquist in dB, falling by 20 dB every `decay`; passes `in` through unchanged. |
-| `Spectrogram` | P3 | Scrolling spectrogram. |
+| `Spectrogram` | P3 | Scrolling spectrogram on the card: 128 columns of the Analyzer's 64 bands across `window` seconds, each column the loudest moment of its slice; `size` config; passes `in` through unchanged. |
 
 ## Utility
 

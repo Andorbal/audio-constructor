@@ -146,3 +146,49 @@ after a `Biquad` to see the filter round off its corners.
 | --- | --- | --- |
 | `out` | Audio | The same signal, unchanged. |
 
+<a id="spectrogram"></a>
+## Spectrogram
+
+Kind: `spectrogram` · Also found by: sonogram, waterfall, spectrum, fft, frequency, time, analyser, voiceprint
+
+A scrolling spectrogram: a picture of a sound over time, with
+frequency going up, time running left to right (the newest moment
+at the right edge), and loudness as brightness. It passes the signal through unchanged, so it can sit
+inline.
+
+Each column of the picture is one slice of time, read in the same
+64 bands as the `Analyzer` (spaced evenly in pitch from 20 Hz to
+half the sample rate, each in dB where 0 dB is a full-scale sine in
+the band). The display holds 128 columns across `window` seconds;
+each column shows the loudest moment of its slice, so short sounds
+aren't missed when the window is long. Stereo signals show the
+average power of the first two channels; all channels pass through.
+
+Config:
+- `size`: FFT size, a power of two from 64 to 16384 (default 2048).
+  Bigger sizes resolve low notes better and blur fast changes more.
+  Frames overlap by four with a Hann window.
+
+For the editor: the scope ring holds 128 columns of 64 levels (dB,
+lowest band first, oldest column first from the ring position), and
+telemetry value 0 is the time each column covers, in seconds. NaN
+or infinite samples count as silence in the picture; `out` is still
+an exact copy of `in`.
+
+**Try this:** put a Spectrogram after a `Formant` with an `LFO` on
+its `vowel` to watch the resonances move, or after a `Chaos`-swept
+filter on noise to see weather in the spectrum.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | Signal to picture. |
+| `window` | Float (s) | 5 | 0.5 … 30 | Time the picture spans. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The same signal, unchanged. |
+

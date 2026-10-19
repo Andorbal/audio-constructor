@@ -36,6 +36,15 @@ fixes and smaller changes.
   man's, a woman's, or a child's voice puts them for a, e, i, o, and u;
   `vowel` morphs between them, `shift` moves them up or down, and an LFO
   or envelope on `vowel` makes a synth talk.
+- **Spectral Freeze** (Spectral): between an FFT and an IFFT, `hold`
+  catches the sound of one moment and keeps it ringing as a smooth drone
+  for as long as it's on, each partial still at its own pitch; `glide`
+  fades the freeze in and out.
+- **Spectrogram** (Display): a scrolling picture of a sound on its card,
+  frequency going up, time running across, loudness as brightness, in the
+  same 64 bands as the Analyzer. `window` sets how many seconds it shows;
+  short sounds stay visible even in a long window. It passes its input
+  through unchanged and can be pinned to a performance panel.
 
 ## [0.12.0] - 2026-10-19
 

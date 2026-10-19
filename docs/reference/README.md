@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-119 nodes in 13 categories.
+121 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -19,13 +19,13 @@ together, read the [user guide](../guide/README.md).
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
-| [Spectral](#spectral) | 6 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
+| [Spectral](#spectral) | 7 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
 | [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
-| [Display](#display) | 4 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
+| [Display](#display) | 5 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 9 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, and the engine's vital signs. |
 
 <a id="io"></a>
@@ -118,6 +118,7 @@ Work in frequencies instead of samples: transforms to and from spectra, band spl
 | [FFT](spectral.md#fft) | Turns audio into a stream of spectra: a short-time Fourier transform of `in`, one frame every hop. |
 | [IFFT](spectral.md#ifft) | Turns a stream of spectra back into audio by overlap-adding inverse transforms. |
 | [Pitch Detect](spectral.md#pitch-detect) | Follows the pitch of a monophonic sound: frequency, nearest note, how sure it is, and a trigger when a new note starts. |
+| [Spectral Freeze](spectral.md#spectral-freeze) | Holds one moment of a sound and keeps it ringing: while `hold` is on, the spectrum stops changing and plays the frame it caught, for as long as you like. |
 | [Spectral Gate](spectral.md#spectral-gate) | Silences the bins of a spectrum that fall below a threshold, leaving the louder ones: a noise gate per frequency. |
 | [Spectral Shift](spectral.md#spectral-shift) | Moves every partial of a spectrum to a new frequency: `frequency × scale + shift`. |
 
@@ -233,6 +234,7 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 | [Meter](display.md#meter) | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |
+| [Spectrogram](display.md#spectrogram) | A scrolling spectrogram: a picture of a sound over time, with frequency going up, time running left to right (the newest moment at the right edge), and loudness as brightness. It passes the signal through unchanged, so it can sit inline. |
 
 <a id="utility"></a>
 ## Utility

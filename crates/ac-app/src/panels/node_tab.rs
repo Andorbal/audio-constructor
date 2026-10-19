@@ -433,6 +433,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "4096",
             },
         )],
+        "spectrogram" => vec![f(
+            "size",
+            "FFT size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "2048",
+            },
+        )],
         "frequency_trigger" => vec![f(
             "mode",
             "Listen for",
