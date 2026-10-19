@@ -29,6 +29,7 @@ use ac_core::{
     TransportView,
 };
 
+use crate::loops::{LoopCtx, LoopRunner};
 use crate::pool::{Job, RtPool};
 use crate::telemetry::TelemetryStore;
 
@@ -66,6 +67,9 @@ pub(crate) enum StepKind {
     /// Float → Audio from a block-rate value: fill the step's one sample
     /// output with it.
     FillFromScalar { scalar: u32 },
+    /// A single-sample loop (`loops.rs`): run [`CompiledGraph::loops`]
+    /// entry `index`, its members one sample at a time.
+    Loop { index: u32 },
 }
 
 /// How a muted node passes signal through.
@@ -260,6 +264,8 @@ impl At {
 pub(crate) struct Work {
     nodes: Vec<Box<dyn Node>>,
     load: Vec<bool>,
+    /// A loop step's runner while its wave runs (by step, like `nodes`).
+    loops: Vec<Option<Box<LoopRunner>>>,
     samples: Vec<Vec<f32>>,
     scalars: Vec<f32>,
     ints: Vec<i32>,
@@ -280,6 +286,7 @@ impl Work {
                 .map(|_| Box::new(Vacant) as Box<dyn Node>)
                 .collect(),
             load: vec![false; size.step],
+            loops: (0..size.step).map(|_| None).collect(),
             samples: (0..size.samples).map(|_| Vec::new()).collect(),
             scalars: vec![0.0; size.scalars],
             ints: vec![0; size.ints],
@@ -296,6 +303,7 @@ impl Work {
         WorkMut {
             nodes: &mut self.nodes,
             load: &mut self.load,
+            loops: &mut self.loops,
             samples: &mut self.samples,
             scalars: &mut self.scalars,
             ints: &mut self.ints,
@@ -313,6 +321,7 @@ impl Work {
 struct WorkMut<'w> {
     nodes: &'w mut [Box<dyn Node>],
     load: &'w mut [bool],
+    loops: &'w mut [Option<Box<LoopRunner>>],
     samples: &'w mut [Vec<f32>],
     scalars: &'w mut [f32],
     ints: &'w mut [i32],
@@ -335,6 +344,7 @@ impl<'w> WorkMut<'w> {
     fn split_at(self, at: At) -> (WorkMut<'w>, WorkMut<'w>) {
         let (n0, n1) = split(self.nodes, at.step);
         let (l0, l1) = split(self.load, at.step);
+        let (lp0, lp1) = split(self.loops, at.step);
         let (s0, s1) = split(self.samples, at.samples);
         let (c0, c1) = split(self.scalars, at.scalars);
         let (i0, i1) = split(self.ints, at.ints);
@@ -348,6 +358,7 @@ impl<'w> WorkMut<'w> {
             WorkMut {
                 nodes: n0,
                 load: l0,
+                loops: lp0,
                 samples: s0,
                 scalars: c0,
                 ints: i0,
@@ -361,6 +372,7 @@ impl<'w> WorkMut<'w> {
             WorkMut {
                 nodes: n1,
                 load: l1,
+                loops: lp1,
                 samples: s1,
                 scalars: c1,
                 ints: i1,
@@ -378,6 +390,7 @@ impl<'w> WorkMut<'w> {
         WorkMut {
             nodes: self.nodes,
             load: self.load,
+            loops: self.loops,
             samples: self.samples,
             scalars: self.scalars,
             ints: self.ints,
@@ -430,6 +443,7 @@ impl<'w> WorkMut<'w> {
         }
         let (_, nodes) = cut(self.nodes, 0, at.step, end.step, false);
         let (_, load) = cut(self.load, 0, at.step, end.step, false);
+        let (_, loops) = cut(self.loops, 0, at.step, end.step, false);
         let (l_samples, samples) = cut(self.samples, from.samples, at.samples, end.samples, chain);
         let (l_scalars, scalars) = cut(self.scalars, from.scalars, at.scalars, end.scalars, chain);
         let (l_ints, ints) = cut(self.ints, from.ints, at.ints, end.ints, chain);
@@ -448,6 +462,7 @@ impl<'w> WorkMut<'w> {
             WorkMut {
                 nodes,
                 load,
+                loops,
                 samples,
                 scalars,
                 ints,
@@ -513,6 +528,9 @@ pub struct CompiledGraph {
     pub(crate) latency: u32,
     /// The project's bindings, resolved to this graph's param slots.
     pub(crate) bindings: crate::bindings::BindingTable,
+    /// Single-sample loops, by [`StepKind::Loop`] index; each is moved into
+    /// the work space while its wave runs.
+    pub(crate) loops: Vec<Option<Box<LoopRunner>>>,
 }
 
 /// What every step of a block shares (read-only, so it can be shared
@@ -794,15 +812,28 @@ impl CompiledGraph {
         let pool = &mut self.pool;
         let steps = self.steps.get(start..end).unwrap_or(&[]);
         for (k, step) in steps.iter().enumerate() {
-            if let StepKind::Node { node, .. } = step.kind
-                && let (Some(nb), Some(slot), Some(load)) = (
-                    self.nodes.get_mut(node as usize),
-                    work.nodes.get_mut(k),
-                    work.load.get_mut(k),
-                )
-            {
-                std::mem::swap(&mut nb.node, slot);
-                *load = nb.load_pending;
+            match step.kind {
+                StepKind::Node { node, .. } => {
+                    if let (Some(nb), Some(slot), Some(load)) = (
+                        self.nodes.get_mut(node as usize),
+                        work.nodes.get_mut(k),
+                        work.load.get_mut(k),
+                    ) {
+                        std::mem::swap(&mut nb.node, slot);
+                        *load = nb.load_pending;
+                    }
+                }
+                StepKind::Loop { index } => {
+                    if let (Some(runner), Some(slot)) =
+                        (self.loops.get_mut(index as usize), work.loops.get_mut(k))
+                    {
+                        std::mem::swap(runner, slot);
+                        if let Some(r) = slot.as_mut() {
+                            r.take_members(&mut self.nodes);
+                        }
+                    }
+                }
+                StepKind::FillFromScalar { .. } => {}
             }
         }
         for (&g, b) in span(&self.out_samples, a.samples, e.samples).zip(&mut work.samples) {
@@ -857,14 +888,28 @@ impl CompiledGraph {
         let pool = &mut self.pool;
         let steps = self.steps.get(start..end).unwrap_or(&[]);
         for (k, step) in steps.iter().enumerate() {
-            if let StepKind::Node { node, phase } = step.kind
-                && let (Some(nb), Some(slot)) =
-                    (self.nodes.get_mut(node as usize), work.nodes.get_mut(k))
-            {
-                std::mem::swap(&mut nb.node, slot);
-                if phase != Phase::FeedbackRead {
-                    nb.load_pending = false;
+            match step.kind {
+                StepKind::Node { node, phase } => {
+                    if let (Some(nb), Some(slot)) =
+                        (self.nodes.get_mut(node as usize), work.nodes.get_mut(k))
+                    {
+                        std::mem::swap(&mut nb.node, slot);
+                        if phase != Phase::FeedbackRead {
+                            nb.load_pending = false;
+                        }
+                    }
                 }
+                StepKind::Loop { index } => {
+                    if let (Some(runner), Some(slot)) =
+                        (self.loops.get_mut(index as usize), work.loops.get_mut(k))
+                    {
+                        if let Some(r) = slot.as_mut() {
+                            r.give_members(&mut self.nodes);
+                        }
+                        std::mem::swap(runner, slot);
+                    }
+                }
+                StepKind::FillFromScalar { .. } => {}
             }
         }
         for (&g, b) in span(&self.out_samples, a.samples, e.samples).zip(&mut work.samples) {
@@ -987,6 +1032,7 @@ fn run_step(
             return;
         }
         StepKind::Node { phase, .. } => phase,
+        StepKind::Loop { .. } => Phase::Main,
     };
     let Some(node) = work.nodes.first_mut() else {
         return;
@@ -1063,6 +1109,21 @@ fn run_step(
             phase,
             engine: shared.engine,
         };
+        if let StepKind::Loop { .. } = step.kind {
+            // The loop shares its time out among its members itself.
+            if let Some(runner) = work.loops.first_mut().and_then(Option::as_mut) {
+                let lctx = LoopCtx {
+                    sample_rate: shared.sample_rate,
+                    transport: shared.transport,
+                    engine: shared.engine,
+                    telemetry,
+                    level_decay: shared.level_decay,
+                    clock: shared.clock,
+                };
+                runner.run(&lctx, &mut io);
+            }
+            return;
+        }
         let t0 = shared.clock.map(|c| c());
         if step.muted {
             bypass(step.bypass, &mut io);
@@ -1180,7 +1241,7 @@ fn peak(x: &[f32]) -> f32 {
 }
 
 /// A muted node: outputs are already zeroed; copy `in` to `out` where types match.
-fn bypass(b: Bypass, io: &mut Io) {
+pub(crate) fn bypass(b: Bypass, io: &mut Io) {
     match b {
         Bypass::None => {}
         Bypass::Audio { input, output } => {

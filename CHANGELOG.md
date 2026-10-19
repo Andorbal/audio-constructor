@@ -13,6 +13,21 @@ fixes and smaller changes.
 
 ## [0.13.0] - 2026-10-19
 
+### Added
+
+- **Single-sample feedback.** A Feedback node's new **Delay round the
+  loop** setting (`delay` in the project file) can be `sample` instead of
+  `block`. The nodes on that loop then run one sample at a time while the
+  rest of the patch keeps running in blocks, so the loop takes exactly one
+  sample plus whatever its Delay adds: a Karplus-Strong string stays in
+  tune, a filter with feedback rings like the circuit, and the loop
+  sounds the same at any buffer size, live or rendered. Nodes on such a
+  loop cost more CPU, since each runs once per sample. A loop through a
+  node that can't run that way (FFT frames, whole input, a device) keeps
+  one block of delay, and the Problems tab names the node in the way.
+  `audioc validate` lists each single-sample loop. Existing projects
+  sound exactly as before.
+
 ## [0.12.0] - 2026-10-19
 
 ## [0.11.0] - 2026-10-19

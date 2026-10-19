@@ -237,7 +237,7 @@ Panels (UX.md) to make a performance surface.
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `Feedback` | P1 | The only legal way to make a cycle. One block of delay; shows its delay in the header. |
+| `Feedback` | P1 | The only legal way to make a cycle. One block of delay, or one sample with the `delay` config set to `sample` (P3): the loop then runs one sample at a time, the same at any block size (DECISIONS D140). |
 | `Reroute` | P1 | A dot for tidy wiring. |
 | `Group` | P1 | An instance of a `GroupDef`. Double-click to enter. |
 | `SplitChannels` | P1 | `Audio(N)` → N `Audio(1)` outputs. |

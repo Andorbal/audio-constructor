@@ -283,6 +283,17 @@ the Problems tab says which nodes form the loop. Feedback delays the
 signal by one buffer, which makes the loop possible. The **Tape Loop**
 example is built around one.
 
+For loops whose timing matters to the sound (a plucked string whose pitch
+is the loop's length, a filter with its output fed back into its input),
+set the Feedback node's **Delay round the loop** to **sample** in the
+Node tab. The nodes on that loop then run one sample at a time while the
+rest of the patch carries on in buffers: the loop takes exactly one
+sample plus whatever its Delay adds, so it stays in tune and sounds the
+same at any buffer size. It costs more CPU per node on the loop, and a
+loop through a node that works in FFT frames, needs its whole input, or
+uses a device keeps one buffer of delay (the Problems tab says which node
+is in the way).
+
 ## Randomness that repeats
 
 Random, Probability, Noise, Random Walk, and the random LFO shapes all

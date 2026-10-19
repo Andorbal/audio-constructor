@@ -70,6 +70,9 @@ pub struct CompileStats {
     pub compensation: Vec<(NodePath, String, u32)>,
     /// Whole-input nodes and whether each is baked, baking, or disabled.
     pub whole_input: Vec<(NodePath, WholeState)>,
+    /// Single-sample loops (DECISIONS D140): the nodes of each, which run
+    /// one sample at a time.
+    pub sample_loops: Vec<Vec<NodePath>>,
 }
 
 /// Everything the compiler has to say about a project.

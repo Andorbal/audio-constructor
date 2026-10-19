@@ -583,6 +583,25 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 },
             ),
         ],
+        "feedback" => vec![
+            f(
+                "delay",
+                "Delay round the loop",
+                Kind::Choice {
+                    choices: &["block", "sample"],
+                    default: "block",
+                },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 32,
+                    default: 1,
+                },
+            ),
+        ],
         "split_channels" | "merge_channels" => vec![f(
             "channels",
             "Channels",

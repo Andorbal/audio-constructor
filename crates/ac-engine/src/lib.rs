@@ -16,6 +16,7 @@ mod engine;
 mod flatten;
 mod graph;
 mod internal;
+mod loops;
 mod null_host;
 mod pool;
 mod render;
