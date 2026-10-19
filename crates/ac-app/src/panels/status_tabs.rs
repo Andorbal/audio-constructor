@@ -711,7 +711,8 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             l.clear_recent();
         }
         if let (Some(id), Some(address)) = (target, use_address) {
-            super::set_config(io, id, "address", address.into());
+            crate::params::set_text(io.doc, id, "address", address, io.now);
+            io.doc.end_coalescing();
         }
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(250));

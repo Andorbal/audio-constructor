@@ -315,16 +315,19 @@ Kind: `osc_in` · live source · Also found by: open sound control, network, pho
 Receives Open Sound Control messages, such as the faders and buttons
 of a phone or tablet control surface, as numbers and a trigger.
 
-The `address` config is the address to listen to, exactly as the
-sender writes it (default `/fader/1`; patterns with wildcards aren't
-matched). `args` (1–4, default 1) is how many of each message's
-arguments to bring out: the first comes out of `value`, the others
-out of `value_2` to `value_4`. Each holds the last number received
-(true and false arrive as 1 and 0, and anything that isn't a finite
-number is skipped), starting at 0. `received` fires on the sample
-each message arrives on. A message without arguments sets `value`
-to 1, so a plain button works as a trigger; a button that sends 1
-and 0 works as a gate on `value`.
+`address` is the address to listen to, exactly as the sender writes
+it (default `/fader/1`; patterns with wildcards aren't matched).
+It's a text input: type it on the node, wire a `Number to Text` in
+to build it from a number, or expose it as a group input so each
+instance of a block listens to its own control. `args` (a setting,
+1–4, default 1) is how many of each message's arguments to bring
+out: the first comes out of `value`, the others out of `value_2` to
+`value_4`. Each holds the last number received (true and false
+arrive as 1 and 0, and anything that isn't a finite number is
+skipped), starting at 0. `received` fires on the sample each
+message arrives on. A message without arguments sets `value` to 1,
+so a plain button works as a trigger; a button that sends 1 and 0
+works as a gate on `value`.
 
 An address that isn't valid (it must start with `/`, contain no
 spaces or any of `* ? [ ] { } # ,`, and be at most 64 characters)
@@ -352,6 +355,12 @@ they can play are disabled downstream of it.
 `received` into a `Clip`'s `start` to fire a sample from across the
 room.
 
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `address` | Text | `/fader/1` |  | The address to listen to, as the sender writes it. |
+
 **Outputs**
 
 | Socket | Type | Description |
@@ -368,10 +377,13 @@ Sends numbers from the patch as Open Sound Control messages, to move
 the faders of a phone or tablet control surface or to drive
 anything else on the network that speaks OSC.
 
-`host` and `port` (config) say where to send: an IP address such as
-`192.168.1.20`, or `localhost` (default `127.0.0.1`, port 9000).
-Names other than `localhost` aren't looked up. `address` is the OSC
-address (default `/fader/1`), and `args` (1–4, default 1) how many
+`address` is the OSC address (default `/fader/1`), and `host` and
+`port` say where to send: an IP address such as `192.168.1.20`, or
+`localhost` (default `127.0.0.1`, port 9000). Names other than
+`localhost` aren't looked up. All three are inputs: type them on
+the node, build the address with a `Number to Text`, or expose them
+as group inputs so each instance of a block talks to its own
+control or device. `args` (a setting, 1–4, default 1) is how many
 numbers each message carries, from `value` and then `value_2` to
 `value_4`.
 
@@ -384,8 +396,8 @@ end ends up in sync. With `on_change` on, the current values are
 also sent when the patch starts and when the transport restarts from
 zero. Values that aren't numbers are sent as 0.
 
-A config it can't send to (an invalid address, host, or port) sends
-nothing. The host passes the messages to the network.
+An address, host, or port it can't send to sends nothing until it's
+fixed. The host passes the messages to the network.
 
 **Try this:** wire an `LFO` into `value` and watch a fader on your
 phone follow it, or wire a `Clock` into `send` and a `Transport`'s
@@ -395,6 +407,9 @@ phone follow it, or wire a `Clock` into `send` and a `Transport`'s
 
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
+| `address` | Text | `/fader/1` |  | The OSC address to send to. |
+| `host` | Text | `127.0.0.1` |  | The receiver's IP address, or localhost. |
+| `port` | Int | 9000 | 1 … 65535 | The receiver's UDP port. |
 | `value` | Float | 0 |  | The message's first number. |
 | `send` | Trigger | — |  | Sends the values now. |
 | `on_change` | Bool | true |  | Also send whenever the values change, at most once per interval. |

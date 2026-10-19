@@ -11,6 +11,45 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.9.0] - 2026-10-18
+
+OSC addresses are now inputs rather than settings, which means a block can
+expose one as a group input and every instance of it can listen to, or send
+to, a different control. Behind that is a new kind of signal: text.
+
+### Added
+
+- **Text signals.** A new socket type carries short text (up to 128 bytes)
+  once per block, shown as an ivory square. An unwired text input is a
+  text field on the node and in the Node tab (click to type, Enter to
+  keep); a wired one follows whatever produces it. Text only connects to
+  text. Inside a group, "Expose as group input" works on text inputs like
+  any other, so a block gets a text parameter on every instance.
+- **Constant** can hold text (`type` setting `text`), for an address that
+  several OSC nodes share.
+- **Number to Text** writes numbers into a template: `/fader/{}` with 3
+  gives `/fader/3`; `{1:.2}` picks the second number with two decimals. A
+  template with a stray brace or an unknown format writes nothing, and a
+  value that isn't a number writes 0.
+- **Text to Number** reads the number where a pattern has its `{}`
+  (`/fader/{}` on `/fader/3` gives 3), with an `ok` output that's on while
+  the text matches; when it doesn't, the value is 0 and nothing stops.
+  Its `type` setting gives a whole number instead of a float.
+
+### Changed
+
+- **OSC In's `address` is an input**, and so are **OSC Out's `address`,
+  `host`, and `port`**: type them on the node, wire a `Number to Text` in
+  to build an address from a counter or a group parameter, or expose them
+  as group inputs. A wired address is followed block by block. The Node
+  tab's Settings section keeps `args`, and still warns about an address,
+  host, or port that can't work; the Devices tab's **Use** button sets
+  the input.
+- **Project files are version 2.** Older files open as before: the OSC
+  nodes' address, host, and port move from settings to inputs on load,
+  and saving writes the new form. The examples and blocks that ship with
+  the app are already in it.
+
 ## [0.8.0] - 2026-10-18
 
 Matching a control surface no longer means guessing: the Devices tab shows
@@ -544,6 +583,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.9.0]: https://github.com/Andorbal/audio-constructor/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Andorbal/audio-constructor/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Andorbal/audio-constructor/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Andorbal/audio-constructor/compare/v0.5.0...v0.6.0

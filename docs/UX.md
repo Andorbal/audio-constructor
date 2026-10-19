@@ -71,6 +71,7 @@ Shape distinguishes stream from event (and is the colorblind-safe channel).
 | Midi | violet `#A98BF0` | `#7A55D6` | diamond |
 | Spectrum | cyan `#4FD1D9` | `#138A94` | square |
 | Buffer | sand `#C8A878` | `#9A7444` | square |
+| Text | ivory `#E8DFC0` | `#8E7E4A` | square |
 
 Category header colors: I/O red, Generators orange, Level/Dynamics gold,
 Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
@@ -91,7 +92,8 @@ slate.
 
 - Unwired inputs show the right widget for their unit: drag-slider for
   floats (log scale for Hz, dB), dropdown for enums, checkbox for bools, a
-  small button for triggers. Ctrl-drag for fine, Shift-drag for coarse, click
+  small button for triggers, a text field for text (an OSC address; click
+  to type, Enter to keep). Ctrl-drag for fine, Shift-drag for coarse, click
   to type.
 - Wired inputs show the live value in muted text; hover a socket to see it
   large, with rate (const/block/sample) and channel count.

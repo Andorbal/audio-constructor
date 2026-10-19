@@ -721,7 +721,10 @@ impl Canvas {
                     );
                 }
             } else if let Some(v) = value
-                && !matches!(s.ty, SignalType::Trigger | SignalType::Midi)
+                && !matches!(
+                    s.ty,
+                    SignalType::Trigger | SignalType::Midi | SignalType::Text
+                )
             {
                 let text = widgets::live_text(v, s.ty, s.spec.as_ref());
                 let right = row.max.x - (theme::NODE_PAD_X + s.reserve) * z;
@@ -816,6 +819,14 @@ impl Canvas {
             }
             widgets::Field::Fire => {
                 widgets::paint_fire(painter, f, z, &label, state, 0.0);
+            }
+            widgets::Field::Text => {
+                let text = if editing {
+                    String::new()
+                } else {
+                    widgets::text(node, spec)
+                };
+                widgets::paint_text(painter, f, z, &label, &text, state);
             }
             widgets::Field::Label => {
                 painter.text(

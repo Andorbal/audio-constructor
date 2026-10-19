@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Metronome",
   "description": "Clicks on every beat while the transport plays, with a higher click on the first beat of each bar. Follows the project tempo.\n\n- `volume` (dB): how loud the clicks are.\n- `enabled`: switch the clicks on or off (with a 5 ms fade).\n- `beats_per_bar`: beats in a bar, counted from the start of the song; set it to match the time signature (3 for a waltz).\n- `out` (audio, mono): the clicks. Send it to its own output to make a click track only you hear.\n\nInside: one Clock ticks on every beat and another on every bar. The bar ticks start the accent click; a Switch in trigger mode passes the beat ticks only while the bar clock's short gate is low, so the downbeat doesn't get both clicks. Each click is a sine Oscillator, restarted from the top of its cycle by the tick so every click sounds the same, multiplied by an ADSR that jumps up and dies away in about 40 ms. The accent sounds an octave higher (1760 Hz against 880 Hz) and 3 dB louder. A Mix adds the two, a Gain sets the volume, and a Switch in audio mode turns the result on and off.",
   "version": 1,

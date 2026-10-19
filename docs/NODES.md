@@ -20,6 +20,13 @@ losing performance or clarity, it should be a *block* (a saved group) in
   range, so it shows an inline widget when unwired and accepts a wire
   otherwise. No hidden parameters. Config (things that change the socket
   list, like a mixer's input count) is the only exception.
+- **Text settings are `Text` sockets** (`SocketSpec::text`): an OSC
+  address, a template, a host name. Unwired, the socket is a text field
+  and the value is fixed when the graph compiles; wired, the node reads it
+  every block through `io.inputs.text(i)` and should only redo work (hash,
+  parse) when the text changes. Text comes from `Constant` (type `text`),
+  `Number to Text`, or a group input; only Text connects to Text. Values
+  that can't be parsed give zeros or empty text, never an error.
 - **Generators share a contract.** Anything that produces a signal over time
   (Oscillator, Clip, Graph, Sampler, Pattern, MidiPattern) has:
   - `start: Trigger` — starts or restarts. Unwired, it shows a dropdown:
@@ -131,7 +138,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `Constant` | P1 | A `Float`/`Int`/`Bool` value with an inline widget. |
+| `Constant` | P1 | A `Float`/`Int`/`Bool`/`Text` value with an inline widget. |
 | `Math` | P1 | Binary: add, subtract, multiply, divide, min, max, power, modulo, atan2. |
 | `Unary` | P1 | sin, cos, tan, exp, log, abs, sqrt, floor, ceil, round, sign, negate, 1/x. `Transport.time → Unary(sin)` is an oscillator locked to song time. |
 | `Compare` | P1 | `a`, `b`, op → `Bool`. `hysteresis` input to avoid chatter. |
@@ -149,6 +156,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Select` | P2 | N inputs (config), `index: Int` picks one (wrapping). Works for any type; audio crossfades over 5 ms, MIDI releases held notes when the route changes. |
 | `Switch` | P2 | `a`/`b` by `Bool`, any type, with the same crossfade and note release as `Select`. |
 | `Merge` | P2 (added in M2.6) | 2–16 `Midi` or `Trigger` inputs (config `inputs`, `type`) → one `out`, so several sources play one instrument at once. Triggers on one sample fire once; MIDI comes in time order (lower input first on a sample), a note held from several inputs sounds once and ends with its last holder, the sustain pedal stays down while any input holds it, and a reset releases what's held. Note-offs never give way to a full block. |
+| `NumberToText` | P2 | Writes 1–4 numbers into a `template` (`/fader/{}`, `{1:.2}`); a bad template gives empty text. Out: `Text`, once per block. |
+| `TextToNumber` | P2 | Reads the number where `pattern` has its `{}` (`/fader/{}` on `/fader/3` gives 3); `ok: Bool` says whether it matched, and a miss gives 0. `type` config: float or int. |
 
 ## Modulation and envelopes
 

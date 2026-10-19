@@ -130,21 +130,24 @@ pub fn transport_preset() -> Vec<Binding> {
     .collect()
 }
 
-/// OSC addresses the project mentions: node settings that look like an
-/// address and the addresses of OSC bindings. The engine knows OSC events
-/// only by a hash of their address; these are the names learning can give
-/// them back.
+/// OSC addresses the project mentions: node inputs and settings that look
+/// like an address and the addresses of OSC bindings. The engine knows
+/// OSC events only by a hash of their address; these are the names
+/// learning can give them back.
 pub fn osc_addresses(project: &Project) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut visit = |g: &Graph| {
         for n in &g.nodes {
-            if let Some(o) = n.config.as_object() {
-                for v in o.values() {
-                    if let Some(s) = v.as_str()
-                        && ac_core::control::valid_osc_address(s)
-                    {
-                        out.push(s.to_string());
-                    }
+            let typed = n.params.values().filter_map(|v| v.as_str());
+            let settings = n
+                .config
+                .as_object()
+                .into_iter()
+                .flat_map(|o| o.values().filter_map(|v| v.as_str()));
+            for s in typed.chain(settings) {
+                let s = s.trim();
+                if ac_core::control::valid_osc_address(s) {
+                    out.push(s.to_string());
                 }
             }
         }

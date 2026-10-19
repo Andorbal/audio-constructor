@@ -25,6 +25,7 @@ pub mod registry;
 pub mod signal;
 pub mod spectrum;
 pub mod testing;
+pub mod text;
 pub mod time;
 pub mod util;
 pub mod value;
@@ -50,14 +51,14 @@ pub use id::{GroupId, IdGen, NodeId, NodePath};
 pub use io::{
     AudioIn, AudioOut, AutoFlags, BoolIn, BufferRef, FloatIn, FloatOut, FloatSrc, HostAccess,
     InputSlot, Inputs, IntSrc, Io, LOCAL, Local, MidiOut, OutputSlot, Outputs, ParamSlot,
-    TelemetryAccess, TriggerOut, TriggerSrc,
+    TelemetryAccess, TextSrc, TriggerOut, TriggerSrc,
 };
 pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
     NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
 pub use panel::{Panel, PanelItem};
-pub use param::param_value;
+pub use param::{param_text, param_value};
 pub use project::{LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View};
 pub use registry::{
     NodeEntry, Registry, RenderWholeFn, fuzzy_score, group_signature, voices_signature,
@@ -67,6 +68,7 @@ pub use signal::{
     SpectrumShape, Unit, conversion,
 };
 pub use spectrum::SpectrumBuf;
+pub use text::{TEXT_MAX, TextBuf};
 pub use time::{TempoMap, TransportView};
 pub use value::{Config, ConfigExt, Value, empty_config};
 pub use whole::{WholeCtx, WholeInputs, WholeOutputs, WholeValue};

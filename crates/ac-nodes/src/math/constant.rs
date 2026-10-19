@@ -11,6 +11,7 @@ enum ValueType {
     Float,
     Int,
     Bool,
+    Text,
 }
 
 impl ValueType {
@@ -18,6 +19,7 @@ impl ValueType {
         match config.get_str_or("type", "float") {
             "int" => ValueType::Int,
             "bool" => ValueType::Bool,
+            "text" => ValueType::Text,
             // Unknown types fall back to the default rather than failing to load.
             _ => ValueType::Float,
         }
@@ -29,12 +31,13 @@ node! {
     name: "Constant",
     category: Math,
     keywords: ["value", "number"],
-    /// A fixed `Float`, `Int`, or `Bool` value, set with its inline widget.
+    /// A fixed `Float`, `Int`, `Bool`, or `Text` value, set with its inline
+    /// widget.
     ///
     /// The `type` setting chooses the kind of value: `float` (the default),
-    /// `int`, or `bool`. The `value` input and the `out` output both take that
-    /// type. Leave `value` unwired and set it with its widget; that widget is
-    /// the control.
+    /// `int`, `bool`, or `text`. The `value` input and the `out` output both
+    /// take that type. Leave `value` unwired and set it with its widget; that
+    /// widget is the control.
     ///
     /// `out` is a block-rate signal. If you wire something into `value`, it is
     /// passed through once per block (the value at the start of the block), so
@@ -44,7 +47,8 @@ node! {
     /// **Try this:** wire one `Constant` into the `freq` of several
     /// `Oscillator`s and retune them all from one widget. A `bool` Constant
     /// makes a project-wide switch: wire it into every `loop` input you want
-    /// to flip at once.
+    /// to flip at once. A `text` Constant holds an OSC address that several
+    /// `OSC In` and `OSC Out` nodes share.
     pub struct Constant {
         ty: ValueType,
     }
@@ -69,6 +73,7 @@ impl Node for Constant {
                 SocketSpec::boolean("value", false),
                 SocketSpec::boolean("out", false),
             ),
+            ValueType::Text => (SocketSpec::text("value", ""), SocketSpec::text("out", "")),
         };
         Signature::new()
             .input(input.doc("The value to output."))
@@ -94,6 +99,12 @@ impl Node for Constant {
             ValueType::Bool => {
                 let v = io.inputs.boolean(VALUE).first();
                 io.outputs.set_bool(OUT, v);
+            }
+            ValueType::Text => {
+                let v = *io.inputs.text(VALUE);
+                if let Some(o) = io.outputs.text(OUT) {
+                    *o = v;
+                }
             }
         }
     }
@@ -134,6 +145,19 @@ mod tests {
         assert_eq!(h.run(64).float("out"), vec![0.0; 64]);
         h.set("value", true);
         assert_eq!(h.run(64).float("out"), vec![1.0; 64]);
+    }
+
+    #[test]
+    fn text_type_holds_text() {
+        let mut h = Harness::new::<Constant>(json!({"type": "text"}));
+        assert_eq!(h.signature().inputs[VALUE].ty, SignalType::Text);
+        assert_eq!(h.signature().outputs[OUT].ty, SignalType::Text);
+        assert_eq!(h.run(64).text("out"), [""]);
+        h.set("value", "/fader/1");
+        assert_eq!(h.run(128).text("out"), ["/fader/1", "/fader/1"]);
+        // Wired text is indexed by absolute block, like the other feeds.
+        h.texts("value", &["x", "x", "x", "a", "b"]);
+        assert_eq!(h.run(128).text("out"), ["a", "b"]);
     }
 
     #[test]

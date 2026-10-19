@@ -341,6 +341,7 @@ mod tests {
                 midi: &[],
                 spectra: &[],
                 buffers: &[],
+                texts: &[],
                 auto: AutoFlags::default(),
                 local: Default::default(),
             },
@@ -354,6 +355,7 @@ mod tests {
                 midi: &mut [],
                 spectra: &mut [],
                 buffers: &mut [],
+                texts: &mut [],
             },
             host: HostAccess::none(frames),
             telemetry: TelemetryAccess {

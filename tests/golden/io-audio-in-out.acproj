@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Audio in to out",
   "settings": {
     "sample_rate": 48000,

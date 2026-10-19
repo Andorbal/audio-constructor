@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "name": "Bindings: gamepad, key, and OSC",
   "settings": {
     "sample_rate": 48000,

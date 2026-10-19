@@ -1,7 +1,7 @@
 use ac_core::control::{OSC_ARGS_MAX, valid_osc_address};
 use ac_core::{
     Config, ConfigExt, Control, ControlEvent, Determinism, Io, Node, NodeMeta, PrepareCtx,
-    ProcessCtx, Signature, SocketSpec, Unit, node, osc_address_hash,
+    ProcessCtx, Signature, SocketSpec, TextBuf, Unit, node, osc_address_hash,
 };
 
 use super::{fill_range, stamped};
@@ -14,16 +14,19 @@ node! {
     /// Receives Open Sound Control messages, such as the faders and buttons
     /// of a phone or tablet control surface, as numbers and a trigger.
     ///
-    /// The `address` config is the address to listen to, exactly as the
-    /// sender writes it (default `/fader/1`; patterns with wildcards aren't
-    /// matched). `args` (1–4, default 1) is how many of each message's
-    /// arguments to bring out: the first comes out of `value`, the others
-    /// out of `value_2` to `value_4`. Each holds the last number received
-    /// (true and false arrive as 1 and 0, and anything that isn't a finite
-    /// number is skipped), starting at 0. `received` fires on the sample
-    /// each message arrives on. A message without arguments sets `value`
-    /// to 1, so a plain button works as a trigger; a button that sends 1
-    /// and 0 works as a gate on `value`.
+    /// `address` is the address to listen to, exactly as the sender writes
+    /// it (default `/fader/1`; patterns with wildcards aren't matched).
+    /// It's a text input: type it on the node, wire a `Number to Text` in
+    /// to build it from a number, or expose it as a group input so each
+    /// instance of a block listens to its own control. `args` (a setting,
+    /// 1–4, default 1) is how many of each message's arguments to bring
+    /// out: the first comes out of `value`, the others out of `value_2` to
+    /// `value_4`. Each holds the last number received (true and false
+    /// arrive as 1 and 0, and anything that isn't a finite number is
+    /// skipped), starting at 0. `received` fires on the sample each
+    /// message arrives on. A message without arguments sets `value` to 1,
+    /// so a plain button works as a trigger; a button that sends 1 and 0
+    /// works as a gate on `value`.
     ///
     /// An address that isn't valid (it must start with `/`, contain no
     /// spaces or any of `* ? [ ] { } # ,`, and be at most 64 characters)
@@ -51,7 +54,9 @@ node! {
     /// `received` into a `Clip`'s `start` to fire a sample from across the
     /// room.
     pub struct OscIn {
-        /// The address's hash, or `None` for an invalid address.
+        /// The address last seen on the input, and its hash (`None` while
+        /// the address is invalid).
+        last_address: TextBuf,
         address: Option<u64>,
         args: usize,
         /// Each argument's last value.
@@ -61,11 +66,16 @@ node! {
 
 pub const DEFAULT_ADDRESS: &str = "/fader/1";
 
-/// The address (trimmed, valid) and argument count from config, repaired.
-fn setup(config: &Config) -> (Option<&str>, usize) {
-    let address = config.get_str_or("address", DEFAULT_ADDRESS).trim();
-    let args = config.get_u64_or("args", 1).clamp(1, OSC_ARGS_MAX as u64) as usize;
-    (valid_osc_address(address).then_some(address), args)
+/// The argument count from config, repaired.
+fn args_of(config: &Config) -> usize {
+    config.get_u64_or("args", 1).clamp(1, OSC_ARGS_MAX as u64) as usize
+}
+
+/// The hash the engine knows `address` by, if it's a valid OSC address
+/// once trimmed.
+pub(crate) fn address_hash(address: &str) -> Option<u64> {
+    let address = address.trim();
+    valid_osc_address(address).then(|| osc_address_hash(address))
 }
 
 /// The socket name of argument `k` (0-based): `value`, `value_2`, ...
@@ -77,10 +87,10 @@ pub(crate) fn value_name(k: usize) -> String {
     }
 }
 
-/// What keeps this config from receiving, for the editor to show; `None`
+/// What keeps `address` from receiving, for the editor to show; `None`
 /// when it's fine.
-pub fn problem(config: &Config) -> Option<&'static str> {
-    if setup(config).0.is_none() {
+pub fn problem(address: &str) -> Option<&'static str> {
+    if address_hash(address).is_none() {
         return Some(ADDRESS_PROBLEM);
     }
     None
@@ -89,15 +99,19 @@ pub fn problem(config: &Config) -> Option<&'static str> {
 /// Why an OSC address was refused.
 pub(crate) const ADDRESS_PROBLEM: &str = "The OSC address must start with /, have no spaces or * ? [ ] { } # , and be at most 64 characters.";
 
+const ADDRESS: usize = 0;
+
 impl Node for OscIn {
     fn meta() -> NodeMeta {
         Self::base_meta().live()
     }
 
     fn describe(config: &Config) -> Signature {
-        let (_, args) = setup(config);
-        let mut sig = Signature::new();
-        for k in 0..args {
+        let mut sig = Signature::new().input(
+            SocketSpec::text("address", DEFAULT_ADDRESS)
+                .doc("The address to listen to, as the sender writes it."),
+        );
+        for k in 0..args_of(config) {
             let doc = if k == 0 {
                 "The message's first argument, held until the next."
             } else {
@@ -109,16 +123,23 @@ impl Node for OscIn {
     }
 
     fn new(config: &Config, _: &PrepareCtx) -> Self {
-        let (address, args) = setup(config);
         OscIn {
-            address: address.map(osc_address_hash),
-            args,
+            last_address: TextBuf::EMPTY,
+            address: None,
+            args: args_of(config),
             values: [0.0; OSC_ARGS_MAX],
         }
     }
 
     fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         let frames = ctx.frames;
+        // Hashing the address again only when the text changes keeps a
+        // wired address cheap; a typed one never changes between compiles.
+        let address_in = io.inputs.text(ADDRESS);
+        if *address_in != self.last_address || self.address.is_none() {
+            self.last_address = *address_in;
+            self.address = address_hash(address_in.as_str());
+        }
         let events = io.host.controls();
         let address = self.address;
         // The argument index of an event for this node's address.
@@ -173,8 +194,8 @@ impl Node for OscIn {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ac_core::NoResources;
     use ac_core::testing::Harness;
+    use ac_core::{NoResources, Value};
     use serde_json::json;
 
     fn osc(address: &str, arg: u8) -> Control {
@@ -186,7 +207,8 @@ mod tests {
 
     #[test]
     fn values_change_on_the_exact_sample_and_hold() {
-        let mut h = Harness::new::<OscIn>(json!({"address": "/fader/1"}));
+        let mut h = Harness::new::<OscIn>(json!({}));
+        h.set("address", "/fader/1");
         h.host_controls(&[
             (10, osc("/fader/1", 0), 0.25),
             (40, osc("/fader/2", 0), 0.9),
@@ -204,7 +226,8 @@ mod tests {
 
     #[test]
     fn several_arguments_fire_one_trigger_per_message() {
-        let mut h = Harness::new::<OscIn>(json!({"address": "/xy", "args": 2}));
+        let mut h = Harness::new::<OscIn>(json!({"args": 2}));
+        h.set("address", "/xy");
         h.host_controls(&[
             (5, osc("/xy", 0), 0.1),
             (5, osc("/xy", 1), 0.2),
@@ -231,7 +254,8 @@ mod tests {
 
     #[test]
     fn bare_messages_work_as_triggers() {
-        let mut h = Harness::new::<OscIn>(json!({"address": "/go"}));
+        let mut h = Harness::new::<OscIn>(json!({}));
+        h.set("address", "/go");
         h.host_controls(&[(3, osc("/go", 0), 1.0), (30, osc("/go", 0), 1.0)]);
         let out = h.run(64);
         assert_eq!(out.triggers("received"), &[3, 30]);
@@ -255,41 +279,58 @@ mod tests {
     #[test]
     fn invalid_addresses_receive_nothing() {
         for address in ["", "fader", "/with space", "/wild/*", "/a,b"] {
-            let config = json!({ "address": address });
-            assert_eq!(problem(&config), Some(ADDRESS_PROBLEM));
-            let mut h = Harness::new::<OscIn>(config);
+            assert_eq!(problem(address), Some(ADDRESS_PROBLEM));
+            let mut h = Harness::new::<OscIn>(json!({}));
+            h.set("address", address);
             h.host_controls(&[(0, osc(address, 0), 1.0)]);
             let out = h.run(64);
             assert!(out.float("value").iter().all(|&x| x == 0.0));
             assert!(out.triggers("received").is_empty());
         }
         let long = format!("/{}", "a".repeat(64));
-        assert!(problem(&json!({ "address": long })).is_some());
-        assert!(
-            problem(&json!({ "address": 7 })).is_none(),
-            "default address"
-        );
-        assert!(problem(&json!({})).is_none());
-        assert!(problem(&json!({ "address": " /trimmed " })).is_none());
+        assert!(problem(&long).is_some());
+        assert!(problem(DEFAULT_ADDRESS).is_none());
+        assert!(problem(" /trimmed ").is_none());
+    }
+
+    #[test]
+    fn a_wired_address_is_followed_block_by_block() {
+        let mut h = Harness::new::<OscIn>(json!({}));
+        h.texts("address", &["/a", "/b", "/b", " /a "]);
+        h.host_controls(&[
+            (10, osc("/a", 0), 0.1),
+            (70, osc("/a", 0), 0.2),
+            (80, osc("/b", 0), 0.3),
+            (200, osc("/a", 0), 0.4),
+        ]);
+        let out = h.run(256);
+        assert_eq!(out.triggers("received"), &[10, 80, 200]);
+        assert_eq!(out.float("value")[64], 0.1, "the other address is ignored");
+        assert_eq!(out.float("value")[100], 0.3);
+        assert_eq!(out.float("value")[255], 0.4);
     }
 
     #[test]
     fn config_is_repaired() {
-        assert_eq!(setup(&json!({})), (Some("/fader/1"), 1));
-        assert_eq!(setup(&json!({"args": 0})).1, 1);
-        assert_eq!(setup(&json!({"args": 99})).1, 4);
-        assert_eq!(setup(&json!({"args": "two"})).1, 1);
+        assert_eq!(args_of(&json!({})), 1);
+        assert_eq!(args_of(&json!({"args": 0})), 1);
+        assert_eq!(args_of(&json!({"args": 99})), 4);
+        assert_eq!(args_of(&json!({"args": "two"})), 1);
         let sig = OscIn::describe(&json!({"args": 4}));
         let names: Vec<_> = sig.outputs.iter().map(|s| s.name.clone()).collect();
         assert_eq!(
             names,
             ["value", "value_2", "value_3", "value_4", "received"]
         );
+        let inputs: Vec<_> = sig.inputs.iter().map(|s| s.name.clone()).collect();
+        assert_eq!(inputs, ["address"]);
+        assert_eq!(sig.inputs[0].default, Value::Text(DEFAULT_ADDRESS.into()));
     }
 
     #[test]
     fn arguments_past_args_only_trigger() {
-        let mut h = Harness::new::<OscIn>(json!({"address": "/m"}));
+        let mut h = Harness::new::<OscIn>(json!({}));
+        h.set("address", "/m");
         h.host_controls(&[(2, osc("/m", 3), 0.7)]);
         let out = h.run(8);
         assert!(out.float("value").iter().all(|&x| x == 0.0));
@@ -309,13 +350,9 @@ mod tests {
             }
         }
         let run = |block| {
-            let mut h = Harness::with_resources::<OscIn>(
-                json!({"address": "/v", "args": 3}),
-                48_000.0,
-                block,
-                &NoResources,
-            );
-            h.host_controls(&evs);
+            let mut h =
+                Harness::with_resources::<OscIn>(json!({"args": 3}), 48_000.0, block, &NoResources);
+            h.set("address", "/v").host_controls(&evs);
             let out = h.run(4_000);
             (out.floats, out.triggers)
         };

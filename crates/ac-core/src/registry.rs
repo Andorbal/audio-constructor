@@ -129,6 +129,7 @@ pub fn group_signature(def: &GroupDef) -> Signature {
         s.default = i.default.clone().unwrap_or(match i.ty {
             crate::signal::SignalType::Bool => Value::Bool(false),
             crate::signal::SignalType::Int => Value::Int(0),
+            crate::signal::SignalType::Text => Value::Text(String::new()),
             _ => Value::Float(0.0),
         });
         s.range = i.range.map(|[a, b]| (a, b));
