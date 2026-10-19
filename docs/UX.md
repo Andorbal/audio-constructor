@@ -223,7 +223,21 @@ A resizable panel (`N` toggles) with tabs:
 - **Node**: everything about the selected node: full parameter list, docs
   (with its "Try this" tip highlighted), bindings, timing, latency.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
-  Search here is the same engine as the palette.
+  Search here is the same engine as the palette. Every block that makes
+  sound has a play button at the right of its row: it plays the block's
+  preview over whatever the patch is playing (its preview file, or a
+  render made then, with a spinner-like **…** while it renders) and
+  becomes a stop button while it plays; one preview plays at a time
+  (D190, D193). A block's right-click menu has **Export block file…**,
+  which writes it with its preview beside it. Below the blocks, **Import
+  block file…** and **Import from Link…**, then **Shared libraries**:
+  each library added by link (a collapsible section named after it, with
+  its description), its blocks filtered by the same search, each with its
+  version and author, a play button when it has a preview (downloaded on
+  first play), and **Install** (a spinner while it downloads,
+  **Installed** once that version is in the library), plus **Refresh**
+  and **Remove** for the library. A library still loading shows a
+  spinner; one that couldn't be read says why (D194).
 - **Project**: sample rate, length, tempo map, seed, bindings, assets,
   missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
@@ -256,6 +270,22 @@ A resizable panel (`N` toggles) with tabs:
 
 When the panel is too narrow for every tab's name, the tabs not shown keep
 only their icons, named on hover.
+
+## Sharing blocks
+
+- **File ▸ Import from Link…** asks for a link (an `.acblock`, an
+  `.acpack`, or a shared library's `index.json`) in a small dialog and
+  downloads it in the background, the status bar showing what it's
+  downloading: a block joins the library under Imported (the Library tab
+  opens on it), a pack is saved to the Downloads folder and opens as a
+  pack file does (asking about unsaved changes first), and a library is
+  listed under Shared libraries. Failures (an `http` link elsewhere than
+  this computer, a 404, a download that doesn't match its index) are
+  reported in the status bar (D192).
+- **Export block file…** in the Node tab (under **Group definition**,
+  next to **Save to library**) and on library rows asks where to save
+  and writes the block and its preview in the background; the status bar
+  says when it's done, or why there's no preview.
 
 ## Transport bar
 
