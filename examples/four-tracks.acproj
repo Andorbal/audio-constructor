@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Four clips, each through a Track group (Gain → Pan with a mute switch), summed by a Mix. Press Space to play; the clips loop.\n\nAll four tracks share one Track definition: Tab into one, change it, and every track follows. Swap a clip in the Node tab, or record your own with a Record node and use the take."
+          "text": "Four clips, each through a Track group (Gain → Pan with a mute switch), summed by a Mix. Press Space to play; the clips loop.\n\nAll four tracks share one Track definition: Double-click one to go inside, change it, and every track follows. Swap a clip in the Node tab, or record your own with a Record node and use the take."
         },
         "ui": {
           "pos": [

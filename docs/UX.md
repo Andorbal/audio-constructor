@@ -159,7 +159,7 @@ a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
 | Copy/paste | `Ctrl+C`/`Ctrl+V` as JSON text; works across projects and into chat |
 | Mute | `M` bypasses the node (passes `in` → `out` where types match) |
 | Collapse | `H`; `Ctrl+H` collapses all unwired sockets |
-| Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; `Tab` enters/leaves a group; `Ctrl+Alt+G` ungroups |
+| Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; double-click or `Ctrl+Enter` enters a group, `Ctrl+Enter` leaves it (D183); `Ctrl+Alt+G` ungroups |
 | Frame | `Ctrl+J` puts a labeled frame around the selection; frames move their contents |
 | Minimap | `Shift+M` shows or hides it; click or drag in it to move the view |
 | Align / distribute | `Shift+Alt+A` menu at the pointer (also Edit ▸ Align / Distribute, and a node's right-click menu with several selected); **auto-layout** `Ctrl+L` lays out the selection, or the whole graph with nothing selected (layered, left to right) |
@@ -168,6 +168,9 @@ a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
 | Help | `F1` on a node opens its reference in the side panel's Help tab (also Node Help in its right-click menu, and the Help button in the Node tab); with nothing selected, the list of every node |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
+| Keyboard focus | `Tab`/`Shift+Tab` move a focus ring through the cards in signal order (columns left to right, top to bottom in each), and the selection follows; `Shift+Enter` keeps the focused card selected (adds or removes it); `Alt+↓`/`Alt+↑` step through the focused card's inputs, then outputs; `Enter` selects the focused card or opens a selected group; `F6` moves the keyboard between the canvas and the side panel; `Esc` with nothing to cancel hides the ring (D183) |
+| Wire from the keyboard | `Enter` on a socket picks up a wire (the hint says from where); move the focus and `Enter` again wires it to the focused socket, or to the focused card's first socket that fits; `Esc` drops it |
+| Keyboard moves and values | arrows nudge the selection a grid step (`Shift` five, `Ctrl` one unit; one undo step per run), or pan with nothing selected; after `G` they move the grab and `Enter` places it (splicing onto a wire under the moved card); `F2` on an input types its value; `Shift+F10` opens the focused card's or socket's menu with the keyboard in it |
 
 Wire routing: béziers (a "straight with bends" option is planned, not built
 yet). Wires behind nodes are dimmed. Long wires can be turned into named **portals**
@@ -482,34 +485,63 @@ all honor them (DECISIONS D92).
   scale is remembered in the editor's settings (D108, D109).
 - A light theme and a High Contrast theme (View ▸ Theme) with the same
   contrast rules as the dark one, and High Contrast's stricter ones (see
-  "Look").
+  "Look"). The keyboard focus ring is the theme's `focus_ring` color, at
+  least 3:1 on the canvas, cards, and panels in every theme, and unlike
+  the selection outline.
 - Socket shapes carry type information in addition to color.
-- All canvas actions have keyboard equivalents; the palette is fully
-  keyboard driven.
-
-## Updates and crash reports
-
-The desktop editor's only links to the internet are the person's to
-start (D173, D174); a plugin's host and the browser have their own.
-
-- **Updates.** Until the person decides, a small window in the bottom
-  right corner asks once whether to check for new versions (**Check
-  Daily** or **Don't Check**), and nothing is fetched. Checking daily
-  asks the release feed at most once a day at start, on its own thread,
-  and says something only when a newer release is out, in the same corner:
-  **Download** (opens the release page), **What's New** (its notes), **Skip
-  This Version**, **Later**. Help ▸ **Check for Updates…** asks now and
-  always answers (up to date, newer, or why it couldn't check); Help ▸
-  **Check for Updates Daily** switches the daily check. Nothing is ever
-  downloaded or installed by the editor.
-- **Crash reports.** A panic in the editor or `audioc` saves a plain-text
-  report. The next start shows one window: what was saved and that
-  nothing was sent, with **Report…** (the issue form in the browser with
-  the report filled in, for the person to read, add to, and submit),
-  **Show Report**, **Dismiss**, and "Don't offer crash reports again".
-  Every report shown is then marked as offered.
-- Help ▸ **Report a Problem…** opens the issue form with the version and
-  system filled in.
+- **Keyboard.** Every canvas action has a keyboard path ("Canvas
+  interactions": focus, sockets, wiring, values, moves, menus); the
+  palette and find bar are fully keyboard driven. On the panels, `F6` puts
+  the keyboard on the first card and `Tab` reaches each one: arrows turn a knob, slider, or number (a hundredth of
+  the range, a tenth with `Shift`/`Page Up`/`Page Down`; whole numbers by
+  at least one), `Home`/`End` go to the ends, `Enter` (or `F2`) types a
+  value, opens a dropdown, flips a toggle, or picks a clip's file, and
+  `Space` holds a Button down while it's held; in the panel view (not
+  performance mode) `Delete` unpins the card and `+`/`-` resize it. The
+  update and crash windows give their first button the keyboard when they
+  appear.
+- **Screen readers** (AccessKit, D185). Each card is a button named for
+  its title, kind (when it has a title of its own), and socket counts,
+  with its selected, muted, and collapsed states ("Level, Gain, 2 inputs,
+  1 output, selected"); each socket says its card, name, type, side, and
+  what it's wired to or set to ("Level gain: Float input, -6 dB"). The
+  canvas is named for its node count and the group it shows. On a panel,
+  knobs and sliders are sliders (numbers spin buttons) with value, range,
+  and increment, decrement, and set value; toggles are switches; meters
+  say their peak; readouts their number. Icon-only buttons are named for
+  what they do (a library block's play button says "Play preview of
+  Plate Reverb"), icons are left out of every name, decorative icons are
+  hidden, and check-marked menu entries are checked menu items. A screen
+  reader's activate selects a card, and moving its focus moves the
+  canvas's.
+- **View ▸ Reduce Motion** (D184): no fades or ghosts, no wire snap ease,
+  no flowing-wire texture or event pulses, no smooth zoom or fit (the view
+  jumps), and egui's own animations off. Meters and scopes still move.
+  Remembered in the settings.
+- **The audit** (`crates/ac-app/tests/accessibility.rs`, run in CI): it
+  walks the AccessKit tree of the main window on the Start example with
+  the side panel on each of its tabs and a node selected, the panel view
+  and performance mode on an example with a panel, and every menu and
+  submenu, and fails on any interactive node (one that takes focus or a
+  click, a text field, a slider) without a name, or whose name carries an
+  icon's code point. egui's own scroll bars are left out (their role is
+  all they say). Other tests there find cards and sockets by their names,
+  build, wire, set, and play a patch from the keyboard alone, play panel
+  controls from the keys and from AccessKit actions, and check Reduce
+  Motion. At 100 % every pointer target in the window is at least 14
+  points on its short side (egui's compact one-line buttons; most buttons
+  are 22) and every socket's grab area 20 × 20; scroll bars can be
+  grabbed 14 points wide. That is under WCAG 2.5.8's 24 px for the compact
+  buttons; UI Scale 175 % brings them there.
+- **Not covered yet**: the canvas's inline widgets (an input's slider,
+  dropdown, or checkbox on a card) are reached through their socket (`F2`)
+  rather than as widgets of their own; a panel's XY Pad and Keyboard play
+  from the pointer only (Play keys plays notes from the computer
+  keyboard); a frame's rename and remove are pointer-only; panel and side
+  panel widths change by dragging their edges only; System language finds
+  English only (no other catalogs yet), and in the browser it can't read
+  the system's language. Manual checks with NVDA, VoiceOver, and Orca are
+  listed in the M3.5 merge request.
 
 ## Fun, deliberately
 
@@ -519,3 +551,5 @@ start (D173, D174); a plugin's host and the browser have their own.
 - The Start project ends with a "now break it" section.
 - Nothing bounces, nothing takes longer than 150 ms, nothing animates while
   the CPU is busy with audio.
+- View ▸ Reduce Motion turns every one of these off (see "Accessibility
+  and scaling").

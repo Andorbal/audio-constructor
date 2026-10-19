@@ -307,7 +307,7 @@
         "id": "14",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Click Bypass to compare with the uncompressed mix (Before and After show the levels).\n• Pull threshold_low down to −36 dB: the bass gets flatter and tighter while the cymbals stay lively.\n• Raise the ratio to 10 for a squashed, pumping sound, then lengthen release to smooth it.\n• Tab into the block to see the Band Split and the three Compressor blocks inside."
+          "text": "Try this:\n• Click Bypass to compare with the uncompressed mix (Before and After show the levels).\n• Pull threshold_low down to −36 dB: the bass gets flatter and tighter while the cymbals stay lively.\n• Raise the ratio to 10 for a squashed, pumping sound, then lengthen release to smooth it.\n• Double-click the block to see the Band Split and the three Compressor blocks inside."
         },
         "ui": {
           "pos": [

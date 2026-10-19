@@ -423,9 +423,9 @@ fn panel_buttons_hold_with_space_and_toggles_flip() {
     let mut h = harness(p);
     press(&mut h, Modifiers::COMMAND, Key::Tab);
     let _ = h.get_by_role_and_label(Role::Group, "Panel Live, 2 controls");
-    // Tab from the tab strip reaches the cards in order.
-    h.get_by_role_and_label(Role::Button, "Button").focus();
-    h.run_steps(2);
+    // F6 puts the keyboard on the first card.
+    key(&mut h, Key::F6);
+    assert!(h.get_by_role_and_label(Role::Button, "Button").is_focused());
     let held = |h: &Harness<'static, EditorApp>| h.state().perform.controls.held_inputs(NodeId(1));
     h.key_down(Key::Space);
     h.run_steps(2);
@@ -550,4 +550,78 @@ fn every_menu_entry_has_a_name_and_says_whether_it_is_checked() {
         })
         .expect("View ▸ Side Panel");
     assert_eq!(side.accesskit_node().toggled(), Some(Toggled::True));
+}
+
+/// The smallest a pointer target may be at 100 %, in points: egui's
+/// compact buttons (one line of small text). Sockets take more room than
+/// they're drawn with.
+const MIN_TARGET: f32 = 14.0;
+const MIN_SOCKET: f32 = 20.0;
+
+#[test]
+fn pointer_targets_are_big_enough_at_100_percent() {
+    let mut h = start();
+    let osc = h.state().document().graph().nodes[1].id;
+    h.state_mut().doc.selection = [osc].into();
+    let window = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1400.0, 900.0));
+    let mut small = Vec::new();
+    let mut sockets = 0;
+    for tab in [
+        Tab::Node,
+        Tab::Library,
+        Tab::Project,
+        Tab::Devices,
+        Tab::Problems,
+        Tab::Help,
+    ] {
+        h.state_mut().side.tab = tab;
+        h.run_steps(3);
+        for n in h.root().children_recursive() {
+            let a = n.accesskit_node();
+            // Text can be selected with the pointer, but isn't pressed.
+            let pressable = (a.data().supports_action(Action::Click)
+                || a.data().supports_action(Action::Focus))
+                && a.role() != Role::Label;
+            // A panel's edge is a drag handle a few points wide, as
+            // everywhere; the logo isn't pressed.
+            if a.is_hidden() || !pressable || matches!(a.role(), Role::Splitter | Role::Image) {
+                continue;
+            }
+            let Some(b) = a.bounding_box() else { continue };
+            let r = egui::Rect::from_min_max(
+                egui::pos2(b.x0 as f32, b.y0 as f32),
+                egui::pos2(b.x1 as f32, b.y1 as f32),
+            );
+            // Only what's on screen (scrolled-away rows are clipped).
+            if !window.contains_rect(r) {
+                continue;
+            }
+            let label = a.label().unwrap_or_default();
+            let least = if label.contains(" input, ") || label.contains(" output, ") {
+                sockets += 1;
+                MIN_SOCKET
+            } else {
+                MIN_TARGET
+            };
+            if r.width().min(r.height()) < least - 0.5 {
+                small.push(format!(
+                    "{:?} {label:?} {:.0}x{:.0}",
+                    a.role(),
+                    r.width(),
+                    r.height()
+                ));
+            }
+        }
+    }
+    assert!(
+        sockets > 10,
+        "the canvas's sockets were measured ({sockets})"
+    );
+    small.sort();
+    small.dedup();
+    assert!(
+        small.is_empty(),
+        "too small at 100 %:\n{}",
+        small.join("\n")
+    );
 }

@@ -288,6 +288,17 @@ pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
                         (tr("gesture-type-value"), tr("gesture-type-value-how")),
                         (tr("gesture-delete"), tr("gesture-delete-how")),
                         (tr("gesture-move-card"), tr("gesture-move-card-how")),
+                        (tr("gesture-focus-nodes"), tr("gesture-focus-nodes-how")),
+                        (tr("gesture-focus-sockets"), tr("gesture-focus-sockets-how")),
+                        (tr("gesture-keyboard-wire"), tr("gesture-keyboard-wire-how")),
+                        (
+                            tr("gesture-keyboard-value"),
+                            tr("gesture-keyboard-value-how"),
+                        ),
+                        (tr("gesture-keyboard-move"), tr("gesture-keyboard-move-how")),
+                        (tr("gesture-keyboard-menu"), tr("gesture-keyboard-menu-how")),
+                        (tr("gesture-switch-region"), tr("gesture-switch-region-how")),
+                        (tr("gesture-panel-keys"), tr("gesture-panel-keys-how")),
                         (
                             tr("gesture-leave-performance"),
                             tr("gesture-leave-performance-how"),

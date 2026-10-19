@@ -754,9 +754,18 @@ impl EditorApp {
     }
 
     /// F6: the keyboard moves between the canvas and the side panel (from
-    /// the panel, Tab goes on through its widgets as usual).
+    /// the panel, Tab goes on through its widgets as usual), or into the
+    /// panels' cards and out again.
     fn switch_region(&mut self, ctx: &egui::Context) {
         let focused = ctx.memory(|m| m.focused());
+        if self.perform.shown {
+            // The panels: into the first card, or back out of them.
+            match focused {
+                Some(id) => ctx.memory_mut(|m| m.surrender_focus(id)),
+                None => self.perform.take_keyboard(ctx),
+            }
+            return;
+        }
         let on_canvas = self.canvas.owns_focus(ctx) || focused.is_none();
         if on_canvas && self.side.open && !self.perform.shown {
             if let Some(id) = self.side.focus_target {
@@ -1620,7 +1629,7 @@ impl EditorApp {
                     if modal {
                         continue;
                     }
-                    if key == Key::F6 && pressed && !self.perform.fullscreen {
+                    if key == Key::F6 && pressed {
                         self.switch_region(ctx);
                         continue;
                     }

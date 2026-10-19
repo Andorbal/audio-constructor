@@ -97,7 +97,7 @@
         "id": "7",
         "kind": "comment",
         "config": {
-          "text": "Try this:\n• Shift+A opens the add palette. Type \"biquad\" (or \"lpf\") and press Enter, then drop it onto the wire between Oscillator and Gain to splice it in.\n• Add a second Oscillator with shape sine and freq 3 Hz, then wire its out into the first oscillator's fm socket for vibrato.\n• Select nodes and press Ctrl+G to pack them into a group; Tab goes inside."
+          "text": "Try this:\n• Shift+A opens the add palette. Type \"biquad\" (or \"lpf\") and press Enter, then drop it onto the wire between Oscillator and Gain to splice it in.\n• Add a second Oscillator with shape sine and freq 3 Hz, then wire its out into the first oscillator's fm socket for vibrato.\n• Select nodes and press Ctrl+G to pack them into a group; double-click one (or Ctrl+Enter) to go inside."
         },
         "ui": {
           "pos": [

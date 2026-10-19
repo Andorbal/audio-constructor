@@ -79,7 +79,7 @@ Four looping clips, each through a Track group (gain, pan, and a mute
 switch), summed by a Mix. It shows Clip nodes, a group used four times,
 and how editing the inside of one copy changes all of them.
 
-**Try:** `Tab` into one Track, change it, and watch every track follow;
+**Try:** double-click one Track to go inside, change it, and watch every track follow;
 swap a clip's file in the Node tab.
 
 ## Build a Keyboard
@@ -126,7 +126,7 @@ from one audio file. A switch flips between the two kits. It shows the
 Pattern node, Samplers with start and end points, and blocks that send
 triggers out for your own sounds.
 
-**Try:** `Tab` into the Drum Machine and click the Pattern's cells in the
+**Try:** double-click the Drum Machine to go inside and click the Pattern's cells in the
 Node tab to change the beat; put a Probability between a trigger and its
 Sampler so some hits drop out.
 
@@ -175,7 +175,7 @@ the level before and after and how hard each band is turned down, and a
 switch bypasses it.
 
 **Try:** pull `threshold_low` down to −36 dB and hear the bass tighten
-while the cymbals stay lively; `Tab` into the block to see the Band Split
+while the cymbals stay lively; double-click the block to see the Band Split
 and three Compressors inside.
 
 ## Vocoder

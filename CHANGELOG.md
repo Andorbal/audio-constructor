@@ -137,8 +137,11 @@ fixes and smaller changes.
   switch, and a meter says its peak. Menu entries with a check mark say
   they're checked, and icons are never read out. A screen reader's
   activate selects a card, and its increment, decrement, and set value
-  turn a panel's knobs.
-- **Panels from the keyboard**: Tab reaches every card. ↑ and ↓ (or ← and
+  turn a panel's knobs. A library block's play button says which block it
+  plays, and the update and crash windows take the keyboard when they
+  appear. Scroll bars can be grabbed over a wider strip.
+- **Panels from the keyboard**: F6 puts the keyboard on the first card,
+  and Tab reaches every one. ↑ and ↓ (or ← and
   →) turn a knob or slider by a hundredth of its range, a tenth with
   Shift or Page Up and Page Down; Home and End go to its ends; Enter types
   a value, opens a dropdown, or flips a toggle; and Space holds a button

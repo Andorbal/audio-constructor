@@ -1485,6 +1485,10 @@ fn style(style: &mut egui::Style, p: &Palette) {
     s.text_edit_width = 160.0;
     s.tooltip_width = 320.0;
     s.menu_width = 220.0;
+    // A scroll bar stays thin until the pointer nears it, but what can be
+    // grabbed is as wide as the smallest button is tall (docs/UX.md
+    // "Accessibility and scaling").
+    s.scroll.bar_width = 14.0;
 
     let v = &mut style.visuals;
     v.override_text_color = None;
