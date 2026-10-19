@@ -181,7 +181,7 @@ jobs:
       - uses: actions/checkout@v4
       # Mesa's GLX: our own instrument's window draws with OpenGL.
       - name: Install system libraries
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip xvfb libgl1 libglx-mesa0 libgl1-mesa-dri mesa-utils
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libfontconfig1 libfreetype6 unzip xvfb libgl1 libglx-mesa0 libgl1-mesa-dri mesa-utils gdb
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Cache the plugin download
@@ -211,7 +211,27 @@ jobs:
           AC_THIRD_PARTY_FORMATS: clap,vst3
           # Our plugin logs why a window couldn't open to stderr.
           NICE_LOG: stderr
+          # Plugin code runs in the test process: if it crashes, gdb prints
+          # every thread's stack and the loaded libraries, and the step still
+          # fails with the crash.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: gdb -q -batch -x ${{ runner.temp }}/backtrace.gdb --args
         run: |
+          cat > "$RUNNER_TEMP/backtrace.gdb" <<'EOF'
+          set pagination off
+          set confirm off
+          set print thread-events off
+          set disable-randomization off
+          run
+          if $_isvoid($_exitcode)
+            echo \n=== crashed: backtraces ===\n
+            thread apply all bt 40
+            info sharedlibrary
+            kill
+            quit 134
+          else
+            quit $_exitcode
+          end
+          EOF
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c 'glxinfo -B &&
             cargo test -p ac-host --test third_party_window -- --ignored --nocapture &&
             cargo test -p ac-host --test plugin_window -- --ignored --nocapture'
