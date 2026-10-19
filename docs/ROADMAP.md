@@ -658,8 +658,51 @@ Needs a human with a host and a screen: the steps are in the M3.1 merge
 request.
 
 ### M3.2 Plugin hosting
-- [ ] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
+- [x] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
 - [ ] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+
+*Verified (CLAP):* the `Plugin` node (`crates/ac-nodes/src/utility/plugin.rs`)
+builds its sockets from the description in its config; its unit tests,
+against a fake processor, check the sockets, notes at their pitch at block
+sizes 1, 64, and 1000, parameter events (still inputs once, moving ones
+every 32 samples at the same frames for block sizes 7, 64, and 1000),
+changes before notes on a shared frame, the transport, latency, a failing
+plugin silenced, and a missing one keeping its sockets with a warning.
+`crates/ac-host` hosts real CLAP plugins with clack:
+- `tests/clap_hosting.rs` scans our own Audio Constructor Instrument and
+  Effect (the `ac-plugin` build) and renders them as nodes through the
+  engine, with the allocation guard aborting on any allocation of ours
+  around the plugin: A3 and A4 come out strongest at 220 and 440 Hz
+  (±3 Hz) and die away after the note-off; the level macro moves the
+  output by 36 dB (±3); the effect passes a 330 Hz oscillator at unity;
+  renders are deterministic; a state saved into the node's config
+  restores in a fresh engine without rebuilding the running instance; a
+  changed description rebuilds the node and the old instance goes; a
+  missing plugin is silent with a warning.
+- `tests/plugin_window.rs` and `tests/third_party_window.rs` (ignored;
+  CI runs them under xvfb) open plugin windows embedded in the host's
+  X11 window while audio plays, close them, and reopen them: our
+  instrument's node editor, and the third-party Six Sines while it plays
+  a note (checked by screenshot on a virtual display, both drawn inside
+  the host window).
+- `crates/ac-cli/tests/plugins_cli.rs`: `audioc plugins --json` scans a
+  `CLAP_PATH` folder in child processes and lists both plugins; a file
+  that isn't a plugin is listed as failed; `audioc render` of a project
+  with the instrument comes out at 440 Hz; `validate` warns for a missing
+  plugin.
+- `crates/ac-app/tests/plugins.rs`: installed plugins are offered by name
+  in the palette (the bare node isn't), adding one makes a Plugin node
+  with its sockets, the Node tab shows a missing plugin's warning, and
+  saving stores a running plugin's state in its node without rebuilding
+  it.
+- Phase 3 acceptance #2 ("a third-party CLAP synth runs as a node inside a
+  project"): CI's *Third-party plugin as a node* job downloads Six Sines
+  1.2.1 for Linux, checks its SHA-256, and renders it from a MIDI Pattern
+  with `audioc`: notes come out at 220 and 440 Hz (D136); verified locally
+  the same way.
+
+The scan runs each bundle in a child process (D135); crash isolation for
+running plugins was investigated and deferred (D135).
 
 ### M3.3 Web
 - [ ] `ac-web`: engine in an AudioWorklet, eframe UI, SharedArrayBuffer rings, Web MIDI, Gamepad API; static hosting with cross-origin isolation headers.
