@@ -1,0 +1,155 @@
+{
+  "schema_version": 2,
+  "name": "Time Stretch and Convolution",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clip",
+        "config": {
+          "file": "assets/tone.wav",
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "time_stretch",
+        "params": {
+          "stretch": 1.5
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "audio_out",
+        "config": {
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "convolution",
+        "config": {
+          "file": "assets/plate-ir.wav",
+          "channels": 1,
+          "partition": 128
+        },
+        "params": {
+          "gain": 0.0
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "5",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -6.0
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "6",
+        "kind": "audio_out",
+        "config": {
+          "channel": 1,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "Channel 0: a half-second tone stretched to three quarters of a second at its pitch. Channel 1: the tone through a plate's impulse response (rendered from the Plate Reverb block), mixed with the dry tone, which latency compensation delays by the 128-sample partition to line up."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:out",
+        "to": "2:in"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "1:out",
+        "to": "4:in"
+      },
+      {
+        "from": "1:out",
+        "to": "5:in_0"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in_1"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}

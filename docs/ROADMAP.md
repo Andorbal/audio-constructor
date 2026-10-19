@@ -667,7 +667,7 @@ request.
 
 ### M3.4 Engine extras
 - [x] Single-sample feedback for strongly connected components.
-- [ ] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
+- [x] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
 - [ ] Native PipeWire backend if the shims prove limiting.
 
 *Verified:* each part is covered as follows.
@@ -709,6 +709,59 @@ loop step, one sample at a time (`crates/ac-engine/src/loops.rs`).
   parallel-chains-8 8.33 → 8.58, poly-synth-16 25.2 → 23.5 (medians 20.4
   → 22.6), subtractive-voices-16 10.05 → 10.31, fft-chains-16 24.6 →
   26.6, pitch-shift-16 7.67 → 8.28, diffuser-16 4.35 → 4.50.
+
+The seven nodes, one file each, with a "Try this" tip and the DSP source
+cited in the code (`cargo test -p ac-nodes`):
+- **Chaos** (Lorenz 1963, Rössler 1976, fourth-order Runge-Kutta):
+  outputs stay within ±1 and use the range across `chaos`; Lorenz flips
+  between its lobes and settles below the onset of chaos; Rössler at 0
+  loops at `rate`; the motion matches at 48 and 96 kHz; block sizes 1, 64,
+  and 1024 and a reset repeat exactly; seeds drift apart.
+- **Formant** (Peterson and Barney's 1952 vowel formants, three
+  state-variable band-passes): each vowel's impulse response peaks at its
+  formants; a and i differ where they should; morphing glides in pitch;
+  `shift` and `voice` move them; the shape is the same at 48 and 96 kHz;
+  a saw comes out 11–18 dB down (documented); block size doesn't matter.
+- **Spectral Freeze** (Dolson's phase vocoder with Laroche and Dolson's
+  rigid phase locking): a held 1 kHz tone keeps its pitch and level a
+  second after its input stops; frozen bins keep their levels and turn
+  their phases; a frozen glide holds its level within 5 % (a test that
+  fails without the locking); glide and block size are exact.
+- **Spectrogram**: a tone lights its band in every column; time runs
+  through the columns; short sounds stay in long columns; the picture
+  starts silent; block size doesn't change it. The editor draws it as a
+  mesh: a unit test checks each cell's place and color, and
+  `cargo test -p ac-app --test editor a_spectrogram_draws_what_it_hears`
+  plays a 1 kHz tone on the null stream and finds the lit row in the
+  card's body (stable over repeated runs).
+- **Granular** (Roads' "Microsound" grains): onsets follow `density`;
+  `pitch` transposes and `position` picks the slice; a buffer at another
+  rate keeps its pitch; overlap keeps the level within 3 dB; `stop` lets
+  grains finish; reset repeats the seeded scatter; block sizes match.
+- **Convolution** (uniformly partitioned overlap-save, Wefers 2015):
+  matches the direct sum one partition late; a file response is ready at
+  once; the latency it reports follows `partition`; a stereo response
+  feeds each side; a new response takes over without cutting the old
+  tail; a response at another rate is converted; long responses are cut
+  at `max_length`. In the engine (`cargo test -p ac-engine --test
+  extras`) a dry path mixed with it arrives on the same sample at block
+  sizes 1, 64, and 1024.
+- **Time Stretch** (phase vocoder with identity phase locking): a stretch
+  of 1 returns the input within −60 dB; stretches of 0.5, 2, and 3 change
+  the length and keep the pitch and level; a changing stretch moves
+  through the input at its rate; it bakes offline and is disabled live
+  when fed by Audio In.
+
+Every node also runs in the allocation-guarded sweep at block sizes 1,
+64, and 1024 (`all_nodes.rs`; Granular and Convolution with buffers and
+files in `buffer_nodes.rs`), and a test checks all seven have NODES.md
+rows and are registered. Goldens, all block-independent and passing the
+live-vs-offline check: `modulation-chaos`, `filters-formant`,
+`spectral-freeze`, `display-spectrogram`, `generators-granular`, and
+`time-convolution-stretch` (its impulse response,
+`tests/golden/assets/plate-ir.wav`, was rendered with `audioc` from the
+shipped Plate Reverb block). The streaming nodes also run inside a
+single-sample loop, and a Spectral Freeze there is refused.
 
 ### M3.5 Product
 - [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.

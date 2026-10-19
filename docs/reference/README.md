@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-122 nodes in 13 categories.
+124 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ together, read the [user guide](../guide/README.md).
 | [Generators](#generators) | 9 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
-| [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
+| [Time](#time) | 7 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
 | [Spectral](#spectral) | 7 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
 | [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
@@ -102,11 +102,13 @@ Effects that work with time: delays, reversing, freezing, pitch shifting, and di
 
 | Node | What it does |
 | --- | --- |
+| [Convolution](time.md#convolution) | Plays its input through a recorded *impulse response*: the sound of a room, a speaker cabinet, a spring, or any filter, captured as the echo of a single click. Every sample of the input sets off a copy of the response, scaled by that sample, and the copies add up (convolution), so the input sounds as if it were played in that room or through that cabinet. |
 | [Delay](time.md#delay) | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Diffuser](time.md#diffuser) | Smears a signal into a dense wash: eight modulated allpass filters in series per channel, the building block of a reverb. |
 | [Freeze](time.md#freeze) | Holds a short loop of the input while `hold` is on: catch a moment and let it ring forever. |
 | [Pitch Shift](time.md#pitch-shift) | Shifts pitch up or down without changing speed, with the formants (the vowel color of a voice) kept in place or moved on their own. |
 | [Reverse](time.md#reverse) | Plays its input backwards. *Needs its whole input: baked, or off while live.* |
+| [Time Stretch](time.md#time-stretch) | Plays its input slower or faster without changing its pitch. *Needs its whole input: baked, or off while live.* |
 
 <a id="spectral"></a>
 ## Spectral

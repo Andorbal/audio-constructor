@@ -61,6 +61,11 @@ fn buffer_and_configured_nodes_process_without_allocating() {
         ),
         ("noise", json!({ "seed": 42 })),
         ("granular", json!({})),
+        ("convolution", json!({})),
+        (
+            "convolution",
+            json!({ "file": "assets/x.wav", "partition": 64, "channels": 1 }),
+        ),
         ("granular", json!({ "file": "assets/x.wav", "seed": 9 })),
         (
             "shaper",

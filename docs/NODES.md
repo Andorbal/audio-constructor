@@ -116,8 +116,8 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Freeze` | P2 | Holds a short loop of the input while `hold: Bool` is true, with crossfaded seams; `size`, `position` (read when `hold` rises), `max_time` config. |
 | `PitchShift` | P2 | Real-time pitch shift (two crossfading read heads), `semitones`, `formant` (cepstral envelope correction), `grain`, `mix`. Reports its latency, set by the `max_grain` config. |
 | `Diffuser` | P2 | Eight modulated allpasses per channel with different prime delays left and right, mono or stereo in, stereo out; `size`, `diffusion`, `mod_depth`, `mod_rate`, `mix`. One node because doing it with eight Allpass nodes is tedious and slower. |
-| `TimeStretch` | P3, WI | Stretch without pitch change (phase-vocoder). |
-| `Convolution` | P3 | Partitioned convolution against a `Buffer` (impulse responses). Reports latency. |
+| `TimeStretch` | P3, WI | Stretch without pitch change: a phase vocoder with identity phase locking; `stretch` (0.25–4, how many times longer, may vary over time), `size` config (frame size). Baked like Reverse. |
+| `Convolution` | P3 | Uniformly partitioned convolution against a `Buffer` (or, unwired, a `file`) holding an impulse response, cut at `max_length` (config, default 5 s); `gain`; `channels` (1–2). Reports `partition` (config, default 256) samples of latency; a new buffer takes over a partition at a time. |
 
 ## Spectral
 

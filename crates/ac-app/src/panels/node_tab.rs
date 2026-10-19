@@ -281,6 +281,43 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "seconds",
             },
         )],
+        "convolution" => vec![
+            f(
+                "file",
+                "Impulse response (when `buffer` is unwired)",
+                Kind::File,
+            ),
+            f(
+                "partition",
+                "Partition (samples, sets latency)",
+                Kind::NumberChoice {
+                    choices: &["64", "128", "256", "512", "1024", "2048", "4096"],
+                    default: "256",
+                },
+            ),
+            f(
+                "max_length",
+                "Longest response (s)",
+                Kind::Number { default: 5.0 },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
+        "time_stretch" => vec![f(
+            "size",
+            "Frame size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "2048",
+            },
+        )],
         "granular" => vec![
             f("file", "File (when `buffer` is unwired)", Kind::File),
             f(

@@ -36,6 +36,16 @@ fixes and smaller changes.
   man's, a woman's, or a child's voice puts them for a, e, i, o, and u;
   `vowel` morphs between them, `shift` moves them up or down, and an LFO
   or envelope on `vowel` makes a synth talk.
+- **Convolution** (Time): plays a sound through a recorded impulse
+  response, the sound of a room, a cabinet, or a spring, from a file or a
+  wired buffer, for realistic reverbs and speaker sounds. It adds a little
+  latency (256 samples by default, its `partition` setting), and the
+  engine lines up a dry signal mixed back in. A new response can be
+  swapped in while playing: what's ringing finishes with the old one.
+- **Time Stretch** (Time): plays its input slower or faster without
+  changing its pitch, by `stretch` (2 lasts twice as long), which can
+  change over time. Like Reverse, it bakes from known sources (a Clip, an
+  Oscillator) and is switched off while fed live.
 - **Granular** (Generators): a cloud of tiny overlapping grains of a
   recording, from a wired buffer (a Record node's take) or a file. Set
   where grains read (`position`), how long they are (`size`), how many
