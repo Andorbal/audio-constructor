@@ -96,19 +96,22 @@ jobs:
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        # Use an installed NSIS if there is one; otherwise install it, retrying
-        # (the package feed throttles CI runners), and fail here rather than
-        # later if makensis still isn't there.
+        # An installed NSIS if the image has one; otherwise NSIS's own
+        # portable release, pinned by its SHA-256 (no package feed, which
+        # throttles and goes down; no installer). Fails here, not later.
         run: |
           $dirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS")
-          function Find-Nsis { $dirs | Where-Object { Test-Path (Join-Path $_ "makensis.exe") } | Select-Object -First 1 }
-          $found = Find-Nsis
-          for ($i = 1; -not $found -and $i -le 4; $i++) {
-            choco install nsis -y --no-progress
-            if ($LASTEXITCODE -ne 0) { Write-Host "choco exited with $LASTEXITCODE (attempt $i)"; Start-Sleep -Seconds (10 * $i) }
-            $found = Find-Nsis
+          $found = $dirs | Where-Object { Test-Path (Join-Path $_ "makensis.exe") } | Select-Object -First 1
+          if (-not $found) {
+            $zip = Join-Path $env:RUNNER_TEMP "nsis-3.11.zip"
+            curl.exe -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o $zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip"
+            if ($LASTEXITCODE -ne 0) { Write-Error "couldn't download NSIS ($LASTEXITCODE)"; exit 1 }
+            $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+            if ($hash -ne "C7D27F780DDB6CFFB4730138CD1591E841F4B7EDB155856901CDF5F214394FA1") { Write-Error "NSIS download has SHA-256 $hash, not the pinned one"; exit 1 }
+            Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+            $found = Join-Path $env:RUNNER_TEMP "nsis-3.11"
           }
-          if (-not $found) { Write-Error "makensis.exe isn't installed"; exit 1 }
+          if (-not (Test-Path (Join-Path $found "makensis.exe"))) { Write-Error "makensis.exe isn't in $found"; exit 1 }
           Write-Host "NSIS is in $found"
           $found | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - run: rustup show
