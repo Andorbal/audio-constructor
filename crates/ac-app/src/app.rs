@@ -446,10 +446,15 @@ impl EditorApp {
         self.doc.path.as_deref()
     }
 
-    /// The project, if it changed since the host last asked or last loaded
-    /// one: an edit, an undo or redo, New, Open, or Save. A plugin marks its
-    /// state dirty on `Some`. Moving the view alone isn't a change, though
-    /// [`EditorApp::project`] carries it.
+    /// Whether the project changed since the host last asked or last loaded
+    /// one: an edit, an undo or redo, New, Open, or Save. Moving the view
+    /// alone isn't a change, though [`EditorApp::project`] carries it.
+    pub fn has_changes(&self) -> bool {
+        self.change_stamp() != self.host_seen
+    }
+
+    /// The project, once per change (see [`EditorApp::has_changes`]). A
+    /// plugin marks its state dirty on `Some`.
     pub fn take_changes(&mut self) -> Option<Project> {
         let stamp = self.change_stamp();
         if stamp == self.host_seen {

@@ -1,6 +1,6 @@
 //! The editor in a window its host provides: a plugin's editor window
 //! (ARCHITECTURE §13). It draws with egui-baseview's OpenGL renderer
-//! (DECISIONS D121) into a child of the host's parent window.
+//! (DECISIONS D125) into a child of the host's parent window.
 //!
 //! A plugin keeps one [`EditorApp`] for its whole life (made with
 //! [`EditorApp::embedded`] and `AudioMode::Hosted`), wrapped by [`share`],
@@ -172,7 +172,7 @@ impl EditorWindow {
         }
         let repaint = RepaintNotifier::new();
         settings.repaint_notifier = Some(repaint.clone());
-        let app = WindowApp::new(editor.clone(), hook);
+        let app = WindowApp::new(editor.clone(), hook, settings.zoom_factor);
         let window = EguiWindow::create_with_host(settings, app, host)?;
         Ok(EditorWindow { window, repaint })
     }
@@ -305,13 +305,21 @@ fn kind_of(raw: RawWindowHandle) -> &'static str {
 /// the project lends the editor its engine handle for `draw` and takes the
 /// edits afterwards ([`EditorApp::host_keeps_project`]).
 pub trait WindowHook: Send + 'static {
-    /// Run `draw`, the editor's frame, once.
-    fn frame(&mut self, editor: &mut EditorApp, draw: &mut dyn FnMut(&mut EditorApp)) {
+    /// Run `draw`, the editor's frame, once. `ctx` is the window's (to ask
+    /// for another frame later, say).
+    fn frame(
+        &mut self,
+        ctx: &egui::Context,
+        editor: &mut EditorApp,
+        draw: &mut dyn FnMut(&mut EditorApp),
+    ) {
+        let _ = ctx;
         draw(editor);
     }
 
     /// The window's size changed (the host resized it, or the editor's UI
-    /// scale did). `size.scale_factor` includes the UI scale.
+    /// scale did), in the platform's terms: physical pixels and the
+    /// system's scale factor, not counting the UI scale.
     fn resized(&mut self, size: bv::WindowSize) {
         let _ = size;
     }
@@ -331,15 +339,18 @@ struct WindowApp {
     failed: Option<String>,
     /// The modifier keys held, followed through each frame's events.
     modifiers: egui::Modifiers,
+    /// The UI scale egui-baseview draws at (its zoom factor).
+    zoom: f32,
 }
 
 impl WindowApp {
-    fn new(editor: SharedEditor, hook: Box<dyn WindowHook>) -> WindowApp {
+    fn new(editor: SharedEditor, hook: Box<dyn WindowHook>, zoom: f32) -> WindowApp {
         WindowApp {
             editor,
             hook,
             failed: None,
             modifiers: egui::Modifiers::NONE,
+            zoom,
         }
     }
 
@@ -360,9 +371,10 @@ impl WindowApp {
         if self.failed.is_none() {
             let editor = &self.editor;
             let hook = &mut self.hook;
+            let ctx = ui.ctx().clone();
             let drawn = catch_unwind(AssertUnwindSafe(|| {
                 let mut draw = Some(draw);
-                hook.frame(&mut lock(editor), &mut |e| {
+                hook.frame(&ctx, &mut lock(editor), &mut |e| {
                     if let Some(d) = draw.take() {
                         d(e, ui);
                     }
@@ -455,7 +467,14 @@ impl egui_baseview::App for WindowApp {
     }
 
     fn resized(&mut self, size: bv::WindowSize) {
-        self.hook.resized(size);
+        // egui-baseview reports the scale with its zoom (the UI scale) in.
+        let system = size.scale_factor / f64::from(self.zoom.max(0.01));
+        self.hook
+            .resized(bv::WindowSize::from_physical(size.physical, system));
+    }
+
+    fn zoom_factor_changed(&mut self, zoom_factor: f32) {
+        self.zoom = zoom_factor;
     }
 }
 
@@ -579,7 +598,7 @@ mod tests {
     #[test]
     fn a_window_draws_the_shared_editor_frame_by_frame() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook));
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         let ctx = egui::Context::default();
         for _ in 0..3 {
             frame(&ctx, |ui| {
@@ -596,7 +615,7 @@ mod tests {
     #[test]
     fn a_panic_in_a_frame_stays_in_its_window() {
         let editor = hosted();
-        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook));
+        let mut app = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         let ctx = egui::Context::default();
         let mut drawn = 0;
         for _ in 0..3 {
@@ -613,7 +632,7 @@ mod tests {
         // and a new window draws the editor again.
         assert!(editor.is_poisoned());
         assert!(lock(&editor).is_hosted());
-        let mut again = WindowApp::new(editor.clone(), Box::new(NoHook));
+        let mut again = WindowApp::new(editor.clone(), Box::new(NoHook), 1.0);
         frame(&ctx, |ui| {
             again.frame(ui);
         });

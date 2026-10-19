@@ -24,6 +24,13 @@ pub struct Asset {
     pub problem: Option<String>,
 }
 
+impl Asset {
+    /// The decoded audio, if the bytes are a WAV file this can play.
+    pub fn audio(&self) -> Option<&Arc<AudioData>> {
+        self.audio.as_ref()
+    }
+}
+
 /// Every asset the plugin holds, by config path.
 #[derive(Clone, Debug, Default)]
 pub struct AssetBank {
