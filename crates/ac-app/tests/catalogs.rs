@@ -105,8 +105,14 @@ fn sources() -> Vec<(String, String)> {
             if test_files.contains(&f) {
                 continue;
             }
-            let rel = f.strip_prefix(&dir).unwrap_or(&f).display().to_string();
-            out.push((format!("{label}/{rel}"), text));
+            // Shown with `/` on every system, as the allow-list names files.
+            let rel: Vec<String> = f
+                .strip_prefix(&dir)
+                .unwrap_or(&f)
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect();
+            out.push((format!("{label}/{}", rel.join("/")), text));
         }
     }
     out
