@@ -17,6 +17,7 @@ crates/ac-app/locales/
     product.ftl the update check and crash reports
     transport.ftl
     undo.ftl    what Edit ▸ Undo names each step
+    web.ftl     the browser: the files it keeps for the editor
 ```
 
 Not translated yet, and so left out of the catalogs: node names, node
