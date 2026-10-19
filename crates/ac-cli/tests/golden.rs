@@ -246,6 +246,7 @@ fn render_with(
     let resources = Arc::new(FileResources {
         assets,
         recorder: None,
+        plugins: None,
     });
     let i = inputs(&project);
     let opts = RenderOptions {
@@ -601,6 +602,7 @@ fn golden_control_inputs_parse_and_play_live_and_offline() {
     let resources = Arc::new(FileResources {
         assets: AssetStore::load_for(&project, path.parent().expect("dir"), &registry),
         recorder: None,
+        plugins: None,
     });
     let block = 64;
     let off = render(

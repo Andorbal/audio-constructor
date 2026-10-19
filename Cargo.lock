@@ -84,6 +84,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ac-host"
+version = "0.11.0"
+dependencies = [
+ "ac-core",
+ "ac-engine",
+ "ac-nodes",
+ "ac-plugin",
+ "assert_no_alloc",
+ "clack-extensions",
+ "clack-host",
+ "directories",
+ "libc",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+ "x11rb",
+]
+
+[[package]]
 name = "ac-io"
 version = "0.11.0"
 dependencies = [

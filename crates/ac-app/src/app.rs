@@ -277,6 +277,7 @@ impl EditorApp {
             recorder: recorder
                 .clone()
                 .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            plugins: None,
         });
         let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
         if path.is_some() {
@@ -1041,6 +1042,7 @@ impl EditorApp {
                 .recorder
                 .clone()
                 .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            plugins: None,
         })
     }
 
@@ -2405,6 +2407,7 @@ impl EditorApp {
         let resources: Arc<dyn ac_core::Resources> = Arc::new(FileResources {
             assets: self.assets.clone(),
             recorder: None,
+            plugins: None,
         });
         let (tx, rx) = std::sync::mpsc::channel();
         let p = path.clone();

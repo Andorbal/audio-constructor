@@ -13,6 +13,21 @@ fixes and smaller changes.
 
 ## [0.11.0] - 2026-10-19
 
+### Added
+
+- **Plugins as nodes**: a new **Plugin** node runs a CLAP plugin
+  installed on your computer inside a patch, a synth played from MIDI or
+  an effect on audio. Its sockets come from the plugin: audio in and out
+  (extra ports such as a sidechain as `in_2`, `out_2`), `midi` and
+  `midi_out` when it takes or sends notes, and one input per parameter
+  (up to 128), named after the parameter. Parameter inputs can be set
+  inline or wired to any modulator, and the plugin follows them on the
+  right sample. The node reports the plugin's latency, so the engine
+  lines up the paths around it.
+- A project with a plugin that isn't installed still opens with its
+  sockets and wires; the node plays silence and the compile report says
+  which plugin is missing.
+
 ## [0.10.0] - 2026-10-19
 
 ### Added

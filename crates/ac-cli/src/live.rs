@@ -144,6 +144,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     let resources = Arc::new(FileResources {
         assets,
         recorder: Some(recorder.clone()),
+        plugins: None,
     });
     let (engine, report) = Engine::new(
         project,

@@ -61,6 +61,7 @@ pub fn load(path: &Path, registry: &Registry) -> Result<(Project, Arc<FileResour
         Arc::new(FileResources {
             assets,
             recorder: None,
+            plugins: None,
         }),
     ))
 }

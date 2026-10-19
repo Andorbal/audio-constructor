@@ -2,7 +2,7 @@
 
 [← All nodes](README.md)
 
-Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, and the engine's vital signs.
+Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer.
 
 <a id="comment"></a>
 ## Comment
@@ -224,6 +224,40 @@ decode with `width` from a `Slider` for a stereo width control.
 | --- | --- | --- |
 | `mid` | Audio | (L + R) / 2. |
 | `side` | Audio | (L − R) / 2. |
+
+<a id="plugin"></a>
+## Plugin
+
+Kind: `plugin` · Also found by: clap, vst, vst3, instrument, effect, synth, third party, host
+
+Runs a CLAP or VST3 plugin installed on this computer as a node: a
+synth played from MIDI, or an effect on audio.
+
+Insert one from the add-node palette, where every plugin the editor
+found is listed by name (rescan in the Devices tab after installing
+more). The node's sockets come from the plugin: its audio inputs and
+outputs (`in`, `out`, then `in_2`, `out_2`, … for extra ports, such
+as a sidechain), `midi` in and `midi_out` when it takes or sends
+notes, and a `Float` input for each of its parameters (up to 128),
+named after the parameter. A parameter input works like any other:
+set it inline, or wire an LFO or an envelope into it and the plugin
+follows sample-accurately (a moving input sends a change every 32
+samples). The node reports the plugin's latency, so the engine lines
+up the dry paths around it.
+
+**Show Plugin Window** in the node's menu opens the plugin's own
+interface in a window of its own. Changes made there move the
+node's inputs, and saving the project saves everything the plugin
+keeps (its state goes in the project).
+
+A project keeps working on a computer without the plugin: the node
+keeps its sockets and wires, plays silence, and says what's
+missing (in the Problems tab and `audioc validate`).
+
+**Try this:** add a synth plugin, wire a `Keyboard` (or `MIDI In`)
+into its `midi` and its `out` to `Audio Out`; then wire an `LFO`
+into its filter cutoff, or send its `out` through a second plugin
+for effects.
 
 <a id="reroute"></a>
 ## Reroute

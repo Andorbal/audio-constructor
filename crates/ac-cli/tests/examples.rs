@@ -74,6 +74,7 @@ fn resources(
     Arc::new(FileResources {
         assets,
         recorder: None,
+        plugins: None,
     })
 }
 

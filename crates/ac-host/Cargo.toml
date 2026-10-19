@@ -1,0 +1,72 @@
+[package]
+name = "ac-host"
+description = "Hosting CLAP and VST3 plugins as Audio Constructor nodes: scanning, loading, the audio and main threads, and plugin windows."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+ac-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rtrb.workspace = true
+assert_no_alloc.workspace = true
+directories = "6.0"
+# CLAP hosting (MIT/Apache, DECISIONS D9, D130).
+clack-host = "0.2"
+clack-extensions = { version = "0.2", features = [
+    "clack-host",
+    "audio-ports",
+    "gui",
+    "latency",
+    "log",
+    "note-ports",
+    "params",
+    "posix-fd",
+    "state",
+    "thread-check",
+    "timer",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# The window a plugin's view is embedded in (gui/window/).
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+x11rb = "0.13"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSGraphics",
+    "NSResponder",
+    "NSView",
+    "NSWindow",
+] }
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSGeometry",
+    "NSString",
+] }
+
+[dev-dependencies]
+ac-nodes.workspace = true
+ac-engine.workspace = true
+# Built for its plugin library: the tests host our own CLAP and VST3 build.
+ac-plugin = { path = "../ac-plugin" }

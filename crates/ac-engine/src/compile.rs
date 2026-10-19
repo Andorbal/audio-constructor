@@ -97,6 +97,8 @@ struct CarryKey {
     index: u32,
     latency: u32,
     probe: u32,
+    /// What the node reported when it was created ([`Node::warning`]).
+    warning: Option<String>,
 }
 
 /// What the previous compile produced, so the next one can carry state over
@@ -429,6 +431,7 @@ pub(crate) fn compile_with(
         },
         index: vec![None; n],
         latency: vec![0; n],
+        warnings: Vec::new(),
         reuse,
     };
     let seed = project.settings.seed;
@@ -564,6 +567,9 @@ pub(crate) fn compile_with(
         }
         let Some(idx) = nb.index[fi] else { continue };
         nb.set_probe(f, idx, lat_out[fi], sample_rate, max_block, seed, resources);
+    }
+    for (path, warning) in std::mem::take(&mut nb.warnings) {
+        report.warning(Some(&path), None, warning);
     }
     let total_latency = {
         let sinks: Vec<u32> = (0..flat.nodes.len())
@@ -1299,7 +1305,24 @@ struct NodeBuilder<'a> {
     layout: CarryLayout,
     index: Vec<Option<u32>>,
     latency: Vec<u32>,
+    /// What nodes reported when they were created, in schedule order.
+    warnings: Vec<(NodePath, String)>,
     reuse: Option<&'a CarryLayout>,
+}
+
+/// The config as carry-over compares it: without the keys a node only
+/// reads when it's created ([`ac_core::NodeMeta::state_keys`]).
+fn carry_config(config: &Config, state_keys: &[&str]) -> String {
+    match config.as_object() {
+        Some(map) if state_keys.iter().any(|k| map.contains_key(*k)) => {
+            let mut m = map.clone();
+            for k in state_keys {
+                m.remove(*k);
+            }
+            serde_json::to_string(&m).unwrap_or_default()
+        }
+        _ => serde_json::to_string(config).unwrap_or_default(),
+    }
 }
 
 impl NodeBuilder<'_> {
@@ -1307,6 +1330,10 @@ impl NodeBuilder<'_> {
         let idx = self.nodes.len() as u32;
         self.index[fi] = Some(idx);
         self.latency[fi] = node.latency();
+        let warning = node.warning();
+        if let Some(w) = &warning {
+            self.warnings.push((f.path.clone(), w.clone()));
+        }
         self.layout.nodes.insert(
             f.path.clone(),
             CarryKey {
@@ -1315,6 +1342,7 @@ impl NodeBuilder<'_> {
                 index: idx,
                 latency: self.latency[fi],
                 probe: 0,
+                warning,
             },
         );
         self.nodes.push(NodeBox {
@@ -1338,7 +1366,7 @@ impl NodeBuilder<'_> {
         seed: u64,
         resources: &dyn Resources,
     ) {
-        let mut config_key = serde_json::to_string(&f.config).unwrap_or_default();
+        let mut config_key = carry_config(&f.config, f.meta.state_keys);
         config_key.push_str(extra);
         let carried = self
             .reuse
@@ -1351,6 +1379,9 @@ impl NodeBuilder<'_> {
                 self.index[fi] = Some(idx);
                 self.latency[fi] = old.latency;
                 self.carry.push((idx, old.index));
+                if let Some(w) = &old.warning {
+                    self.warnings.push((f.path.clone(), w.clone()));
+                }
                 self.layout.nodes.insert(
                     f.path.clone(),
                     CarryKey {
@@ -1359,6 +1390,7 @@ impl NodeBuilder<'_> {
                         index: idx,
                         latency: old.latency,
                         probe: old.probe,
+                        warning: old.warning,
                     },
                 );
                 self.nodes.push(NodeBox {

@@ -7,7 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ac_core::{
-    AudioData, Project, RecordRequest, RecordSink, Registry, Resources, util::content_hash,
+    AudioData, PluginLoader, PluginProcessor, PluginRequest, Project, RecordRequest, RecordSink,
+    Registry, Resources, util::content_hash,
 };
 
 /// An asset problem found while loading.
@@ -113,11 +114,13 @@ pub trait RecorderFactory: Send + Sync {
     fn open(&self, req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>>;
 }
 
-/// Resources backed by files: loaded assets and an optional recorder.
+/// Resources backed by files: loaded assets, an optional recorder, and an
+/// optional plugin host (`ac-host`) for `Plugin` nodes.
 #[derive(Clone, Default)]
 pub struct FileResources {
     pub assets: AssetStore,
     pub recorder: Option<Arc<dyn RecorderFactory>>,
+    pub plugins: Option<Arc<dyn PluginLoader>>,
 }
 
 impl Resources for FileResources {
@@ -127,5 +130,12 @@ impl Resources for FileResources {
 
     fn recorder(&self, req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
         self.recorder.as_ref().and_then(|r| r.open(req))
+    }
+
+    fn plugin(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
+        match &self.plugins {
+            Some(p) => p.load(req),
+            None => Err("plugins don't run here".into()),
+        }
     }
 }
