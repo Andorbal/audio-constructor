@@ -192,6 +192,31 @@ async function files(browser, port, errors) {
   await page.keyboard.press("Control+Shift+s");
   saved = await files_after(page, 2);
   check(saved.asked === 1 && saved.saved.length === 2, "Save As asks where", saved.asked);
+  // MIDI through a patch: MIDI In straight to MIDI Out comes back to the
+  // page, for the outputs checked in the Devices tab.
+  const thru = JSON.stringify({
+    schema_version: 2,
+    name: "MIDI Thru",
+    graph: {
+      nodes: [
+        { id: "1", kind: "midi_in" },
+        { id: "2", kind: "midi_out", ui: { pos: [300, 0] } },
+      ],
+      wires: [{ from: "1:midi", to: "2:midi" }],
+    },
+  });
+  await page.evaluate((t) => {
+    window.__acFiles.next = new File([t], "thru.acproj", { type: "application/json" });
+  }, thru);
+  await page.keyboard.press("Control+o");
+  s = await until(page, (x) => x.project === "MIDI Thru" && x.inStep, 10000);
+  const sentBefore = s ? s.midiSent : 0;
+  await page.evaluate(() => {
+    window.audioConstructor.midi(new Uint8Array([0x90, 64, 90]));
+    window.audioConstructor.midi(new Uint8Array([0x80, 64, 0]));
+  });
+  s = await until(page, (x) => x.midiSent >= sentBefore + 2, 5000);
+  check(s && s.midiSent >= sentBefore + 2, "MIDI Out nodes' messages come back to the page", s && s.midiSent - sentBefore);
   // An edit makes the page's title say so, and leaving asks first.
   await page.keyboard.press("a");
   await page.keyboard.press("x");

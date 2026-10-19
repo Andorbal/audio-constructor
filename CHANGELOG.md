@@ -39,8 +39,8 @@ and files opened and saved through the browser.
   press, and the microphone for Audio In nodes, asked for when a patch has
   one. The browser's echo cancellation and noise suppression stay off.
 - The Devices tab says what a browser can't do: OSC, recording takes to
-  disk, plugins, choosing the output device. A patch with OSC nodes says
-  so when it opens.
+  disk, plugins, choosing the output device. A patch with OSC or Record
+  nodes says so when it opens.
 - The page's title shows unsaved changes, leaving the page with them asks
   first, and the theme and UI scale are remembered by the browser.
 - A static host serves the site as it is: a `_headers` file asks for the

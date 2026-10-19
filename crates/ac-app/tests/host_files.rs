@@ -256,3 +256,27 @@ fn block_files_join_the_library() {
     run(&mut app, Action::Open);
     assert_eq!(app.take_file_requests(), vec![FileRequest::Open]);
 }
+
+#[test]
+fn opening_over_unsaved_changes_asks_first() {
+    let mut app = editor();
+    app.open_file("a.acproj", with_clip("x.wav").to_json().as_bytes());
+    run(&mut app, Action::SelectAll);
+    run(&mut app, Action::Delete);
+    assert!(app.document().is_dirty());
+    let other = Project {
+        name: "Other".into(),
+        ..Project::default()
+    };
+    app.open_file("other.acproj", other.to_json().as_bytes());
+    assert_ne!(
+        app.document().project.name,
+        "Other",
+        "waits for the unsaved-changes question"
+    );
+    // A block file doesn't replace the document, so it doesn't ask.
+    let mut b = ac_io::shipped_blocks()[0].block.clone();
+    b.def.name = "Another Thing".into();
+    app.open_file("b.acblock", b.to_json().as_bytes());
+    assert!(app.status().unwrap().contains("Imported Another Thing"));
+}

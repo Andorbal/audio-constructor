@@ -33,6 +33,7 @@ pub struct WebApp {
     /// Node kinds of the project last looked at, and its engine revision.
     kinds: (u64, std::collections::BTreeSet<String>),
     told_osc: bool,
+    told_record: bool,
     frames: u64,
     /// The settings as last kept in the browser's storage.
     saved_settings: String,
@@ -53,6 +54,7 @@ impl WebApp {
             state,
             kinds: (u64::MAX, Default::default()),
             told_osc: false,
+            told_record: false,
             frames: 0,
             saved_settings: String::new(),
         }
@@ -119,6 +121,13 @@ impl WebApp {
             self.editor.notify(
                 "This patch uses OSC, which needs UDP: browsers can't send or receive it, so its \
                  OSC nodes stay quiet here",
+                true,
+            );
+        }
+        if kinds.contains("record") && !self.told_record {
+            self.told_record = true;
+            self.editor.notify(
+                "Record nodes can't write takes in the browser; Export WAV renders the project",
                 true,
             );
         }

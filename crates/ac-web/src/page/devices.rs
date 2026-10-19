@@ -58,6 +58,8 @@ pub struct Devices {
     /// Whether the microphone was asked for on its own (for a patch with
     /// an Audio In node).
     pub mic_asked: bool,
+    /// Messages MIDI Out nodes sent since the page opened.
+    pub sent: u64,
 }
 
 impl Default for Devices {
@@ -72,6 +74,7 @@ impl Default for Devices {
             on_message: None,
             on_state: None,
             mic_asked: false,
+            sent: 0,
         }
     }
 }
@@ -118,7 +121,8 @@ impl Devices {
     }
 
     /// Send MIDI Out nodes' messages to the chosen outputs.
-    pub fn send(&self, msg: &MidiMsg) {
+    pub fn send(&mut self, msg: &MidiMsg) {
+        self.sent += 1;
         let Some(access) = &self.access else {
             return;
         };

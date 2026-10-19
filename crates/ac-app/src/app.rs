@@ -131,6 +131,9 @@ enum AfterConfirm {
     Open(PathBuf),
     /// A shipped example, opened as an untitled copy.
     OpenExample(PathBuf),
+    /// The project or pack the host handed over (`EditorApp::open_file`),
+    /// waiting in `picked`.
+    OpenPicked,
     Quit,
 }
 
@@ -209,6 +212,12 @@ pub struct EditorApp {
     /// Audio files held in memory when the host keeps the files, by the
     /// path the project's nodes use.
     asset_bank: std::collections::BTreeMap<String, Arc<Vec<u8>>>,
+    /// A file the host handed over, waiting for the unsaved-changes
+    /// question.
+    picked: Option<(String, Vec<u8>)>,
+    /// What to do once the host has saved the document (the
+    /// unsaved-changes question's Save, when the host keeps the files).
+    after_host_save: Option<AfterConfirm>,
     /// The host's automatable parameters, shown in the Devices tab.
     host_controls: Option<Box<dyn HostControls>>,
     /// What the editor asked of a host that keeps the project.
@@ -377,6 +386,8 @@ impl EditorApp {
             host_files: opts.host_files,
             file_requests: Vec::new(),
             asset_bank: Default::default(),
+            picked: None,
+            after_host_save: None,
             host_controls: None,
             host_requests: Vec::new(),
         };
@@ -2392,6 +2403,11 @@ impl EditorApp {
             }
             AfterConfirm::Open(path) => self.open(&path, now),
             AfterConfirm::OpenExample(path) => self.open_example(&path, now),
+            AfterConfirm::OpenPicked => {
+                if let Some((name, bytes)) = self.picked.take() {
+                    self.open_picked(&name, &bytes);
+                }
+            }
             AfterConfirm::Quit => {
                 self.allow_close = true;
                 self.close_now = true;
@@ -2817,6 +2833,9 @@ impl EditorApp {
                     self.save(false, now);
                     if !self.doc.is_dirty() {
                         self.proceed(after, now);
+                    } else if self.host_files {
+                        // The host saves later; go on once it has.
+                        self.after_host_save = Some(after);
                     }
                 }
                 Some(Confirm::Discard) => {

@@ -253,12 +253,19 @@ impl EditorApp {
             self.epoch += 1;
         }
         self.say(format!("Saved {name}"), now);
+        if kind == SaveKind::Project
+            && !self.doc.is_dirty()
+            && let Some(after) = self.after_host_save.take()
+        {
+            self.proceed(after, now);
+        }
     }
 
     /// The host couldn't save (or the person cancelled: `error` is `None`).
     pub fn file_not_saved(&mut self, error: Option<&str>) {
         let now = self.clock.last;
         self.pack_after_save = false;
+        self.after_host_save = None;
         if let Some(e) = error {
             self.warn(format!("Couldn't save: {e}"), now);
         }
@@ -281,7 +288,8 @@ impl EditorApp {
 
     /// Open a file the person picked: a project, a pack (with its audio
     /// files), or a block file (into the library). `name` is the file's
-    /// name, which says which it is.
+    /// name, which says which it is. A project or pack asks about unsaved
+    /// changes first; a block file only joins the library.
     pub fn open_file(&mut self, name: &str, bytes: &[u8]) {
         let now = self.clock.last;
         let lower = name.to_ascii_lowercase();
@@ -291,6 +299,14 @@ impl EditorApp {
             self.import_block_text(&text, &hint, name, now);
             return;
         }
+        self.picked = Some((name.to_string(), bytes.to_vec()));
+        self.request(AfterConfirm::OpenPicked, now);
+    }
+
+    /// Replace the document with a project or pack the host handed over.
+    pub(super) fn open_picked(&mut self, name: &str, bytes: &[u8]) {
+        let now = self.clock.last;
+        let lower = name.to_ascii_lowercase();
         if lower.ends_with(&format!(".{}", ac_io::PACK_EXTENSION)) {
             match ac_io::unpack_in_memory(bytes) {
                 Ok(mut u) => {
