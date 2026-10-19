@@ -38,7 +38,7 @@ serde_json.workspace = true
 hound.workspace = true
 assert_no_alloc.workspace = true
 # CLAP and VST3 wrappers. The `vst3` feature uses the MIT/Apache `vst3`
-# bindings (DECISIONS D116); no default logger; the window comes with the
+# bindings (DECISIONS D118); no default logger; the window comes with the
 # `editor` feature.
 nice-plug = { version = "0.4.2", default-features = false, features = ["vst3"] }
 

@@ -17,18 +17,28 @@ fixes and smaller changes.
 
 - **Audio Constructor as a plugin**: one library holds two plugins, in
   CLAP and VST3 formats. **Audio Constructor Effect** takes the host's
-  audio and notes; **Audio Constructor Instrument** plays the host's
-  notes. A project's Audio In, Audio Out, and MIDI In nodes are the
-  plugin's ports. The host sets the sample rate and block size, and the
-  patch can follow its transport.
+  audio (stereo, mono, or mono in and stereo out) and its notes; **Audio
+  Constructor Instrument** plays the host's notes, and notes from MIDI Out
+  nodes go back to the host. A project's Audio In, Audio Out, and MIDI In
+  nodes are the plugin's ports. The host sets the sample rate and block
+  size, and the patch plays, stops, and jumps with the host's transport
+  (it keeps its own tempo).
+- A new Effect starts as a level control on Macro 1; a new Instrument as
+  an eight-voice synth with its cutoff, resonance, envelope amount, and
+  level on Macros 1 to 4.
 - Sixteen **macro** parameters (`Macro 1` to `Macro 16`) are what the host
   automates. Bind any input to one, the same way as a MIDI controller, and
-  the host's automation moves it on the right sample.
+  the host's automation moves it on the right sample. The host's readout
+  shows the value a macro sets ("-12 dB", "1.2 kHz") rather than a bare
+  number. In project files, a macro binding's source is
+  `{"type": "macro", "number": 3}`.
 - The host saves the project, its audio files, and the macro values with
-  its session, and reopens them as they were. A saved state that can't be
-  read leaves a working default patch, never a broken plugin.
+  its session, and reopens them as they were, on any machine. A saved
+  state that can't be read leaves a working default patch, never a broken
+  plugin.
 - `python3 scripts/bundle_plugin.py` builds the `.clap` and `.vst3`
-  bundles (`--install` copies them into your plugin folders).
+  bundles (`--install` copies them into your plugin folders). The guide
+  has a new chapter on the plugin.
 
 ## [0.9.0] - 2026-10-18
 

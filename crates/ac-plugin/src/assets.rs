@@ -1,6 +1,6 @@
 //! The plugin's audio assets: the bytes of every audio file the project's
 //! nodes reference, kept in memory and saved inside the plugin state
-//! (DECISIONS D118), so a host session carries its samples with it.
+//! (DECISIONS D120), so a host session carries its samples with it.
 //!
 //! Keys are the paths as node configs write them (relative to the folder
 //! the project came from, or absolute), so a project loaded from a file
