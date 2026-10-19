@@ -79,7 +79,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Sampler` | P2 | Plays a `Buffer` (or, unwired, an audio file) with pitch (`note` against a `root` config), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
 | `Wavetable` | P2 | Scans a table (from a `Buffer` or the built-in sine → triangle → saw → square set) with `position: Float` morphing; band-limited per octave; `freq`, `phase`, `sync`, `fm`. |
 | `Impulse` | P2 | A single-sample click on `trigger`; for testing filters and building percussion. |
-| `Granular` | P3 | Grain cloud over a `Buffer`: grain size, density, spray, pitch, each a socket. |
+| `Granular` | P3 | Grain cloud over a `Buffer` (or, unwired, a `file`): `position`, `size`, `density`, `spray`, `pitch`, `spread`, `gain`, each a socket read as each grain starts; Hann grains, at most 128 at once, levelled by overlap; seeded scatter; generator contract (`start`/`stop`/`reset`, `playing`, `end`). |
 
 ## Level, dynamics, shaping
 

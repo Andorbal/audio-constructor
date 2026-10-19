@@ -60,6 +60,8 @@ fn buffer_and_configured_nodes_process_without_allocating() {
             json!({ "unit": "beats", "points": [[0, 1, "step"], [0.5, -1, "smooth"], [1, 0, 0.7]] }),
         ),
         ("noise", json!({ "seed": 42 })),
+        ("granular", json!({})),
+        ("granular", json!({ "file": "assets/x.wav", "seed": 9 })),
         (
             "shaper",
             json!({ "points": [[-1, 1], [0, 0, "smooth"], [1, 1]] }),

@@ -281,6 +281,27 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "seconds",
             },
         )],
+        "granular" => vec![
+            f("file", "File (when `buffer` is unwired)", Kind::File),
+            f(
+                "seed",
+                "Seed",
+                Kind::Count {
+                    min: 0,
+                    max: 1_000_000,
+                    default: 0,
+                },
+            ),
+        ],
+        "chaos" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
         "sampler" => vec![
             f("file", "File (when `buffer` is unwired)", Kind::File),
             f(

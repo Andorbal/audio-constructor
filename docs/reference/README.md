@@ -10,12 +10,12 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-121 nodes in 13 categories.
+122 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
 | [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
-| [Generators](#generators) | 8 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
+| [Generators](#generators) | 9 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
@@ -54,6 +54,7 @@ Sources of signal over time: oscillators, noise, audio files, samplers, drawn cu
 | Node | What it does |
 | --- | --- |
 | [Clip](generators.md#clip) | Plays an audio file, with looping, reverse, and variable speed. |
+| [Granular](generators.md#granular) | A cloud of grains: tiny, overlapping slices of a recorded sound, each a few milliseconds to a second long, played over and over from around one spot. A plain recording turns into a texture, a pad, or a shimmer, and it can stand still in time. |
 | [Graph](generators.md#graph) | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
 | [Impulse](generators.md#impulse) | A single-sample click on each `trigger`, as a sample-rate `Float`. |
 | [Noise](generators.md#noise) | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |

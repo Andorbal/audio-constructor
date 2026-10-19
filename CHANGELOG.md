@@ -36,6 +36,12 @@ fixes and smaller changes.
   man's, a woman's, or a child's voice puts them for a, e, i, o, and u;
   `vowel` morphs between them, `shift` moves them up or down, and an LFO
   or envelope on `vowel` makes a synth talk.
+- **Granular** (Generators): a cloud of tiny overlapping grains of a
+  recording, from a wired buffer (a Record node's take) or a file. Set
+  where grains read (`position`), how long they are (`size`), how many
+  start a second (`density`), how far they scatter (`spray`), their pitch,
+  and how wide they spread in stereo. It turns a phrase into a texture, a
+  pad, or a frozen, playable tone, and repeats exactly in every render.
 - **Spectral Freeze** (Spectral): between an FFT and an IFFT, `hold`
   catches the sound of one moment and keeps it ringing as a smooth drone
   for as long as it's on, each partial still at its own pitch; `glide`
