@@ -2535,6 +2535,12 @@ impl EditorApp {
                 self.doc.mark_saved();
                 // Saving moved the project, relinked its files, or kept its view.
                 self.epoch += 1;
+                if self.in_host() {
+                    // The host holds the audio; it writes it beside the file.
+                    self.host_requests.push(HostRequest::WriteAssets {
+                        dir: files::project_dir(&path),
+                    });
+                }
                 self.recent.add(&path);
                 if assets_changed {
                     self.reload_assets();

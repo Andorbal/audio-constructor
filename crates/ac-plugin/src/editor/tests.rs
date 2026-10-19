@@ -226,6 +226,32 @@ fn new_and_picked_files_go_to_the_session() {
         assert!(session.assets().get(&file).is_some(), "kept in the state");
         assert!(session.save_state().contains(&file));
     }
+    // Save As writes the project, and the session writes its audio beside it.
+    let saved = dir.join("saved").join("p.acproj");
+    std::fs::create_dir_all(dir.join("saved")).unwrap();
+    h.state_mut().editor.save_to(&saved, 0.0);
+    assert!(
+        h.state()
+            .editor
+            .status()
+            .is_some_and(|s| s.starts_with("Saved")),
+        "{:?}",
+        h.state().editor.status()
+    );
+    h.run_steps(2);
+    let file = {
+        let session = ctx.shared.lock();
+        session.project().graph.node(NodeId(99)).unwrap().config["file"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    };
+    assert!(saved.is_file());
+    assert_eq!(
+        std::fs::read(dir.join("saved").join(&file)).unwrap(),
+        std::fs::read(&wav).unwrap(),
+        "the file as it was picked"
+    );
     // File ▸ New: the instrument's default comes back.
     press(&mut h, Modifiers::COMMAND, Key::N);
     // Unsaved changes are asked about first.
@@ -242,6 +268,21 @@ fn new_and_picked_files_go_to_the_session() {
         h.state().editor.document().project.graph,
         crate::defaults::project(Kind::Instrument).graph
     );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn audio_files_are_written_only_inside_the_folder() {
+    let dir = std::env::temp_dir().join(format!("ac-plugin-write-{}", std::process::id()));
+    let mut bank = crate::assets::AssetBank::default();
+    let wav = crate::assets::wav_bytes(48_000, &[vec![0.1; 8]]);
+    for key in ["assets/a.wav", "../escape.wav", "/abs/b.wav"] {
+        bank.insert(key, wav.clone()).unwrap();
+    }
+    frame::write_assets(&bank, &dir.join("in")).unwrap();
+    assert_eq!(std::fs::read(dir.join("in/assets/a.wav")).unwrap(), wav);
+    assert!(!dir.join("escape.wav").exists());
+    assert!(!std::path::Path::new("/abs/b.wav").exists());
     std::fs::remove_dir_all(&dir).ok();
 }
 

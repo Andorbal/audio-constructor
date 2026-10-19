@@ -135,9 +135,38 @@ fn run_requests(session: &mut Session, editor: &mut EditorApp) -> bool {
                 }
                 editor.set_host_assets(store_of(session.assets()));
             }
+            HostRequest::WriteAssets { dir } => {
+                if let Err(e) = write_assets(session.assets(), &dir) {
+                    editor.tell(format!("Saved, but its audio files: {e}"), true);
+                }
+            }
         }
     }
     asked
+}
+
+/// The audio files the session holds, written into `dir` at the paths the
+/// project refers to them by (a Save As from the plugin), as they were
+/// read. Files already there stay; paths that would leave `dir` (`..`, a
+/// root) and absolute ones are skipped.
+pub(crate) fn write_assets(bank: &AssetBank, dir: &Path) -> Result<(), String> {
+    use std::path::Component;
+    for (key, asset) in bank.iter() {
+        let rel = Path::new(key);
+        if !rel.components().all(|c| matches!(c, Component::Normal(_))) {
+            continue;
+        }
+        let dst = dir.join(rel);
+        if dst.exists() {
+            continue;
+        }
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        }
+        std::fs::write(&dst, asset.bytes.as_slice())
+            .map_err(|e| format!("{}: {e}", dst.display()))?;
+    }
+    Ok(())
 }
 
 /// The session's audio files as the editor shows them (shared, not

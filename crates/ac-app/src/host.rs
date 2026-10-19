@@ -27,6 +27,10 @@ pub enum HostRequest {
     /// picked for a Clip, or one found for a missing reference). The
     /// document already refers to it.
     AddAsset { path: String, bytes: Vec<u8> },
+    /// Save As wrote the project into this folder: write the audio files
+    /// the host holds beside it, at the paths the project refers to them
+    /// by, so the project opens with its sound in the app.
+    WriteAssets { dir: PathBuf },
 }
 
 /// One of the host's automatable parameters (a plugin's macros), as the
