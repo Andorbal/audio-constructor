@@ -7,40 +7,35 @@ use ac_engine::Severity;
 use egui::RichText;
 
 use super::{PanelIo, PanelRequest, section};
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
 /// A Plugin node's plugin: its description, whether it runs here, and a
 /// button for its window.
 pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &NodeInstance) {
-    section(ui, "Plugin");
+    section(ui, &tr("section-plugin"));
     let Some(desc) = PluginDesc::from_config(&node.config) else {
-        ui.label(
-            RichText::new(
-                "No plugin chosen. Add one from the palette (Shift+A) or the Library tab, \
-                 where the plugins installed on this computer are listed by name.",
-            )
-            .color(theme::text_muted()),
-        );
+        ui.label(RichText::new(tr("plugin-none-chosen")).color(theme::text_muted()));
         return;
     };
     egui::Grid::new(("plugin-info", id))
         .num_columns(2)
         .spacing(egui::vec2(10.0, 4.0))
         .show(ui, |ui| {
-            let mut row = |label: &str, value: &str| {
+            let mut row = |label: String, value: &str| {
                 if !value.is_empty() {
                     ui.label(RichText::new(label).color(theme::text_muted()));
                     ui.label(value);
                     ui.end_row();
                 }
             };
-            row("Name", &desc.name);
-            row("Vendor", &desc.vendor);
-            row("Kind", &crate::plugins::kind_label(&desc));
-            row("Version", &desc.version);
-            row("Id", &desc.id);
-            row("Found at", &desc.path);
+            row(tr("plugin-name"), &desc.name);
+            row(tr("plugin-vendor"), &desc.vendor);
+            row(tr("plugin-kind"), &crate::plugins::kind_label(&desc));
+            row(tr("plugin-version"), &desc.version);
+            row(tr("plugin-id"), &desc.id);
+            row(tr("plugin-found-at"), &desc.path);
         });
     let path = io.doc.node_path(id);
     let key = path.to_string();
@@ -55,45 +50,41 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node
     if let Some(p) = &problem {
         ui.colored_label(theme::warning(), format!("{}  {p}", icons::WARNING));
         ui.label(
-            RichText::new(
-                "Its sockets and wires stay, so the project works again on a computer \
-                 that has it. Installed it just now? Rescan in the Devices tab.",
-            )
-            .small()
-            .color(theme::text_muted()),
+            RichText::new(tr("plugin-missing-note"))
+                .small()
+                .color(theme::text_muted()),
         );
     } else if running {
-        ui.label(RichText::new("Running").color(theme::text_strong()));
+        ui.label(RichText::new(tr("plugin-running")).color(theme::text_strong()));
     } else if io.plugins.is_none() {
-        ui.label(RichText::new("Plugins don't run in this editor.").color(theme::text_muted()));
+        ui.label(RichText::new(tr("plugin-not-hosted")).color(theme::text_muted()));
     }
     ui.horizontal(|ui| {
         let has_window = running && crate::plugins::has_window(&key);
         let b = ui
             .add_enabled(
                 has_window,
-                egui::Button::new(format!("{}  Show Plugin Window", icons::APP_WINDOW)),
+                egui::Button::new(format!(
+                    "{}  {}",
+                    icons::APP_WINDOW,
+                    tr("plugin-show-window")
+                )),
             )
-            .on_hover_text("The plugin's own interface, in a window of its own")
+            .on_hover_text(tr("plugin-show-window-tip"))
             .on_disabled_hover_text(if running {
-                "This plugin has no window of its own"
+                tr("plugin-no-window-tip")
             } else {
-                "The plugin isn't running"
+                tr("plugin-not-running-tip")
             });
         if b.clicked() {
             io.requests.push(PanelRequest::ShowPluginWindow(id));
         }
     });
-    let mut note = String::from(
-        "Its parameters are the inputs above: moving one in the plugin's window moves it \
-         here too. Saving the project saves everything the plugin keeps.",
-    );
-    if !io.doc.scope.is_empty() {
-        note.push_str(
-            " Inside a group the plugin's parameters are saved, but not the rest of its \
-             state (every instance of the group shares the node).",
-        );
-    }
+    let note = if io.doc.scope.is_empty() {
+        tr("plugin-params-note")
+    } else {
+        tr("plugin-params-note-in-group")
+    };
     ui.label(RichText::new(note).small().color(theme::text_muted()));
 }
 
@@ -102,16 +93,18 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
     let Some(p) = io.plugins else {
         return;
     };
-    section(ui, "Plugins");
+    section(ui, &tr("section-plugins"));
     let count = |f: PluginFormat| p.list().iter().filter(|d| d.format == f).count();
     let line = if p.scanning() {
-        "Looking for plugins…".to_string()
+        tr("plugins-looking")
     } else {
-        format!(
-            "{} found: {} CLAP, {} VST3",
-            p.list().len(),
-            count(PluginFormat::Clap),
-            count(PluginFormat::Vst3)
+        tr_args(
+            "plugins-found",
+            &[
+                ("count", p.list().len().into()),
+                ("clap", count(PluginFormat::Clap).into()),
+                ("vst3", count(PluginFormat::Vst3).into()),
+            ],
         )
     };
     ui.label(RichText::new(line).color(theme::text_strong()));
@@ -120,16 +113,20 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
         if ui
             .add_enabled(
                 can,
-                egui::Button::new(format!("{}  Rescan", icons::ARROWS_CLOCKWISE)),
+                egui::Button::new(format!(
+                    "{}  {}",
+                    icons::ARROWS_CLOCKWISE,
+                    tr("devices-rescan")
+                )),
             )
-            .on_hover_text("Look for plugins installed or changed since the last scan")
+            .on_hover_text(tr("plugins-rescan-tip"))
             .clicked()
         {
             io.requests.push(PanelRequest::RescanPlugins(false));
         }
         if ui
-            .add_enabled(can, egui::Button::new("Rescan all"))
-            .on_hover_text("Open every plugin again, changed or not")
+            .add_enabled(can, egui::Button::new(tr("plugins-rescan-all")))
+            .on_hover_text(tr("plugins-rescan-all-tip"))
             .clicked()
         {
             io.requests.push(PanelRequest::RescanPlugins(true));
@@ -141,15 +138,24 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
             .map(|d| d.display().to_string())
             .collect();
         ui.label(
-            RichText::new(format!("{} folders: {}", format.name(), dirs.join(", ")))
-                .small()
-                .color(theme::text_muted()),
+            RichText::new(tr_args(
+                "plugins-folders",
+                &[
+                    ("format", format.name().into()),
+                    ("folders", dirs.join(", ").into()),
+                ],
+            ))
+            .small()
+            .color(theme::text_muted()),
         );
     }
     if !p.failed().is_empty() {
         egui::CollapsingHeader::new(
-            RichText::new(format!("{} couldn't be opened", p.failed().len()))
-                .color(theme::warning()),
+            RichText::new(tr_args(
+                "plugins-failed",
+                &[("count", p.failed().len().into())],
+            ))
+            .color(theme::warning()),
         )
         .id_salt("plugins-failed")
         .show(ui, |ui| {
@@ -164,11 +170,8 @@ pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
         });
     }
     ui.label(
-        RichText::new(
-            "Each plugin is opened in a separate process while it's looked at, so one that \
-             crashes is listed here instead of closing the editor.",
-        )
-        .small()
-        .color(theme::text_faint()),
+        RichText::new(tr("plugins-separate-process"))
+            .small()
+            .color(theme::text_faint()),
     );
 }

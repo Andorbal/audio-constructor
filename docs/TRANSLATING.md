@@ -13,6 +13,7 @@ crates/ac-app/locales/
     menus.ftl   the menu bar and every command's name
     panels.ftl  the side panel's tabs, and the node editors
     perform.ftl the panels and performance mode
+    plugins.ftl plugins on this computer: the Node, Devices, and Library tabs
     product.ftl the update check and crash reports
     transport.ftl
     undo.ftl    what Edit ▸ Undo names each step
@@ -23,7 +24,9 @@ documentation and the Help tab's text about each node, socket names and
 types, the settings each node lists in the Node tab, value units, and
 anything in a project (names, notes, panel and frame titles). Those come
 with the nodes and the projects themselves; translating them is future
-work.
+work. Plugin format names (CLAP, VST3) and what a plugin says about
+itself (its name, vendor, and why it failed to load) stay as they are,
+and so do the details of errors the file and device code reports.
 
 ## Adding a language
 

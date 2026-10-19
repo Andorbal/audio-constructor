@@ -1595,12 +1595,14 @@ impl EditorApp {
             let n = p.list().len();
             self.palette.plugins = p.list().to_vec();
             let failed = p.failed().len();
-            let mut msg = format!("Found {n} plugin{}", if n == 1 { "" } else { "s" });
-            if failed > 0 {
-                msg.push_str(&format!(
-                    " ({failed} couldn't be opened: see the Devices tab)"
-                ));
-            }
+            let msg = if failed > 0 {
+                tr_args(
+                    "status-plugins-found-some-failed",
+                    &[("count", n.into()), ("failed", failed.into())],
+                )
+            } else {
+                tr_args("status-plugins-found", &[("count", n.into())])
+            };
             self.say(msg, now);
             // Plugins this project uses may have just been found.
             if crate::plugins::uses_plugins(&self.doc.project) {
@@ -1643,7 +1645,10 @@ impl EditorApp {
     fn show_plugin_window(&mut self, node: NodeId, now: f64) {
         let key = self.doc.node_path(node).to_string();
         if let Err(e) = crate::plugins::show_window(&key) {
-            self.warn(format!("Couldn't open the plugin's window: {e}"), now);
+            self.warn(
+                tr_args("status-plugin-window-failed", &[("error", e.into())]),
+                now,
+            );
         }
     }
 
@@ -2009,7 +2014,7 @@ impl EditorApp {
             PanelRequest::RescanPlugins(fresh) => {
                 if let Some(p) = self.plugins.as_mut() {
                     p.rescan(fresh);
-                    self.say("Looking for plugins…", now);
+                    self.say(tr("plugins-looking"), now);
                 }
             }
             PanelRequest::Locate(path) => self.file_dialog(FilePurpose::Locate(path), now),

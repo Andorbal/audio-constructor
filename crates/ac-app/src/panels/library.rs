@@ -137,19 +137,17 @@ pub(super) fn show(
     }
     let found: Vec<&Candidate> = all.iter().filter(|c| c.kind == PLUGIN_KIND).collect();
     if io.plugins.is_some() {
-        let header = RichText::new(format!("Plugins  ({})", found.len())).color(theme::text());
+        let header = RichText::new(format!("{}  ({})", tr("library-plugins"), found.len()))
+            .color(theme::text());
         egui::CollapsingHeader::new(header)
             .id_salt(("library", "plugins"))
             .default_open(false)
             .show(ui, |ui| {
                 if found.is_empty() {
                     ui.label(
-                        RichText::new(
-                            "No plugins found yet. Install CLAP or VST3 plugins, then rescan \
-                             in the Devices tab.",
-                        )
-                        .small()
-                        .color(theme::text_muted()),
+                        RichText::new(tr("library-no-plugins"))
+                            .small()
+                            .color(theme::text_muted()),
                     );
                 }
                 for c in found {

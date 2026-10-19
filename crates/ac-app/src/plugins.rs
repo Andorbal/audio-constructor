@@ -13,6 +13,7 @@ use ac_core::{Category, PLUGIN_KIND, PluginDesc, Project, Registry, project_plug
 use serde_json::json;
 
 use crate::canvas::PendingWire;
+use crate::i18n::tr_args;
 use crate::palette::{Candidate, pick_socket};
 
 /// The argument a scanning child copy of the editor gets, before the
@@ -328,7 +329,7 @@ mod without {
         false
     }
     pub fn show_window(_node_key: &str) -> Result<(), String> {
-        Err("this editor doesn't host plugins".into())
+        Err(crate::i18n::tr("plugin-not-hosted"))
     }
     pub fn search_paths(_format: PluginFormat) -> Vec<PathBuf> {
         Vec::new()
@@ -342,12 +343,12 @@ pub fn uses_plugins(project: &Project) -> bool {
 
 /// "CLAP instrument", "VST3 effect".
 pub fn kind_label(d: &PluginDesc) -> String {
-    let kind = if d.instrument || (d.audio_in.is_empty() && d.midi_in) {
-        "instrument"
+    let format = d.format.name();
+    if d.instrument || (d.audio_in.is_empty() && d.midi_in) {
+        tr_args("plugin-kind-instrument", &[("format", format.into())])
     } else {
-        "effect"
-    };
-    format!("{} {kind}", d.format.name())
+        tr_args("plugin-kind-effect", &[("format", format.into())])
+    }
 }
 
 /// The palette's (and the Library tab's) entry for a plugin, or `None`
@@ -360,6 +361,7 @@ pub fn candidate(
 ) -> Option<Candidate> {
     let q = query.trim().to_lowercase();
     let label = kind_label(d);
+    // "plugin" is a search word, like the nodes' synonyms (untranslated).
     let haystack = format!("{} {} {label} plugin", d.name, d.vendor).to_lowercase();
     if !q.is_empty() && !q.split_whitespace().all(|w| haystack.contains(w)) {
         return None;
@@ -372,16 +374,19 @@ pub fn candidate(
         }
         None => None,
     };
-    let by = if d.vendor.is_empty() {
-        String::new()
+    let summary = if d.vendor.is_empty() {
+        tr_args("plugin-summary", &[("kind", label.into())])
     } else {
-        format!(" by {}", d.vendor)
+        tr_args(
+            "plugin-summary-by",
+            &[("kind", label.into()), ("vendor", (&d.vendor).into())],
+        )
     };
     Some(Candidate {
         name: d.name.clone(),
         kind: PLUGIN_KIND.to_string(),
         category: Some(Category::Utility),
-        summary: format!("A {label}{by}, installed on this computer."),
+        summary,
         config,
         socket,
         block: None,
