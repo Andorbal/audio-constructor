@@ -1193,6 +1193,14 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         {
             io.requests.push(PanelRequest::SaveBlock(d.clone()));
         }
+        if icons::spoken(ui.button(format!("{}  {}", icons::EXPORT, tr("library-export"))))
+            .on_hover_text(tr("node-tab-export-block-tip"))
+            .clicked()
+        {
+            io.requests.push(PanelRequest::ExportBlock(
+                crate::dialogs::BlockToExport::Def(d.clone()),
+            ));
+        }
         if let Some(u) = update
             && icons::spoken(ui.button(format!(
                 "{}  {}",

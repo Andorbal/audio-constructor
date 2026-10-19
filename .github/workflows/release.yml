@@ -76,14 +76,16 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            archive: tar.gz
           - os: macos-latest
             target: aarch64-apple-darwin
-            archive: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            archive: zip
     runs-on: ${{ matrix.os }}
+    env:
+      # Signing happens when these secrets exist (docs/guide/install.md,
+      # "Signed builds"); without them the packages are built unsigned.
+      HAS_MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+      HAS_WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE_PFX != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,36 +93,65 @@ jobs:
       - name: Install system libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress }
+          "${env:ProgramFiles(x86)}\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: rustup show
+      - name: Put the signing identities in a keychain (macOS)
+        if: runner.os == 'macOS' && env.HAS_MACOS_CERTIFICATE == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          pw=$(openssl rand -base64 24)
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificates.p12"
+          security import "$RUNNER_TEMP/certificates.p12" -k "$kc" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/productsign
+          rm "$RUNNER_TEMP/certificates.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc" > /dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+      - name: Put the signing certificate in a file (Windows)
+        if: runner.os == 'Windows' && env.HAS_WINDOWS_CERTIFICATE == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "certificate.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX))
+          "WINDOWS_CERTIFICATE=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append
       # An explicit target fails the build, rather than mislabeling the
-      # archive, if a runner image ever changes architecture. The release
+      # packages, if a runner image ever changes architecture. The release
       # profile's line tables would make the Linux editor ~170 MB; dropping
       # them (symbols stay, so backtraces still name functions) makes it ~35.
-      - run: cargo build --release --locked --target ${{ matrix.target }} -p ac-cli -p ac-app
+      - name: Build and package
+        shell: bash
         env:
           CARGO_PROFILE_RELEASE_STRIP: debuginfo
-      - name: Package
-        shell: bash
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          MACOS_INSTALLER_IDENTITY: ${{ secrets.MACOS_INSTALLER_IDENTITY }}
+          MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+          MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+          MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          name="audio-constructor-v${{ needs.plan.outputs.version }}-${{ matrix.target }}"
-          exe=""
-          if [ "$RUNNER_OS" = Windows ]; then exe=".exe"; fi
-          mkdir -p "dist/$name"
-          for bin in audio-constructor audioc; do
-            cp "target/${{ matrix.target }}/release/$bin$exe" "dist/$name/"
-          done
-          # The editor opens examples/start.acproj from next to its executable.
-          cp -R README.md LICENSE CHANGELOG.md examples "dist/$name/"
-          cd dist
-          if [ "${{ matrix.archive }}" = zip ]; then
-            7z a -tzip "$name.zip" "$name" > /dev/null
-          else
-            tar -czf "$name.tar.gz" "$name"
-          fi
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/package.py --build --target ${{ matrix.target }} --out dist
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.target }}
-          path: dist/*.${{ matrix.archive }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.pkg
+            dist/*-setup.exe
           if-no-files-found: error
 
   publish:
@@ -145,6 +176,7 @@ jobs:
           SHA: ${{ needs.plan.outputs.sha }}
         run: |
           python3 scripts/release.py notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          (cd dist && sha256sum -- * > SHA256SUMS.txt)
           gh release create "v$VERSION" dist/* \
             --target "$SHA" \
             --title "v$VERSION" \

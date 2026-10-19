@@ -22,6 +22,17 @@ pub enum FilePurpose {
     ExportPack,
     /// A block file to add to the library.
     ImportBlock,
+    /// Where to write a block file (and its preview, beside it).
+    ExportBlock(BlockToExport),
+}
+
+/// Which block an export writes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlockToExport {
+    /// A group definition in the project.
+    Def(ac_core::GroupId),
+    /// A block in the library.
+    Library(ac_core::BlockSource),
 }
 
 impl FilePurpose {
@@ -34,6 +45,7 @@ impl FilePurpose {
             FilePurpose::Locate(_) => tr("dialog-locate-title"),
             FilePurpose::ExportPack => tr("dialog-export-pack-title"),
             FilePurpose::ImportBlock => tr("dialog-import-block-title"),
+            FilePurpose::ExportBlock(_) => tr("dialog-export-block-title"),
         }
     }
 
@@ -41,7 +53,10 @@ impl FilePurpose {
     fn saving(&self) -> bool {
         matches!(
             self,
-            FilePurpose::SaveAs | FilePurpose::Export | FilePurpose::ExportPack
+            FilePurpose::SaveAs
+                | FilePurpose::Export
+                | FilePurpose::ExportPack
+                | FilePurpose::ExportBlock(_)
         )
     }
 }
@@ -71,7 +86,9 @@ pub fn native(
         FilePurpose::SaveAs => d.add_filter(tr("dialog-filter-project"), &["acproj"]),
         FilePurpose::Export => d.add_filter(tr("dialog-filter-wav"), &["wav"]),
         FilePurpose::ExportPack => d.add_filter(tr("dialog-filter-pack"), &["acpack"]),
-        FilePurpose::ImportBlock => d.add_filter(tr("dialog-filter-block"), &["acblock"]),
+        FilePurpose::ImportBlock | FilePurpose::ExportBlock(_) => {
+            d.add_filter(tr("dialog-filter-block"), &["acblock"])
+        }
         FilePurpose::ChooseClip(_) | FilePurpose::Locate(_) => {
             d.add_filter(tr("dialog-filter-wav"), &["wav", "wave"])
         }

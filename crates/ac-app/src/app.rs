@@ -27,6 +27,7 @@ use crate::host::{HostControls, HostRequest};
 use crate::i18n::{self, Language, LanguageChoice, tr, tr_args};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
+use crate::online::Online;
 use crate::palette::{Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
@@ -171,6 +172,9 @@ pub struct EditorApp {
     themes: UserThemes,
     /// The language the editor shows (View ▸ Language, resolved).
     language: Language,
+    /// The update check and crash reports (desktop only, D173, D174).
+    #[cfg(not(target_arch = "wasm32"))]
+    product: Option<crate::product::Product>,
     /// The editor's time, kept from going backwards when it moves to
     /// another context (a reopened plugin window's clock starts at zero).
     clock: Clock,
@@ -184,6 +188,9 @@ pub struct EditorApp {
     host_controls: Option<Box<dyn HostControls>>,
     /// What the editor asked of a host that keeps the project.
     host_requests: Vec<HostRequest>,
+    /// Shared libraries, imports from links, block exports, and the
+    /// preview playing (`online.rs`).
+    pub online: Online,
 }
 
 /// Where the document is in its history: equal stamps, same project.
@@ -224,6 +231,24 @@ impl EditorApp {
         let app = EditorApp::embedded(opts);
         app.apply_settings(ctx);
         app
+    }
+
+    /// Turns on the update check and crash reports (the desktop editor;
+    /// a plugin's host and the browser have their own): offers unseen
+    /// crash reports, and checks for a newer release if it's time.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn enable_product(&mut self, ctx: &egui::Context, opts: crate::product::ProductOptions) {
+        self.product = Some(crate::product::Product::start(
+            opts,
+            &mut self.settings,
+            ctx,
+        ));
+    }
+
+    /// The update check and crash reports, when turned on.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn product(&self) -> Option<&crate::product::Product> {
+        self.product.as_ref()
     }
 
     /// An editor made before anything shows it: a plugin's, which lives as
@@ -306,6 +331,14 @@ impl EditorApp {
         if path.is_some() {
             library.import_unknown(&project);
         }
+        let mut online = Online::with_libraries(&opts.settings.prefs.libraries);
+        // A library kept on disk means a real session: downloads go where
+        // the person keeps them and previews are cached. In memory (tests),
+        // nothing outside the session is written.
+        if opts.library.is_some() {
+            online.cache_dir = ac_io::library::preview_cache_dir();
+            online.download_dir = crate::online::default_download_dir();
+        }
         let doc = Document::new(project, path.clone(), base, opts.seed);
         let mut recent = opts.recent;
         if let Some(p) = &path {
@@ -336,6 +369,8 @@ impl EditorApp {
             timing: crate::timing::Timings::default(),
             show_shortcuts: false,
             show_about: false,
+            #[cfg(not(target_arch = "wasm32"))]
+            product: None,
             title: String::new(),
             allow_close: false,
             loop_sent: None,
@@ -359,6 +394,7 @@ impl EditorApp {
             host_seen: (0, 0, 0),
             host_controls: None,
             host_requests: Vec::new(),
+            online,
         };
         // A plugin window can't go full screen: performance mode fills
         // the window instead.
@@ -1000,6 +1036,7 @@ impl EditorApp {
                     .inner_margin(egui::Margin::symmetric(8, 3)),
             )
             .show(ui, |ui| {
+                let updates = self.update_menu();
                 let examples = self.side.help.examples();
                 let state = MenuState {
                     undo: self.doc.undo_label(),
@@ -1021,6 +1058,7 @@ impl EditorApp {
                     examples,
                     registry: &self.registry,
                     can_quit: self.engine.hosted().is_none(),
+                    updates,
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -1075,6 +1113,7 @@ impl EditorApp {
                         requests: Vec::new(),
                         now,
                         host: self.host_controls.as_mut(),
+                        online: &self.online,
                     };
                     self.side.show(ui, &mut io);
                     let reqs = std::mem::take(&mut io.requests);
@@ -1213,6 +1252,14 @@ impl EditorApp {
                     ))
                     .small(),
                 );
+            } else if let Some(link) = self.online.importing.first() {
+                ui.spinner();
+                ui.label(
+                    RichText::new(tr_args("status-downloading", &[("link", link.into())])).small(),
+                );
+            } else if self.online.exporting > 0 {
+                ui.spinner();
+                ui.label(RichText::new(tr("status-exporting-block")).small());
             } else if self.play_keys.is_on() {
                 let stop = Action::PlayKeys
                     .shortcut()
@@ -1302,6 +1349,7 @@ impl EditorApp {
 
     fn finish_frame(&mut self, ctx: &egui::Context, now: f64) {
         self.sync_engine(now);
+        self.poll_online(ctx, now);
 
         if let Some((path, rx)) = &self.export_job
             && let Ok(r) = rx.try_recv()
@@ -1804,6 +1852,13 @@ impl EditorApp {
             PanelRequest::Learn(target) => self.start_learn(target),
             PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
             PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
+            PanelRequest::Preview(key) => self.toggle_preview(key, now),
+            PanelRequest::ExportBlock(what) => {
+                self.file_dialog(FilePurpose::ExportBlock(what), now)
+            }
+            PanelRequest::RefreshLibrary(link) => self.online.refresh(&link),
+            PanelRequest::RemoveLibrary(link) => self.remove_shared_library(&link, now),
+            PanelRequest::Install { link, id } => self.online.install(&link, &id),
             PanelRequest::SwitchAudio(config) => {
                 let resources = self.resources();
                 self.engine
@@ -1838,6 +1893,29 @@ impl EditorApp {
             MenuCommand::OpenThemesFolder => self.open_themes_folder(now),
             MenuCommand::SetLanguage(l) => self.set_language(l, now),
             MenuCommand::SetUiScale(s) => self.set_ui_scale(ctx, s, now),
+            #[cfg(not(target_arch = "wasm32"))]
+            MenuCommand::CheckForUpdates => {
+                if let Some(p) = &mut self.product {
+                    p.check(ctx, true);
+                }
+            }
+            MenuCommand::SetUpdateChecks(on) => {
+                use crate::settings::UpdateChecks;
+                let to = if on {
+                    UpdateChecks::Daily
+                } else {
+                    UpdateChecks::Off
+                };
+                self.settings.set_update_checks(to);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            MenuCommand::ReportProblem => {
+                if let Some(p) = &mut self.product {
+                    p.report_problem(ctx);
+                }
+            }
+            #[cfg(target_arch = "wasm32")]
+            MenuCommand::CheckForUpdates | MenuCommand::ReportProblem => {}
             MenuCommand::Add(c) => {
                 let at = self.canvas.pointer_canvas();
                 let feed = self.feed_order();
@@ -2155,6 +2233,7 @@ impl EditorApp {
         match a {
             Action::New => self.request(AfterConfirm::New, now),
             Action::Open => self.file_dialog(FilePurpose::Open, now),
+            Action::ImportFromLink => self.open_link_dialog(),
             Action::Save => self.save(false, now),
             Action::SaveAs => self.save(true, now),
             Action::ExportWav => self.file_dialog(FilePurpose::Export, now),
@@ -2936,6 +3015,19 @@ impl EditorApp {
                 .path
                 .as_ref()
                 .map(|p| p.with_extension(ac_io::PACK_EXTENSION)),
+            FilePurpose::ExportBlock(what) => {
+                let dir = self
+                    .doc
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.parent())
+                    .map_or_else(home, Path::to_path_buf);
+                Some(dir.join(format!(
+                    "{}.{}",
+                    ac_core::slug(&self.export_name(what)),
+                    ac_core::BLOCK_EXTENSION
+                )))
+            }
             _ => self
                 .doc
                 .path
@@ -2976,6 +3068,7 @@ impl EditorApp {
             }
             FilePurpose::ExportPack => self.export_pack_to(&path, now),
             FilePurpose::ImportBlock => self.import_block_file(&path, now),
+            FilePurpose::ExportBlock(what) => self.export_block_to(&what, path, now),
             FilePurpose::Export => self.export(path, now),
             FilePurpose::ChooseClip(node) => self.assign_clip(node, &path, now),
             FilePurpose::Locate(old) => match self.import_audio(&path) {
@@ -3097,8 +3190,23 @@ impl EditorApp {
                 None => self.dialog_cancelled(&purpose),
             }
         }
+        self.link_dialog(ctx, now);
         dialogs::shortcuts(ctx, &mut self.show_shortcuts);
         dialogs::about(ctx, &mut self.show_about);
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(p) = &mut self.product {
+            p.ui(ctx, &mut self.settings);
+        }
+    }
+
+    /// Help's update entries: whether daily checks are on, or `None` where
+    /// the editor doesn't check (a plugin, the browser).
+    fn update_menu(&self) -> Option<bool> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.product.is_some() {
+            return Some(self.settings.prefs.update_checks == crate::settings::UpdateChecks::Daily);
+        }
+        None
     }
 }
 

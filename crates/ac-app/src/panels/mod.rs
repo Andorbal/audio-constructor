@@ -88,6 +88,19 @@ pub enum PanelRequest {
     OpenExample(std::path::PathBuf),
     /// Run an editor command.
     Run(crate::actions::Action),
+    /// Play a block's preview, or stop it if it's playing.
+    Preview(crate::online::PreviewKey),
+    /// Write a block file (with its preview) somewhere to share.
+    ExportBlock(crate::dialogs::BlockToExport),
+    /// Read, or read again, the shared library at this link.
+    RefreshLibrary(String),
+    /// Stop listing the shared library at this link.
+    RemoveLibrary(String),
+    /// Download a block from a shared library into the library.
+    Install {
+        link: String,
+        id: String,
+    },
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -158,6 +171,8 @@ pub struct PanelIo<'a> {
     pub now: f64,
     /// The host's automatable parameters (a plugin's macros), if any.
     pub host: Option<&'a mut Box<dyn crate::host::HostControls>>,
+    /// Shared libraries, imports in progress, and the preview playing.
+    pub online: &'a crate::online::Online,
 }
 
 /// Set one config key on a node, as one undo step ("Change setting").

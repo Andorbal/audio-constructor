@@ -13,6 +13,7 @@ crates/ac-app/locales/
     menus.ftl   the menu bar and every command's name
     panels.ftl  the side panel's tabs, and the node editors
     perform.ftl the panels and performance mode
+    product.ftl the update check and crash reports
     transport.ftl
     undo.ftl    what Edit ▸ Undo names each step
 ```

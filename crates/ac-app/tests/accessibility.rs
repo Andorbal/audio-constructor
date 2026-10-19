@@ -149,6 +149,15 @@ fn every_interactive_thing_in_the_main_window_has_a_name() {
         h.state_mut().side.tab = tab;
         h.run_steps(3);
         assert_all_labelled(&h, &format!("the canvas with the {tab:?} tab"));
+        if tab == Tab::Library {
+            // A block's play button is only an icon: it says what it plays.
+            let plays = h
+                .query_all_by_role(Role::Button)
+                .filter_map(|n| n.accesskit_node().label())
+                .filter(|l| l.starts_with("Play preview of "))
+                .count();
+            assert!(plays > 3, "the shipped blocks' play buttons ({plays})");
+        }
     }
     // The panels (the performance view).
     press(&mut h, Modifiers::COMMAND, Key::Tab);

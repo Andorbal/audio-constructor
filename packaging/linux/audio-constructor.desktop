@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Audio Constructor
+GenericName=Audio Construction Suite
+Comment=Build instruments and effects from nodes
+Exec=audio-constructor %f
+Icon=audio-constructor
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Music;
+MimeType=application/x-audio-constructor-project;application/x-audio-constructor-pack;application/x-audio-constructor-block;
+Keywords=synthesizer;effects;modular;patch;nodes;
+StartupWMClass=audio-constructor

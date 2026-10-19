@@ -1,15 +1,19 @@
 //! The Library tab: every node by category, the blocks in the library
-//! (shipped, the person's own, and imported), and the groups in this
-//! project, searchable with the palette's engine. Click to add at the
-//! center of the view, or drag onto the canvas.
+//! (shipped, the person's own, and imported), the shared libraries added
+//! by link, and the groups in this project, searchable with the palette's
+//! engine. Click to add at the center of the view, or drag onto the
+//! canvas; the play button on a block plays its preview over the patch.
 
 use ac_core::{Category, GROUP_KIND, Origin};
+use ac_io::index::IndexBlock;
 use ac_io::{Library, LibraryBlock};
-use egui::{Align2, Color32, RichText, Sense, vec2};
+use egui::{Align2, Color32, Rect, RichText, Sense, vec2};
 
 use super::{PanelIo, PanelRequest, markdown, section};
+use crate::dialogs::BlockToExport;
 use crate::i18n::{self, tr, tr_args};
 use crate::icons;
+use crate::online::{LibraryState, Playing, PreviewKey, SharedLibrary, can_preview};
 use crate::palette::{self, Candidate};
 use crate::theme;
 
@@ -227,16 +231,358 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
         block_row(ui, io, b);
     }
     ui.add_space(4.0);
-    if icons::spoken(ui.button(format!(
-        "{}  {}",
-        icons::DOWNLOAD_SIMPLE,
-        tr("library-import")
-    )))
-    .on_hover_text(tr("library-import-tip"))
-    .clicked()
-    {
-        io.requests.push(PanelRequest::ImportBlockFile);
+    ui.horizontal_wrapped(|ui| {
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::DOWNLOAD_SIMPLE,
+            tr("library-import")
+        )))
+        .on_hover_text(tr("library-import-tip"))
+        .clicked()
+        {
+            io.requests.push(PanelRequest::ImportBlockFile);
+        }
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::LINK,
+            crate::actions::Action::ImportFromLink.label()
+        )))
+        .on_hover_text(tr("library-import-link-tip"))
+        .clicked()
+        {
+            io.requests
+                .push(PanelRequest::Run(crate::actions::Action::ImportFromLink));
+        }
+    });
+    shared_libraries(ui, io, query);
+}
+
+/// `widget` at `rect`, over what's drawn there, without moving the
+/// layout's cursor (`Ui::put` would move it back up into the row). `salt`
+/// tells the rows' buttons apart.
+fn put_over(
+    ui: &mut egui::Ui,
+    salt: impl std::hash::Hash + std::fmt::Debug,
+    rect: Rect,
+    widget: impl egui::Widget,
+) -> egui::Response {
+    ui.new_child(egui::UiBuilder::new().id_salt(salt).max_rect(rect))
+        .put(rect, widget)
+}
+
+/// The play button on `name`'s row: plays `key`'s preview, or stops it.
+/// It shows only an icon, so it says what it does to screen readers.
+fn preview_button(
+    ui: &mut egui::Ui,
+    io: &mut PanelIo,
+    rect: Rect,
+    key: PreviewKey,
+    name: &str,
+    tip: String,
+) {
+    let args = [("name", name.into())];
+    let (icon, tip, spoken) = match &io.online.playing {
+        Playing::Playing(k, _) if *k == key => (
+            icons::STOP,
+            tr("library-preview-stop-tip"),
+            tr_args("library-preview-stop", &args),
+        ),
+        Playing::Loading(k) if *k == key => (
+            icons::DOTS_THREE,
+            tr("library-preview-loading-tip"),
+            tr_args("library-preview-cancel", &args),
+        ),
+        _ => (icons::PLAY, tip, tr_args("library-preview-play", &args)),
+    };
+    let button = egui::Button::new(
+        RichText::new(icon)
+            .size(theme::FONT_UI)
+            .color(theme::text_strong()),
+    )
+    .corner_radius(theme::radius(5.0));
+    let r = put_over(ui, ("preview", &key), rect, button)
+        .on_hover_text(tip)
+        .accessible_name(spoken);
+    if r.clicked() {
+        io.requests.push(PanelRequest::Preview(key));
     }
+}
+
+/// Whether `entry` matches `query` the way library blocks do (words, any
+/// order, in the name, tags, or description).
+fn entry_matches(entry: &IndexBlock, query: &str) -> bool {
+    let hay = format!(
+        "{} {} {}",
+        entry.name,
+        entry.tags.join(" "),
+        entry.description
+    )
+    .to_lowercase();
+    query
+        .split_whitespace()
+        .all(|w| hay.contains(&w.to_lowercase()))
+}
+
+/// The shared libraries added by link: each one's blocks, to preview and
+/// install.
+fn shared_libraries(ui: &mut egui::Ui, io: &mut PanelIo, query: &str) {
+    section(ui, &tr("section-shared-libraries"));
+    if io.online.libraries.is_empty() {
+        ui.label(
+            RichText::new(tr("library-no-shared"))
+                .small()
+                .color(theme::text_muted()),
+        );
+        return;
+    }
+    for lib in &io.online.libraries {
+        shared_library(ui, io, lib, query);
+    }
+}
+
+fn shared_library(ui: &mut egui::Ui, io: &mut PanelIo, lib: &SharedLibrary, query: &str) {
+    if lib.state == LibraryState::NotLoaded {
+        io.requests
+            .push(PanelRequest::RefreshLibrary(lib.link.clone()));
+    }
+    let count = lib.ready().map(|r| r.index.blocks.len());
+    let title = match count {
+        Some(n) => format!("{}  {}  ({n})", icons::BOOKS, lib.name()),
+        None => format!("{}  {}", icons::BOOKS, lib.name()),
+    };
+    egui::CollapsingHeader::new(RichText::new(title).color(theme::text()))
+        .id_salt(("shared-library", &lib.link))
+        .default_open(true)
+        .show(ui, |ui| {
+            match &lib.state {
+                LibraryState::NotLoaded | LibraryState::Loading => {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(
+                            RichText::new(tr("library-reading"))
+                                .small()
+                                .color(theme::text_muted()),
+                        );
+                    });
+                }
+                LibraryState::Failed(e) => {
+                    ui.label(
+                        RichText::new(format!("{}  {e}", icons::WARNING))
+                            .small()
+                            .color(theme::warning()),
+                    );
+                }
+                LibraryState::Ready(r) => {
+                    if !r.index.description.is_empty() {
+                        ui.label(
+                            RichText::new(&r.index.description)
+                                .small()
+                                .color(theme::text_muted()),
+                        );
+                    }
+                    let shown: Vec<&IndexBlock> = r
+                        .index
+                        .blocks
+                        .iter()
+                        .filter(|e| entry_matches(e, query))
+                        .collect();
+                    if shown.is_empty() {
+                        let text = if r.index.blocks.is_empty() {
+                            tr("library-shared-empty")
+                        } else {
+                            tr("library-no-blocks-match")
+                        };
+                        ui.label(RichText::new(text).small().color(theme::text_muted()));
+                    }
+                    for e in shown {
+                        remote_row(ui, io, lib, e);
+                    }
+                }
+            }
+            ui.horizontal(|ui| {
+                let busy = lib.state == LibraryState::Loading;
+                if icons::spoken(
+                    ui.add_enabled(
+                        !busy,
+                        egui::Button::new(format!(
+                            "{}  {}",
+                            icons::ARROWS_CLOCKWISE,
+                            tr("library-shared-refresh")
+                        ))
+                        .small(),
+                    ),
+                )
+                .on_hover_text(tr_args(
+                    "library-shared-refresh-tip",
+                    &[("link", (&lib.link).into())],
+                ))
+                .clicked()
+                {
+                    io.requests
+                        .push(PanelRequest::RefreshLibrary(lib.link.clone()));
+                }
+                if icons::spoken(
+                    ui.add(
+                        egui::Button::new(format!("{}  {}", icons::X, tr("library-shared-remove")))
+                            .small(),
+                    ),
+                )
+                .on_hover_text(tr("library-shared-remove-tip"))
+                .clicked()
+                {
+                    io.requests
+                        .push(PanelRequest::RemoveLibrary(lib.link.clone()));
+                }
+            });
+        });
+}
+
+/// A block in a shared library: what the index says of it, its preview,
+/// and Install.
+fn remote_row(ui: &mut egui::Ui, io: &mut PanelIo, lib: &SharedLibrary, e: &IndexBlock) {
+    let width = ui.available_width();
+    let height = if e.tags.is_empty() { 38.0 } else { 54.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+    let p = ui.painter();
+    if resp.hovered() {
+        p.rect_filled(rect, theme::radius(5.0), theme::row_hover());
+    }
+    p.rect_filled(
+        Rect::from_min_size(rect.min + vec2(4.0, 7.0), vec2(3.0, rect.height() - 14.0)),
+        theme::radius(1.5),
+        theme::fade(theme::group_header(), 0.6),
+    );
+    let installing = lib.installing.contains(&e.id);
+    let installed = io.library.blocks().iter().any(|b| {
+        b.source.origin != Origin::Shipped
+            && b.block.def.name == e.name
+            && b.block.def.version == e.version
+    });
+    // Buttons on the right: Install (or what it's doing), then the preview.
+    let install_w = 64.0;
+    let mut right = rect.right() - 6.0;
+    let install_rect = Rect::from_min_size(
+        egui::pos2(right - install_w, rect.top() + 4.0),
+        vec2(install_w, 22.0),
+    );
+    right -= install_w + 4.0;
+    let play_rect =
+        Rect::from_min_size(egui::pos2(right - 26.0, rect.top() + 4.0), vec2(26.0, 22.0));
+    if e.preview.is_some() {
+        right -= 30.0;
+    }
+    let text_w = (right - rect.left() - 18.0).max(40.0);
+    let mut name = egui::text::LayoutJob::single_section(
+        format!("{}  {}", icons::STACK, e.name),
+        egui::TextFormat::simple(theme::ui_font(theme::FONT_UI), theme::text_strong()),
+    );
+    name.wrap = egui::text::TextWrapping::truncate_at_width(text_w);
+    let g = p.layout_job(name);
+    p.galley(rect.min + vec2(14.0, 5.0), g, theme::text_strong());
+    let by = if e.author.is_empty() {
+        String::new()
+    } else {
+        format!(" · {}", e.author)
+    };
+    let mut job = egui::text::LayoutJob::single_section(
+        format!("v{}{by} · {}", e.version, first_sentence(&e.description)),
+        egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL), theme::text_muted()),
+    );
+    job.wrap = egui::text::TextWrapping::truncate_at_width(text_w);
+    let g = p.layout_job(job);
+    p.galley(rect.min + vec2(14.0, 21.0), g, theme::text_muted());
+    if !e.tags.is_empty() {
+        let tags: Vec<String> = e
+            .tags
+            .iter()
+            .map(|t| format!("#{}", t.to_lowercase()))
+            .collect();
+        let mut job = egui::text::LayoutJob::single_section(
+            tags.join("  "),
+            egui::TextFormat::simple(theme::ui_font(theme::FONT_SMALL - 0.5), theme::text_faint()),
+        );
+        job.wrap = egui::text::TextWrapping::truncate_at_width(text_w);
+        let g = p.layout_job(job);
+        p.galley(rect.min + vec2(14.0, 37.0), g, theme::text_faint());
+    }
+    if e.preview.is_some() {
+        let key = PreviewKey::Remote {
+            link: lib.link.clone(),
+            id: e.id.clone(),
+        };
+        preview_button(
+            ui,
+            io,
+            play_rect,
+            key,
+            &e.name,
+            tr("library-preview-remote-tip"),
+        );
+    }
+    if installing {
+        put_over(
+            ui,
+            ("installing", &e.id),
+            install_rect,
+            egui::Spinner::new(),
+        );
+    } else if installed {
+        put_over(
+            ui,
+            ("installed", &e.id),
+            install_rect,
+            egui::Label::new(
+                RichText::new(format!("{} {}", icons::CHECK, tr("library-installed")))
+                    .small()
+                    .color(theme::ok()),
+            ),
+        )
+        .on_hover_text(tr("library-installed-tip"));
+    } else {
+        let r = put_over(
+            ui,
+            ("install", &lib.link, &e.id),
+            install_rect,
+            egui::Button::new(tr("library-install")).small(),
+        )
+        .on_hover_text(tr("library-install-tip"))
+        .accessible_name(tr_args(
+            "library-install-named",
+            &[("name", (&e.name).into())],
+        ));
+        if r.clicked() {
+            io.requests.push(PanelRequest::Install {
+                link: lib.link.clone(),
+                id: e.id.clone(),
+            });
+        }
+    }
+    // The row is painted: it tells screen readers what the block is.
+    let spoken = tr_args(
+        "library-remote-row",
+        &[
+            ("name", (&e.name).into()),
+            ("version", e.version.to_string().into()),
+            ("about", first_sentence(&e.description).into()),
+        ],
+    );
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Group, true, &spoken));
+    resp.on_hover_ui(|ui| {
+        ui.set_max_width(340.0);
+        if e.description.is_empty() {
+            ui.label(RichText::new(tr("library-no-description")).color(theme::text_muted()));
+        } else {
+            markdown::show(ui, &e.description);
+        }
+        ui.label(
+            RichText::new(tr_args(
+                "library-shared-from",
+                &[("library", lib.name().into()), ("file", (&e.file).into())],
+            ))
+            .small()
+            .color(theme::text_faint()),
+        );
+    });
 }
 
 fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
@@ -281,8 +627,9 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
         theme::fade(origin_color(origin), 0.16),
     );
     p.galley(badge_rect.min + vec2(5.0, 1.0), badge, origin_color(origin));
+    let previewable = can_preview(&b.block);
     p.text(
-        rect.right_top() + vec2(-8.0, 7.0),
+        rect.right_top() + vec2(if previewable { -38.0 } else { -8.0 }, 7.0),
         Align2::RIGHT_TOP,
         format!("v{}", d.version),
         theme::mono_font(theme::FONT_SMALL),
@@ -325,11 +672,41 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
     if resp.clicked() {
         io.requests.push(PanelRequest::Add(c.clone()));
     }
+    // Over the row, so a click plays instead of adding.
+    if previewable {
+        let play = Rect::from_min_size(
+            egui::pos2(rect.right() - 32.0, rect.top() + 5.0),
+            vec2(26.0, 22.0),
+        );
+        let tip = if b.preview_path().is_some() {
+            tr("library-preview-tip")
+        } else {
+            tr("library-preview-render-tip")
+        };
+        preview_button(
+            ui,
+            io,
+            play,
+            PreviewKey::Library(b.source.clone()),
+            &d.name,
+            tip,
+        );
+    }
     resp.context_menu(|ui| {
         if icons::spoken(ui.button(format!("{}  {}", icons::PLUS, tr("library-add-to-canvas"))))
             .clicked()
         {
             io.requests.push(PanelRequest::Add(c.clone()));
+            ui.close();
+        }
+        if icons::spoken(ui.button(format!("{}  {}", icons::EXPORT, tr("library-export"))))
+            .on_hover_text(tr("library-export-tip"))
+            .clicked()
+        {
+            io.requests
+                .push(PanelRequest::ExportBlock(BlockToExport::Library(
+                    b.source.clone(),
+                )));
             ui.close();
         }
         if origin == Origin::Shipped {
@@ -427,6 +804,7 @@ mod tests {
         Block {
             def,
             uses: Default::default(),
+            preview: None,
         }
     }
 

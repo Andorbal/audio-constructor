@@ -65,10 +65,22 @@ enum Command {
     Blocks(blocks::BlocksArgs),
     /// Update projects' copies of library blocks to the library's versions.
     BlockUpdate(blocks::UpdateArgs),
+    /// Write a group (or a block file) as a block file to share, with a preview beside it.
+    BlockExport(blocks::ExportArgs),
+    /// Import blocks, packs, or a whole library from a link.
+    BlockImport(blocks::ImportArgs),
+    /// Write the `index.json` that shares a folder of blocks from a web host.
+    LibraryIndex(blocks::IndexArgs),
     /// Bundle a project and its audio files into one `.acpack` to share.
     Pack(blocks::PackArgs),
     /// Unpack an `.acpack` into a folder.
     Unpack(blocks::UnpackArgs),
+    /// Print the version; with `--check`, also ask whether a newer release
+    /// is out (sends nothing but the request).
+    Version {
+        #[arg(long)]
+        check: bool,
+    },
     /// Rewrite project and block files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
@@ -79,6 +91,10 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    // A bug that panics leaves a report the editor offers to send.
+    if let Some(dir) = ac_io::crash::default_dir() {
+        ac_io::crash::install(dir, "audioc");
+    }
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Render(args) => render::run(args),
@@ -102,8 +118,12 @@ fn main() -> ExitCode {
         Command::Bench(args) => bench::run(args),
         Command::Blocks(args) => blocks::list(args),
         Command::BlockUpdate(args) => blocks::update(args),
+        Command::BlockExport(args) => blocks::export(args),
+        Command::BlockImport(args) => blocks::import(args),
+        Command::LibraryIndex(args) => blocks::index(args),
         Command::Pack(args) => blocks::pack(args),
         Command::Unpack(args) => blocks::unpack(args),
+        Command::Version { check } => version(check),
     };
     match result {
         Ok(code) => code,
@@ -112,4 +132,21 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn version(check: bool) -> anyhow::Result<ExitCode> {
+    use ac_io::update::{self, Check, Version};
+    println!("audioc {}", env!("CARGO_PKG_VERSION"));
+    if check {
+        match update::check(&update::feed_url(), Version::current()).map_err(anyhow::Error::msg)? {
+            Check::Newer(release) => {
+                println!("A newer release is out: {}", release.version);
+                println!("Download it from {}", release.page);
+            }
+            Check::UpToDate(latest) => {
+                println!("This is the newest release (the latest is {latest}).");
+            }
+        }
+    }
+    Ok(ExitCode::SUCCESS)
 }

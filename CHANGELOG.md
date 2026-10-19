@@ -15,6 +15,85 @@ fixes and smaller changes.
 
 ### Added
 
+- **Installers.** Each release now has an installer for every system,
+  carrying the editor, `audioc`, the examples, and the CLAP and VST3
+  plugins:
+  - Windows: a setup program that installs into Program Files, adds a
+    Start-menu entry, opens project, pack, and block files in the editor,
+    puts the plugins where hosts look (each a choice), and uninstalls from
+    Installed apps;
+  - macOS: an installer package that puts Audio Constructor in
+    Applications, `audioc` on the terminal's path, and the plugins in
+    `/Library/Audio/Plug-Ins` (each a choice);
+  - Linux: a `.deb` with a menu entry, file types, and the plugins in
+    `/usr/lib/clap` and `/usr/lib/vst3`.
+
+  The archives remain, now with the plugins in a `plugins/` folder, and the
+  Linux one has an `install.sh` that installs everything into your home
+  folder without root (`--uninstall` removes it). Releases list every
+  file's SHA-256 in `SHA256SUMS.txt`, and are signed (and on macOS
+  notarized) once signing certificates are set up for the project.
+- **Update check.** The editor asks once whether to look for new
+  versions; until you answer, it checks nothing. Checking daily, it asks
+  the project's release page once a day when it starts (sending nothing
+  but the request) and, when a newer version is out, offers its download
+  page, its notes, or to skip that version. **Help ▸ Check for Updates…**
+  asks right away, and **Help ▸ Check for Updates Daily** changes your
+  mind. Nothing is downloaded or installed for you.
+- **Crash reports.** If the editor stopped because of a bug, the next
+  start says so and offers the saved report: **Report…** opens the
+  project's issue form in your browser with it filled in, to read and send
+  yourself, or **Show Report** to see exactly what's in it. Nothing is
+  sent unless you submit the form, and the question can be turned off.
+- **Help ▸ Report a Problem…** opens the issue form with your version and
+  system filled in.
+- `audioc version` prints the version, and `audioc version --check` asks
+  whether a newer release is out and where to download it. It sends
+  nothing but the request.
+- When `audioc` stops because of a bug, it saves a crash report (the
+  version, the system, and where it stopped, with your home folder
+  written as `~`) in a `crashes` folder beside the editor's settings, and
+  says where. Nothing is sent anywhere.
+- The editor has an icon, in its window, the taskbar or dock, and the
+  desktop's menus.
+- `audio-constructor --version` prints the version without opening a
+  window.
+- **Block previews**: `audioc block-export` writes a group from a project
+  (or a block file) as an `.acblock` to share, with a five-second preview
+  beside it, `<name>.preview.wav`. An effect plays a built-in phrase of
+  drums, chords, and an arpeggio through it, an instrument plays the
+  phrase's chords or arpeggio, and a block that plays by itself just
+  plays. The preview is rendered offline, so the same block always gives
+  the same file, and the block file records the preview's name and
+  SHA-256.
+- **Shared libraries**: `audioc library-index <folder>` writes an
+  `index.json` describing a folder of blocks and their previews (the
+  library's name and description; each block's version, author, tags,
+  size, and SHA-256), so the folder can be shared from any web host that
+  serves files. Blocks that don't load are reported and left out of the
+  index, and `--check` says whether an index is up to date.
+- **Previews in the Library tab**: every block that makes sound has a
+  play button. It plays the block's preview over whatever the patch is
+  playing, from the preview file when the block has one and rendered on
+  the spot otherwise (the same audio an export writes); click again to
+  stop. Saving a group to your library keeps a preview beside it too.
+- **Export block file…** (in the Node tab for a group, and on a library
+  block's right-click menu) writes the block to share, with its preview
+  beside it, rendered in the background.
+- **Import from Link…** (in the File menu and the Library tab) takes a
+  link to a block, a pack, or a shared library's `index.json`. Blocks join
+  your library under Imported, with their previews; packs are saved to
+  your Downloads folder and open as packs do; a library is listed in the
+  Library tab under **Shared libraries**, remembered between sessions,
+  where its blocks can be searched, previewed (downloaded once, then kept
+  in the cache folder), and installed, each checked against the library's
+  index. Downloads run in the background and never hold up the editor;
+  only https links work, except to this computer.
+- `audioc block-import <link>` imports a block, a pack, or a whole
+  library (or some of it, with `--only`) from an https link, into your
+  library or the one `--library` names. Blocks from a library are checked
+  against its index and refused if they've changed; `--list` shows what a
+  library holds.
 - **High Contrast theme** (View ▸ Theme ▸ High Contrast): white text on
   black at 7:1 or more on every surface, white outlines on node cards,
   buttons, and fields, thicker outlines, a yellow ring around whatever has

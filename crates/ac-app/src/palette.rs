@@ -4,8 +4,7 @@
 //! the project, and the blocks in the library.
 
 use ac_core::{
-    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, Registry, SignalType, VOICE_KIND,
-    VOICES_KIND,
+    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, Registry, SignalType, VOICES_KIND,
 };
 use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
@@ -49,7 +48,7 @@ impl Candidate {
 /// Whether a block is meant for polyphony: a Voice node inside reads each
 /// copy's note, so it's added as a Voices instance.
 pub fn block_is_polyphonic(block: &Block) -> bool {
-    block.def.graph.nodes.iter().any(|n| n.kind == VOICE_KIND)
+    block.is_polyphonic()
 }
 
 /// The palette's entry for a library block.

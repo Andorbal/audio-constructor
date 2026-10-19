@@ -36,6 +36,12 @@ pub enum MenuCommand {
     SetLanguage(LanguageChoice),
     /// View ▸ UI Scale (1 is 100 %).
     SetUiScale(f32),
+    /// Help ▸ Check for Updates…: ask now.
+    CheckForUpdates,
+    /// Help ▸ Check for Updates Daily.
+    SetUpdateChecks(bool),
+    /// Help ▸ Report a Problem…: the issue form in the browser.
+    ReportProblem,
 }
 
 /// State the menus show (checkmarks, enabled entries, labels).
@@ -64,6 +70,9 @@ pub struct MenuState<'a> {
     pub registry: &'a Registry,
     /// File ▸ Quit is offered (not in a plugin, whose host closes it).
     pub can_quit: bool,
+    /// Help's update entries, with whether daily checks are on; `None` where
+    /// the editor doesn't check for updates (a plugin, the browser).
+    pub updates: Option<bool>,
 }
 
 fn entry(
@@ -225,6 +234,7 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         submenu(ui, tr("menu-file"), |ui| {
             entry(ui, &mut out, Action::New, icons::FILE_PLUS, true);
             entry(ui, &mut out, Action::Open, icons::FOLDER_OPEN, true);
+            entry(ui, &mut out, Action::ImportFromLink, icons::LINK, true);
             submenu(
                 ui,
                 format!(
@@ -541,6 +551,37 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         submenu(ui, tr("menu-help"), |ui| {
             entry(ui, &mut out, Action::Shortcuts, icons::KEYBOARD, true);
             entry(ui, &mut out, Action::NodeHelp, icons::BOOK_OPEN, true);
+            if let Some(daily) = s.updates {
+                ui.separator();
+                if icons::spoken(ui.button(format!(
+                    "{}  {}",
+                    icons::ARROWS_CLOCKWISE,
+                    tr("menu-check-for-updates")
+                )))
+                .clicked()
+                {
+                    out.push(MenuCommand::CheckForUpdates);
+                    ui.close();
+                }
+                let mut on = daily;
+                if ui
+                    .checkbox(&mut on, tr("menu-check-for-updates-daily"))
+                    .clicked()
+                {
+                    out.push(MenuCommand::SetUpdateChecks(on));
+                    ui.close();
+                }
+                if icons::spoken(ui.button(format!(
+                    "{}  {}",
+                    icons::ARROW_SQUARE_OUT,
+                    tr("menu-report-problem")
+                )))
+                .clicked()
+                {
+                    out.push(MenuCommand::ReportProblem);
+                    ui.close();
+                }
+            }
             ui.separator();
             entry(ui, &mut out, Action::About, icons::INFO, true);
         });

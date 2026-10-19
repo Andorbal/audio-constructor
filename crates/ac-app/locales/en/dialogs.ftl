@@ -9,6 +9,7 @@ dialog-choose-clip-title = Choose an audio file
 dialog-locate-title = Locate missing file
 dialog-export-pack-title = Export pack
 dialog-import-block-title = Import block file
+dialog-export-block-title = Export block
 dialog-filter-everything = Projects, packs, and blocks
 dialog-filter-project = Audio Constructor project
 dialog-filter-pack = Audio Constructor pack
@@ -63,3 +64,10 @@ gesture-leave-performance-how = Esc or F11
 dialog-about-version = Version { $version }
 dialog-about-text = A node-based audio construction suite: build instruments, effects, recorders, and sequencers from small nodes and wires.
 dialog-about-credits = Fonts: Inter and JetBrains Mono (SIL Open Font License). Icons: Phosphor (MIT).
+
+## File ▸ Import from Link…
+
+dialog-link-title = Import from Link
+dialog-link-text = A link to a block (.acblock), a pack (.acpack), or a shared library's index.json. Blocks join your library under Imported; a pack is saved to your Downloads folder and opened; a library is listed in the Library tab, to preview and install from.
+dialog-link-field = Link
+dialog-link-import = Import

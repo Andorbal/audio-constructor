@@ -185,6 +185,7 @@ problems-click-to-show = Click to show the node
 
 section-project-groups = Groups in this project
 section-blocks = Blocks
+section-shared-libraries = Shared libraries
 library-shipped = Shipped
 library-mine = Mine
 library-imported = Imported
@@ -207,6 +208,35 @@ library-remove = Remove from library
 library-no-description = No description.
 library-block-tip = { $origin } block · version { $version } · right-click for more
 library-block-tip-by = { $origin } block · version { $version } · by { $author } · right-click for more
+library-import-link-tip = Import a block or a pack from a link, or add a shared library by its index.json link to preview and install its blocks.
+library-export = Export block file…
+library-export-tip = Write it to a block file to share, with its preview beside it
+# A block's play button: what it says to screen readers ("Play preview of
+# Plate Reverb"), and its tooltips.
+library-preview-play = Play preview of { $name }
+library-preview-stop = Stop preview of { $name }
+library-preview-cancel = Stop getting the preview of { $name }
+library-preview-tip = Play its preview
+library-preview-render-tip = Play a preview (rendered now: what an export would write)
+library-preview-remote-tip = Play its preview (downloaded the first time)
+library-preview-stop-tip = Stop the preview
+library-preview-loading-tip = Getting the preview… (click to cancel)
+library-no-shared = None yet. Import from Link… with a library's index.json link lists its blocks here.
+library-reading = Reading the library…
+library-shared-empty = This library has no blocks.
+library-shared-refresh = Refresh
+library-shared-refresh-tip = Read { $link } again
+library-shared-remove = Remove
+library-shared-remove-tip = Stop listing this library. Blocks you installed from it stay.
+library-installed = Installed
+library-installed-tip = This version is in your library
+library-install = Install
+library-install-named = Install { $name }
+library-install-tip = Download it into your library, under Imported, checked against the library's index
+library-shared-from = From { $library } · { $file }
+# A shared library's block, to screen readers: "Plate Reverb, version 2: A
+# bright plate."
+library-remote-row = { $name }, version { $version }: { $about }
 ## The Project tab
 
 section-tempo-map = Tempo map
@@ -318,3 +348,4 @@ editor-shape-smooth = Smooth
 editor-shape-slow-start = Slow start
 editor-shape-fast-start = Fast start
 editor-remove-point = Remove point
+node-tab-export-block-tip = Write this definition to a block file to share, with a few seconds of it playing (its preview) beside it.

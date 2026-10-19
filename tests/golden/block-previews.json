@@ -1,0 +1,312 @@
+{
+  "auto-wah": {
+    "sha256": "0d27f037cd9cae4fcfd8f9ea636ccac5507c6ef6f0369d5007ddeb03d262ae79",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.219717,
+        "rms": 0.017104
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "chorus": {
+    "sha256": "f3ed6dd4d72eb47a8414f86249f2b89c4592d6377bc33a1047e2bf879a6126fe",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.507791,
+        "rms": 0.04918
+      },
+      {
+        "peak": 0.51835,
+        "rms": 0.049585
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "compressor": {
+    "sha256": "1c27f5ebaa32fa3b1a1b29191c3bfd75d3eb842fb8cf7fa27f585867571ff29f",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.554767,
+        "rms": 0.045434
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "drum-machine": {
+    "sha256": "3f5f272a7a043c945a365e5b2847cb6c26530253e674bb590ed2938f09d2ced9",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.809488,
+        "rms": 0.094949
+      }
+    ],
+    "feeds": []
+  },
+  "euclidean-drummer": {
+    "sha256": "41c2d161528d3da3e3cd93511dd9835ac6cc0bbdfbda3d6c66aaff42909d384a",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.891251,
+        "rms": 0.08884
+      }
+    ],
+    "feeds": []
+  },
+  "flanger": {
+    "sha256": "6b375e778194670ee593f5043477c7fe6876136ddb8aaa05b866c3440dd4590a",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.411299,
+        "rms": 0.039243
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "fm-operator-pair": {
+    "sha256": "17a9629c3696294739a0e335caf8dbd15fd9747c342b840390f0e4d80fe09169",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.891251,
+        "rms": 0.173876
+      }
+    ],
+    "feeds": [
+      "midi ← the preview phrase's chords"
+    ]
+  },
+  "hall-reverb": {
+    "sha256": "cf40ccf1fdb9c0a3dd37f35c0281cc3f681a237c894539dfa0ca8f28cd0e0efa",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.491326,
+        "rms": 0.04384
+      },
+      {
+        "peak": 0.496072,
+        "rms": 0.044872
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "karplus-strong-string": {
+    "sha256": "ef3c8cec67f7afa78acaa8c375f1747b750d2d1a6120e12cf22f573b0c41d854",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.891251,
+        "rms": 0.054578
+      }
+    ],
+    "feeds": [
+      "midi ← the preview phrase's chords"
+    ]
+  },
+  "limiter": {
+    "sha256": "d1f1faded56a4ed4f915aa3d7d2176aff5dad28c829e737ae63e2eb2c2cd2c27",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.554767,
+        "rms": 0.048622
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "metronome": {
+    "sha256": "d4d13cad9259fbb21033a28ebc34ebdbfc9be6169f0ea166a73cd05a299c0a5a",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.48421,
+        "rms": 0.018828
+      }
+    ],
+    "feeds": []
+  },
+  "multiband-compressor": {
+    "sha256": "17953b68917b45f3377578dcc463bab38d5702bb375391d41efe2fb9ba39611f",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.682141,
+        "rms": 0.044678
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "noise-gate": {
+    "sha256": "ee8651e849d0b142a69c0aad5775e2fb5befe0b83d03d0724b6f1a8b7d6b7b78",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.554767,
+        "rms": 0.048576
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "phaser": {
+    "sha256": "455aac3274e807aa425ec9575fe91d93e7f7c900315c95c19c63195da10f6c26",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.409049,
+        "rms": 0.035904
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "plate-reverb": {
+    "sha256": "dffff54512955d703f0b6fafefd8063587868f52f17e710f01c77c89679e6c17",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.471422,
+        "rms": 0.046975
+      },
+      {
+        "peak": 0.507445,
+        "rms": 0.046797
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "sidechain-ducker": {
+    "sha256": "cfc08b2fb4b854905272d47981b889f49e98018eb44f5dda7b2ff1ca37be0ac1",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.170285,
+        "rms": 0.013521
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase's chords and arpeggio",
+      "sidechain ← the preview phrase's drums"
+    ]
+  },
+  "stutter": {
+    "sha256": "8497bae3f17c6d4cd01803f8b0d36a1ff9e7c0bf999563881a07ebab355a0eb3",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.554767,
+        "rms": 0.058706
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)",
+      "trigger ← the phrase's snare"
+    ]
+  },
+  "subtractive-synth-voice": {
+    "sha256": "66a91f701deea5e5ef892e33d1fd37098dbc7698d7cabd1dbcf75b2f66d99f97",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.891251,
+        "rms": 0.09632
+      }
+    ],
+    "feeds": [
+      "midi ← the preview phrase's chords"
+    ]
+  },
+  "tape-stop": {
+    "sha256": "ed360659775864f054cd860e5af107f86082dcba8369338b8c7ca43f6723874d",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.499213,
+        "rms": 0.0465
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)",
+      "stop ← the phrase's snare",
+      "start ← the phrase's kick drum"
+    ]
+  },
+  "track": {
+    "sha256": "bbf8ba1ada2dc4012a0bf4748d1654a7cdfecb54f18ace16fae63eb7533d0835",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.39228,
+        "rms": 0.034381
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "tremolo": {
+    "sha256": "6d7aa94ddbef983e3a5da2fd0cb64d5b7c09061916ec2fd80459f84d84d9bf28",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.42296,
+        "rms": 0.037982
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "vibrato": {
+    "sha256": "9debfc3a153dccd987f96d42d3a96877cc6af526ba06d3b1b0ff290c5dd716c7",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.529826,
+        "rms": 0.048567
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "vocoder": {
+    "sha256": "29958e9348afbcc744f2c2f1570d40e77b244abaa7c43ab22e1e598d155c7380",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.03621,
+        "rms": 0.002876
+      }
+    ],
+    "feeds": [
+      "carrier ← the preview phrase's chords and arpeggio",
+      "modulator ← the preview phrase's drums"
+    ]
+  }
+}

@@ -73,13 +73,17 @@ pub fn with_extension(path: PathBuf, ext: &str) -> PathBuf {
 }
 
 /// `examples/start.acproj`, looked for in the working directory, next to the
-/// executable and its ancestors (a `target/` build inside the workspace),
-/// and in the workspace this crate was built from.
+/// executable and its ancestors (an unpacked archive, or a `target/` build
+/// inside the workspace), where the installers put it (the macOS app's
+/// `Contents/Resources`, and `share/audio-constructor` beside a Linux
+/// `bin/`), and in the workspace this crate was built from.
 pub fn find_start_example() -> Option<PathBuf> {
     let mut candidates = vec![PathBuf::from("examples/start.acproj")];
     if let Ok(exe) = std::env::current_exe() {
         for dir in exe.ancestors().skip(1).take(5) {
             candidates.push(dir.join("examples/start.acproj"));
+            candidates.push(dir.join("Resources/examples/start.acproj"));
+            candidates.push(dir.join("share/audio-constructor/examples/start.acproj"));
         }
     }
     candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/start.acproj"));

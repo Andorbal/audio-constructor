@@ -184,6 +184,9 @@ palette-feed-note = The { $count } selected nodes will be wired into it, in the 
 status-couldnt-read = Couldn't read { $path }: { $error }
 status-block-already-there = { $name } is already in your library
 status-block-imported = Imported { $name } into your library
+status-block-imported-with-preview = Imported { $name } into your library with its preview
+status-downloading = Downloading { $link }…
+status-exporting-block = Exporting the block and its preview…
 status-couldnt-import = Couldn't import { $name }: { $error }
 status-block-saved = Saved { $name } to your library (v{ $version })
 status-couldnt-save-block = Couldn't save { $name } to your library: { $error }
@@ -281,3 +284,30 @@ theme-file-too-big = is { $kb } KB, too big to be a theme
 theme-file-unreadable = couldn't be read ({ $error })
 status-reduce-motion-on = Reduce Motion on: no fades, eases, flowing wires, or flashes
 status-reduce-motion-off = Reduce Motion off
+
+## Sharing blocks: exports, links, shared libraries, and previews
+
+status-export-block-gone = That block is gone
+status-exporting-name = Exporting { $name }…
+status-library-removed = Removed { $name } from the Library tab; blocks you installed from it stay
+status-preview-needs-output = Previews play through the editor's own audio output; in a plugin, hear them in the desktop editor
+status-preview-no-output = { $name } has no audio output, so nothing to hear
+status-library-added =
+    { $count ->
+        [one] Added the library { $name } ({ $count } block) to the Library tab
+       *[other] Added the library { $name } ({ $count } blocks) to the Library tab
+    }
+status-library-skipped =
+    { $count ->
+        [one] { $count } entry in its index couldn't be used
+       *[other] { $count } entries in its index couldn't be used
+    }
+status-couldnt-import-link = Couldn't import from the link: { $error }
+status-couldnt-install = Couldn't install it: { $error }
+status-couldnt-preview = Couldn't play the preview: { $error }
+status-exported-block-preview = Exported { $name } to { $path } with its preview
+status-exported-block-no-preview = Exported { $name } to { $path }, without a preview: { $why }
+status-exported-block = Exported { $name } to { $path }
+status-couldnt-export-block = Couldn't export { $name }: { $error }
+status-pack-downloaded = Downloaded the pack to { $path }
+status-couldnt-save-pack = Couldn't save the pack to { $path }: { $error }
