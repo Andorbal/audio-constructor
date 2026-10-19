@@ -38,6 +38,7 @@ pub enum HostEvent {
 
 pub(crate) enum MainHalf {
     Clap(Box<ClapInstance>),
+    Vst3(Box<crate::vst3::Vst3Instance>),
 }
 
 pub(crate) struct Entry {
@@ -165,6 +166,30 @@ fn service(entry: &mut Entry, events: &mut Vec<HostEvent>) {
                 });
             }
         }
+        MainHalf::Vst3(v) => {
+            let (moved, restart) = v.service();
+            for (i, value) in moved {
+                if let Some(socket) = entry.sockets.get(i) {
+                    events.retain(|e| {
+                        !matches!(e, HostEvent::ParamChanged { node_key, socket: s, .. }
+                            if *node_key == key && s == socket)
+                    });
+                    events.push(HostEvent::ParamChanged {
+                        node_key: key.clone(),
+                        socket: socket.clone(),
+                        value,
+                    });
+                }
+            }
+            if restart {
+                r.restart.store(true, Ordering::Release);
+            }
+            if v.service_window() {
+                events.push(HostEvent::WindowClosed {
+                    node_key: key.clone(),
+                });
+            }
+        }
     }
     while let Ok((index, value)) = entry.from_audio.pop() {
         if let Some(socket) = entry.sockets.get(index as usize) {
@@ -194,6 +219,7 @@ fn service(entry: &mut Entry, events: &mut Vec<HostEvent>) {
 pub(crate) fn save_state(node_key: &str) -> Option<Vec<u8>> {
     with(node_key, |e| match &mut e.half {
         MainHalf::Clap(c) => c.save_state(),
+        MainHalf::Vst3(v) => v.save_state(),
     })
     .flatten()
 }

@@ -220,6 +220,11 @@ impl HostWindow {
         Window::from_x11_handle(self.window.into())
     }
 
+    /// The window as VST3's `X11EmbedWindowID` parent (its XID).
+    pub fn native_parent(&self) -> *mut std::ffi::c_void {
+        self.window as usize as *mut std::ffi::c_void
+    }
+
     pub fn show(&self) {
         let _ = self.conn.map_window(self.window);
         let _ = self.conn.flush();

@@ -1,9 +1,9 @@
 # Plugins as nodes
 
-Synths and effects you've installed as CLAP plugins run inside a patch as
-**Plugin** nodes: play a synth from a MIDI keyboard or a pattern, send a
-Clip through an effect, and wire any of their knobs to an LFO, an
-envelope, or a gamepad stick like any other input.
+Synths and effects you've installed as CLAP or VST3 plugins run inside a
+patch as **Plugin** nodes: play a synth from a MIDI keyboard or a
+pattern, send a Clip through an effect, and wire any of their knobs to an
+LFO, an envelope, or a gamepad stick like any other input.
 
 ## Finding your plugins
 
@@ -29,9 +29,6 @@ The **Devices** tab's **Plugins** section says how many were found,
 which folders were searched, and which plugins couldn't be opened, and
 has **Rescan** (for plugins installed since) and **Rescan all**.
 
-> VST3 plugins are found and listed, but only CLAP plugins play as nodes
-> in this version.
-
 ## Adding one
 
 Every plugin found is in the add-node palette (`Shift+A`) under its own
@@ -49,6 +46,10 @@ the plugin's sockets:
   `filter_resonance`, `osc_2_level`. Set it right on the node, or wire
   anything into it. A wired knob follows sample-accurately; one that
   moves with the signal (an LFO at audio rate) updates every 32 samples.
+  A CLAP plugin's knobs use the plugin's own ranges (Hz, dB, …); a VST3
+  plugin's go from 0 to 1, the way VST3 itself carries them. A VST3 synth
+  that answers the mod wheel, pitch bend, or other MIDI controllers gets
+  them from `midi` as the plugin asks.
 
 > **Try this:** add a synth plugin, wire a **Keyboard** node into its
 > `midi` and its `out` into **Audio Out**, and play. Then wire an

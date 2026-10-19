@@ -31,7 +31,7 @@ mod vst3;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use ac_core::{PluginDesc, PluginFormat, PluginLoader, PluginProcessor, PluginRequest};
 
@@ -46,6 +46,7 @@ pub use scan::{Catalog, Failure, Scanner, child_main, default_cache_path, descri
 pub struct PluginHost {
     catalog: RwLock<Catalog>,
     clap_entries: Mutex<HashMap<PathBuf, clack_host::prelude::PluginEntry>>,
+    vst3_modules: Mutex<HashMap<PathBuf, Arc<vst3::Module>>>,
     /// State to start a node's next instance with (a restart in progress).
     restarts: Mutex<HashMap<String, Vec<u8>>>,
 }
@@ -105,6 +106,19 @@ impl PluginHost {
         }
     }
 
+    fn vst3_module(&self, path: &Path) -> Result<Arc<vst3::Module>, String> {
+        let mut modules = self
+            .vst3_modules
+            .lock()
+            .map_err(|_| "plugin host poisoned")?;
+        if let Some(m) = modules.get(path) {
+            return Ok(m.clone());
+        }
+        let m = vst3::Module::load(path)?;
+        modules.insert(path.to_path_buf(), m.clone());
+        Ok(m)
+    }
+
     fn clap_entry(&self, path: &Path) -> Result<clack_host::prelude::PluginEntry, String> {
         let mut entries = self
             .clap_entries
@@ -158,7 +172,10 @@ impl PluginLoader for PluginHost {
                 let entry = self.clap_entry(&path)?;
                 clap::instantiate(&entry, req, state)
             }
-            PluginFormat::Vst3 => vst3::instantiate(&path, req, state),
+            PluginFormat::Vst3 => {
+                let module = self.vst3_module(&path)?;
+                vst3::instantiate(&module, req, state)
+            }
         }
     }
 }

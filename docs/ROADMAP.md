@@ -659,7 +659,7 @@ request.
 
 ### M3.2 Plugin hosting
 - [x] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
-- [ ] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+- [x] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
 
 *Verified (CLAP):* the `Plugin` node (`crates/ac-nodes/src/utility/plugin.rs`)
 builds its sockets from the description in its config; its unit tests,
@@ -701,8 +701,29 @@ plugin silenced, and a missing one keeping its sockets with a warning.
   with `audioc`: notes come out at 220 and 440 Hz (D136); verified locally
   the same way.
 
-The scan runs each bundle in a child process (D135); crash isolation for
-running plugins was investigated and deferred (D135).
+*Verified (VST3):* `crates/ac-host` hosts VST3 plugins through the
+MIT-licensed `vst3` bindings (no SDK code, D137) with the same node,
+scanner, state, and window paths as CLAP:
+- `tests/vst3_hosting.rs` hosts our own plugins' VST3 build: the scanner
+  describes both (parameters 0 to 1); the instrument renders A3 and A4 at
+  220 and 440 Hz (±3) under the allocation guard; a parameter input moves
+  the level; the effect passes a 330 Hz oscillator at unity; a saved state
+  restores in a fresh engine; a missing plugin is silent with a warning.
+- CI's *Third-party plugin as a node* job also renders Six Sines' VST3
+  build from a MIDI Pattern with `audioc` (220 and 440 Hz) and opens its
+  window embedded in the host's X11 window while it plays (checked
+  locally by screenshot on a virtual display).
+- `cargo check -p ac-host` passes for `aarch64-apple-darwin` and
+  `x86_64-pc-windows-gnu`; windows on macOS and Windows need a human
+  (MR description).
+
+Sandboxing: the scan runs each bundle in a child process, so a plugin
+that crashes or hangs while it's looked at is listed as failed instead of
+stopping the scan (a bundle that fails to open is checked in
+`plugins_cli.rs`). Crash isolation for
+running plugins was investigated and deferred: out-of-process hosting
+costs a context switch per block and shared-memory audio, and is
+written up with the plan in D135.
 
 ### M3.3 Web
 - [ ] `ac-web`: engine in an AudioWorklet, eframe UI, SharedArrayBuffer rings, Web MIDI, Gamepad API; static hosting with cross-origin isolation headers.

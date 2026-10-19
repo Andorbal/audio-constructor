@@ -29,6 +29,7 @@ pub(crate) struct ClapGui {
 pub fn has_window(node_key: &str) -> bool {
     registry::with(node_key, |e| match &e.half {
         MainHalf::Clap(c) => c.ext.gui.is_some(),
+        MainHalf::Vst3(v) => v.has_window(),
     })
     .unwrap_or(false)
 }
@@ -37,6 +38,7 @@ pub fn has_window(node_key: &str) -> bool {
 pub fn window_open(node_key: &str) -> bool {
     registry::with(node_key, |e| match &e.half {
         MainHalf::Clap(c) => c.gui.is_some(),
+        MainHalf::Vst3(v) => v.view.is_some(),
     })
     .unwrap_or(false)
 }
@@ -48,6 +50,7 @@ pub fn show_window(node_key: &str) -> Result<(), String> {
         let title = e.title.clone();
         match &mut e.half {
             MainHalf::Clap(c) => open_clap(c, &title),
+            MainHalf::Vst3(v) => v.open_window(&title),
         }
     })
     .unwrap_or_else(|| Err("the plugin isn't running".into()))
@@ -57,6 +60,7 @@ pub fn show_window(node_key: &str) -> Result<(), String> {
 pub fn close_window(node_key: &str) {
     registry::with(node_key, |e| match &mut e.half {
         MainHalf::Clap(c) => close_clap(c),
+        MainHalf::Vst3(v) => v.close_window(),
     });
 }
 

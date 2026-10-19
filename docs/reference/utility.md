@@ -239,7 +239,9 @@ more). The node's sockets come from the plugin: its audio inputs and
 outputs (`in`, `out`, then `in_2`, `out_2`, … for extra ports, such
 as a sidechain), `midi` in and `midi_out` when it takes or sends
 notes, and a `Float` input for each of its parameters (up to 128),
-named after the parameter. A parameter input works like any other:
+named after the parameter (a CLAP plugin's in its own range and
+units, a VST3 plugin's from 0 to 1). A parameter input works like
+any other:
 set it inline, or wire an LFO or an envelope into it and the plugin
 follows sample-accurately (a moving input sends a change every 32
 samples). The node reports the plugin's latency, so the engine lines
