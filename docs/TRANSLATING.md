@@ -1,7 +1,8 @@
 # Translating
 
 The editor's own words (its menus, panel and tab titles, the transport
-bar, dialogs, the status line, and the help and settings chrome) come from
+bar, dialogs, the status line, and the help and settings chrome, in the
+desktop editor, a plugin's window, and the browser) come from
 [Fluent](https://projectfluent.org) catalogs, one folder per language:
 
 ```
@@ -17,7 +18,7 @@ crates/ac-app/locales/
     product.ftl the update check and crash reports
     transport.ftl
     undo.ftl    what Edit ▸ Undo names each step
-    web.ftl     the browser: the files it keeps for the editor
+    web.ftl     the browser: its files, its Devices section, and its notices
 ```
 
 Not translated yet, and so left out of the catalogs: node names, node
@@ -55,8 +56,8 @@ and so do the details of errors the file and device code reports.
    extend the catalog tests in `crates/ac-app/tests/catalogs.rs` to it.
 3. Run `cargo test -p ac-app`. The catalog tests check that every file
    parses, that no message is defined twice, that every id the code asks
-   for exists in English, and that English has no message nothing asks
-   for.
+   for (in ac-app and in the web page, `crates/ac-web`) exists in English,
+   and that English has no message nothing asks for.
 
 ## Finding text that isn't translated
 

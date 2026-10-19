@@ -4,7 +4,9 @@
 //!
 //! Message ids are found in the source as the first argument of `tr(…)`
 //! and `tr_args(…)`, always a string literal: an id built at run time
-//! would hide from this check, so the editor never builds one.
+//! would hide from this check, so the editor never builds one. The source
+//! read is ac-app's and the web page's (`ac-web`), whose Devices section
+//! and notices use the same catalogs.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -14,8 +16,13 @@ use fluent_bundle::FluentResource;
 use fluent_bundle::concurrent::FluentBundle;
 use fluent_syntax::ast;
 
-fn src_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+/// The source folders read, with the name each file is shown under.
+fn src_dirs() -> [(&'static str, PathBuf); 2] {
+    let app = Path::new(env!("CARGO_MANIFEST_DIR"));
+    [
+        ("ac-app/src", app.join("src")),
+        ("ac-web/src", app.join("../ac-web/src")),
+    ]
 }
 
 fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -32,24 +39,83 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// `text` without its `#[cfg(test)]` modules (unit tests ask for made-up
+/// ids on purpose), as blank lines so line numbers stay; and the files of
+/// the test modules it declares (`#[cfg(test)] mod tests;`).
+fn without_tests(text: &str) -> (String, Vec<String>) {
+    let mut out = String::with_capacity(text.len());
+    let mut files = Vec::new();
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        if line != "#[cfg(test)]" {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        out.push('\n');
+        let Some(item) = lines.next() else { break };
+        let decl = item
+            .trim_start_matches("pub(crate) ")
+            .trim_start_matches("pub ");
+        if let Some(name) = decl.strip_prefix("mod ").and_then(|d| d.strip_suffix(';')) {
+            files.push(format!("{name}.rs"));
+            out.push('\n');
+        } else if decl.starts_with("mod ") {
+            out.push('\n');
+            // rustfmt closes a top-level module with `}` alone on a line.
+            for l in lines.by_ref() {
+                out.push('\n');
+                if l == "}" {
+                    break;
+                }
+            }
+        } else {
+            out.push_str(item);
+            out.push('\n');
+        }
+    }
+    (out, files)
+}
+
+/// The editor's source without its tests, file by file: the name to show
+/// and the text.
+fn sources() -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for (label, dir) in src_dirs() {
+        let mut files = Vec::new();
+        rust_files(&dir, &mut files);
+        files.sort();
+        let mut test_files: BTreeSet<PathBuf> = BTreeSet::new();
+        let mut kept = Vec::new();
+        for f in files {
+            let text = std::fs::read_to_string(&f).unwrap();
+            let (text, tests) = without_tests(&text);
+            // `edit/mod.rs` declares `edit/tests.rs`; `app.rs`, `app/….rs`.
+            let base = match f.file_name().and_then(|n| n.to_str()) {
+                Some("mod.rs" | "lib.rs" | "main.rs") => f.parent().map(Path::to_path_buf),
+                _ => f.parent().zip(f.file_stem()).map(|(p, s)| p.join(s)),
+            };
+            if let Some(base) = base {
+                test_files.extend(tests.iter().map(|t| base.join(t)));
+            }
+            kept.push((f, text));
+        }
+        for (f, text) in kept {
+            if test_files.contains(&f) {
+                continue;
+            }
+            let rel = f.strip_prefix(&dir).unwrap_or(&f).display().to_string();
+            out.push((format!("{label}/{rel}"), text));
+        }
+    }
+    out
+}
+
 /// Every message id the code asks for, with where.
 fn ids_in_code() -> BTreeMap<String, Vec<String>> {
-    let mut files = Vec::new();
-    rust_files(&src_dir(), &mut files);
     let mut ids: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for f in files {
-        let text = std::fs::read_to_string(&f).unwrap();
-        // Unit tests (at the end of a file) ask for made-up ids on purpose.
-        let text = text
-            .split("#[cfg(test)]\nmod tests")
-            .next()
-            .unwrap_or_default();
-        let name = f
-            .strip_prefix(src_dir())
-            .unwrap_or(&f)
-            .display()
-            .to_string();
-        for id in calls(text) {
+    for (name, text) in sources() {
+        for id in calls(&text) {
             ids.entry(id).or_default().push(name.clone());
         }
     }

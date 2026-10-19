@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::rc::{Rc, Weak};
 
 use ac_app::audio::DevicesPanel;
+use ac_app::i18n::{tr, tr_args};
 use ac_app::theme;
 use ac_core::MidiMsg;
 use egui::RichText;
@@ -79,34 +80,6 @@ impl Default for Devices {
     }
 }
 
-fn describe(msg: &MidiMsg) -> String {
-    match *msg {
-        MidiMsg::NoteOn {
-            channel,
-            note,
-            velocity,
-        } => format!("Note on {note} vel {velocity} · ch {}", channel + 1),
-        MidiMsg::NoteOff { channel, note, .. } => format!("Note off {note} · ch {}", channel + 1),
-        MidiMsg::ControlChange {
-            channel,
-            controller,
-            value,
-        } => format!("CC {controller} = {value} · ch {}", channel + 1),
-        MidiMsg::PitchBend { channel, value } => format!("Pitch bend {value} · ch {}", channel + 1),
-        MidiMsg::ChannelPressure { channel, value } => {
-            format!("Pressure {value} · ch {}", channel + 1)
-        }
-        MidiMsg::PolyPressure {
-            channel,
-            note,
-            value,
-        } => format!("Pressure {note} = {value} · ch {}", channel + 1),
-        MidiMsg::ProgramChange { channel, program } => {
-            format!("Program {program} · ch {}", channel + 1)
-        }
-    }
-}
-
 impl Devices {
     /// MIDI arrived from `port` (or the page's own tests): straight into
     /// the ring, so it plays at the next render quantum.
@@ -116,7 +89,8 @@ impl Devices {
         };
         state.link.send_midi(msg);
         let d = &mut state.devices;
-        d.last.push_front((port.to_string(), describe(&msg)));
+        d.last
+            .push_front((port.to_string(), ac_app::panels::midi_text(&msg)));
         d.last.truncate(LAST_MESSAGES);
     }
 
@@ -305,80 +279,64 @@ impl DevicesPanel for DevicesUi {
         let Ok(mut s) = state.try_borrow_mut() else {
             return;
         };
-        muted(
-            ui,
-            "The browser plays through the system's output; pick another output in the \
-             system's sound settings.",
-        );
+        muted(ui, &tr("web-devices-output"));
 
-        heading(ui, "Microphone");
+        heading(ui, &tr("web-microphone"));
         let mic = js::mic_status();
         let mut ask = false;
         match mic.as_str() {
             "on" => {
                 let label = js::mic_label();
-                ui.label(format!(
-                    "On{}: Audio In nodes hear it",
-                    if label.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" ({label})")
-                    }
-                ));
-                if ui.button("Stop using the microphone").clicked() {
+                ui.label(if label.is_empty() {
+                    tr("web-mic-on")
+                } else {
+                    tr_args("web-mic-on-named", &[("device", label.into())])
+                });
+                if ui.button(tr("web-mic-stop")).clicked() {
                     js::disable_mic();
                 }
             }
-            "asking" => muted(ui, "Waiting for the browser to allow the microphone…"),
+            "asking" => muted(ui, &tr("web-mic-asking")),
             "denied" => {
-                ui.colored_label(
-                    theme::warning(),
-                    "The microphone is blocked. Allow it in the browser's site settings, \
-                     then try again.",
-                );
-                ask = ui.button("Try again").clicked();
+                ui.colored_label(theme::warning(), tr("web-mic-blocked"));
+                ask = ui.button(tr("web-try-again")).clicked();
             }
             "unavailable" => {
                 ui.colored_label(
                     theme::warning(),
-                    format!("No microphone: {}", js::mic_message()),
+                    tr_args("web-mic-none", &[("error", js::mic_message().into())]),
                 );
-                ask = ui.button("Try again").clicked();
+                ask = ui.button(tr("web-try-again")).clicked();
             }
             _ => {
-                muted(
-                    ui,
-                    "Audio In nodes hear the microphone or an audio interface's input once \
-                     you allow it. Echo cancellation and noise suppression stay off.",
-                );
-                ask = ui.button("Use the microphone").clicked();
+                muted(ui, &tr("web-mic-off"));
+                ask = ui.button(tr("web-mic-use")).clicked();
             }
         }
 
-        heading(ui, "MIDI");
+        heading(ui, &tr("web-midi"));
         match &s.devices.midi {
-            MidiStatus::Asking => muted(ui, "Asking the browser for MIDI…"),
-            MidiStatus::Unsupported => muted(
-                ui,
-                "This browser has no MIDI (Web MIDI). The on-screen keyboard and the \
-                 computer keys still play.",
-            ),
+            MidiStatus::Asking => muted(ui, &tr("web-midi-asking")),
+            MidiStatus::Unsupported => muted(ui, &tr("web-midi-unsupported")),
             MidiStatus::Refused(why) => {
-                ui.colored_label(theme::warning(), format!("MIDI was refused: {why}"));
+                ui.colored_label(
+                    theme::warning(),
+                    tr_args("web-midi-refused", &[("error", why.into())]),
+                );
             }
             MidiStatus::Ready => {
                 if s.devices.inputs.is_empty() {
-                    muted(ui, "No MIDI inputs. Plug one in; it's picked up at once.");
+                    muted(ui, &tr("web-midi-no-inputs"));
                 } else {
-                    ui.label("Inputs (all are heard):");
+                    ui.label(tr("web-midi-inputs"));
                     for name in &s.devices.inputs {
                         ui.label(format!("  {name}"));
                     }
                 }
                 if s.devices.outputs.is_empty() {
-                    muted(ui, "No MIDI outputs.");
+                    muted(ui, &tr("web-midi-no-outputs"));
                 } else {
-                    ui.label("MIDI Out nodes send to:");
+                    ui.label(tr("devices-midi-out-to"));
                     for port in &mut s.devices.outputs {
                         ui.checkbox(&mut port.chosen, &port.name);
                     }
@@ -386,7 +344,7 @@ impl DevicesPanel for DevicesUi {
             }
         }
         if !s.devices.last.is_empty() {
-            ui.label("Last messages:");
+            ui.label(tr("devices-last-messages"));
             for (port, text) in &s.devices.last {
                 ui.label(
                     RichText::new(if port.is_empty() {
@@ -400,7 +358,7 @@ impl DevicesPanel for DevicesUi {
             }
         }
 
-        heading(ui, "Gamepads");
+        heading(ui, &tr("section-gamepads"));
         let pads: Vec<(usize, String)> = s
             .devices
             .pads
@@ -408,23 +366,14 @@ impl DevicesPanel for DevicesUi {
             .map(|(i, n)| (i, n.to_string()))
             .collect();
         if pads.is_empty() {
-            muted(
-                ui,
-                "Press a button on a gamepad to connect it (browsers show gamepads only \
-                 after a press).",
-            );
+            muted(ui, &tr("web-gamepads-press"));
         }
         for (i, name) in pads {
             ui.label(format!("  {}: {name}", i + 1));
         }
 
-        heading(ui, "Not in the browser");
-        muted(
-            ui,
-            "OSC needs UDP, which pages can't use: OSC In and OSC Out nodes stay quiet here \
-             (use the desktop editor or audioc run). Record nodes can't write takes to disk, \
-             and plugins can't load. Export WAV and Export Pack download their files.",
-        );
+        heading(ui, &tr("web-not-in-browser"));
+        muted(ui, &tr("web-not-in-browser-text"));
         drop(s);
         if ask {
             ask_for_mic(&state);

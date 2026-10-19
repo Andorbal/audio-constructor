@@ -156,6 +156,15 @@ devices-all-ports = all ports
 devices-age-now = now
 devices-age-seconds = { $seconds } s ago
 devices-age-minutes = { $minutes } min ago
+# A MIDI message in the lists of last messages: "Note on C4 · vel 100 · ch 1".
+devices-midi-note-on = Note on { $note } · vel { $velocity } · { $channel }
+devices-midi-note-off = Note off { $note } · { $channel }
+devices-midi-cc = CC { $controller } = { $value } · { $channel }
+devices-midi-pitch-bend = Pitch bend { $value } · { $channel }
+devices-midi-pressure = Pressure { $value } · { $channel }
+devices-midi-poly-pressure = Pressure { $note } { $value } · { $channel }
+devices-midi-program = Program { $program } · { $channel }
+devices-midi-channel = ch { $number }
 devices-gamepads-off = Gamepads are off (no device runtime).
 devices-no-gamepads = No gamepads connected. Plug one in any time.
 devices-gamepad-tip = Pad { $number } in Gamepad nodes and bindings
