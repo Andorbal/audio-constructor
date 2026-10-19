@@ -5,7 +5,7 @@ pub(crate) mod host;
 pub(crate) mod processor;
 
 use std::ffi::CString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -13,21 +13,54 @@ use ac_core::{PluginDesc, PluginFormat, PluginParam, PluginPort, PluginProcessor
 use clack_extensions::audio_ports::AudioPortInfoBuffer;
 use clack_extensions::note_ports::{NoteDialects, NotePortInfoBuffer};
 use clack_extensions::params::{ParamInfoBuffer, ParamInfoFlags};
+use clack_host::entry::EntryDescriptor;
 use clack_host::prelude::*;
 
 use self::host::{AcClap, ClapMain, ClapShared, Extensions, Requests, host_info};
 use self::processor::{ClapProcessor, Layout, Notes, PARAM_RING};
 use crate::registry::{self, Entry, MainHalf};
 
+/// The binary a CLAP bundle path names (on macOS a bundle folder holds
+/// it; elsewhere the `.clap` file is the binary).
+fn binary(path: &Path) -> PathBuf {
+    #[cfg(target_os = "macos")]
+    if path.is_dir() {
+        return crate::library::bundle_executable(path).unwrap_or_else(|| {
+            let stem = path.file_stem().unwrap_or_default();
+            path.join("Contents").join("MacOS").join(stem)
+        });
+    }
+    path.to_path_buf()
+}
+
 /// Load a CLAP bundle (cached: loading one twice gives the same entry).
+/// Its library stays loaded after the entry goes; the entry's `deinit`
+/// still runs when the last user of it does (D139).
 #[allow(unsafe_code)]
 pub(crate) fn load_entry(path: &Path) -> Result<PluginEntry, String> {
     crate::gui::prepare_display();
+    let bin = binary(path);
     // SAFETY: loading a plugin library runs its initialization code, which
     // can do anything; there is no safe way to host native plugins in
     // process. The path comes from the scanner or the project, and the
     // person chose to use the plugin (DECISIONS D135 on isolation).
-    unsafe { PluginEntry::load(path) }.map_err(|e| format!("couldn't load {}: {e}", path.display()))
+    let resident = unsafe { crate::library::open(&bin) }?;
+    // SAFETY: `clap_entry` is the CLAP entry point, a `clap_plugin_entry`
+    // the library exports; the library is never unloaded (D139), so the
+    // descriptor lives as long as the process.
+    let entry: &'static EntryDescriptor = unsafe {
+        let symbol = resident
+            .library
+            .get::<*const EntryDescriptor>(b"clap_entry\0")
+            .map_err(|_| "it isn't a CLAP plugin (no clap_entry)".to_string())?;
+        let ptr = *symbol;
+        ptr.as_ref().ok_or("its clap_entry is empty")?
+    };
+    let bundle = CString::new(path.to_string_lossy().into_owned())
+        .map_err(|_| "the path has a NUL in it")?;
+    // SAFETY: as above; `entry` is the library's own descriptor.
+    unsafe { PluginEntry::load_from_raw(entry, &bundle) }
+        .map_err(|e| format!("couldn't start {}: {e}", path.display()))
 }
 
 fn text(bytes: &[u8]) -> String {

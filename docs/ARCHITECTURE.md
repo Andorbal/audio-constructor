@@ -765,6 +765,12 @@ All hosts call the same `Engine`.
     through `IMidiMapping`, the component's and controller's states in one
     blob, and `IPlugView` windows with the host's `IPlugFrame` (and
     `IRunLoop` on Linux).
+  - *Libraries.* Every plugin binary is opened once through a
+    process-wide list and never unloaded (`RTLD_NODELETE` on Unix, no
+    `FreeLibrary` on Windows); the formats' deinit and module exit still
+    run when the last user goes. Plugin code left behind (exit handlers,
+    thread-local destructors, threads) would otherwise crash the process
+    when it runs after the code is unmapped (D139).
   - *Finding plugins.* `ac_host::scan` walks the standard CLAP and VST3
     folders (and `CLAP_PATH`, `VST3_PATH`) and describes each bundle in a
     child process (`audioc scan-bundle`, `audio-constructor

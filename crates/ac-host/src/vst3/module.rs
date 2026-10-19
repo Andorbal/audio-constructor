@@ -1,6 +1,7 @@
 //! Loading a VST3 module: the binary inside a bundle for this system, its
 //! entry and exit functions (`ModuleEntry` on Linux, `InitDll` on Windows,
-//! `bundleEntry` on macOS), and its plugin factory.
+//! `bundleEntry` on macOS), and its plugin factory. The library itself is
+//! never unloaded (D139).
 
 #![allow(unsafe_code)]
 
@@ -12,14 +13,13 @@ use std::sync::Arc;
 use vst3::ComPtr;
 use vst3::Steinberg::IPluginFactory;
 
-/// A loaded module. The factory is released and the module's exit
-/// function called before the library unloads.
+/// A loaded module. Dropping it releases the factory and calls the
+/// module's exit function; its library stays loaded (D139).
 pub(crate) struct Module {
     factory: ManuallyDrop<ComPtr<IPluginFactory>>,
     exit: Option<unsafe extern "C" fn() -> bool>,
     #[cfg(target_os = "macos")]
     bundle: *const c_void,
-    library: ManuallyDrop<libloading::Library>,
 }
 
 // SAFETY: a VST3 factory is safe to call from any thread (the SDK's
@@ -55,6 +55,10 @@ pub(crate) fn binary(bundle: &Path) -> PathBuf {
         .unwrap_or_default();
     let contents = bundle.join("Contents");
     if cfg!(target_os = "macos") {
+        #[cfg(target_os = "macos")]
+        if let Some(exe) = crate::library::bundle_executable(bundle) {
+            return exe;
+        }
         contents.join("MacOS").join(stem)
     } else if cfg!(windows) {
         contents.join(arch_dir()).join(format!("{stem}.vst3"))
@@ -76,8 +80,8 @@ impl Module {
         // SAFETY: loading a plugin library runs its initialization code,
         // which can do anything; there is no safe way to host native
         // plugins in process (DECISIONS D135).
-        let library = unsafe { libloading::Library::new(&bin) }
-            .map_err(|e| format!("couldn't load {}: {e}", bin.display()))?;
+        let resident = unsafe { crate::library::open(&bin) }?;
+        let library = resident.library;
         #[cfg(target_os = "macos")]
         let cf_bundle = cf::bundle(bundle);
         // SAFETY: the VST3 module entry points, with the SDK's signatures,
@@ -99,7 +103,7 @@ impl Module {
                 library.get::<Exit>(b"bundleExit\0").ok().map(|s| *s),
             );
             #[cfg(all(unix, not(target_os = "macos")))]
-            let started = entry.map_or(true, |e| e(dlopen_handle(&bin)));
+            let started = entry.map_or(true, |e| e(resident.handle as *mut c_void));
             #[cfg(windows)]
             let started = entry.map_or(true, |e| e());
             #[cfg(target_os = "macos")]
@@ -133,7 +137,6 @@ impl Module {
             exit,
             #[cfg(target_os = "macos")]
             bundle: cf_bundle,
-            library: ManuallyDrop::new(library),
         }))
     }
 
@@ -145,7 +148,7 @@ impl Module {
 impl Drop for Module {
     fn drop(&mut self) {
         // SAFETY: each dropped once, here, in the order the module needs:
-        // the factory, then the module's exit, then the library.
+        // the factory, then the module's exit. The library stays mapped.
         unsafe {
             ManuallyDrop::drop(&mut self.factory);
             if let Some(exit) = self.exit.take() {
@@ -154,28 +157,7 @@ impl Drop for Module {
         }
         #[cfg(target_os = "macos")]
         cf::release(self.bundle);
-        // SAFETY: as above; nothing of the library is used after this.
-        unsafe { ManuallyDrop::drop(&mut self.library) };
     }
-}
-
-/// The `dlopen` handle of an already-loaded library, for `ModuleEntry`
-/// (loading it again only takes another reference, released at once).
-#[cfg(all(unix, not(target_os = "macos")))]
-fn dlopen_handle(bin: &Path) -> *mut c_void {
-    use std::os::unix::ffi::OsStrExt;
-    let Ok(c) = std::ffi::CString::new(bin.as_os_str().as_bytes()) else {
-        return std::ptr::null_mut();
-    };
-    // SAFETY: `c` is a valid path string; RTLD_NOLOAD only looks up a
-    // library that's already loaded (it is: libloading just loaded it).
-    let h = unsafe { libc::dlopen(c.as_ptr(), libc::RTLD_LAZY | libc::RTLD_NOLOAD) };
-    if !h.is_null() {
-        // SAFETY: drop the extra reference NOLOAD took; the library stays
-        // loaded by libloading's reference, and the handle stays valid.
-        unsafe { libc::dlclose(h) };
-    }
-    h
 }
 
 /// The CoreFoundation calls `bundleEntry` needs.

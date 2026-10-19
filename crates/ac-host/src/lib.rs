@@ -25,6 +25,7 @@
 mod base64;
 mod clap;
 mod gui;
+mod library;
 mod registry;
 pub mod scan;
 mod vst3;
@@ -36,6 +37,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use ac_core::{PluginDesc, PluginFormat, PluginLoader, PluginProcessor, PluginRequest};
 
 pub use gui::{close_window, has_window, show_window, window_open};
+pub use library::is_resident;
 pub use registry::{HostEvent, poll, running, shutdown};
 pub use scan::{Catalog, Failure, Scanner, child_main, default_cache_path, describe_bundle};
 

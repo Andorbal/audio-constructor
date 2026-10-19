@@ -28,9 +28,8 @@ const INSTRUMENT: &str = "io.github.andorbal.audio-constructor.instrument";
 const EFFECT: &str = "io.github.andorbal.audio-constructor.effect";
 const RATE: f64 = 48_000.0;
 
-/// The bundle described once, and a host that knows it, kept for the
-/// whole run (unloading a library while a failing test prints its
-/// backtrace can crash the symbolizer).
+/// The bundle described once, and a host that knows it, shared by the
+/// whole run (its library stays loaded either way, D139).
 fn host() -> &'static Arc<PluginHost> {
     static HOST: OnceLock<Arc<PluginHost>> = OnceLock::new();
     HOST.get_or_init(|| {
