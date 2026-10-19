@@ -36,6 +36,15 @@ fixes and smaller changes.
   its session, and reopens them as they were, on any machine. A saved
   state that can't be read leaves a working default patch, never a broken
   plugin.
+- **The editor in the plugin's window** (CLAP): the host's editor button
+  opens the whole editor in a resizable window, and edits play at once
+  and are saved with the session. File ▸ Open loads a project with its
+  audio into the plugin, a file picked for a Clip travels in the session,
+  and Save As writes a project file and its audio for the app. The
+  Devices tab lists the macros with what each drives; moving one there
+  moves the host's parameter, so the host records it. The transport bar
+  follows the host's transport. Closing the window keeps everything,
+  undo included. The VST3 plugins have no window yet.
 - `python3 scripts/bundle_plugin.py` builds the `.clap` and `.vst3`
   bundles (`--install` copies them into your plugin folders). The guide
   has a new chapter on the plugin.

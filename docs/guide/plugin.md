@@ -67,15 +67,53 @@ patch.
   few milliseconds.
 - Macro bindings are saved in the project like any other. In a project
   file, a macro binding's source is `{"type": "macro", "number": 3}`;
-  `min`, `max`, and `invert` work as for a MIDI controller. Once the
-  editor is in the plugin's window (see
-  [What doesn't work yet](#what-doesnt-work-yet)), you learn one like any
-  control: start learning on an input and move the macro in the host.
+  `min`, `max`, and `invert` work as for a MIDI controller. In the
+  [editor](#the-editor), you learn one like any control: right-click an
+  input, choose **Bind…**, and move the macro (in the host, or on its
+  slider in the Devices tab).
 - One macro can drive several inputs, each with its own range: bind it
   more than once.
 
 > **Try this:** on a new Effect, automate Macro 1 with a slow ramp from
 > 0.5 down to 0 and back: the track fades out by 24 dB and comes back.
+
+## The editor
+
+Open the plugin's window (the host's editor button) and you get the whole
+editor, the same as the app's: the canvas, the panels, the palette, the
+side panel. Edits play at once, and they're saved with your session.
+Drag the window's corner to make it bigger; it opens at the size you
+left it, and closing it loses nothing: undo still remembers what you did
+before.
+
+The editor is in the CLAP plugins. The VST3 plugins don't have it yet
+(see [What doesn't work yet](#what-doesnt-work-yet)): in a host that can
+load both, use CLAP.
+
+A few things work differently inside a plugin:
+
+- **File ▸ Open** loads a project into the plugin, with the audio files
+  it plays, which then travel in the session. **File ▸ New** starts over
+  with the plugin's default patch, and the examples open the same way.
+  **Save As** writes a project file, with the audio files it plays beside
+  it, for opening in the app.
+- **A file you pick** for a Clip goes into the session too, so the
+  session plays it wherever it's opened.
+- **The transport bar** shows whether the host is playing, and has no
+  play or record buttons: the host's transport plays the patch, and
+  Space goes to the host.
+- **The Devices tab** says what the host runs the patch at (sample rate,
+  buffer, load) and lists the sixteen **macros**: what each drives, its
+  value as the host shows it, and a slider. Moving a slider moves the
+  host's parameter, so the host records it as automation, like moving it
+  in the host.
+- There's no **Quit**; close the window from the host. **Performance
+  mode** (`F11` in the app, View ▸ Performance Mode) fills the plugin's
+  window instead of the screen.
+
+> **Try this:** on a new Instrument, open the window, go to the Devices
+> tab, and drag Macro 1 while a note plays: the cutoff moves, and the
+> host draws it into the macro's automation lane if it's recording.
 
 ## Saving and sessions
 
@@ -113,11 +151,16 @@ what it costs in the app; the host's own meter shows it.
 
 ## What doesn't work yet
 
-- **The editor in the plugin's window.** It's on its way. Until it
-  arrives, the plugin window is empty (hosts show their own controls for
-  the macros), and a plugin plays its default patch or the patch its
-  session saved: there's no way yet to open one of your own projects in
-  it.
+- **The editor in the VST3 plugins.** They have no window yet: hosts show
+  their own controls for the macros, and a VST3 plugin plays its default
+  patch or the patch its session saved. The CLAP plugins have the
+  [editor](#the-editor).
+- **Some shortcuts in the plugin's window.** The function keys (`F1`,
+  `F2`, `F11`) and shortcuts that hold Ctrl (or Cmd) with Shift or a
+  symbol (Redo, Save As, Duplicate with Inputs, UI scale) don't reach
+  the editor; their menu entries do. Keys the editor doesn't use while
+  you aren't typing go on to the host, so its own shortcuts may answer
+  them too.
 - **Following the host's tempo.** The patch keeps its project tempo (see
   above).
 - **Recording.** Record nodes don't record in a plugin, and File Out

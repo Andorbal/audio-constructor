@@ -77,7 +77,7 @@ audio-constructor/
     ac-engine/            # compiler, scheduler, transport, real-time runtime, offline renderer, baking. wasm-safe.
     ac-io/                # device layer: cpal, midir, gilrs, rosc, file I/O. Feature-gated per backend.
     ac-cli/               # `audioc` binary
-    ac-app/               # `audio-constructor` desktop binary (eframe)
+    ac-app/               # the editor; `audio-constructor` desktop binary (eframe), and the plugin window (egui-baseview)
     ac-plugin/            # the engine as a CLAP/VST3 effect and instrument (nice-plug)
     ac-web/               # Phase 3: wasm glue, AudioWorklet host
   examples/               # example projects shipped with the app
@@ -89,9 +89,11 @@ audio-constructor/
 ```
 
 Dependency direction is strictly downward: `ac-app`/`ac-cli` → `ac-io` →
-`ac-engine` → `ac-nodes` → `ac-dsp` → `ac-core`. `ac-plugin` sits on
-`ac-engine` directly: a host provides its devices, so it links no device
-layer. CI runs
+`ac-engine` → `ac-nodes` → `ac-dsp` → `ac-core`. `ac-plugin` runs its
+engine on `ac-engine` directly: a host provides its devices. Its window
+(the `editor` feature) is `ac-app` without the desktop shell, which still
+links `ac-io` and so the device libraries, though in a plugin it opens no
+device (D124). CI runs
 `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`,
 `ac-nodes`, and `ac-engine` on every change.
 
@@ -618,8 +620,29 @@ without either feature.
 
 All hosts call the same `Engine`.
 
-- **App** (`ac-app`): eframe shell. Owns the `Engine`, the device layer, the
-  undo stack, and the editor. Edits flow `UI → GraphEdit → Engine::edit`.
+- **App** (`ac-app`): the editor, and the desktop shell around it. The
+  editor (`EditorApp`) has two hosts, which both call `EditorApp::ui` once
+  a frame with the frame's root `Ui` (DECISIONS D124):
+  - *The desktop* (`desktop` feature, on by default: eframe on winit and
+    wgpu, and the system's file dialogs through `native-dialogs`). The
+    editor owns the `Engine`, the device layer, and the undo stack. Edits
+    flow `UI → GraphEdit → Engine::edit`.
+  - *A plugin window* (`embed` feature, `ac_app::embed`): egui-baseview
+    with its OpenGL renderer draws the editor into a child of the host's
+    window (D125). With `AudioMode::Hosted` the editor opens no devices
+    (no audio stream, MIDI ports, gamepad thread, or OSC sockets); the
+    host runs the processor. One `EditorApp` outlives the windows that
+    show it (`EditorApp::embedded`, shared as `embed::SharedEditor`), so
+    closing and reopening keeps its document, history, and view; it must
+    stay `Send` (a compile-time check), since on X11 each window draws on
+    a thread of its own. A host that keeps the project itself
+    (`EditorApp::host_keeps_project`, D126) lends the editor its engine
+    handle each frame (`with_engine`), takes engine edits
+    (`take_engine_edit`) and other changes (`take_changes`), and answers
+    `HostRequest`s (New, Open, a picked audio file); its automatable
+    parameters show in the Devices tab through `host::HostControls`
+    (D127). The editor leaves the window's title, size, and closing to
+    the host, offers no Quit, and fills the window in performance mode.
 - **CLI** (`ac-cli`, binary `audioc`):
   - `audioc render <project> -o out.wav [--from <time>] [--to <time>] [--sample-rate N] [--bit-depth 16|24|32f] [--set node.socket=value]... [--input in.wav] [--midi-out notes.mid]` also writes each `FileOut` node's file next to `out.wav`.
   - `audioc run <project> [--host NAME] [--output-device NAME] [--input-device NAME|none] [--midi NAME|all|none] [--midi-out NAME|all|none] [--sample-rate N] [--buffer-size N] [--duration TIME] [--no-play] [--record] [--null] [--threads N] [--osc-in PORT] [--no-gamepad]` runs live, headless, until Ctrl+C or `--duration`, printing position, load (per core with `--threads`), xruns, and dropped messages every second, and baking whole-input nodes in the background. Record nodes write takes into `<project>/assets/`. `--null` runs without devices (silent input, real-time paced) for headless smoke tests. Gamepads are listened to unless `--no-gamepad` (connects and disconnects are printed); `--osc-in PORT` listens for OSC on that UDP port; OSC Out nodes always send.
@@ -660,11 +683,19 @@ All hosts call the same `Engine`.
     with a working patch: a Gain on Macro 1 (effect), or MIDI In into an
     eight-voice Subtractive Synth Voice with Macros 1–4 on its sound
     (instrument).
-  - *Editor.* The node editor embeds in the plugin window through
-    `ac_plugin::editor` (an egui-baseview window): it gets the shared
-    session (project, assets, `EngineHandle`) and the macro parameters,
-    pushes project changes with `Session::set_project`, and leaves the
-    transport to the host.
+  - *Editor.* The CLAP plugins' window is the app's editor
+    (`ac_plugin::editor`, the `editor` feature, on by default): a
+    resizable window, 1200 × 760 points to start, opened inside the
+    host's through `ac_app::embed`. Each frame, on the window's thread,
+    `editor::frame` locks the session, brings a project the session
+    replaced (state restore, file load, default) into the document, runs
+    the editor on the session's `EngineHandle`, and hands changes back
+    with `Session::set_project` (what the engine hears at once, layout at
+    most every quarter second and when the window closes). New, Open, and
+    picked audio files go to `reset_to_default`, `load_project_file`, and
+    `add_asset`. The macros move through the framework's `ParamSetter` as
+    gestures the host records (D127); the transport is the host's. The
+    VST3 plugins have no window yet (D128).
   - *Bundles.* `scripts/bundle_plugin.py` builds `Audio Constructor.clap`
     and `Audio Constructor.vst3` (D123).
 - **Web** (Phase 3, `ac-web`): the engine runs inside an `AudioWorklet`; the

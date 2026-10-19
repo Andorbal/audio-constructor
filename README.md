@@ -67,8 +67,9 @@ parts those tools are made of and lets you wire them up however you like.
    with no screen.
 3. **A plugin**: the engine as a CLAP and VST3 effect and instrument, so a
    patch runs inside any music software that loads plugins, with sixteen
-   macro knobs the host can automate. Hosting third-party plugins as nodes
-   is planned.
+   macro knobs the host can automate and, in CLAP hosts, the whole editor
+   in the plugin's window. Hosting third-party plugins as nodes is
+   planned.
 
 ## Getting started
 
@@ -176,9 +177,11 @@ This builds `Audio Constructor.clap` and `Audio Constructor.vst3`; each holds
 both plugins, **Audio Constructor Effect** and **Audio Constructor
 Instrument**. `--install` copies them where hosts look: `~/.clap` and
 `~/.vst3` on Linux, `~/Library/Audio/Plug-Ins/CLAP` and `…/VST3` on macOS,
-and `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3` on Windows. The
-plugin needs no system libraries beyond the Rust toolchain. How to use it
-is in the guide's [plugin chapter](docs/guide/plugin.md).
+and `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3` on Windows. It
+builds with what the app needs (on Linux, the ALSA and udev headers above).
+Its window, the editor, draws with OpenGL, in an X11 window on Linux (on a
+Wayland desktop, through XWayland). How to use it is in the
+guide's [plugin chapter](docs/guide/plugin.md).
 
 ### Use the command line
 
