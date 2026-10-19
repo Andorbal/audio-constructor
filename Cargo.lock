@@ -25,6 +25,7 @@ dependencies = [
  "ac-core",
  "ac-dsp",
  "ac-engine",
+ "ac-host",
  "ac-io",
  "ac-nodes",
  "anyhow",

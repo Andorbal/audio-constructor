@@ -27,6 +27,18 @@ fixes and smaller changes.
 - A project with a plugin that isn't installed still opens with its
   sockets and wires; the node plays silence and the compile report says
   which plugin is missing.
+- In the editor, every plugin found is listed by name in the add-node
+  palette (`Shift+A`) and under **Plugins** in the Library tab. Adding
+  one makes a Plugin node with its sockets. **Show Plugin Window** (in
+  the node's right-click menu and the Node tab) opens the plugin's own
+  interface in a window beside the editor; moving a control there moves
+  the node's input, and saving the project saves everything the plugin
+  keeps. The Node tab says whether the plugin runs, or what's missing.
+- The editor looks for new and changed plugins each time it starts; the
+  Devices tab's **Plugins** section rescans, lists the folders it looks
+  in, and lists plugins that couldn't be opened. Each plugin is opened
+  in a separate process while it's looked at, so one that crashes
+  can't close the editor.
 - `audioc plugins` lists the CLAP and VST3 plugins installed on the
   computer (`--json` for scripts), looking in the standard folders and
   in `CLAP_PATH` and `VST3_PATH`. Each plugin is opened in a separate

@@ -42,6 +42,7 @@ ac-dsp.workspace = true
 ac-nodes.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true
+ac-host = { path = "../ac-host" }
 eframe = { workspace = true, optional = true }
 # egui's own fonts back up the bundled ones (symbols Inter lacks); eframe
 # turns them on for the desktop, and a plugin window needs them too.

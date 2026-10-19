@@ -98,6 +98,13 @@ impl PluginHost {
         }
     }
 
+    /// Forget states kept for restarts (a different project opened).
+    pub fn clear_restarts(&self) {
+        if let Ok(mut r) = self.restarts.lock() {
+            r.clear();
+        }
+    }
+
     fn clap_entry(&self, path: &Path) -> Result<clack_host::prelude::PluginEntry, String> {
         let mut entries = self
             .clap_entries
