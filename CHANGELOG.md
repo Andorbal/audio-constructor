@@ -15,6 +15,10 @@ fixes and smaller changes.
 
 ### Added
 
+- **Running on PipeWire** is now documented in the guide: the released
+  downloads play through PipeWire's ALSA layer, shared with other
+  programs, and a JACK build started with `pw-jack` runs at PipeWire's
+  buffer size for low latency.
 - **Single-sample feedback.** A Feedback node's new **Delay round the
   loop** setting (`delay` in the project file) can be `sample` instead of
   `block`. The nodes on that loop then run one sample at a time while the

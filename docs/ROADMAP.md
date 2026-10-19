@@ -668,7 +668,7 @@ request.
 ### M3.4 Engine extras
 - [x] Single-sample feedback for strongly connected components.
 - [x] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
-- [ ] Native PipeWire backend if the shims prove limiting.
+- [x] Native PipeWire backend if the shims prove limiting.
 
 *Verified:* each part is covered as follows.
 
@@ -762,6 +762,32 @@ live-vs-offline check: `modulation-chaos`, `filters-formant`,
 `tests/golden/assets/plate-ir.wav`, was rendered with `audioc` from the
 shipped Plate Reverb block). The streaming nodes also run inside a
 single-sample loop, and a Spectral Freeze there is refused.
+
+PipeWire (DECISIONS D141): evaluated, and no native backend added, since
+neither PipeWire layer limits the engine. The evaluation, from the code
+and the libraries:
+- The engine takes whatever rate and buffer size a server gives it and
+  opens input and output as separate streams (D36).
+- The device layer lists and picks cpal's hosts by name
+  (`ac-io/src/audio.rs`), so nothing in it is PipeWire-specific.
+- The JACK route is what CI exercises for real (D100): it plays through
+  `jackd`'s dummy driver with the same libjack interface that PipeWire's
+  JACK library implements.
+- The ALSA route uses PipeWire's ALSA plugin, shared with other programs.
+  It has PipeWire's quantum on top of the ALSA buffer (documented, with
+  the low-latency JACK route, in the guide's getting-started and
+  troubleshooting chapters).
+- cpal 0.18.2, already in `Cargo.lock`, has a PipeWire host behind its
+  `pipewire` feature. Adopting it would mean linking `libpipewire-0.3`,
+  so like JACK it could only be an opt-in build. That is a feature flag
+  and a CI job away if a limitation turns up.
+
+Needs manual verification (in the PR), on a PipeWire desktop:
+- a release build plays and records through the default device, and
+  `audioc latency` with a loopback cable reports the round trip;
+- a JACK build under `pw-jack` with `PIPEWIRE_QUANTUM=128/48000` runs
+  with 128-frame buffers (the Devices tab shows the size) and a lower
+  measured round trip.
 
 ### M3.5 Product
 - [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.

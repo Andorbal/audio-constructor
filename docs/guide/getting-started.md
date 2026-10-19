@@ -170,10 +170,37 @@ The Devices tab also has sections for **Gamepads**, **OSC**, the
 **Computer keys**, and **Transport buttons**. They are covered in
 [Performing](performing.md).
 
+### PipeWire (Linux)
+
+Most Linux desktops now run PipeWire, and Audio Constructor works with it
+two ways:
+
+- **The released downloads and a plain build** use ALSA. With PipeWire's
+  ALSA plugin installed (the `pipewire-alsa` package on most
+  distributions, usually there already), the **default** output and input
+  in the Devices tab go through PipeWire, shared with every other program.
+  PipeWire adds its own buffer (its *quantum*, often 1024 frames) on top
+  of the one you pick, so this is the easy way, not the lowest-latency one.
+- **For low latency**, use a [JACK build](#jack-linux) and run it on
+  PipeWire's JACK library: on Debian and Ubuntu install `pipewire-jack`
+  and start the program with `pw-jack`, for instance
+  `pw-jack audio-constructor` or `pw-jack audioc run my.acproj --host jack`;
+  on Fedora and Arch the `pipewire-jack` package (or
+  `pipewire-jack-audio-connection-kit`) replaces JACK's library, so no
+  wrapper is needed. Pick **JACK** as the host. The buffer size is then
+  PipeWire's quantum: ask for one when starting
+  (`PIPEWIRE_QUANTUM=128/48000 pw-jack audio-constructor`) or set it for
+  the whole system with `pw-metadata -n settings 0 clock.force-quantum 128`
+  (and `clock.force-rate 48000` for the rate).
+
+If the Devices tab says the device is busy, PipeWire holds the sound card
+and its ALSA plugin isn't installed: install it, or choose the device
+named **pipewire** in the Output list.
+
 ### JACK (Linux)
 
-PipeWire works through its ALSA and JACK layers without anything extra.
-To use a JACK server directly, install the JACK development files
+PipeWire works through its ALSA and JACK layers (see
+[PipeWire](#pipewire-linux) above). To build with JACK, install the JACK development files
 (`sudo apt install libjack-jackd2-dev`, or
 `jack-audio-connection-kit-devel` on Fedora) and build with:
 

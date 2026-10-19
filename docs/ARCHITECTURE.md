@@ -564,7 +564,7 @@ drains those.
 | --- | --- | --- |
 | macOS | CoreAudio | Already low latency; aggregate devices supported by the OS. |
 | Windows | WASAPI shared + exclusive; **ASIO** (feature `asio`) | ASIO needs the Steinberg ASIO SDK at build time and a signed license to distribute binaries; it ships as an opt-in build. WASAPI exclusive gets most of the way for many interfaces. |
-| Linux | ALSA; JACK (feature `jack`); PipeWire via its JACK/ALSA shims | Native PipeWire later if the shims prove limiting. |
+| Linux | ALSA; JACK (feature `jack`); PipeWire via its ALSA and JACK layers | The default build's ALSA `default` device is PipeWire's ALSA plugin on a PipeWire desktop (shared with other programs, with PipeWire's quantum on top of the ALSA buffer); a `jack` build run on PipeWire's JACK library (`pw-jack`) is a graph client at PipeWire's quantum. No native PipeWire backend for now (DECISIONS D141); cpal's `pipewire` host would add one as an opt-in feature. |
 
 The optional backends are built on every change (DECISIONS D100): CI
 builds the editor and `audioc` with `jack` on Linux and plays a project
