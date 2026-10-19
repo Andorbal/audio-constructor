@@ -226,6 +226,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
+| [docs/TRANSLATING.md](docs/TRANSLATING.md) | How the editor's text is translated, and how to add a language |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 

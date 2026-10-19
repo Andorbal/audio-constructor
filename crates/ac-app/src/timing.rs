@@ -14,6 +14,7 @@ use ac_core::{NodeId, NodePath, VOICES_KIND};
 use ac_engine::TelemetryReader;
 
 use crate::document::Document;
+use crate::i18n::{tr, tr_args};
 
 /// Smoothing time constant (seconds): steady enough to read, quick enough to
 /// follow a change in the patch.
@@ -161,19 +162,24 @@ pub fn format_share(share: f32) -> String {
 
 /// The hover text for a reading: time, share, and what was summed.
 pub fn describe(r: &Reading, budget_ns: Option<f64>, voices: bool) -> String {
-    let mut s = format!("{} a block", format_ns(r.ns));
-    if let (Some(share), Some(b)) = (r.share, budget_ns) {
-        s.push_str(&format!(
-            ", {} of the {} budget",
-            format_share(share),
-            format_ns(b as f32)
-        ));
-    }
+    let time = format_ns(r.ns);
+    let mut s = match (r.share, budget_ns) {
+        (Some(share), Some(b)) => tr_args(
+            "timing-per-block-share",
+            &[
+                ("time", time.into()),
+                ("share", format_share(share).into()),
+                ("budget", format_ns(b as f32).into()),
+            ],
+        ),
+        _ => tr_args("timing-per-block", &[("time", time.into())]),
+    };
     if r.parts > 1 {
-        s.push_str(if voices {
-            "\nThe sum of every voice and what's inside them."
+        s.push('\n');
+        s.push_str(&if voices {
+            tr("timing-sum-of-voices")
         } else {
-            "\nThe sum of the nodes inside."
+            tr("timing-sum-of-nodes")
         });
     }
     s

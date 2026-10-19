@@ -295,10 +295,13 @@ fn a_macro_moved_in_the_editor_goes_through_the_param_setter() {
     h.state_mut().editor.side.tab = Tab::Devices;
     h.run_steps(3);
     h.get_by_label("MACROS");
-    let rect = h.get_by_label("Macro 1").rect();
+    // The macro's slider, named by its label.
+    let rect = h
+        .get_by_role_and_label(egui::accesskit::Role::Slider, "Macro 1")
+        .rect();
     let y = rect.center().y;
-    let from = Pos2::new(rect.max.x + 40.0, y);
-    let to = Pos2::new(rect.max.x + 120.0, y);
+    let from = Pos2::new(rect.min.x + rect.width() * 0.2, y);
+    let to = Pos2::new(rect.min.x + rect.width() * 0.8, y);
     h.hover_at(from);
     h.run_steps(2);
     h.drag_at(from);

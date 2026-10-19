@@ -14,6 +14,7 @@ use super::view::Transform;
 use super::wires::{self, WireLook};
 use super::{Canvas, CanvasIo, Gesture, Hit, accepts, field_rect, frame_rect, widgets};
 use crate::edit;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -269,7 +270,7 @@ impl Canvas {
             painter.text(
                 pill.right_center() + vec2(10.0, 0.0),
                 Align2::LEFT_CENTER,
-                "Tab to leave",
+                tr("canvas-leave-hint"),
                 theme::ui_font(theme::FONT_SMALL),
                 theme::text_faint(),
             );
@@ -499,7 +500,7 @@ impl Canvas {
             if !n.collapsed && text_ok {
                 let row = t.rect_to_screen(s.row);
                 let label = if s.is_new_slot() {
-                    "drop to add".to_string()
+                    tr("canvas-drop-to-add")
                 } else {
                     pretty(&s.name)
                 };
@@ -605,13 +606,11 @@ impl Canvas {
         );
         let r = Rect::from_min_size(pos, size);
         painter.galley(pos, galley, color);
+        let args = [("sources", sources.join(", ").into())];
         let tip = if wired {
-            format!(
-                "Bound to {}, but the input is wired, so the binding does nothing.",
-                sources.join(", ")
-            )
+            tr_args("canvas-bound-but-wired", &args)
         } else {
-            format!("Bound to {}", sources.join(", "))
+            tr_args("canvas-bound", &args)
         };
         self.tips.push((r.expand(2.0), tip));
     }
@@ -677,7 +676,7 @@ impl Canvas {
         let z = self.view.zoom;
         let row = t.rect_to_screen(s.row);
         let label = if s.is_new_slot() {
-            "drop to add".to_string()
+            tr("canvas-drop-to-add")
         } else {
             pretty(&s.name)
         };
@@ -903,9 +902,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::QUESTION,
                 color: theme::warning(),
-                tip: format!(
-                    "Missing node: {m}. It's kept in the project and its wires are preserved."
-                ),
+                tip: tr_args("canvas-badge-missing", &[("kind", m.as_str().into())]),
             });
             warnings.clear();
         }
@@ -934,7 +931,7 @@ impl Canvas {
                 out.push(Badge {
                     icon: icons::FILE_X,
                     color: theme::error(),
-                    tip: format!("File not found: {file}\nLocate it from the Project tab."),
+                    tip: tr_args("canvas-badge-file-missing", &[("file", file.into())]),
                 });
             }
         }
@@ -945,10 +942,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::STACK,
                 color: theme::text_muted(),
-                tip: format!(
-                    "Polyphonic: the inside runs once per voice ({voices} voices), and notes \
-                     from `midi` are shared out among them."
-                ),
+                tip: tr_args("canvas-badge-voices", &[("count", voices.into())]),
             });
         }
         if let Some((_, state)) = io.report.stats.whole_input.iter().find(|(p, _)| *p == path) {
@@ -965,8 +959,12 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::TIMER,
                 color: theme::text_muted(),
-                tip: format!(
-                    "Adds {samples} samples ({ms:.1} ms) of latency; parallel paths are delayed to match."
+                tip: tr_args(
+                    "canvas-badge-latency",
+                    &[
+                        ("samples", samples.to_string().into()),
+                        ("ms", format!("{ms:.1}").into()),
+                    ],
                 ),
             });
         }
@@ -976,10 +974,7 @@ impl Canvas {
                 out.push(Badge {
                     icon: icons::PUSH_PIN,
                     color: theme::accent(),
-                    tip: format!(
-                        "Pinned to {}. Ctrl+Tab shows the panels; right-click to unpin.",
-                        on.join(", ")
-                    ),
+                    tip: tr_args("canvas-badge-pinned", &[("panels", on.join(", ").into())]),
                 });
             }
         }
@@ -987,7 +982,7 @@ impl Canvas {
             out.push(Badge {
                 icon: icons::SPEAKER_SLASH,
                 color: theme::text_muted(),
-                tip: "Muted: passes its input through where the types match (M to unmute)".into(),
+                tip: tr("canvas-badge-muted"),
             });
         }
         out
@@ -1006,29 +1001,24 @@ fn whole_input_badge(state: &WholeState, running: bool) -> Badge {
         WholeState::Disabled { sources } => Badge {
             icon: icons::X_CIRCLE,
             color: theme::text_muted(),
-            tip: format!(
-                "Disabled: needs a known input, and {} is live. It plays silence while \
-                 live; offline renders still work.",
-                sources.join(", ")
+            tip: tr_args(
+                "canvas-badge-disabled",
+                &[("sources", sources.join(", ").into())],
             ),
         },
         WholeState::Pending | WholeState::Stale => Badge {
             icon: icons::CLOCK_COUNTER_CLOCKWISE,
             color: theme::warning(),
             tip: match (state, running) {
-                (WholeState::Stale, _) => {
-                    "Baking: something upstream changed; the previous bake plays until \
-                     the new one is ready."
-                        .into()
-                }
-                (_, true) => "Baking: rendering its input in the background.".into(),
-                _ => "Waiting to bake.".into(),
+                (WholeState::Stale, _) => tr("canvas-badge-rebaking"),
+                (_, true) => tr("canvas-badge-baking"),
+                _ => tr("canvas-badge-waiting"),
             },
         },
         WholeState::Baked => Badge {
             icon: icons::CHECK_CIRCLE,
             color: theme::ok(),
-            tip: "Baked: plays a render of its whole input, in time with the transport.".into(),
+            tip: tr("canvas-badge-baked"),
         },
     }
 }

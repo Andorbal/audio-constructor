@@ -9,6 +9,7 @@ use crate::audio::EngineHost;
 use crate::canvas::bodies::meter_bar;
 use crate::canvas::live::MeterChannel;
 use crate::document::Document;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -53,7 +54,8 @@ impl TransportState {
                 egui::Button::new(big(icons::SKIP_BACK, false, theme::text()))
                     .min_size(vec2(32.0, 28.0)),
             )
-            .on_hover_text("Go to start")
+            .on_hover_text(tr("transport-go-to-start"))
+            .accessible_name(tr("transport-go-to-start"))
             .clicked()
         {
             actions.push(Action::Rewind);
@@ -66,9 +68,14 @@ impl TransportState {
                     .min_size(vec2(40.0, 28.0)),
             )
             .on_hover_text(if playing {
-                "Stop (Space)"
+                tr("transport-stop-tip")
             } else {
-                "Play (Space) · from start: Shift+Space"
+                tr("transport-play-tip")
+            })
+            .accessible_name(if playing {
+                tr("transport-stop")
+            } else {
+                tr("transport-play")
             })
             .clicked()
         {
@@ -80,7 +87,8 @@ impl TransportState {
                     .selected(recording)
                     .min_size(vec2(32.0, 28.0)),
             )
-            .on_hover_text("Record (R)")
+            .on_hover_text(tr("transport-record-tip"))
+            .accessible_name(tr("transport-record"))
             .clicked()
         {
             actions.push(Action::Record);
@@ -96,7 +104,8 @@ impl TransportState {
                 .selected(looping)
                 .min_size(vec2(32.0, 28.0)),
             )
-            .on_hover_text("Loop")
+            .on_hover_text(tr("transport-loop"))
+            .accessible_name(tr("transport-loop"))
             .clicked()
         {
             actions.push(Action::ToggleLoop);
@@ -128,18 +137,16 @@ impl TransportState {
                 // A plugin follows the host's transport: show it, and offer
                 // no buttons that would fight it.
                 let (icon, state) = if playing {
-                    (icons::PLAY, "The host is playing")
+                    (icons::PLAY, tr("transport-host-playing"))
                 } else {
-                    (icons::STOP, "The host is stopped")
+                    (icons::STOP, tr("transport-host-stopped"))
                 };
                 ui.add_sized(
                     vec2(40.0, 28.0),
                     egui::Label::new(big(icon, playing, theme::play())),
                 )
-                .on_hover_text(format!(
-                    "{state}. The patch follows the host's transport: play, stop, and loop it \
-                     in the host."
-                ));
+                .on_hover_text(tr_args("transport-host-tip", &[("state", (&state).into())]))
+                .accessible_name(state);
             } else {
                 self.transport_buttons(ui, doc, playing, recording, &mut actions);
             }
@@ -162,14 +169,12 @@ impl TransportState {
                             .map(|s| ui.ctx().format_shortcut(&s))
                             .unwrap_or_default();
                         if play_keys {
-                            format!("Play keys is on: computer keys go to the patch ({sc})")
+                            tr_args("transport-play-keys-on-tip", &[("shortcut", sc.into())])
                         } else {
-                            format!(
-                                "Play keys: send computer keys to the patch instead of shortcuts \
-                                 ({sc})"
-                            )
+                            tr_args("transport-play-keys-tip", &[("shortcut", sc.into())])
                         }
                     })
+                    .accessible_name(tr("transport-play-keys"))
                     .clicked()
             {
                 actions.push(Action::PlayKeys);
@@ -177,7 +182,13 @@ impl TransportState {
             ui.add_space(10.0);
             // Position: bars:beats, large; time underneath.
             let (bars, time) = position_text(&tempo, pos);
-            let (rect, _) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());
+            let (rect, position) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());
+            // A screen reader reads the position as one readout.
+            let spoken = tr_args(
+                "transport-position",
+                &[("bars", (&bars).into()), ("time", (&time).into())],
+            );
+            position.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &spoken));
             ui.painter()
                 .rect_filled(rect, theme::radius(6.0), theme::well_bg());
             ui.painter().text(
@@ -212,24 +223,28 @@ impl TransportState {
             let tempo_btn = ui
                 .add(
                     egui::Button::new(
-                        RichText::new(format!(
-                            "{:.1} BPM  {}/{}{}",
-                            seg.bpm,
-                            seg.time_sig[0],
-                            seg.time_sig[1],
-                            if extra > 0 {
-                                format!("  +{extra}")
-                            } else {
-                                String::new()
-                            }
+                        RichText::new(tr_args(
+                            "transport-tempo",
+                            &[
+                                ("bpm", format!("{:.1}", seg.bpm).into()),
+                                ("beats", seg.time_sig[0].to_string().into()),
+                                ("unit", seg.time_sig[1].to_string().into()),
+                                (
+                                    "more",
+                                    if extra > 0 {
+                                        format!("  +{extra}")
+                                    } else {
+                                        String::new()
+                                    }
+                                    .into(),
+                                ),
+                            ],
                         ))
                         .font(theme::mono_font(theme::FONT_VALUE + 0.5)),
                     )
                     .min_size(vec2(0.0, 28.0)),
                 )
-                .on_hover_text(
-                    "Tempo and time signature (click to edit; more changes in the Project tab)",
-                );
+                .on_hover_text(tr("transport-tempo-tip"));
             egui::Popup::from_toggle_button_response(&tempo_btn).show(|ui| {
                 ui.set_min_width(200.0);
                 let mut s = seg.clone();
@@ -237,23 +252,23 @@ impl TransportState {
                 egui::Grid::new("tempo-popup")
                     .num_columns(2)
                     .show(ui, |ui| {
-                        ui.label("Tempo");
+                        ui.label(tr("transport-tempo-label"));
                         changed |= ui
                             .add(
                                 egui::DragValue::new(&mut s.bpm)
                                     .range(1.0..=999.0)
                                     .speed(0.1)
                                     .fixed_decimals(1)
-                                    .suffix(" BPM"),
+                                    .suffix(tr("transport-bpm-suffix")),
                             )
                             .changed();
                         ui.end_row();
-                        ui.label("Beats per bar");
+                        ui.label(tr("transport-beats-per-bar"));
                         changed |= ui
                             .add(egui::DragValue::new(&mut s.time_sig[0]).range(1..=32))
                             .changed();
                         ui.end_row();
-                        ui.label("Beat unit");
+                        ui.label(tr("transport-beat-unit"));
                         egui::ComboBox::from_id_salt("tempo-den")
                             .selected_text(s.time_sig[1].to_string())
                             .show_ui(ui, |ui| {
@@ -294,12 +309,12 @@ impl TransportState {
                         )
                         .min_size(vec2(0.0, 28.0)),
                     )
-                    .on_hover_text("Loop range (click to edit)");
+                    .on_hover_text(tr("transport-loop-range-tip"));
                 egui::Popup::from_toggle_button_response(&r).show(|ui| {
                     let (mut a2, mut b2) = (a, b);
                     let mut changed = false;
                     ui.horizontal(|ui| {
-                        ui.label("Beats");
+                        ui.label(tr("transport-loop-beats"));
                         changed |= ui
                             .add(egui::DragValue::new(&mut a2).range(0.0..=1.0e6).speed(0.25))
                             .changed();
@@ -331,7 +346,8 @@ impl TransportState {
                         .color(x_color)
                         .font(theme::mono_font(theme::FONT_SMALL)),
                 )
-                .on_hover_text("Xruns: blocks that missed their deadline");
+                .on_hover_text(tr("transport-xruns-tip"))
+                .accessible_name(tr_args("transport-xruns", &[("count", xruns.into())]));
                 let load = status.load_fraction();
                 let l_color = if load > 0.8 {
                     theme::error()
@@ -349,7 +365,14 @@ impl TransportState {
                     .color(l_color)
                     .font(theme::mono_font(theme::FONT_SMALL)),
                 )
-                .on_hover_text("Audio load: the last block's processing time against its budget");
+                .on_hover_text(tr("transport-load-tip"))
+                .accessible_name(tr_args(
+                    "transport-load",
+                    &[(
+                        "percent",
+                        format!("{:.0}", (load * 100.0).clamp(0.0, 999.0)).into(),
+                    )],
+                ));
                 ui.add_space(8.0);
                 self.master_meter(ui, status.master_peak(), now);
             });
@@ -390,11 +413,17 @@ impl TransportState {
             ui.ctx().request_repaint();
         }
         let hold = self.meter[0].hold.max(self.meter[1].hold);
-        resp.on_hover_text(if hold < 1e-6 {
-            "Master: silent".to_string()
+        let text = if hold < 1e-6 {
+            tr("transport-master-silent")
         } else {
-            format!("Master peak {:.1} dBFS", 20.0 * hold.log10())
-        });
+            tr_args(
+                "transport-master-peak",
+                &[("db", format!("{:.1}", 20.0 * hold.log10()).into())],
+            )
+        };
+        // A meter to screen readers, its peak in its name.
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Meter, true, &text));
+        resp.on_hover_text(text);
     }
 }
 
@@ -405,7 +434,8 @@ fn view_switch(ui: &mut egui::Ui, panels: bool, actions: &mut Vec<Action>) {
             egui::Button::new(RichText::new(icons::CORNERS_OUT).size(16.0))
                 .min_size(vec2(30.0, 28.0)),
         )
-        .on_hover_text("Performance mode: the current panel full screen (F11)");
+        .on_hover_text(tr("transport-performance-tip"))
+        .accessible_name(Action::PerformanceMode.label());
     if perform.clicked() {
         actions.push(Action::PerformanceMode);
     }
@@ -413,14 +443,14 @@ fn view_switch(ui: &mut egui::Ui, panels: bool, actions: &mut Vec<Action>) {
         (
             true,
             icons::SQUARES_FOUR,
-            "Panels",
-            "Panels: the pinned controls without the graph (Ctrl+Tab)",
+            tr("transport-panels"),
+            tr("transport-panels-tip"),
         ),
         (
             false,
             icons::TREE_STRUCTURE,
-            "Canvas",
-            "The node canvas (Ctrl+Tab)",
+            tr("transport-canvas"),
+            tr("transport-canvas-tip"),
         ),
     ] {
         let b = egui::Button::new(RichText::new(format!("{icon}  {label}")).size(theme::FONT_UI))

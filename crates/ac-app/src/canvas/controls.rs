@@ -13,6 +13,7 @@ use egui::{Align2, Painter, Pos2, Rect};
 use super::live::{Live, LiveState, MeterChannel};
 use super::scene::{Body, NodeView};
 use super::{CanvasEvent, CanvasIo, bodies, piano, widgets};
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 
 /// A held control (a Button, a Keyboard key, an XY Pad) stays down in the
@@ -529,9 +530,9 @@ pub fn commit_value(
             crate::params::set(io.doc, io.engine, node, socket, v, now);
             io.doc.end_coalescing();
         }
-        None => io.events.push(CanvasEvent::Status(format!(
-            "“{}” isn't a number",
-            text.trim()
+        None => io.events.push(CanvasEvent::Status(tr_args(
+            "canvas-not-a-number",
+            &[("text", text.trim().into())],
         ))),
     }
 }
@@ -1027,7 +1028,7 @@ pub fn paint(
                     painter.text(
                         rect.center(),
                         Align2::CENTER_CENTER,
-                        "save the project to record",
+                        tr("canvas-save-to-record"),
                         theme::canvas_font(theme::FONT_SMALL, z, false),
                         theme::fade(theme::text_muted(), alpha),
                     );

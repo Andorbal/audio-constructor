@@ -3069,10 +3069,6 @@ fn pin_count(project: &Project) -> usize {
     project.panels.iter().map(|p| p.items.len()).sum()
 }
 
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
-
 fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(
         || path.display().to_string(),

@@ -289,18 +289,23 @@ When it's narrow, tabs show only their icons.
 | **Problems** | Everything the patch can't do as wired, and nodes that are disabled while live; click one to jump to the node. The tab shows how many there are |
 | **Help** | A node's reference (`F1`) or the list of every node, with search |
 
-## Theme and size
+## Theme, language, and size
 
 - **View ▸ Theme** picks **Dark** (the default), **Light**, **High
   Contrast** (white on black, strong outlines, and a yellow focus ring),
   or **Follow System**, which follows your system's light or dark setting
   while the editor runs. Your own themes, small files in a themes folder,
   are listed below them; [Themes](themes.md) says how to make one.
+- **View ▸ Language** picks the language of the editor's menus, panels,
+  and messages: **System** (your computer's language if the editor has
+  it, else English), **English**, or **Pseudo**, a made-up language for
+  checking translations (accented letters in brackets). Node names and
+  their help stay in English for now.
 - **View ▸ UI Scale** sizes the whole interface from 75 % to 200 %.
   `Ctrl+=` and `Ctrl+-` step up and down and `Ctrl+0` goes back to 100 %,
   even while typing. The canvas zoom (`+`, `-`, the wheel) is separate.
 
-Both are remembered the next time you start the editor.
+All of them are remembered the next time you start the editor.
 
 ## All shortcuts
 

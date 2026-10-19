@@ -179,3 +179,103 @@ status-couldnt-use-file = Couldn't use that file: { $error }
 ## The add-node palette
 
 palette-feed-note = The { $count } selected nodes will be wired into it, in the order you selected them
+## Blocks and packs
+
+status-couldnt-read = Couldn't read { $path }: { $error }
+status-block-already-there = { $name } is already in your library
+status-block-imported = Imported { $name } into your library
+status-couldnt-import = Couldn't import { $name }: { $error }
+status-block-saved = Saved { $name } to your library (v{ $version })
+status-couldnt-save-block = Couldn't save { $name } to your library: { $error }
+status-block-up-to-date = That block is up to date
+status-block-updated = Updated { $name } to v{ $version }
+status-blocks-up-to-date = Every block is up to date
+status-blocks-updated =
+    { $count ->
+        [one] Updated { $count } block
+       *[other] Updated { $count } blocks
+    }
+status-update-dropped-wires =
+    { $count ->
+        [one] removed { $count } wire to sockets the new version doesn't have
+       *[other] removed { $count } wires to sockets the new version doesn't have
+    }
+status-block-removed = Removed { $name } from your library; projects that use it keep their copy
+status-block-removed-file = Removed { $name } from your library and deleted its file; projects that use it keep their copy
+status-couldnt-remove-block = Couldn't remove { $name }: { $error }
+status-save-before-pack = Save the project first; the pack is made from the saved file
+status-save-before-packing = Save the project before packing it
+status-packed =
+    { $count ->
+        [one] Packed the project and { $count } audio file into { $path }
+       *[other] Packed the project and { $count } audio files into { $path }
+    }
+status-pack-copied =
+    { $count ->
+        [one] copied { $count } file from outside the project folder into the pack's assets/
+       *[other] copied { $count } files from outside the project folder into the pack's assets/
+    }
+status-pack-left-out =
+    { $count ->
+        [one] left out { $count } missing file: { $files }
+       *[other] left out { $count } missing files: { $files }
+    }
+status-couldnt-pack = Couldn't write the pack: { $error }
+
+## The audio device, in the status bar ("no device (null) · 48000 Hz · 256 frames")
+
+audio-describe = { $device } · { $rate } Hz · { $frames } frames
+audio-off = audio off
+audio-default-output = default output
+
+## Node timing (Ctrl+T), on hover
+
+timing-per-block = { $time } a block
+timing-per-block-share = { $time } a block, { $share } of the { $budget } budget
+timing-sum-of-voices = The sum of every voice and what's inside them.
+timing-sum-of-nodes = The sum of the nodes inside.
+
+## A plugin's window after the editor failed in it
+
+embed-stopped = The editor stopped
+embed-stopped-safe = Your project is safe with the plugin. Close and reopen this window.
+
+## The find bar (Ctrl+F)
+
+find-group = Group { $name }
+find-portal-sender = Portal sender
+find-portal-receiver = Portal receiver
+find-hint = Find nodes by name, kind, or id
+find-none = none
+# Which result is chosen: "2 of 5".
+find-count = { $index } of { $count }
+find-keys = ↑ ↓ choose · Enter jumps to it · Esc closes
+find-in = { $kind } · in { $place }
+
+## The add-node palette (Shift+A)
+
+palette-group-instance = An instance of the group “{ $name }”.
+palette-nodes-that-take = Nodes that take { $type }
+palette-nodes-that-feed = Nodes that feed { $type }
+palette-hint = Search nodes and blocks  (volume, lpf, tremolo…)
+palette-name = Add a node: search nodes and blocks
+palette-nothing-matches = Nothing matches.
+palette-block = Block
+palette-group = Group
+## What's wrong with a theme file (View ▸ Theme, and the status line)
+
+theme-file-name-taken = another theme file is already named “{ $name }”
+theme-file-not-json = isn't a theme file (not JSON: { $error })
+theme-file-not-object = isn't a theme file (it should be one JSON object)
+theme-file-no-name = has no "name"
+theme-file-reserved-name = is named “{ $name }”, like a built-in theme: give it a name of its own
+theme-file-no-base = no "base": built on Dark
+theme-file-bad-base = "base" { $value } isn't dark, light, or high_contrast: built on Dark
+theme-file-bad-header-mix = "header_mix" { $value } isn't a number from 0 to 1 (kept the base's)
+theme-file-bad-colors = "colors" should be an object of colors (ignored)
+theme-file-unknown-field = unknown field "{ $field }" (ignored)
+theme-file-unknown-color = unknown color "{ $field }" (ignored)
+theme-file-unknown-color-near = unknown color "{ $field }" (ignored, did you mean "{ $near }"?)
+theme-file-bad-color = "{ $field }": { $value } isn't a color like "#RRGGBB" or "#RRGGBBAA" (kept the base's)
+theme-file-too-big = is { $kb } KB, too big to be a theme
+theme-file-unreadable = couldn't be read ({ $error })

@@ -29,7 +29,11 @@ use unic_langid::LanguageIdentifier;
 pub const ENGLISH: &[(&str, &str)] = &[
     ("app.ftl", include_str!("../locales/en/app.ftl")),
     ("canvas.ftl", include_str!("../locales/en/canvas.ftl")),
+    ("dialogs.ftl", include_str!("../locales/en/dialogs.ftl")),
     ("menus.ftl", include_str!("../locales/en/menus.ftl")),
+    ("panels.ftl", include_str!("../locales/en/panels.ftl")),
+    ("perform.ftl", include_str!("../locales/en/perform.ftl")),
+    ("transport.ftl", include_str!("../locales/en/transport.ftl")),
     ("undo.ftl", include_str!("../locales/en/undo.ftl")),
 ];
 

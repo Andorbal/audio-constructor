@@ -530,7 +530,7 @@ fn play_keys_send_keys_to_the_patch_instead_of_running_shortcuts() {
     assert!(!h.state().play_keys(), "off by default");
 
     // The transport bar's keyboard button turns it on.
-    h.get_by_label(ac_app::icons::KEYBOARD).click();
+    h.get_by_label("Play keys").click();
     steps(&mut h, 3);
     assert!(h.state().play_keys());
     // A goes to the patch (down and up); Select All doesn't run.
@@ -727,8 +727,10 @@ fn the_node_tab_edits_osc_addresses_and_flags_a_bad_one() {
 
     h.state_mut().doc.selection = [NodeId(2)].into();
     steps(&mut h, 3);
+    // Each input's label names its field, for screen readers (a slider's
+    // value box too).
     let _ = h.get_by_label("host");
-    let _ = h.get_by_label("port");
+    assert!(h.query_all_by_label("port").count() >= 1);
     let _ = h.get_by_label_contains("The OSC address must start with");
 }
 

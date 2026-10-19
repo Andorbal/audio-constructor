@@ -8,6 +8,7 @@ use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Color32, RichText, Sense, vec2};
 
 use super::{PanelIo, PanelRequest, markdown, section};
+use crate::i18n::{self, tr, tr_args};
 use crate::icons;
 use crate::palette::{self, Candidate};
 use crate::theme;
@@ -60,11 +61,11 @@ pub fn first_sentence(text: &str) -> &str {
 }
 
 /// How the tab names each origin.
-fn origin_label(o: Origin) -> &'static str {
+fn origin_label(o: Origin) -> String {
     match o {
-        Origin::Shipped => "Shipped",
-        Origin::User => "Mine",
-        Origin::Imported => "Imported",
+        Origin::Shipped => tr("library-shipped"),
+        Origin::User => tr("library-mine"),
+        Origin::Imported => tr("library-imported"),
     }
 }
 
@@ -85,12 +86,14 @@ pub(super) fn show(
     ui.add(
         egui::TextEdit::singleline(query)
             .hint_text(format!(
-                "{}  Search nodes and blocks",
-                icons::MAGNIFYING_GLASS
+                "{}  {}",
+                icons::MAGNIFYING_GLASS,
+                tr("library-search")
             ))
             .desired_width(f32::INFINITY)
             .margin(egui::Margin::symmetric(8, 5)),
-    );
+    )
+    .accessible_name(tr("library-search"));
     ui.add_space(4.0);
     // Blocks have their own area below, with its filters.
     let all: Vec<Candidate> = palette::candidates(io.registry, io.library, io.doc, query, None)
@@ -99,7 +102,7 @@ pub(super) fn show(
         .collect();
     if !query.trim().is_empty() {
         if all.is_empty() {
-            ui.label(RichText::new("No nodes match.").color(theme::text_muted()));
+            ui.label(RichText::new(tr("library-no-nodes-match")).color(theme::text_muted()));
         }
         for c in &all {
             item(ui, io, c);
@@ -112,8 +115,8 @@ pub(super) fn show(
         if items.is_empty() {
             continue;
         }
-        let header =
-            RichText::new(format!("{}  ({})", cat.name(), items.len())).color(theme::text());
+        let header = RichText::new(format!("{}  ({})", i18n::category(cat), items.len()))
+            .color(theme::text());
         egui::CollapsingHeader::new(header)
             .id_salt(("library", cat.slug()))
             .default_open(false)
@@ -126,14 +129,14 @@ pub(super) fn show(
     blocks(ui, io, query, filter);
     let groups: Vec<&Candidate> = all.iter().filter(|c| c.kind == GROUP_KIND).collect();
     if !groups.is_empty() {
-        section(ui, "Groups in this project");
+        section(ui, &tr("section-project-groups"));
         for c in groups {
             item(ui, io, c);
         }
     }
     ui.add_space(8.0);
     ui.label(
-        RichText::new("Drag a node or block onto the canvas, or click to add it in the middle.")
+        RichText::new(tr("library-hint"))
             .small()
             .color(theme::text_faint()),
     );
@@ -142,7 +145,7 @@ pub(super) fn show(
 /// The Blocks area: origin filter, tag chips, the matching blocks, and
 /// importing a block file.
 fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFilter) {
-    section(ui, "Blocks");
+    section(ui, &tr("section-blocks"));
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         let choices = [
@@ -152,7 +155,7 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
             Some(Origin::Imported),
         ];
         for origin in choices {
-            let label = origin.map_or("All", origin_label);
+            let label = origin.map_or_else(|| tr("library-all"), origin_label);
             let count = io
                 .library
                 .blocks()
@@ -196,9 +199,9 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
                     })
                     .corner_radius(theme::radius(9.0));
                 let hint = if on {
-                    "Click again to show every tag"
+                    tr("library-tag-on-tip")
                 } else {
-                    "Only blocks with this tag"
+                    tr("library-tag-tip")
                 };
                 if ui.add(chip).on_hover_text(hint).clicked() {
                     filter.tag = if on { None } else { Some(t.clone()) };
@@ -211,12 +214,12 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
     if list.is_empty() {
         let hint = match filter.origin {
             Some(Origin::User) if filter.tag.is_none() && query.trim().is_empty() => {
-                "None yet. Select a group and press Save to library in the Node tab."
+                tr("library-no-user-blocks")
             }
             Some(Origin::Imported) if filter.tag.is_none() && query.trim().is_empty() => {
-                "None yet. Blocks arrive with packs and block files you open."
+                tr("library-no-imported-blocks")
             }
-            _ => "No blocks match.",
+            _ => tr("library-no-blocks-match"),
         };
         ui.label(RichText::new(hint).small().color(theme::text_muted()));
     }
@@ -225,8 +228,12 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo, query: &str, filter: &mut BlockFi
     }
     ui.add_space(4.0);
     if ui
-        .button(format!("{}  Import block file…", icons::DOWNLOAD_SIMPLE))
-        .on_hover_text("Add a block file someone shared to your library, under Imported.")
+        .button(format!(
+            "{}  {}",
+            icons::DOWNLOAD_SIMPLE,
+            tr("library-import")
+        ))
+        .on_hover_text(tr("library-import-tip"))
         .clicked()
     {
         io.requests.push(PanelRequest::ImportBlockFile);
@@ -303,13 +310,25 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
         let g = p.layout_job(job);
         p.galley(rect.min + vec2(14.0, 37.0), g, theme::text_faint());
     }
+    // One button to screen readers: the block, where it's from, and what
+    // it does.
+    let spoken = tr_args(
+        "library-block-row",
+        &[
+            ("name", (&d.name).into()),
+            ("origin", origin_label(origin).into()),
+            ("version", d.version.to_string().into()),
+            ("about", first_sentence(&d.description).into()),
+        ],
+    );
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &spoken));
     resp.dnd_set_drag_payload(c.clone());
     if resp.clicked() {
         io.requests.push(PanelRequest::Add(c.clone()));
     }
     resp.context_menu(|ui| {
         if ui
-            .button(format!("{}  Add to canvas", icons::PLUS))
+            .button(format!("{}  {}", icons::PLUS, tr("library-add-to-canvas")))
             .clicked()
         {
             io.requests.push(PanelRequest::Add(c.clone()));
@@ -317,12 +336,12 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
         }
         if origin == Origin::Shipped {
             ui.label(
-                RichText::new("Shipped blocks stay in the library.")
+                RichText::new(tr("library-shipped-stay"))
                     .small()
                     .color(theme::text_muted()),
             );
         } else if ui
-            .button(format!("{}  Remove from library", icons::TRASH))
+            .button(format!("{}  {}", icons::TRASH, tr("library-remove")))
             .clicked()
         {
             io.requests
@@ -333,24 +352,21 @@ fn block_row(ui: &mut egui::Ui, io: &mut PanelIo, b: &LibraryBlock) {
     resp.on_hover_ui(|ui| {
         ui.set_max_width(340.0);
         if d.description.is_empty() {
-            ui.label(RichText::new("No description.").color(theme::text_muted()));
+            ui.label(RichText::new(tr("library-no-description")).color(theme::text_muted()));
         } else {
             markdown::show(ui, &d.description);
         }
-        let by = if d.author.is_empty() {
-            String::new()
+        let args = [
+            ("origin", origin_label(origin).into()),
+            ("version", d.version.to_string().into()),
+            ("author", (&d.author).into()),
+        ];
+        let text = if d.author.is_empty() {
+            tr_args("library-block-tip", &args)
         } else {
-            format!(" · by {}", d.author)
+            tr_args("library-block-tip-by", &args)
         };
-        ui.label(
-            RichText::new(format!(
-                "{} block · version {}{by} · right-click for more",
-                origin_label(origin),
-                d.version
-            ))
-            .small()
-            .color(theme::text_faint()),
-        );
+        ui.label(RichText::new(text).small().color(theme::text_faint()));
     });
 }
 
@@ -388,6 +404,12 @@ fn item(ui: &mut egui::Ui, io: &mut PanelIo, c: &Candidate) {
     job.wrap = egui::text::TextWrapping::truncate_at_width(width - 20.0);
     let g = p.layout_job(job);
     p.galley(rect.min + vec2(14.0, 21.0), g, theme::text_muted());
+    let spoken = if c.summary.is_empty() {
+        c.name.clone()
+    } else {
+        format!("{}: {}", c.name, c.summary)
+    };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &spoken));
     resp.dnd_set_drag_payload(c.clone());
     if resp.clicked() {
         io.requests.push(PanelRequest::Add(c.clone()));

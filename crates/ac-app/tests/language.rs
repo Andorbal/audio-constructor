@@ -56,6 +56,12 @@ fn click(h: &mut Harness<'static, EditorApp>, label: &str) {
     h.run_steps(3);
 }
 
+/// Open a menu of the menu bar (the side panel has a Help tab too).
+fn open_menu(h: &mut Harness<'static, EditorApp>, label: &str) {
+    h.get_by_role_and_label(Role::Button, label).click();
+    h.run_steps(3);
+}
+
 /// The text of every labelled thing inside an open menu, with its role.
 fn menu_texts(h: &Harness<'static, EditorApp>) -> Vec<(Role, String)> {
     let mut out = Vec::new();
@@ -120,7 +126,7 @@ fn view_language_switches_at_once_and_is_remembered() {
     // The next start speaks Pseudo, and English comes back from the menu.
     let mut h = harness_with(AppSettings::load_from(Some(file.clone())));
     assert_eq!(h.state().language(), Language::Pseudo);
-    click(&mut h, &tr("menu-view"));
+    open_menu(&mut h, &tr("menu-view"));
     click(&mut h, &tr("menu-language"));
     click(&mut h, &tr("language-english"));
     h.run_steps(2);
@@ -164,7 +170,7 @@ fn every_menu_label_is_translated_in_pseudo() {
     for id in bar {
         let label = tr(id);
         assert!(i18n::is_pseudo(&label));
-        click(&mut h, &label);
+        open_menu(&mut h, &label);
         check(&h, &[]);
         // Each submenu, opened from its menu.
         let subs: &[&str] = match id {
@@ -177,7 +183,7 @@ fn every_menu_label_is_translated_in_pseudo() {
         for sub in subs {
             // Each submenu from a freshly opened menu.
             close_menus(&mut h);
-            click(&mut h, &label);
+            open_menu(&mut h, &label);
             click(&mut h, &tr(sub));
             // The examples are named by their projects, and the Add menu's
             // categories list nodes by their own names.

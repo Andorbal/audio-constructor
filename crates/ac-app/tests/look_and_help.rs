@@ -160,16 +160,26 @@ fn ui_scale_steps_change_the_zoom_factor_and_are_remembered() {
 fn every_side_panel_tab_fits_at_the_default_width() {
     let mut h = harness_with(AppSettings::in_memory(), None);
     let window = 1400.0;
+    // Tabs are named for screen readers whether or not their name shows.
+    let tab = |h: &Harness<'static, EditorApp>, name: &str| {
+        h.get_by_role_and_label(egui::accesskit::Role::Tab, name)
+            .rect()
+    };
     // Narrow: the tabs not shown keep only their icons.
-    let help = h.get_by_label(icons::BOOK_OPEN).rect();
+    let help = tab(&h, "Help");
     assert!(help.max.x <= window, "{help:?}");
-    let node = h.get_by_label(&format!("{} Node", icons::SLIDERS)).rect();
+    let node = tab(&h, "Node");
     assert!(node.min.x > window - 400.0 && node.max.x < help.min.x);
+    assert!(
+        node.width() > help.width() * 2.0,
+        "the shown tab has its name"
+    );
     // Shown, a tab has its name.
     h.state_mut().side.show_help(None);
     steps(&mut h, 2);
-    let help = h.get_by_label(&format!("{} Help", icons::BOOK_OPEN)).rect();
-    assert!(help.max.x <= window, "{help:?}");
+    let named = tab(&h, "Help");
+    assert!(named.max.x <= window, "{named:?}");
+    assert!(named.width() > help.width() * 2.0, "{named:?} vs {help:?}");
 }
 
 /// One node of `kind`, selected.
@@ -248,7 +258,10 @@ fn the_node_tab_and_the_menu_open_the_same_help() {
     assert_eq!(h.state().side.help.kind.as_deref(), Some("oscillator"));
     // Help ▸ Node Help with nothing selected lists every node.
     h.state_mut().doc.selection.clear();
-    click_exact(&mut h, "Help");
+    // The menu bar's Help (the side panel has a Help tab too).
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Help")
+        .click();
+    steps(&mut h, 3);
     click(&mut h, "Node Help");
     assert_eq!(h.state().side.tab, Tab::Help);
     assert_eq!(h.state().side.help.kind, None);

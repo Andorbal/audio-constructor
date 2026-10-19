@@ -7,9 +7,10 @@ use std::path::Path;
 use ac_core::{Block, BlockSource, GroupId, Origin, update_def};
 use ac_io::Update;
 
-use super::{EditorApp, plural};
+use super::EditorApp;
 use crate::dialogs::FilePurpose;
 use crate::files;
+use crate::i18n::{tr, tr_args};
 use crate::palette;
 use crate::panels::{BlockFilter, Tab};
 
@@ -31,7 +32,18 @@ impl EditorApp {
             .and_then(|t| Block::from_json(&t).map_err(|e| e.to_string()));
         let block = match block {
             Ok(b) => b,
-            Err(e) => return self.warn(format!("Couldn't read {}: {e}", path.display()), now),
+            Err(e) => {
+                return self.warn(
+                    tr_args(
+                        "status-couldnt-read",
+                        &[
+                            ("path", path.display().to_string().into()),
+                            ("error", e.into()),
+                        ],
+                    ),
+                    now,
+                );
+            }
         };
         let name = block.def.name.clone();
         let known = self.library.blocks().iter().any(|b| b.block == block);
@@ -41,7 +53,10 @@ impl EditorApp {
             .unwrap_or(&name)
             .to_string();
         match self.library.import(block, &hint) {
-            Ok(_) if known => self.say(format!("{name} is already in your library"), now),
+            Ok(_) if known => self.say(
+                tr_args("status-block-already-there", &[("name", (&name).into())]),
+                now,
+            ),
             Ok(_) => {
                 // Show it where it landed.
                 self.side.open = true;
@@ -50,9 +65,18 @@ impl EditorApp {
                     origin: Some(Origin::Imported),
                     tag: None,
                 };
-                self.say(format!("Imported {name} into your library"), now);
+                self.say(
+                    tr_args("status-block-imported", &[("name", (&name).into())]),
+                    now,
+                );
             }
-            Err(e) => self.warn(format!("Couldn't import {name}: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-import",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -68,15 +92,30 @@ impl EditorApp {
             Ok(source) => {
                 let version = self.library.get(&source).map_or(1, |b| b.block.def.version);
                 let tag = source.to_string();
-                self.doc.edit_project("Save block", |p| {
+                self.doc.edit_project(&tr("undo-save-block"), |p| {
                     if let Some(d) = p.group_defs.get_mut(def) {
                         d.source = Some(tag);
                         d.version = version;
                     }
                 });
-                self.say(format!("Saved {name} to your library (v{version})"), now);
+                self.say(
+                    tr_args(
+                        "status-block-saved",
+                        &[
+                            ("name", (&name).into()),
+                            ("version", version.to_string().into()),
+                        ],
+                    ),
+                    now,
+                );
             }
-            Err(e) => self.warn(format!("Couldn't save {name} to your library: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-save-block",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -89,17 +128,24 @@ impl EditorApp {
             .into_iter()
             .find(|u| &u.def == def)
         else {
-            self.say("That block is up to date", now);
+            self.say(tr("status-block-up-to-date"), now);
             return false;
         };
-        let dropped = self.apply_updates(std::slice::from_ref(&u), "Update block");
+        let dropped = self.apply_updates(std::slice::from_ref(&u), &tr("undo-update-block"));
         let name = self
             .doc
             .project
             .group_defs
             .get(def)
             .map_or_else(|| def.0.clone(), |d| d.name.clone());
-        self.report_update(format!("Updated {name} to v{}", u.to), dropped, now);
+        self.report_update(
+            tr_args(
+                "status-block-updated",
+                &[("name", name.into()), ("version", u.to.to_string().into())],
+            ),
+            dropped,
+            now,
+        );
         true
     }
 
@@ -108,12 +154,16 @@ impl EditorApp {
     pub fn update_all_blocks(&mut self, now: f64) -> usize {
         let updates = self.library.updates(&self.doc.project);
         if updates.is_empty() {
-            self.say("Every block is up to date", now);
+            self.say(tr("status-blocks-up-to-date"), now);
             return 0;
         }
-        let dropped = self.apply_updates(&updates, "Update blocks");
+        let dropped = self.apply_updates(&updates, &tr("undo-update-blocks"));
         let n = updates.len();
-        self.report_update(format!("Updated {n} block{}", plural(n)), dropped, now);
+        self.report_update(
+            tr_args("status-blocks-updated", &[("count", n.into())]),
+            dropped,
+            now,
+        );
         n
     }
 
@@ -139,8 +189,8 @@ impl EditorApp {
         if dropped > 0 {
             self.warn(
                 format!(
-                    "{text} · removed {dropped} wire{} to sockets the new version doesn't have",
-                    plural(dropped)
+                    "{text} · {}",
+                    tr_args("status-update-dropped-wires", &[("count", dropped.into())])
                 ),
                 now,
             );
@@ -159,15 +209,20 @@ impl EditorApp {
         let file = b.path.is_some();
         match self.library.remove(source) {
             Ok(()) => {
-                let what = if file { " and deleted its file" } else { "" };
-                self.say(
-                    format!(
-                        "Removed {name} from your library{what}; projects that use it keep their copy"
-                    ),
-                    now,
-                );
+                let text = if file {
+                    tr_args("status-block-removed-file", &[("name", (&name).into())])
+                } else {
+                    tr_args("status-block-removed", &[("name", (&name).into())])
+                };
+                self.say(text, now);
             }
-            Err(e) => self.warn(format!("Couldn't remove {name}: {e}"), now),
+            Err(e) => self.warn(
+                tr_args(
+                    "status-couldnt-remove-block",
+                    &[("name", (&name).into()), ("error", e.to_string().into())],
+                ),
+                now,
+            ),
         }
     }
 
@@ -177,10 +232,7 @@ impl EditorApp {
     pub(super) fn export_pack(&mut self, now: f64) {
         let Some(path) = self.doc.path.clone() else {
             self.pack_after_save = true;
-            self.say(
-                "Save the project first; the pack is made from the saved file",
-                now,
-            );
+            self.say(tr("status-save-before-pack"), now);
             self.file_dialog(FilePurpose::SaveAs, now);
             return;
         };
@@ -196,38 +248,41 @@ impl EditorApp {
     /// Write the saved project and its audio files to the pack `out`.
     pub fn export_pack_to(&mut self, out: &Path, now: f64) {
         let Some(project) = self.doc.path.clone() else {
-            self.warn("Save the project before packing it", now);
+            self.warn(tr("status-save-before-packing"), now);
             return;
         };
         let out = files::with_extension(out.to_path_buf(), ac_io::PACK_EXTENSION);
         match ac_io::write_pack(&project, &out, &self.registry) {
             Ok(r) => {
                 let audio = r.files.saturating_sub(1);
-                let mut text = format!(
-                    "Packed the project and {audio} audio file{} into {}",
-                    plural(audio),
-                    out.display()
+                let mut text = tr_args(
+                    "status-packed",
+                    &[
+                        ("count", audio.into()),
+                        ("path", out.display().to_string().into()),
+                    ],
                 );
                 if !r.moved.is_empty() {
                     let n = r.moved.len();
-                    text.push_str(&format!(
-                        " · copied {n} file{} from outside the project folder into the pack's assets/",
-                        plural(n)
-                    ));
+                    text.push_str(" · ");
+                    text.push_str(&tr_args("status-pack-copied", &[("count", n.into())]));
                 }
                 if r.missing.is_empty() {
                     self.say(text, now);
                 } else {
                     let n = r.missing.len();
-                    text.push_str(&format!(
-                        " · left out {n} missing file{}: {}",
-                        plural(n),
-                        r.missing.join(", ")
+                    text.push_str(" · ");
+                    text.push_str(&tr_args(
+                        "status-pack-left-out",
+                        &[("count", n.into()), ("files", r.missing.join(", ").into())],
                     ));
                     self.warn(text, now);
                 }
             }
-            Err(e) => self.warn(format!("Couldn't write the pack: {e}"), now),
+            Err(e) => self.warn(
+                tr_args("status-couldnt-pack", &[("error", e.to_string().into())]),
+                now,
+            ),
         }
     }
 }

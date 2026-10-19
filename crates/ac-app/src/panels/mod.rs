@@ -17,6 +17,7 @@ use egui::{RichText, vec2};
 
 use crate::audio::EngineHost;
 use crate::document::Document;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::palette::Candidate;
 use crate::theme;
@@ -45,14 +46,15 @@ impl Tab {
         Tab::Help,
     ];
 
-    fn label(self) -> (&'static str, &'static str) {
+    /// The tab's icon and name.
+    pub fn label(self) -> (&'static str, String) {
         match self {
-            Tab::Node => (icons::SLIDERS, "Node"),
-            Tab::Library => (icons::BOOKS, "Library"),
-            Tab::Project => (icons::GEAR, "Project"),
-            Tab::Devices => (icons::PLUGS, "Devices"),
-            Tab::Problems => (icons::WARNING, "Problems"),
-            Tab::Help => (icons::BOOK_OPEN, "Help"),
+            Tab::Node => (icons::SLIDERS, tr("tab-node")),
+            Tab::Library => (icons::BOOKS, tr("tab-library")),
+            Tab::Project => (icons::GEAR, tr("tab-project")),
+            Tab::Devices => (icons::PLUGS, tr("tab-devices")),
+            Tab::Problems => (icons::WARNING, tr("tab-problems")),
+            Tab::Help => (icons::BOOK_OPEN, tr("tab-help")),
         }
     }
 }
@@ -158,16 +160,17 @@ pub struct PanelIo<'a> {
 /// Set one config key on a node, as one undo step ("Change setting").
 pub(crate) fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
     let key = key.to_string();
-    io.doc.edit(io.registry, "Change setting", |g, _| {
-        if let Some(n) = g.node_mut(id) {
-            if !n.config.is_object() {
-                n.config = ac_core::empty_config();
+    io.doc
+        .edit(io.registry, &tr("undo-change-setting"), |g, _| {
+            if let Some(n) = g.node_mut(id) {
+                if !n.config.is_object() {
+                    n.config = ac_core::empty_config();
+                }
+                if let Some(obj) = n.config.as_object_mut() {
+                    obj.insert(key, value);
+                }
             }
-            if let Some(obj) = n.config.as_object_mut() {
-                obj.insert(key, value);
-            }
-        }
-    });
+        });
 }
 
 impl SidePanel {
@@ -224,6 +227,18 @@ impl SidePanel {
                 if compact && !selected {
                     r = r.on_hover_text(tab.label().1);
                 }
+                // A tab to screen readers, named even when only its icon
+                // shows, with its count of problems.
+                let name = match count {
+                    0 => tab.label().1,
+                    n => tr_args(
+                        "tab-named-count",
+                        &[("tab", tab.label().1.into()), ("count", n.into())],
+                    ),
+                };
+                r.widget_info(|| {
+                    egui::WidgetInfo::selected(egui::Role::Tab, true, selected, &name)
+                });
                 if r.clicked() {
                     self.tab = tab;
                 }

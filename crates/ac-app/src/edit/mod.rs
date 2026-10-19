@@ -23,6 +23,7 @@ use ac_core::{
     Subgraph, Value, Wire, conversion,
 };
 
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 
 /// The group interface's input side, drawn as a node inside a definition.
@@ -231,14 +232,20 @@ pub fn classify(
     if node.kind == GROUP_KIND || node.kind == ac_core::VOICES_KIND {
         return match node.group_def() {
             Some(d) if defs.contains_key(&d) => NodeClass::Group(d),
-            Some(d) => NodeClass::Missing(format!("group definition `{d}` is missing")),
-            None => NodeClass::Missing("group node has no definition".into()),
+            Some(d) => NodeClass::Missing(tr_args(
+                "error-group-definition-missing",
+                &[("def", d.to_string().into())],
+            )),
+            None => NodeClass::Missing(tr("error-group-no-definition")),
         };
     }
     if registry.contains(&node.kind) {
         NodeClass::Known
     } else {
-        NodeClass::Missing(format!("unknown node kind `{}`", node.kind))
+        NodeClass::Missing(tr_args(
+            "error-unknown-kind",
+            &[("kind", node.kind.as_str().into())],
+        ))
     }
 }
 
@@ -447,13 +454,14 @@ pub enum ConnectError {
 impl std::fmt::Display for ConnectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConnectError::NoSuchOutput => write!(f, "that output doesn't exist"),
-            ConnectError::NoSuchInput => write!(f, "that input doesn't exist"),
-            ConnectError::SameNode => write!(f, "a node can't feed itself directly"),
-            ConnectError::Incompatible(a, b) => {
-                write!(f, "{a} can't connect to {b} without a conversion node")
-            }
-            ConnectError::MissingNode => write!(f, "can't wire a missing node"),
+            ConnectError::NoSuchOutput => f.write_str(&tr("error-no-such-output")),
+            ConnectError::NoSuchInput => f.write_str(&tr("error-no-such-input")),
+            ConnectError::SameNode => f.write_str(&tr("error-same-node")),
+            ConnectError::Incompatible(a, b) => f.write_str(&tr_args(
+                "error-incompatible",
+                &[("from", a.to_string().into()), ("to", b.to_string().into())],
+            )),
+            ConnectError::MissingNode => f.write_str(&tr("error-missing-node")),
         }
     }
 }
@@ -872,7 +880,7 @@ pub fn paste(
     text: &str,
     at: [f32; 2],
 ) -> Result<Vec<NodeId>, String> {
-    let sub = Subgraph::from_json(text).ok_or("the clipboard doesn't hold nodes")?;
+    let sub = Subgraph::from_json(text).ok_or_else(|| tr("error-clipboard-not-nodes"))?;
     if let Some(scope) = &ctx.scope_def {
         let mut all = ctx.defs.clone();
         for (k, v) in &sub.group_defs {
@@ -882,7 +890,7 @@ pub fn paste(
             if let Some(d) = n.group_def()
                 && (d == *scope || group::def_contains(&all, &d, scope))
             {
-                return Err("can't paste a group inside itself".into());
+                return Err(tr("error-group-inside-itself"));
             }
         }
     }

@@ -33,6 +33,15 @@ fixes and smaller changes.
   (with a suggestion) or a color that doesn't read is skipped, and a theme
   whose text would be hard to read (under 4.5:1 contrast) is marked and
   says which color is the problem.
+- **View ▸ Language**: the editor's menus, panels, tabs, transport bar,
+  dialogs, status messages, and undo names now come from translation
+  catalogs. **System** follows your computer's language when the editor
+  has it (English for now), and **Pseudo** is a made-up language with
+  accented letters, a third more length, and brackets around every
+  message, for checking that nothing was missed and that longer languages
+  fit. The choice is remembered. Node names and node help stay in English
+  for now. [docs/TRANSLATING.md](docs/TRANSLATING.md) says how to add a
+  language.
 
 ## [0.10.0] - 2026-10-19
 

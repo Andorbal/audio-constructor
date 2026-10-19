@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use egui::Color32;
 
+use crate::i18n::{tr, tr_args};
 use crate::theme::{self, HIGH_CONTRAST, Palette, ThemeChoice};
 
 /// Below this, body text is hard to read (WCAG AA); View ▸ Theme warns.
@@ -105,8 +106,8 @@ impl UserThemes {
     fn add(&mut self, file: &str, text: &str) {
         match parse(file, text) {
             Ok(t) if self.get(&t.name).is_some() => self.problems.push(format!(
-                "{file}: another theme file is already named “{}”",
-                t.name
+                "{file}: {}",
+                tr_args("theme-file-name-taken", &[("name", (&t.name).into())])
             )),
             Ok(t) => self.themes.push(t),
             Err(e) => self.problems.push(format!("{file}: {e}")),
@@ -137,31 +138,33 @@ impl UserThemes {
 /// The theme in a file's text, or why there's none. Colors that don't
 /// parse and names that aren't colors are noted and skipped.
 pub fn parse(file: &str, text: &str) -> Result<UserTheme, String> {
-    let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| format!("isn't a theme file (not JSON: {e})"))?;
+    let value: serde_json::Value = serde_json::from_str(text)
+        .map_err(|e| tr_args("theme-file-not-json", &[("error", e.to_string().into())]))?;
     let serde_json::Value::Object(map) = value else {
-        return Err("isn't a theme file (it should be one JSON object)".into());
+        return Err(tr("theme-file-not-object"));
     };
     let name = match map.get("name") {
         Some(serde_json::Value::String(s)) if !s.trim().is_empty() => s.trim().to_string(),
-        _ => return Err("has no \"name\"".into()),
+        _ => return Err(tr("theme-file-no-name")),
     };
     if ThemeChoice::is_reserved(&name) {
-        return Err(format!(
-            "is named “{name}”, like a built-in theme: give it a name of its own"
+        return Err(tr_args(
+            "theme-file-reserved-name",
+            &[("name", (&name).into())],
         ));
     }
     let mut notes = Vec::new();
     let base = match map.get("base") {
         None => {
-            notes.push("no \"base\": built on Dark".to_string());
+            notes.push(tr("theme-file-no-base"));
             Base::Dark
         }
         Some(v) => match v.as_str().and_then(Base::parse) {
             Some(b) => b,
             None => {
-                notes.push(format!(
-                    "\"base\" {v} isn't dark, light, or high_contrast: built on Dark"
+                notes.push(tr_args(
+                    "theme-file-bad-base",
+                    &[("value", v.to_string().into())],
                 ));
                 Base::Dark
             }
@@ -173,8 +176,9 @@ pub fn parse(file: &str, text: &str) -> Result<UserTheme, String> {
             "name" | "base" => {}
             "header_mix" => match v.as_f64() {
                 Some(m) if (0.0..=1.0).contains(&m) => palette.header_mix = m as f32,
-                _ => notes.push(format!(
-                    "\"header_mix\" {v} isn't a number from 0 to 1 (kept the base's)"
+                _ => notes.push(tr_args(
+                    "theme-file-bad-header-mix",
+                    &[("value", v.to_string().into())],
                 )),
             },
             "colors" => match v {
@@ -183,9 +187,12 @@ pub fn parse(file: &str, text: &str) -> Result<UserTheme, String> {
                         override_color(&mut palette, field, value, &mut notes);
                     }
                 }
-                _ => notes.push("\"colors\" should be an object of colors (ignored)".into()),
+                _ => notes.push(tr("theme-file-bad-colors")),
             },
-            other => notes.push(format!("unknown field \"{other}\" (ignored)")),
+            other => notes.push(tr_args(
+                "theme-file-unknown-field",
+                &[("field", other.into())],
+            )),
         }
     }
     Ok(UserTheme {
@@ -205,16 +212,20 @@ fn override_color(
     notes: &mut Vec<String>,
 ) {
     let Some(slot) = palette.color_mut(field) else {
-        let hint = closest_field(field)
-            .map(|f| format!(", did you mean \"{f}\"?"))
-            .unwrap_or_default();
-        notes.push(format!("unknown color \"{field}\" (ignored{hint})"));
+        notes.push(match closest_field(field) {
+            Some(near) => tr_args(
+                "theme-file-unknown-color-near",
+                &[("field", field.into()), ("near", near.into())],
+            ),
+            None => tr_args("theme-file-unknown-color", &[("field", field.into())]),
+        });
         return;
     };
     match value.as_str().and_then(parse_color) {
         Some(c) => *slot = c,
-        None => notes.push(format!(
-            "\"{field}\": {value} isn't a color like \"#RRGGBB\" or \"#RRGGBBAA\" (kept the base's)"
+        None => notes.push(tr_args(
+            "theme-file-bad-color",
+            &[("field", field.into()), ("value", value.to_string().into())],
         )),
     }
 }
@@ -297,10 +308,13 @@ fn read_files(dir: &Path) -> Vec<(String, Result<String, String>)> {
                 .file_name()
                 .map_or_else(String::new, |n| n.to_string_lossy().to_string());
             let text = match std::fs::metadata(&p) {
-                Ok(m) if m.len() > MAX_FILE_BYTES => {
-                    Err(format!("is {} KB, too big to be a theme", m.len() / 1024))
-                }
-                _ => std::fs::read_to_string(&p).map_err(|e| format!("couldn't be read ({e})")),
+                Ok(m) if m.len() > MAX_FILE_BYTES => Err(tr_args(
+                    "theme-file-too-big",
+                    &[("kb", (m.len() / 1024).to_string().into())],
+                )),
+                _ => std::fs::read_to_string(&p).map_err(|e| {
+                    tr_args("theme-file-unreadable", &[("error", e.to_string().into())])
+                }),
             };
             (name, text)
         })

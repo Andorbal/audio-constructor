@@ -97,6 +97,21 @@ Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
 Triggers yellow, Sequencing violet, Controls pink, Display grey, Utility
 slate.
 
+### Language
+
+View ▸ Language picks **System** (the operating system's language when
+the editor has a catalog for it, else English), **English**, or
+**Pseudo**, remembered in the settings (D182). Everything the editor says
+itself goes through the catalog: menus and command names, panel and tab
+titles, the transport bar's labels and tooltips, dialogs, status and
+error messages, undo names, hints, badges, and the settings and help
+chrome. Node names, node docs, socket names, node settings labels, units,
+and project content aren't translated yet. Pseudo accents every letter,
+pads each message to about 135 % of its English length, and brackets it,
+so untranslated text (no brackets) and layouts that can't take longer
+words show up at a glance; a test opens every menu in Pseudo and fails on
+a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
+
 ## Node anatomy
 
 ```

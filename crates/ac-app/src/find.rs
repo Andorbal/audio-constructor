@@ -14,6 +14,7 @@ use ac_core::{
 use egui::{Key, Rect, RichText, Sense, pos2, vec2};
 
 use crate::edit::connect;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -99,9 +100,9 @@ fn walk(
             .group_def()
             .filter(|_| n.kind == GROUP_KIND || n.kind == VOICES_KIND);
         let kind = match (def.as_ref().and_then(|d| defs.get(d)), &portal) {
-            (Some(d), _) => format!("Group {}", d.name),
-            (None, Some(t)) if t.send => "Portal sender".to_string(),
-            (None, Some(_)) => "Portal receiver".to_string(),
+            (Some(d), _) => tr_args("find-group", &[("name", (&d.name).into())]),
+            (None, Some(t)) if t.send => tr("find-portal-sender"),
+            (None, Some(_)) => tr("find-portal-receiver"),
             (None, None) => registry
                 .get(&n.kind)
                 .map_or_else(|| n.kind.clone(), |e| e.meta.name.to_string()),
@@ -227,14 +228,15 @@ impl FindBar {
                             let te = egui::TextEdit::singleline(&mut self.query)
                                 .id(egui::Id::unique("find-query"))
                                 .hint_text(format!(
-                                    "{}  Find nodes by name, kind, or id",
-                                    icons::MAGNIFYING_GLASS
+                                    "{}  {}",
+                                    icons::MAGNIFYING_GLASS,
+                                    tr("find-hint")
                                 ))
                                 .desired_width(width - 80.0)
                                 // Enter jumps and keeps the typing here.
                                 .return_key(None)
                                 .margin(egui::Margin::symmetric(8, 5));
-                            let r = ui.add(te);
+                            let r = ui.add(te).accessible_name(tr("find-hint"));
                             if self.focus {
                                 r.request_focus();
                                 self.focus = false;
@@ -245,9 +247,15 @@ impl FindBar {
                             let count = if self.query.trim().is_empty() {
                                 String::new()
                             } else if list.is_empty() {
-                                "none".to_string()
+                                tr("find-none")
                             } else {
-                                format!("{} of {}", self.selected + 1, list.len())
+                                tr_args(
+                                    "find-count",
+                                    &[
+                                        ("index", (self.selected + 1).into()),
+                                        ("count", list.len().into()),
+                                    ],
+                                )
                             };
                             ui.label(RichText::new(count).small().color(theme::text_muted()));
                         });
@@ -271,7 +279,7 @@ impl FindBar {
                                 });
                         }
                         ui.label(
-                            RichText::new("↑ ↓ choose · Enter jumps to it · Esc closes")
+                            RichText::new(tr("find-keys"))
                                 .small()
                                 .color(theme::text_faint()),
                         );
@@ -310,7 +318,10 @@ fn row(ui: &mut egui::Ui, f: &Found, selected: bool, width: f32) -> egui::Respon
     let place = if f.place.is_empty() {
         f.kind.clone()
     } else {
-        format!("{} · in {}", f.kind, f.place)
+        tr_args(
+            "find-in",
+            &[("kind", (&f.kind).into()), ("place", (&f.place).into())],
+        )
     };
     let label = format!("{}, {place}", f.title);
     p.text(

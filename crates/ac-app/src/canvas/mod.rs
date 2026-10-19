@@ -33,6 +33,7 @@ use egui::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::document::Document;
 use crate::edit::{self, GROUP_IN, GROUP_OUT};
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 use scene::{Body, Class, NodeView, Scene};
 use view::{Transform, View};
@@ -499,7 +500,7 @@ impl Canvas {
             .map(|n| pos2(n.ui.pos[0], n.ui.pos[1]))
             .collect();
         if own_step {
-            doc.checkpoint("Move");
+            doc.checkpoint(&tr("undo-move"));
         }
         self.gesture = Gesture::Move {
             ids,
@@ -508,7 +509,7 @@ impl Canvas {
             grab: true,
             insert: None,
         };
-        self.hint = Some("Move the pointer to place · click to confirm · Esc to cancel".into());
+        self.hint = Some(tr("hint-grab"));
     }
 
     /// Escape: cancel the current gesture (a grab returns nodes to where
@@ -572,11 +573,11 @@ impl Canvas {
             }
         }
         let label = if reconnect {
-            "Delete and reconnect"
+            tr("undo-delete-reconnect")
         } else {
-            "Delete"
+            tr("undo-delete")
         };
-        doc.edit(registry, label, |g, ctx| {
+        doc.edit(registry, &label, |g, ctx| {
             if reconnect {
                 edit::delete_reconnect(g, ctx, &ids);
             } else {
@@ -603,12 +604,12 @@ impl Canvas {
             b.max + vec2(theme::FRAME_PAD, theme::FRAME_PAD),
         );
         let n = doc.graph().frames.len() + 1;
-        doc.edit(registry, "Add frame", |g, _| {
+        doc.edit(registry, &tr("undo-add-frame"), |g, _| {
             g.frames.push(ac_core::Frame {
                 label: if n == 1 {
-                    "Frame".into()
+                    tr("canvas-frame")
                 } else {
-                    format!("Frame {n}")
+                    tr_args("canvas-frame-numbered", &[("number", n.into())])
                 },
                 rect: [r.min.x, r.min.y, r.width(), r.height()],
                 color: None,
