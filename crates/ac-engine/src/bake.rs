@@ -18,8 +18,9 @@ use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    AudioData, Control, ControlEvent, HostAccess, MidiEvent, MidiMsg, NodePath, Project,
-    RecordRequest, RecordSink, Registry, Resources, WholeCtx, WholeInputs, WholeOutputs,
+    AudioData, Control, ControlEvent, HostAccess, MidiEvent, MidiMsg, NodePath, PluginProcessor,
+    PluginRequest, Project, RecordRequest, RecordSink, Registry, Resources, WholeCtx, WholeInputs,
+    WholeOutputs,
 };
 
 use crate::compile::{CaptureTarget, CompileOptions, compile_with};
@@ -157,6 +158,12 @@ impl Resources for BakeResources {
     }
     fn recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
         None
+    }
+    /// Plugins upstream of a baked node run in the bake too: the host
+    /// creates the bake's own instance on the bake's thread, which is that
+    /// instance's main thread for as long as the bake runs (DECISIONS D132).
+    fn plugin(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
+        self.0.plugin(req)
     }
 }
 

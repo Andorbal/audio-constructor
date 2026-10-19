@@ -142,3 +142,5 @@ pub fn spoken(r: egui::Response) -> egui::Response {
         });
     r
 }
+pub const PUZZLE_PIECE: &str = "\u{E596}";
+pub const APP_WINDOW: &str = "\u{E5DA}";

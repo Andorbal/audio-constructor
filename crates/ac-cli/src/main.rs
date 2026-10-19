@@ -6,6 +6,7 @@ mod devices;
 mod docs;
 mod inspect;
 mod live;
+mod plugins;
 mod render;
 mod util;
 
@@ -81,6 +82,11 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+    /// List the CLAP and VST3 plugins installed here (scanning their folders).
+    Plugins(plugins::PluginsArgs),
+    /// Describe one plugin bundle as JSON (what `plugins` runs per bundle).
+    #[command(hide = true)]
+    ScanBundle { path: PathBuf },
     /// Rewrite project and block files in canonical form.
     Fmt {
         files: Vec<PathBuf>,
@@ -124,6 +130,8 @@ fn main() -> ExitCode {
         Command::Pack(args) => blocks::pack(args),
         Command::Unpack(args) => blocks::unpack(args),
         Command::Version { check } => version(check),
+        Command::Plugins(args) => plugins::list(args),
+        Command::ScanBundle { path } => return plugins::scan_bundle(&path),
     };
     match result {
         Ok(code) => code,

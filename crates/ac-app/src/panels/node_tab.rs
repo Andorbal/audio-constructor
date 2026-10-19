@@ -999,7 +999,11 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         }
     }
 
-    config_fields(ui, io, id, &node);
+    if node.kind == ac_core::PLUGIN_KIND {
+        super::plugins_ui::node_section(ui, io, id, &node);
+    } else {
+        config_fields(ui, io, id, &node);
+    }
 
     if let NodeClass::Group(d) = &class
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()

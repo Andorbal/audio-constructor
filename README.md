@@ -198,6 +198,7 @@ audioc latency                                                  # round trip via
 audioc validate my.acproj                                       # compile report
 audioc inspect my.acproj                                        # nodes, wires, groups
 audioc nodes                                                    # every node (also --json, --docs DIR)
+audioc plugins                                                  # CLAP and VST3 plugins installed here
 audioc bench                                                    # real-time ratio on stress projects
 ```
 

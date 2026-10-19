@@ -4,7 +4,7 @@
 //! engine. Click to add at the center of the view, or drag onto the
 //! canvas; the play button on a block plays its preview over the patch.
 
-use ac_core::{Category, GROUP_KIND, Origin};
+use ac_core::{Category, GROUP_KIND, Origin, PLUGIN_KIND};
 use ac_io::index::IndexBlock;
 use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Color32, Rect, RichText, Sense, vec2};
@@ -100,10 +100,12 @@ pub(super) fn show(
     .accessible_name(tr("library-search"));
     ui.add_space(4.0);
     // Blocks have their own area below, with its filters.
-    let all: Vec<Candidate> = palette::candidates(io.registry, io.library, io.doc, query, None)
-        .into_iter()
-        .filter(|c| c.block.is_none())
-        .collect();
+    let plugins = io.plugins.map_or(&[][..], |p| p.list());
+    let all: Vec<Candidate> =
+        palette::candidates(io.registry, io.library, io.doc, query, None, plugins)
+            .into_iter()
+            .filter(|c| c.block.is_none())
+            .collect();
     if !query.trim().is_empty() {
         if all.is_empty() {
             ui.label(RichText::new(tr("library-no-nodes-match")).color(theme::text_muted()));
@@ -115,7 +117,10 @@ pub(super) fn show(
         return;
     }
     for cat in Category::ALL {
-        let items: Vec<&Candidate> = all.iter().filter(|c| c.category == Some(cat)).collect();
+        let items: Vec<&Candidate> = all
+            .iter()
+            .filter(|c| c.category == Some(cat) && c.kind != PLUGIN_KIND)
+            .collect();
         if items.is_empty() {
             continue;
         }
@@ -126,6 +131,28 @@ pub(super) fn show(
             .default_open(false)
             .show(ui, |ui| {
                 for c in items {
+                    item(ui, io, c);
+                }
+            });
+    }
+    let found: Vec<&Candidate> = all.iter().filter(|c| c.kind == PLUGIN_KIND).collect();
+    if io.plugins.is_some() {
+        let header = RichText::new(format!("Plugins  ({})", found.len())).color(theme::text());
+        egui::CollapsingHeader::new(header)
+            .id_salt(("library", "plugins"))
+            .default_open(false)
+            .show(ui, |ui| {
+                if found.is_empty() {
+                    ui.label(
+                        RichText::new(
+                            "No plugins found yet. Install CLAP or VST3 plugins, then rescan \
+                             in the Devices tab.",
+                        )
+                        .small()
+                        .color(theme::text_muted()),
+                    );
+                }
+                for c in found {
                     item(ui, io, c);
                 }
             });
@@ -761,6 +788,8 @@ fn item(ui: &mut egui::Ui, io: &mut PanelIo, c: &Candidate) {
     );
     let icon = if c.kind == GROUP_KIND {
         format!("{}  ", icons::STACK)
+    } else if c.kind == PLUGIN_KIND {
+        format!("{}  ", icons::PUZZLE_PIECE)
     } else {
         String::new()
     };

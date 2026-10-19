@@ -104,6 +104,46 @@ to this computer.
 audioc devices
 ```
 
+## plugins
+
+List the CLAP and VST3 plugins installed on this computer, the ones a
+**Plugin** node can play.
+
+```
+audioc plugins
+audioc plugins --json > plugins.json
+audioc plugins --rescan
+```
+
+```
+CLAP folders: /home/me/.clap, /usr/lib/clap, /usr/local/lib/clap
+VST3 folders: /home/me/.vst3, /usr/lib/vst3, /usr/local/lib/vst3
+
+String Machine (Example Audio) · CLAP · instrument · out 2, midi in, 24 parameters
+    com.example.string-machine  /home/me/.clap/String Machine.clap
+failed: /usr/lib/clap/Old Thing.clap: it crashed while being described
+```
+
+It looks in the standard folders for each format (above, as on Linux;
+macOS uses `~/Library/Audio/Plug-Ins` and `/Library/Audio/Plug-Ins`,
+Windows the `CLAP` and `VST3` folders under Common Files and your local
+app data), and first in the folders the `CLAP_PATH` and `VST3_PATH`
+environment variables list. Each plugin file is opened in a separate
+`audioc` process, so one that crashes is listed under `failed` and the
+rest are still found. The list is cached (where the editor keeps it too),
+and only new or changed files are opened again; `--rescan` opens all of
+them. `--in-process` skips the separate processes (faster, but a
+crashing plugin stops `audioc`). `AC_PLUGIN_CACHE=FILE` keeps the cache
+somewhere else.
+
+`render`, `run`, and `validate` play the plugins a project's Plugin nodes
+use. A plugin that isn't installed plays silence, and the report names
+it:
+
+```
+warning [2]: String Machine (Example Audio, CLAP): isn't installed on this computer; the node plays silence
+```
+
 ## latency
 
 Measure the round-trip latency through a loopback cable: connect an

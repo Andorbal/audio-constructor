@@ -956,6 +956,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             ),
         );
     }
+    super::plugins_ui::devices_section(ui, io);
 }
 
 pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {

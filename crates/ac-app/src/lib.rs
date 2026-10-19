@@ -30,6 +30,7 @@ pub mod panels;
 pub mod params;
 pub mod perform;
 pub mod play_keys;
+pub mod plugins;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod product;
 pub mod settings;

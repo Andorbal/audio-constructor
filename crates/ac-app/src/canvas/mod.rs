@@ -74,6 +74,8 @@ pub enum CanvasEvent {
     Pin(crate::perform::PinRequest),
     /// Learn a binding for an unwired input (UX.md "Bindings").
     Bind { node: NodeId, socket: String },
+    /// Open a Plugin node's own window.
+    ShowPluginWindow(NodeId),
 }
 
 /// What the canvas needs from the app each frame.

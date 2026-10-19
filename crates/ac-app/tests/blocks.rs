@@ -160,6 +160,7 @@ fn the_palette_adds_a_shipped_block() {
         h.state().document(),
         "tremolo",
         None,
+        &[],
     )[0]
     .clone();
     h.state_mut()

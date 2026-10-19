@@ -141,9 +141,13 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
 
     let recorder =
         Arc::new(DiskRecorder::new(&dir).context("couldn't start the recorder's disk thread")?);
+    let plugin_host = crate::plugins::host_for(&project);
     let resources = Arc::new(FileResources {
         assets,
         recorder: Some(recorder.clone()),
+        plugins: plugin_host
+            .clone()
+            .map(|h| h as Arc<dyn ac_core::PluginLoader>),
     });
     let (engine, report) = Engine::new(
         project,
@@ -268,6 +272,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
             gamepads: gamepads.as_ref(),
             osc_in: osc_in.as_ref(),
             osc_out: &osc_out,
+            plugins: plugin_host.as_deref(),
         },
         &recorder,
         stop,
@@ -281,6 +286,7 @@ pub fn run(args: RunArgs, stop: &AtomicBool) -> Result<ExitCode> {
     drop(osc_in);
     drop(gamepads);
     drop(handle);
+    ac_host::shutdown();
     recorder.shutdown();
     for t in recorder.finished_takes() {
         print_take(&t);
@@ -310,6 +316,8 @@ struct Devices<'a> {
     gamepads: Option<&'a Gamepads>,
     osc_in: Option<&'a OscInput>,
     osc_out: &'a OscOutput,
+    /// The plugin host, when the project has Plugin nodes.
+    plugins: Option<&'a ac_host::PluginHost>,
 }
 
 /// `gamepads: 1 Pad A, 2 Pad B` (numbered as Gamepad nodes count them),
@@ -353,6 +361,7 @@ fn control_loop(
         gamepads,
         osc_in,
         osc_out,
+        plugins,
     } = devices;
     let mut pads_seen = gamepads.map(Gamepads::generation);
     let mut osc_bad_seen = 0;
@@ -368,6 +377,9 @@ fn control_loop(
         midi.collect_garbage();
         controls.collect_garbage();
         baker.poll(handle);
+        if let Some(host) = plugins {
+            serve_plugins(host, handle);
+        }
         if let Some(g) = gamepads
             && pads_seen != Some(g.generation())
         {
@@ -436,6 +448,38 @@ fn control_loop(
         }
         if stop.load(Ordering::Relaxed) || duration.is_some_and(|d| now - t0 >= d) {
             return Ok(());
+        }
+    }
+}
+
+/// Answer what hosted plugins asked of the main thread: a plugin that
+/// needs to restart gets a fresh instance with its state, and parameters a
+/// plugin moved itself (a preset) move the node's inputs.
+fn serve_plugins(host: &ac_host::PluginHost, handle: &mut EngineHandle) {
+    for event in ac_host::poll() {
+        match event {
+            ac_host::HostEvent::Restart { node_key } => {
+                host.prepare_restart(&node_key);
+                let report = handle.rebuild(&node_key);
+                println!("{node_key}: plugin restarted");
+                for d in report
+                    .diagnostics
+                    .iter()
+                    .filter(|d| d.severity >= Severity::Warning)
+                {
+                    eprintln!("{d}");
+                }
+            }
+            ac_host::HostEvent::ParamChanged {
+                node_key,
+                socket,
+                value,
+            } => {
+                if let Ok(path) = node_key.parse::<ac_core::NodePath>() {
+                    handle.set_param(&path, &socket, ac_core::Value::Float(value));
+                }
+            }
+            ac_host::HostEvent::StateChanged { .. } | ac_host::HostEvent::WindowClosed { .. } => {}
         }
     }
 }

@@ -14,6 +14,17 @@ use ac_app::{AppOptions, EditorApp};
 const ICON: &[u8] = include_bytes!("../../../packaging/icons/icon-256.png");
 
 fn main() -> eframe::Result {
+    // A scanning child: describe one plugin bundle and exit (the editor
+    // runs itself this way so a crashing plugin can't take it down).
+    let mut args = std::env::args_os().skip(1);
+    if let Some(first) = args.next()
+        && first == ac_app::plugins::SCAN_FLAG
+    {
+        let code = args
+            .next()
+            .map_or(2, |b| ac_host::child_main(std::path::Path::new(&b)));
+        std::process::exit(code);
+    }
     // A bug that panics leaves a report, offered at the next start.
     if let Some(dir) = ac_io::crash::default_dir() {
         ac_io::crash::install(dir, "audio-constructor");
@@ -35,6 +46,7 @@ fn main() -> eframe::Result {
         seed: ac_app::clock_seed(),
         settings: ac_app::settings::AppSettings::load_default(),
         library: ac_app::files::default_library_dir(),
+        plugins: Some(ac_app::plugins::PluginsConfig::desktop()),
     };
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Audio Constructor")
