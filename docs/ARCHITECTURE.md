@@ -47,9 +47,9 @@ Contents
 | Concern | Choice | Why |
 | --- | --- | --- |
 | Language | **Rust** (stable, 2024 edition) | No garbage collector on the audio thread, first-class WebAssembly target, strong audio ecosystem, memory safety for a long-running autonomous build. |
-| UI | **egui** via **eframe** with the **wgpu** backend | Immediate mode makes live-updating meters and animated wires trivial, it renders through wgpu on all desktop platforms and the web, and the node canvas is fully custom-drawn so the app can have its own look. |
-| Audio I/O | **cpal** | CoreAudio, WASAPI, ASIO (feature flag), ALSA, JACK, Web Audio behind one API. |
-| MIDI | **midir** | Cross-platform, including Web MIDI. |
+| UI | **egui** via **eframe** with the **wgpu** backend (on the web, WebGL2 through glow, D152) | Immediate mode makes live-updating meters and animated wires trivial, it renders through wgpu on all desktop platforms and through WebGL in a browser, and the node canvas is fully custom-drawn so the app can have its own look. |
+| Audio I/O | **cpal** | CoreAudio, WASAPI, ASIO (feature flag), ALSA, JACK behind one API. The web build uses Web Audio's `AudioWorklet` directly (D150). |
+| MIDI | **midir** | Cross-platform. The web build uses Web MIDI directly (D154). |
 | Game controllers | **gilrs** | Cross-platform, including the browser Gamepad API. |
 | OSC | **rosc** | Phones and tablets as control surfaces. Phase 2. |
 | FFT | **realfft** / **rustfft** | Fast, pure Rust, wasm-friendly. |
@@ -80,12 +80,14 @@ audio-constructor/
     ac-app/               # the editor; `audio-constructor` desktop binary (eframe), and the plugin window (egui-baseview)
     ac-plugin/            # the engine as a CLAP/VST3 effect and instrument (nice-plug)
     ac-host/              # hosting CLAP/VST3 plugins as nodes: scanning, loading, their threads, their windows. Native only.
-    ac-web/               # Phase 3: wasm glue, AudioWorklet host
+    ac-web/               # the web build: the page (editor, mirror engine, browser devices and files) and the audio worklet's module
   examples/               # example projects shipped with the app
   scripts/release.py      # version bumps, changelog checks, release notes (CLAUDE.md)
+  scripts/build_web.py    # the web build's static site (D152); serve_web.py serves it locally
   CHANGELOG.md            # one section per release; the release notes
   blocks/                 # built-in reusable blocks (group definitions)
   tests/golden/           # reference projects and expected renders
+  tests/web/              # the web build's end-to-end test in a headless browser
   docs/
 ```
 
@@ -96,9 +98,15 @@ engine on `ac-engine` directly: a host provides its devices. Its window
 links `ac-io` and so the device libraries, though in a plugin it opens no
 device (D124). `ac-host` needs only `ac-core`; `ac-cli` and `ac-app` (its
 `plugins` feature, part of `desktop`) use it, and the editor inside our own
-plugin builds without it, so a plugin binary never hosts plugins. CI runs
-`cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`,
-`ac-nodes`, and `ac-engine` on every change.
+plugin builds without it, so a plugin binary never hosts plugins. `ac-web`
+builds twice for wasm32: its `worklet` build is `ac-engine` and what's
+below it behind a few exported functions, and its `ui` build is `ac-app`
+without the desktop shell on eframe's web target (which links `ac-io` for
+files and opens no device; D150, D152). Natively it builds what both
+share, so the rings and the link are tested there. CI runs `cargo check
+--target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, and
+`ac-engine` on every change, and builds and plays the web build in a
+browser.
 
 ## 4. The graph model
 
@@ -550,6 +558,7 @@ drains those.
 | macOS | CoreAudio | Already low latency; aggregate devices supported by the OS. |
 | Windows | WASAPI shared + exclusive; **ASIO** (feature `asio`) | ASIO needs the Steinberg ASIO SDK at build time and a signed license to distribute binaries; it ships as an opt-in build. WASAPI exclusive gets most of the way for many interfaces. |
 | Linux | ALSA; JACK (feature `jack`); PipeWire via its JACK/ALSA shims | Native PipeWire later if the shims prove limiting. |
+| Web | Web Audio `AudioWorklet` (the page's own, not cpal) | The engine runs in the worklet (D150); `SharedArrayBuffer` needs cross-origin isolation (D152). Web MIDI, the Gamepad API, and the microphone come in on the page and go through the ring (D154). |
 
 The optional backends are built on every change (DECISIONS D100): CI
 builds the editor and `audioc` with `jack` on Linux and plays a project
@@ -557,7 +566,6 @@ through a JACK server's dummy driver (`crates/ac-io/tests/backends.rs`),
 and builds both with `asio` on Windows, where it checks the ASIO host is
 listed and fails cleanly without drivers. Release archives are built
 without either feature.
-| Web | Web Audio `AudioWorklet` | Requires cross-origin isolation headers for `SharedArrayBuffer`. |
 
 - Buffer sizes from 32 to 2048 frames; the settings panel shows the measured
   round-trip latency and the xrun count. Latency is measured with a loopback
@@ -777,9 +785,41 @@ All hosts call the same `Engine`.
     --scan-plugin`), caching the catalog by each bundle's size and time.
     Running plugins stay in process; out-of-process hosting was weighed
     and deferred (D135).
-- **Web** (Phase 3, `ac-web`): the engine runs inside an `AudioWorklet`; the
-  UI is eframe's web target. The two communicate through `SharedArrayBuffer`
-  rings, the same abstraction as native.
+- **Web** (`ac-web`, D150–D155): the engine runs inside an `AudioWorklet`;
+  the editor is eframe's web target. They are two wasm instances that share
+  no memory, joined by `SharedArrayBuffer` rings, the same abstraction as
+  native:
+  - *The page* (`ui` feature) runs the editor (`AppOptions::web`:
+    `AudioMode::Hosted` at the context's rate and 128-frame quantum, and
+    `host_files`), a third caller of `EditorApp::ui`. Its engine is a
+    *mirror*: the editor uses its `EngineHandle` as on the desktop, and
+    each frame `PageLink::sync` posts the project (and its decoded audio
+    files) whenever the mirror compiled a new one, with a barrier in the
+    ring, then relays what the handle sent (`Processor::relay`: transport
+    commands, then parameter changes resolved to slots). MIDI and control
+    events go into the ring as they arrive. `PageLink::import` copies the
+    worklet's telemetry snapshot into the mirror
+    (`TelemetryReader::import`), so meters, scopes, socket values, binding
+    values, and the transport follow what plays.
+  - *The worklet* (`worklet.js` running the `worklet` feature's module,
+    `ac_audio.wasm`) holds a whole engine (`AudioSide`). Its message
+    handler compiles a posted project between render quanta; `process()`
+    takes ring records up to a barrier for a project not compiled yet,
+    applies relayed messages (`EngineHandle::apply_relayed`, dropping
+    changes tagged for another project), runs the processor with the
+    quantum's input, sends MIDI Out messages back, and publishes
+    telemetry every fourth quantum. Nothing in it allocates; posted
+    messages free retired graphs. Whole-input nodes bake on the page (one
+    job a frame) and the worklet adopts each result
+    (`EngineHandle::adopt_bake`, D156).
+  - *Devices and files* (D153, D154): Web MIDI, the Gamepad API, and the
+    microphone; files through the File System Access API or an upload and
+    a download, audio files in memory, examples fetched from the site.
+    OSC, recording takes, plugins, and device choice aren't available, and
+    the Devices tab says so.
+  - *The site* (D152): `scripts/build_web.py` builds it into `target/web/`;
+    it needs cross-origin isolation, from the host's headers (`_headers`)
+    or the site's own service worker (`sw.js`).
 
 What must be true from day one so Phase 3 is a port, not a rewrite: the engine
 crates compile to wasm; the engine never touches devices or files directly;

@@ -20,7 +20,7 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
 name = "ac-app"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -38,11 +38,12 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "web-time",
 ]
 
 [[package]]
 name = "ac-cli"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -59,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "ac-core"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -67,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "ac-dsp"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "realfft",
@@ -76,7 +77,7 @@ dependencies = [
 
 [[package]]
 name = "ac-engine"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-nodes",
@@ -87,7 +88,7 @@ dependencies = [
 
 [[package]]
 name = "ac-host"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-engine",
@@ -112,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "ac-io"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-engine",
@@ -129,11 +130,12 @@ dependencies = [
  "rtrb",
  "serde_json",
  "thread-priority",
+ "web-time",
 ]
 
 [[package]]
 name = "ac-nodes"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -143,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "ac-plugin"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ac-app",
  "ac-core",
@@ -166,7 +168,22 @@ dependencies = [
 
 [[package]]
 name = "ac-web"
-version = "0.11.0"
+version = "0.12.0"
+dependencies = [
+ "ac-app",
+ "ac-core",
+ "ac-engine",
+ "ac-io",
+ "ac-nodes",
+ "assert_no_alloc",
+ "eframe",
+ "egui",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
 
 [[package]]
 name = "accesskit"
@@ -1479,6 +1496,7 @@ dependencies = [
  "egui-winit",
  "egui_glow",
  "egui_system_font_provider",
+ "glow",
  "glutin",
  "glutin-winit",
  "image",

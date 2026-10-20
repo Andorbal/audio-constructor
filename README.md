@@ -14,7 +14,8 @@ composable nodes, the way Blender's geometry nodes let you build visuals.
 > (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
 > help), 14 example projects, and a [user guide](docs/guide/README.md).
 > Phase 3 (plugins, the web, packaging) is under way: projects already
-> run inside other music software as CLAP and VST3 plugins. See
+> run inside other music software as CLAP and VST3 plugins, and the whole
+> editor runs in a web browser. See
 > [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
 > needs a human with audio hardware.
 
@@ -50,15 +51,16 @@ parts those tools are made of and lets you wire them up however you like.
 
 ## Platforms and hardware
 
-- Native on macOS, Windows, and Linux, with a web (WebAssembly) build planned.
-- Audio in/out through CoreAudio, WASAPI, ASIO, ALSA, JACK/PipeWire, and
-  Web Audio.
+- Native on macOS, Windows, and Linux, and in a web browser (WebAssembly).
+- Audio in/out through CoreAudio, WASAPI, ASIO, ALSA, JACK/PipeWire, and,
+  in a browser, Web Audio (with Web MIDI and the browser's gamepad
+  support).
 - MIDI in/out, game controllers, the computer keyboard, and OSC as control
   sources. Press the A button to start recording; sweep a filter with a
   thumbstick.
 - Runs modest projects on modest machines and scales across cores for big ones.
 
-## Three ways to use it
+## Four ways to use it
 
 1. **The app**: a node editor with live meters, inline controls, and a
    transport.
@@ -70,6 +72,9 @@ parts those tools are made of and lets you wire them up however you like.
    macro knobs the host can automate and, in CLAP hosts, the whole editor
    in the plugin's window. Hosting third-party plugins as nodes is
    planned.
+4. **In a browser**: the same editor and engine as a web page, with
+   MIDI, gamepads, and the microphone, examples from the site, and files
+   opened and saved through the browser. Nothing to install.
 
 ## Getting started
 
@@ -183,6 +188,23 @@ Its window, the editor, draws with OpenGL, in an X11 window on Linux (on a
 Wayland desktop, through XWayland). How to use it is in the
 guide's [plugin chapter](docs/guide/plugin.md).
 
+### Build the web version
+
+```
+python3 scripts/build_web.py --serve        # build into target/web/ and serve it at http://localhost:8000
+```
+
+This builds the editor and the audio engine for WebAssembly and lays out
+a static site in `target/web/`: the page, the two modules, the examples,
+and the shipped blocks. It needs wasm-bindgen's command line at the
+version in `Cargo.lock` (the script prints the `cargo install` line if
+it's missing). Any static host serves the folder over https; the page
+needs cross-origin isolation, which `_headers` asks for on hosts that
+read it and the site's own service worker provides elsewhere.
+`node tests/web/e2e.cjs` plays the examples in a headless browser (with
+Playwright installed). How to use it is in the guide's
+[browser chapter](docs/guide/web.md).
+
 ### Use the command line
 
 ```
@@ -209,6 +231,8 @@ cargo fmt --all
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo check -p ac-core -p ac-dsp -p ac-nodes -p ac-engine --target wasm32-unknown-unknown
+cargo clippy -p ac-web --target wasm32-unknown-unknown --features ui -- -D warnings
+cargo clippy -p ac-web --target wasm32-unknown-unknown --features worklet -- -D warnings
 cargo deny check
 ```
 
@@ -219,7 +243,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 
 | Document | What it covers |
 | --- | --- |
-| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, the plugin, and troubleshooting |
+| [docs/guide](docs/guide/README.md) | The user guide: getting started, the editor, building sounds, live and baked nodes, blocks, performing, recording and rendering, the command line, the examples, the plugin, the browser version, and troubleshooting |
 | [docs/reference](docs/reference/README.md) | Every node, by category: what it does, a tip, and each socket (generated from the nodes' own documentation) |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Phases, milestones, and acceptance criteria |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Engine, signal model, scheduling, real-time rules, persistence |

@@ -56,7 +56,7 @@ fn pack_name(path: &str) -> String {
 
 /// Build a pack of the project at `project_path`.
 pub fn pack(project_path: &Path, registry: &Registry) -> Result<(Vec<u8>, PackReport), String> {
-    let mut project = crate::load_project(project_path)?;
+    let project = crate::load_project(project_path)?;
     let dir = project_path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -65,6 +65,26 @@ pub fn pack(project_path: &Path, registry: &Registry) -> Result<(Vec<u8>, PackRe
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("project");
+    pack_project(project, stem, registry, |path| {
+        let full = if Path::new(path).is_absolute() {
+            PathBuf::from(path)
+        } else {
+            dir.join(path)
+        };
+        std::fs::read(full).ok()
+    })
+}
+
+/// Build a pack of `project`, named after `stem`, reading the audio files
+/// it references through `read` (by the path its nodes write; `None` for a
+/// file that can't be read, which is left out and reported). A host whose
+/// files aren't on disk (the web build) packs what it holds in memory.
+pub fn pack_project(
+    mut project: Project,
+    stem: &str,
+    registry: &Registry,
+    mut read: impl FnMut(&str) -> Option<Vec<u8>>,
+) -> Result<(Vec<u8>, PackReport), String> {
     let project_name = format!("{}.acproj", ac_core::slug(stem));
     let mut report = PackReport::default();
     let mut entries: Vec<Entry> = Vec::new();
@@ -79,12 +99,7 @@ pub fn pack(project_path: &Path, registry: &Registry) -> Result<(Vec<u8>, PackRe
     refs.sort_by_key(|p| !inside(p));
     refs.dedup();
     for path in refs {
-        let full = if Path::new(&path).is_absolute() {
-            PathBuf::from(&path)
-        } else {
-            dir.join(&path)
-        };
-        let Ok(data) = std::fs::read(&full) else {
+        let Some(data) = read(&path) else {
             report.missing.push(path);
             continue;
         };
@@ -176,10 +191,43 @@ pub fn write_pack(
     Ok(report)
 }
 
-/// Unpack a pack into `dir` (created if needed). Refuses to overwrite
-/// existing files unless `overwrite`. Returns the project's path.
-pub fn unpack(bytes: &[u8], dir: &Path, overwrite: bool) -> Result<PathBuf, String> {
+/// What a pack holds, read into memory.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Unpacked {
+    /// The project file's name inside the pack.
+    pub name: String,
+    pub project: Project,
+    /// Every other file (the audio), by its path in the pack, which is the
+    /// path the project's nodes use.
+    pub files: Vec<(String, Vec<u8>)>,
+}
+
+/// Read a pack without writing anything (a host whose files aren't on
+/// disk: the web build). Every name is checked as unpacking checks it.
+pub fn unpack_in_memory(bytes: &[u8]) -> Result<Unpacked, String> {
     let entries = zip::read(bytes).map_err(|e| format!("not a readable pack: {e}"))?;
+    let name = project_entry(&entries)?;
+    let text = entries
+        .iter()
+        .find(|e| e.name == name)
+        .map(|e| String::from_utf8_lossy(&e.data).to_string())
+        .unwrap_or_default();
+    let project = Project::from_json(&text).map_err(|e| format!("{name}: {e}"))?;
+    let files = entries
+        .into_iter()
+        .filter(|e| e.name != MANIFEST && e.name != name)
+        .map(|e| (e.name, e.data))
+        .collect();
+    Ok(Unpacked {
+        name,
+        project,
+        files,
+    })
+}
+
+/// The name of a pack's project file: the manifest's, or the one project
+/// at the top.
+fn project_entry(entries: &[Entry]) -> Result<String, String> {
     let project_name = entries
         .iter()
         .find(|e| e.name == MANIFEST)
@@ -196,6 +244,14 @@ pub fn unpack(bytes: &[u8], dir: &Path, overwrite: bool) -> Result<PathBuf, Stri
     if !entries.iter().any(|e| e.name == project_name) {
         return Err(format!("the pack's project {project_name} is missing"));
     }
+    Ok(project_name)
+}
+
+/// Unpack a pack into `dir` (created if needed). Refuses to overwrite
+/// existing files unless `overwrite`. Returns the project's path.
+pub fn unpack(bytes: &[u8], dir: &Path, overwrite: bool) -> Result<PathBuf, String> {
+    let entries = zip::read(bytes).map_err(|e| format!("not a readable pack: {e}"))?;
+    let project_name = project_entry(&entries)?;
     // Check the project before writing anything.
     let text = entries
         .iter()
@@ -264,6 +320,48 @@ mod tests {
     fn wav(path: &Path, v: f32) {
         crate::wav::write_wav(path, &[vec![v; 64]], 48_000, crate::wav::BitDepth::Float32).unwrap();
         let _: Option<AudioData> = None;
+    }
+
+    #[test]
+    fn packs_are_made_and_read_in_memory() {
+        let reg = ac_nodes::registry();
+        let mut p = Project::default();
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(1), "clip").with_config(json!({"file": "assets/kick.wav"})),
+        );
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(2), "clip")
+                .with_config(json!({"file": "/elsewhere/snare.wav"})),
+        );
+        p.graph
+            .nodes
+            .push(NodeInstance::new(NodeId(3), "clip").with_config(json!({"file": "gone.wav"})));
+        let (bytes, report) = pack_project(p, "My Song", &reg, |path| match path {
+            "assets/kick.wav" => Some(b"kick".to_vec()),
+            "/elsewhere/snare.wav" => Some(b"snare".to_vec()),
+            _ => None,
+        })
+        .unwrap();
+        assert_eq!(report.missing, vec!["gone.wav".to_string()]);
+        assert_eq!(
+            report.moved,
+            vec![("/elsewhere/snare.wav".into(), "assets/snare.wav".into())]
+        );
+        let u = unpack_in_memory(&bytes).unwrap();
+        assert_eq!(u.name, "my-song.acproj");
+        let mut files = u.files.clone();
+        files.sort();
+        assert_eq!(
+            files,
+            vec![
+                ("assets/kick.wav".to_string(), b"kick".to_vec()),
+                ("assets/snare.wav".to_string(), b"snare".to_vec()),
+            ]
+        );
+        // The copy from outside the folder is pointed at its new place.
+        let snare = u.project.graph.node(NodeId(2)).unwrap();
+        assert_eq!(snare.config["file"], "assets/snare.wav");
+        assert!(unpack_in_memory(b"not a zip").is_err());
     }
 
     #[test]

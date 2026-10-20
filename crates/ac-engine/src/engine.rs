@@ -28,6 +28,10 @@ use crate::pool::{MAX_WORKERS, RtPool};
 use crate::report::CompileReport;
 use crate::telemetry::{EngineStatus, TelemetryLayout, TelemetryReader, TelemetryStore};
 
+mod relay;
+
+pub use relay::Relayed;
+
 const GRAPH_RING: usize = 4;
 const GARBAGE_RING: usize = 8;
 const PARAM_RING: usize = 4096;

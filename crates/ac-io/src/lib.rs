@@ -88,13 +88,16 @@ pub use monitor::{RECENT_MESSAGES, Recent};
 pub use null::{NullAudio, NullHost, NullStream};
 pub use osc::{DEFAULT_OSC_PORT, OscInput, OscSeen, OscStats};
 pub use osc_out::{OscOutQueue, OscOutput};
-pub use pack::{PACK_EXTENSION, PackReport, unpack, unpack_beside, write_pack};
+pub use pack::{
+    PACK_EXTENSION, PackReport, Unpacked, pack_project, unpack, unpack_beside, unpack_in_memory,
+    write_pack,
+};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{
     AudioError, AudioHost, AudioStream, EventPorts, StartError, Stopped, StreamInfo, StreamStats,
 };
-pub use wav::{BitDepth, read_wav, write_wav};
+pub use wav::{BitDepth, read_wav, wav_bytes, write_wav};
 
 // Unit tests run under the allocation guard, so a real-time path that
 // allocates (inside `assert_no_alloc`) aborts the test run.

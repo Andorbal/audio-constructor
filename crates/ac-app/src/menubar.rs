@@ -50,6 +50,8 @@ pub struct MenuState<'a> {
     pub registry: &'a Registry,
     /// File ▸ Quit is offered (not in a plugin, whose host closes it).
     pub can_quit: bool,
+    /// File ▸ Open Recent is offered (not where the host keeps the files).
+    pub show_recent: bool,
 }
 
 fn entry(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, icon: &str, enabled: bool) {
@@ -80,6 +82,51 @@ fn toggle(ui: &mut egui::Ui, out: &mut Vec<MenuCommand>, action: Action, on: boo
     entry(ui, out, action, icon, true);
 }
 
+/// File ▸ Open Recent.
+fn recent_menu(ui: &mut egui::Ui, s: &MenuState, out: &mut Vec<MenuCommand>) {
+    ui.menu_button(
+        format!("{}  Open Recent", icons::CLOCK_COUNTER_CLOCKWISE),
+        |ui| {
+            if s.recent.entries.is_empty() {
+                ui.label(RichText::new("No recent projects").color(theme::text_muted()));
+            }
+            for p in &s.recent.entries {
+                let exists = p.is_file();
+                let name = p.file_name().map_or_else(
+                    || p.display().to_string(),
+                    |n| n.to_string_lossy().to_string(),
+                );
+                let label = if exists {
+                    name
+                } else {
+                    format!("{name} (missing)")
+                };
+                let r = ui
+                    .add_enabled(exists, egui::Button::new(label))
+                    .on_hover_text(p.display().to_string());
+                if r.clicked() {
+                    out.push(MenuCommand::OpenRecent(p.clone()));
+                    ui.close();
+                }
+                if !exists
+                    && ui
+                        .small_button(format!("{}  Remove from list", icons::X))
+                        .clicked()
+                {
+                    out.push(MenuCommand::ForgetRecent(p.clone()));
+                }
+            }
+            if !s.recent.entries.is_empty() {
+                ui.separator();
+                if ui.button("Clear list").clicked() {
+                    out.push(MenuCommand::ClearRecent);
+                    ui.close();
+                }
+            }
+        },
+    );
+}
+
 pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
     let mut out = Vec::new();
     egui::MenuBar::new().ui(ui, |ui| {
@@ -91,47 +138,9 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         ui.menu_button("File", |ui| {
             entry(ui, &mut out, Action::New, icons::FILE_PLUS, true);
             entry(ui, &mut out, Action::Open, icons::FOLDER_OPEN, true);
-            ui.menu_button(
-                format!("{}  Open Recent", icons::CLOCK_COUNTER_CLOCKWISE),
-                |ui| {
-                    if s.recent.entries.is_empty() {
-                        ui.label(RichText::new("No recent projects").color(theme::text_muted()));
-                    }
-                    for p in &s.recent.entries {
-                        let exists = p.is_file();
-                        let name = p.file_name().map_or_else(
-                            || p.display().to_string(),
-                            |n| n.to_string_lossy().to_string(),
-                        );
-                        let label = if exists {
-                            name
-                        } else {
-                            format!("{name} (missing)")
-                        };
-                        let r = ui
-                            .add_enabled(exists, egui::Button::new(label))
-                            .on_hover_text(p.display().to_string());
-                        if r.clicked() {
-                            out.push(MenuCommand::OpenRecent(p.clone()));
-                            ui.close();
-                        }
-                        if !exists
-                            && ui
-                                .small_button(format!("{}  Remove from list", icons::X))
-                                .clicked()
-                        {
-                            out.push(MenuCommand::ForgetRecent(p.clone()));
-                        }
-                    }
-                    if !s.recent.entries.is_empty() {
-                        ui.separator();
-                        if ui.button("Clear list").clicked() {
-                            out.push(MenuCommand::ClearRecent);
-                            ui.close();
-                        }
-                    }
-                },
-            );
+            if s.show_recent {
+                recent_menu(ui, s, &mut out);
+            }
             ui.menu_button(format!("{}  Examples", icons::BOOK_OPEN), |ui| {
                 if s.examples.is_empty() {
                     ui.label(RichText::new("No examples found").color(theme::text_muted()));

@@ -6,7 +6,10 @@
 //! crate reads time through [`now_ns`].
 
 use std::sync::OnceLock;
-use std::time::Instant;
+
+// The standard library's `Instant` on every platform but the web, where
+// it reads the page's clock (the standard one isn't available there).
+use web_time::Instant;
 
 static ORIGIN: OnceLock<Instant> = OnceLock::new();
 

@@ -26,20 +26,32 @@ impl EditorApp {
 
     /// Add a block file someone shared to the library.
     pub fn import_block_file(&mut self, path: &Path, now: f64) {
-        let block = std::fs::read_to_string(path)
-            .map_err(|e| e.to_string())
-            .and_then(|t| Block::from_json(&t).map_err(|e| e.to_string()));
-        let block = match block {
-            Ok(b) => b,
+        let text = match std::fs::read_to_string(path) {
+            Ok(t) => t,
             Err(e) => return self.warn(format!("Couldn't read {}: {e}", path.display()), now),
         };
-        let name = block.def.name.clone();
-        let known = self.library.blocks().iter().any(|b| b.block == block);
         let hint = path
             .file_stem()
             .and_then(|s| s.to_str())
-            .unwrap_or(&name)
+            .unwrap_or_default()
             .to_string();
+        self.import_block_text(&text, &hint, &path.display().to_string(), now);
+    }
+
+    /// Add a block someone shared (the text of its file, called `what`) to
+    /// the library, under an id made from `hint` (or its name).
+    pub(super) fn import_block_text(&mut self, text: &str, hint: &str, what: &str, now: f64) {
+        let block = match Block::from_json(text) {
+            Ok(b) => b,
+            Err(e) => return self.warn(format!("Couldn't read {what}: {e}"), now),
+        };
+        let name = block.def.name.clone();
+        let known = self.library.blocks().iter().any(|b| b.block == block);
+        let hint = if hint.is_empty() {
+            name.clone()
+        } else {
+            hint.to_string()
+        };
         match self.library.import(block, &hint) {
             Ok(_) if known => self.say(format!("{name} is already in your library"), now),
             Ok(_) => {
@@ -175,6 +187,9 @@ impl EditorApp {
     /// untitled project is saved first (asking where), and unsaved changes
     /// are saved; then the pack's own Save dialog.
     pub(super) fn export_pack(&mut self, now: f64) {
+        if self.host_files {
+            return self.host_export_pack(now);
+        }
         let Some(path) = self.doc.path.clone() else {
             self.pack_after_save = true;
             self.say(

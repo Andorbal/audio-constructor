@@ -93,14 +93,18 @@ fn hosted_devices(
             engine_rows(ui, &info, &status);
         });
     ui.add_space(4.0);
-    ui.label(
-        RichText::new(format!(
-            "{}  The host provides audio and MIDI. Set the sample rate, the buffer size, \
-             and MIDI routing in the host.",
-            icons::INFO
-        ))
-        .color(theme::text_muted()),
-    );
+    if let Some(panel) = io.engine.devices_panel.as_mut() {
+        panel.show(ui);
+    } else {
+        ui.label(
+            RichText::new(format!(
+                "{}  The host provides audio and MIDI. Set the sample rate, the buffer size, \
+                 and MIDI routing in the host.",
+                icons::INFO
+            ))
+            .color(theme::text_muted()),
+        );
+    }
     if let Some(controls) = io.host.as_mut() {
         host_params(ui, controls.as_mut());
     }

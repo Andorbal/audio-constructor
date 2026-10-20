@@ -58,6 +58,7 @@ serde_json.workspace = true
 # would link libwayland-client in builds without eframe (the plugin).
 rfd = { version = "0.17", default-features = false, features = ["xdg-portal"], optional = true }
 directories = "6.0"
+web-time.workspace = true
 # The plugin window: egui on baseview (MIT OR Apache-2.0), with the OpenGL
 # renderer (DECISIONS D125). It needs a logging facade to build; `log` is
 # the one plugin frameworks route to the host's log.

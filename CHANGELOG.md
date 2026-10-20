@@ -11,6 +11,48 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.12.0] - 2026-10-20
+
+Audio Constructor now runs in a web browser: the same editor and the same
+engine, with MIDI, gamepads, and the microphone, examples from the site,
+and files opened and saved through the browser.
+
+### Added
+
+- **The web version.** `python3 scripts/build_web.py` builds a static site
+  (`--serve` serves it at <http://localhost:8000>). The engine plays in the
+  browser's audio thread, sample for sample what the desktop plays, while
+  the editor works as it does on the desktop: meters, scopes, inline
+  values, bindings and learning, panels, undo. Click or press a key once to
+  start the sound, as browsers ask.
+- **Examples from the site**: File ▸ Examples and the help's "Used in"
+  list every shipped example, and each opens with its audio files.
+  Reverse and Normalize bake in the page (the editor waits a moment while
+  they do) and play as on the desktop. Add
+  `?example=guitar-pedalboard` (or any example's file name) to the address
+  to open one straight away.
+- **Files in the browser**: Open takes projects, packs, and block files;
+  Save writes back to the file you opened where the browser allows it,
+  and downloads it elsewhere; Export WAV and Export Pack save or download
+  their files. Audio files you pick are kept in the page, and Export Pack
+  saves them with the project.
+- **Devices in the browser**: MIDI inputs (all heard) and outputs (checked
+  in the Devices tab) through Web MIDI, gamepads after a first button
+  press, and the microphone for Audio In nodes, asked for when a patch has
+  one. The browser's echo cancellation and noise suppression stay off.
+- The Devices tab says what a browser can't do: OSC, recording takes to
+  disk, plugins, choosing the output device. A patch with OSC or Record
+  nodes says so when it opens.
+- A project made on the desktop with Plugin nodes opens in the browser
+  with them and their wires in place. They play silence, the Problems tab
+  says plugins can't run in a browser, and the rest of the patch plays.
+- The page's title shows unsaved changes, leaving the page with them asks
+  first, and the theme and UI scale are remembered by the browser.
+- A static host serves the site as it is: a `_headers` file asks for the
+  cross-origin isolation the engine needs, and the site's own service
+  worker provides it where a host can't send headers. A guide chapter, [In
+  the browser](docs/guide/web.md), covers using and hosting it.
+
 ## [0.11.0] - 2026-10-19
 
 ### Added
@@ -664,6 +706,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.12.0]: https://github.com/Andorbal/audio-constructor/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Andorbal/audio-constructor/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Andorbal/audio-constructor/compare/v0.8.0...v0.9.0
