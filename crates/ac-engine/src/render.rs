@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use ac_core::{
     AudioData, AudioIn, ConfigExt, Control, ControlEvent, FileRequest, MidiEvent, MidiMsg,
-    NodePath, OSC_OUT_CAPACITY, OscMessage, Project, RecordRequest, RecordSink, Registry,
-    Resources, Value,
+    NodePath, OSC_OUT_CAPACITY, OscMessage, PluginProcessor, PluginRequest, Project, RecordRequest,
+    RecordSink, Registry, Resources, Value,
 };
 
 use crate::bake::BakeInput;
@@ -88,6 +88,10 @@ impl Resources for RenderResources {
 
     fn recorder(&self, req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
         self.inner.recorder(req)
+    }
+
+    fn plugin(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
+        self.inner.plugin(req)
     }
 
     fn file_out(&self, req: &FileRequest<'_>) -> Option<Box<dyn RecordSink>> {

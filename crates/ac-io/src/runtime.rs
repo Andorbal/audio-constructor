@@ -1221,6 +1221,7 @@ mod tests {
         let resources = Arc::new(FileResources {
             assets: AssetStore::new(&dir),
             recorder: Some(recorder.clone()),
+            plugins: None,
         });
         let mut project = Project::default();
         project

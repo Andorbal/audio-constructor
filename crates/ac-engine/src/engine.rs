@@ -324,6 +324,15 @@ impl EngineHandle {
         self.recompile()
     }
 
+    /// Rebuild one node instead of carrying its state over, and
+    /// recompile. `node_key` is the node's flattened path as nodes see it
+    /// (`PrepareCtx::node_key`). A hosted plugin that asks to restart gets
+    /// a fresh instance this way; everything else keeps playing.
+    pub fn rebuild(&mut self, node_key: &str) -> CompileReport {
+        self.carry.forget(node_key);
+        self.recompile()
+    }
+
     /// Recompile the current project (e.g. after parameter changes upstream
     /// of a baked node, so its bake is redone).
     pub fn refresh(&mut self) -> CompileReport {

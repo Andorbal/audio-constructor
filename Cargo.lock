@@ -20,11 +20,12 @@ checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
 name = "ac-app"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
  "ac-engine",
+ "ac-host",
  "ac-io",
  "ac-nodes",
  "anyhow",
@@ -41,11 +42,12 @@ dependencies = [
 
 [[package]]
 name = "ac-cli"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
  "ac-engine",
+ "ac-host",
  "ac-io",
  "ac-nodes",
  "anyhow",
@@ -57,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "ac-core"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -65,7 +67,7 @@ dependencies = [
 
 [[package]]
 name = "ac-dsp"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "realfft",
@@ -74,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "ac-engine"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "ac-nodes",
@@ -84,8 +86,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "ac-host"
+version = "0.11.0"
+dependencies = [
+ "ac-core",
+ "ac-engine",
+ "ac-nodes",
+ "ac-plugin",
+ "assert_no_alloc",
+ "clack-extensions",
+ "clack-host",
+ "directories",
+ "libc",
+ "libloading 0.8.9",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "vst3",
+ "windows-sys 0.61.2",
+ "x11rb",
+]
+
+[[package]]
 name = "ac-io"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "ac-engine",
@@ -106,7 +133,7 @@ dependencies = [
 
 [[package]]
 name = "ac-nodes"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-core",
  "ac-dsp",
@@ -116,7 +143,7 @@ dependencies = [
 
 [[package]]
 name = "ac-plugin"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "ac-app",
  "ac-core",
@@ -139,7 +166,7 @@ dependencies = [
 
 [[package]]
 name = "ac-web"
-version = "0.10.0"
+version = "0.11.0"
 
 [[package]]
 name = "accesskit"

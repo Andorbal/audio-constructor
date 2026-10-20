@@ -877,6 +877,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             format!("{} control events dropped", c.dropped()),
         );
     }
+    super::plugins_ui::devices_section(ui, io);
 }
 
 pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {

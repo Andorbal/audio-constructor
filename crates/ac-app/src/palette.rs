@@ -4,8 +4,8 @@
 //! the project, and the blocks in the library.
 
 use ac_core::{
-    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, Registry, SignalType, VOICE_KIND,
-    VOICES_KIND,
+    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, PLUGIN_KIND, PluginDesc, Registry,
+    SignalType, VOICE_KIND, VOICES_KIND,
 };
 use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
@@ -110,22 +110,27 @@ pub struct Palette {
     focus: bool,
     /// Frames since it opened (the opening click mustn't close it).
     age: u32,
+    /// The plugins installed on this computer, offered by name.
+    pub plugins: Vec<PluginDesc>,
 }
 
 /// What the palette offers for `query`, best first: nodes in the
-/// registry's order, with groups and blocks whose names match the query
-/// outright moved up among them.
+/// registry's order, with groups, blocks, and installed plugins whose names
+/// match the query outright moved up among them.
 pub fn candidates(
     registry: &Registry,
     library: &Library,
     doc: &Document,
     query: &str,
     pending: Option<&PendingWire>,
+    plugins: &[PluginDesc],
 ) -> Vec<Candidate> {
     let q = query.trim().to_lowercase();
     let mut out: Vec<(u8, Candidate)> = Vec::new();
     for e in registry.search(query) {
-        if e.meta.kind == GROUP_KIND {
+        // A Plugin node is offered per plugin installed (below); an empty
+        // one has nothing to play.
+        if e.meta.kind == GROUP_KIND || e.meta.kind == PLUGIN_KIND {
             continue;
         }
         let config = ac_core::empty_config();
@@ -202,6 +207,11 @@ pub fn candidates(
         };
         extra.push(block_candidate(b, socket));
     }
+    extra.extend(
+        plugins
+            .iter()
+            .filter_map(|d| crate::plugins::candidate(d, registry, query, pending)),
+    );
     for c in extra {
         let t = if q.is_empty() { 2 } else { tier(&c.name, &q) };
         let at = out.iter().position(|(u, _)| *u > t).unwrap_or(out.len());
@@ -263,7 +273,14 @@ impl Palette {
         if !self.open {
             return None;
         }
-        let list = candidates(registry, library, doc, &self.query, self.pending.as_ref());
+        let list = candidates(
+            registry,
+            library,
+            doc,
+            &self.query,
+            self.pending.as_ref(),
+            &self.plugins,
+        );
         if self.selected >= list.len() {
             self.selected = list.len().saturating_sub(1);
         }
@@ -464,12 +481,12 @@ mod tests {
     #[test]
     fn search_uses_synonyms() {
         let r = ac_nodes::registry();
-        let c = candidates(&r, &Library::default(), &doc(), "volume", None);
+        let c = candidates(&r, &Library::default(), &doc(), "volume", None, &[]);
         assert_eq!(c[0].kind, "gain");
         let none = Library::default();
-        assert!(candidates(&r, &none, &doc(), "", None).len() >= 20);
+        assert!(candidates(&r, &none, &doc(), "", None, &[]).len() >= 20);
         assert!(
-            !candidates(&r, &none, &doc(), "", None)
+            !candidates(&r, &none, &doc(), "", None, &[])
                 .iter()
                 .any(|c| c.kind == GROUP_KIND)
         );
@@ -483,7 +500,7 @@ mod tests {
             to: None,
             ty: SignalType::Audio,
         };
-        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p));
+        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p), &[]);
         assert!(
             c.iter()
                 .any(|c| c.kind == "gain" && c.socket.as_deref() == Some("in"))
@@ -495,7 +512,7 @@ mod tests {
             to: Some(Endpoint::new(NodeId(1), "flip")),
             ty: SignalType::Trigger,
         };
-        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p));
+        let c = candidates(&r, &Library::default(), &doc(), "", Some(&p), &[]);
         assert!(
             c.iter()
                 .any(|c| c.kind == "button" && c.socket.as_deref() == Some("trigger"))
@@ -507,7 +524,7 @@ mod tests {
     fn blocks_named_outright_come_first() {
         let r = ac_nodes::registry();
         let lib = Library::shipped_only();
-        let c = candidates(&r, &lib, &doc(), "tremolo", None);
+        let c = candidates(&r, &lib, &doc(), "tremolo", None, &[]);
         // The LFO lists "tremolo" as a synonym; the block of that name leads.
         assert_eq!(
             c[0].block,
@@ -517,10 +534,10 @@ mod tests {
         assert_eq!(c[0].summary, first_paragraph(&c[0].summary));
         assert!(c.iter().any(|c| c.kind == "lfo"));
         // Tags and descriptions match too.
-        let c = candidates(&r, &lib, &doc(), "amplitude", None);
+        let c = candidates(&r, &lib, &doc(), "amplitude", None, &[]);
         assert!(c.iter().any(|c| c.block.is_some()));
         // With no query, blocks follow the nodes.
-        let all = candidates(&r, &lib, &doc(), "", None);
+        let all = candidates(&r, &lib, &doc(), "", None, &[]);
         assert!(all.last().unwrap().block.is_some());
         assert!(all[0].block.is_none());
     }
@@ -534,7 +551,7 @@ mod tests {
             to: None,
             ty: SignalType::Audio,
         };
-        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&from_audio));
+        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&from_audio), &[]);
         let t = c
             .iter()
             .find(|c| c.block.is_some())
@@ -545,7 +562,7 @@ mod tests {
             to: Some(Endpoint::new(NodeId(1), "midi")),
             ty: SignalType::Midi,
         };
-        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&into_midi));
+        let c = candidates(&r, &lib, &doc(), "tremolo", Some(&into_midi), &[]);
         assert!(
             !c.iter().any(|c| c.block.is_some()),
             "Tremolo has no MIDI output"

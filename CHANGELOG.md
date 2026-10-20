@@ -11,6 +11,45 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.11.0] - 2026-10-19
+
+### Added
+
+- **Plugins as nodes**: a new **Plugin** node runs a CLAP or VST3 plugin
+  installed on your computer inside a patch, a synth played from MIDI or
+  an effect on audio. Its sockets come from the plugin: audio in and out
+  (extra ports such as a sidechain as `in_2`, `out_2`), `midi` and
+  `midi_out` when it takes or sends notes, and one input per parameter
+  (up to 128), named after the parameter. Parameter inputs can be set
+  inline or wired to any modulator, and the plugin follows them on the
+  right sample. The node reports the plugin's latency, so the engine
+  lines up the paths around it.
+- VST3 plugins' parameter inputs go from 0 to 1, the way the format
+  carries them (CLAP plugins' use the plugin's own ranges). A VST3 synth
+  that answers the mod wheel, pitch bend, or other MIDI controllers gets
+  them from its `midi` input.
+- A project with a plugin that isn't installed still opens with its
+  sockets and wires; the node plays silence and the compile report says
+  which plugin is missing.
+- In the editor, every plugin found is listed by name in the add-node
+  palette (`Shift+A`) and under **Plugins** in the Library tab. Adding
+  one makes a Plugin node with its sockets. **Show Plugin Window** (in
+  the node's right-click menu and the Node tab) opens the plugin's own
+  interface in a window beside the editor; moving a control there moves
+  the node's input, and saving the project saves everything the plugin
+  keeps. The Node tab says whether the plugin runs, or what's missing.
+- The editor looks for new and changed plugins each time it starts; the
+  Devices tab's **Plugins** section rescans, lists the folders it looks
+  in, and lists plugins that couldn't be opened. Each plugin is opened
+  in a separate process while it's looked at, so one that crashes
+  can't close the editor.
+- `audioc plugins` lists the CLAP and VST3 plugins installed on the
+  computer (`--json` for scripts), looking in the standard folders and
+  in `CLAP_PATH` and `VST3_PATH`. Each plugin is opened in a separate
+  process, so one that crashes is listed as failed instead of stopping
+  the scan. `audioc render`, `run`, and `validate` play the plugins a
+  project uses.
+
 ## [0.10.0] - 2026-10-19
 
 Audio Constructor now runs inside other music software as a plugin: a
@@ -625,6 +664,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.11.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Andorbal/audio-constructor/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/Andorbal/audio-constructor/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Andorbal/audio-constructor/compare/v0.7.0...v0.8.0

@@ -22,6 +22,7 @@ ac-nodes.workspace = true
 ac-dsp.workspace = true
 ac-engine.workspace = true
 ac-io.workspace = true
+ac-host = { path = "../ac-host" }
 clap.workspace = true
 anyhow.workspace = true
 serde_json.workspace = true

@@ -112,7 +112,7 @@ slate.
 | Zoom | wheel, pinch, `+`/`-`, `Home` to fit all, `.` to fit selection (`Ctrl+=`/`Ctrl+-` scale the whole interface instead; see "Accessibility and scaling") |
 | Select | click, shift-click, box-drag, `A` all, `Alt+A` none, `L` linked |
 | Move | drag selected; `G` grab (Blender style); snaps to grid with Ctrl |
-| Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad) |
+| Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad); it also lists groups, blocks, and the plugins installed on this computer by name |
 | Wire | drag from socket to socket; drop on empty canvas opens the palette **filtered to compatible nodes** and auto-wires the result |
 | Insert on wire | drop a node onto a wire to splice it in (if types match) |
 | Disconnect | drag a wire end away and release, or `Ctrl+drag` across wires to cut |
@@ -131,6 +131,7 @@ slate.
 | Align / distribute | `Shift+Alt+A` menu at the pointer (also Edit ▸ Align / Distribute, and a node's right-click menu with several selected); **auto-layout** `Ctrl+L` lays out the selection, or the whole graph with nothing selected (layered, left to right) |
 | Undo/redo | `Ctrl+Z`/`Ctrl+Shift+Z`, unlimited, including parameter nudges (coalesced) |
 | Find | `Ctrl+F` finds nodes by name, kind, or id, inside groups too, and jumps to them: `↑`/`↓` choose, `Enter` jumps, `Esc` closes |
+| Plugin window | A Plugin node's right-click menu ▸ **Show Plugin Window** (also the Node tab's button) opens the plugin's own interface beside the editor (D134) |
 | Help | `F1` on a node opens its reference in the side panel's Help tab (also Node Help in its right-click menu, and the Help button in the Node tab); with nothing selected, the list of every node |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
@@ -222,8 +223,9 @@ A resizable panel (`N` toggles) with tabs:
 
 - **Node**: everything about the selected node: full parameter list, docs
   (with its "Try this" tip highlighted), bindings, timing, latency.
-- **Library**: nodes by category and user/shared blocks; drag to the canvas.
-  Search here is the same engine as the palette.
+- **Library**: nodes by category, the plugins installed on this computer
+  (**Plugins**), and user/shared blocks; drag to the canvas. Search here is
+  the same engine as the palette.
 - **Project**: sample rate, length, tempo map, seed, bindings, assets,
   missing files.
 - **Devices**: audio/MIDI/gamepad devices, buffer size, measured latency,
@@ -239,7 +241,11 @@ A resizable panel (`N` toggles) with tabs:
   the tab says so, shows the rate, buffer, channels, and load the host
   runs the patch at, and lists the **macros** (name, what each drives,
   its value as the host shows it, and a slider that moves the host's
-  parameter as one gesture the host records) (D127).
+  parameter as one gesture the host records) (D127). In the desktop
+  editor, **Plugins** says how many CLAP and VST3 plugins were found,
+  rescans (**Rescan** for new and changed ones, **Rescan all**), lists the
+  folders searched, and lists the plugins that couldn't be opened and why
+  (D135).
 - **Problems**: compile errors and disabled nodes, click to jump.
 - **Help**: a node's reference (`F1`, D110): its name and category, what
   it does, its "Try this" tip in a highlighted box, every socket with its

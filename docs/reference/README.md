@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-117 nodes in 13 categories.
+118 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ together, read the [user guide](../guide/README.md).
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
 | [Display](#display) | 4 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
-| [Utility](#utility) | 9 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, and the engine's vital signs. |
+| [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
 
 <a id="io"></a>
 ## Input / Output
@@ -235,7 +235,7 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 <a id="utility"></a>
 ## Utility
 
-Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, and the engine's vital signs. All on one page: [Utility](utility.md).
+Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. All on one page: [Utility](utility.md).
 
 | Node | What it does |
 | --- | --- |
@@ -246,5 +246,6 @@ Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tool
 | [Latency](utility.md#latency) | Delays audio by a fixed number of samples and tells the engine so, which makes it a handy way to see latency compensation at work. |
 | [Merge Channels](utility.md#merge-channels) | Combines mono signals into one multichannel signal. |
 | [Mid/Side](utility.md#mid-side) | Converts stereo to mid (what both sides share) and side (how they differ), or back, so the center and the edges of a mix can be processed separately. |
+| [Plugin](utility.md#plugin) | Runs a CLAP or VST3 plugin installed on this computer as a node: a synth played from MIDI, or an effect on audio. |
 | [Reroute](utility.md#reroute) | A dot on a wire, for tidy wiring. Whatever goes in comes straight out, of any type. |
 | [Split Channels](utility.md#split-channels) | Splits a multichannel signal into one mono output per channel. |

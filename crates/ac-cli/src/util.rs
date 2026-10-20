@@ -56,11 +56,13 @@ pub fn parse_value(s: &str) -> Value {
 /// Load a project and its assets. Asset problems are printed, not fatal.
 pub fn load(path: &Path, registry: &Registry) -> Result<(Project, Arc<FileResources>)> {
     let (project, assets) = load_with_assets(path, registry)?;
+    let plugins = crate::plugins::host_for(&project).map(|h| h as Arc<dyn ac_core::PluginLoader>);
     Ok((
         project,
         Arc::new(FileResources {
             assets,
             recorder: None,
+            plugins,
         }),
     ))
 }
