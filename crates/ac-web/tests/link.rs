@@ -412,6 +412,7 @@ fn the_page_bakes_and_the_worklet_plays_the_bake() {
     let resources: Arc<dyn ac_core::Resources> = Arc::new(ac_io::FileResources {
         assets: store,
         recorder: None,
+        plugins: None,
     });
     let (mut reference, _) = Engine::new(
         web.editor.engine.handle.project().clone(),

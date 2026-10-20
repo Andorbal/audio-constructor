@@ -51,6 +51,7 @@ fn rms_of(path: &Path, seconds: f64) -> f32 {
     let resources = Arc::new(FileResources {
         assets: AssetStore::load_for(&project, path.parent().expect("dir"), &registry),
         recorder: None,
+        plugins: None,
     });
     let out = render(
         &project,

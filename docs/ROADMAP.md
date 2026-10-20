@@ -658,8 +658,72 @@ Needs a human with a host and a screen: the steps are in the M3.1 merge
 request.
 
 ### M3.2 Plugin hosting
-- [ ] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
-- [ ] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+- [x] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
+- [x] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+
+*Verified (CLAP):* the `Plugin` node (`crates/ac-nodes/src/utility/plugin.rs`)
+builds its sockets from the description in its config; its unit tests,
+against a fake processor, check the sockets, notes at their pitch at block
+sizes 1, 64, and 1000, parameter events (still inputs once, moving ones
+every 32 samples at the same frames for block sizes 7, 64, and 1000),
+changes before notes on a shared frame, the transport, latency, a failing
+plugin silenced, and a missing one keeping its sockets with a warning.
+`crates/ac-host` hosts real CLAP plugins with clack:
+- `tests/clap_hosting.rs` scans our own Audio Constructor Instrument and
+  Effect (the `ac-plugin` build) and renders them as nodes through the
+  engine, with the allocation guard aborting on any allocation of ours
+  around the plugin: A3 and A4 come out strongest at 220 and 440 Hz
+  (±3 Hz) and die away after the note-off; the level macro moves the
+  output by 36 dB (±3); the effect passes a 330 Hz oscillator at unity;
+  renders are deterministic; a state saved into the node's config
+  restores in a fresh engine without rebuilding the running instance; a
+  changed description rebuilds the node and the old instance goes; a
+  missing plugin is silent with a warning.
+- `tests/plugin_window.rs` and `tests/third_party_window.rs` (ignored;
+  CI runs them under xvfb) open plugin windows embedded in the host's
+  X11 window while audio plays, close them, and reopen them: our
+  instrument's node editor, and the third-party Six Sines while it plays
+  a note (checked by screenshot on a virtual display, both drawn inside
+  the host window).
+- `crates/ac-cli/tests/plugins_cli.rs`: `audioc plugins --json` scans a
+  `CLAP_PATH` folder in child processes and lists both plugins; a file
+  that isn't a plugin is listed as failed; `audioc render` of a project
+  with the instrument comes out at 440 Hz; `validate` warns for a missing
+  plugin.
+- `crates/ac-app/tests/plugins.rs`: installed plugins are offered by name
+  in the palette (the bare node isn't), adding one makes a Plugin node
+  with its sockets, the Node tab shows a missing plugin's warning, and
+  saving stores a running plugin's state in its node without rebuilding
+  it.
+- Phase 3 acceptance #2 ("a third-party CLAP synth runs as a node inside a
+  project"): CI's *Third-party plugin as a node* job downloads Six Sines
+  1.2.1 for Linux, checks its SHA-256, and renders it from a MIDI Pattern
+  with `audioc`: notes come out at 220 and 440 Hz (D136); verified locally
+  the same way.
+
+*Verified (VST3):* `crates/ac-host` hosts VST3 plugins through the
+MIT-licensed `vst3` bindings (no SDK code, D137) with the same node,
+scanner, state, and window paths as CLAP:
+- `tests/vst3_hosting.rs` hosts our own plugins' VST3 build: the scanner
+  describes both (parameters 0 to 1); the instrument renders A3 and A4 at
+  220 and 440 Hz (±3) under the allocation guard; a parameter input moves
+  the level; the effect passes a 330 Hz oscillator at unity; a saved state
+  restores in a fresh engine; a missing plugin is silent with a warning.
+- CI's *Third-party plugin as a node* job also renders Six Sines' VST3
+  build from a MIDI Pattern with `audioc` (220 and 440 Hz) and opens its
+  window embedded in the host's X11 window while it plays (checked
+  locally by screenshot on a virtual display).
+- `cargo check -p ac-host` passes for `aarch64-apple-darwin` and
+  `x86_64-pc-windows-gnu`; windows on macOS and Windows need a human
+  (MR description).
+
+Sandboxing: the scan runs each bundle in a child process, so a plugin
+that crashes or hangs while it's looked at is listed as failed instead of
+stopping the scan (a bundle that fails to open is checked in
+`plugins_cli.rs`). Crash isolation for
+running plugins was investigated and deferred: out-of-process hosting
+costs a context switch per block and shared-memory audio, and is
+written up with the plan in D135.
 
 ### M3.3 Web
 - [x] `ac-web`: engine in an AudioWorklet, eframe UI, SharedArrayBuffer rings, Web MIDI, Gamepad API; static hosting with cross-origin isolation headers.

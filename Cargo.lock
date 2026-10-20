@@ -25,6 +25,7 @@ dependencies = [
  "ac-core",
  "ac-dsp",
  "ac-engine",
+ "ac-host",
  "ac-io",
  "ac-nodes",
  "anyhow",
@@ -47,6 +48,7 @@ dependencies = [
  "ac-core",
  "ac-dsp",
  "ac-engine",
+ "ac-host",
  "ac-io",
  "ac-nodes",
  "anyhow",
@@ -82,6 +84,31 @@ dependencies = [
  "assert_no_alloc",
  "rtrb",
  "serde_json",
+]
+
+[[package]]
+name = "ac-host"
+version = "0.12.0"
+dependencies = [
+ "ac-core",
+ "ac-engine",
+ "ac-nodes",
+ "ac-plugin",
+ "assert_no_alloc",
+ "clack-extensions",
+ "clack-host",
+ "directories",
+ "libc",
+ "libloading 0.8.9",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "vst3",
+ "windows-sys 0.61.2",
+ "x11rb",
 ]
 
 [[package]]

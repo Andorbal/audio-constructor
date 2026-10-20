@@ -10,6 +10,17 @@ use ac_app::files::Recent;
 use ac_app::{AppOptions, EditorApp};
 
 fn main() -> eframe::Result {
+    // A scanning child: describe one plugin bundle and exit (the editor
+    // runs itself this way so a crashing plugin can't take it down).
+    let mut args = std::env::args_os().skip(1);
+    if let Some(first) = args.next()
+        && first == ac_app::plugins::SCAN_FLAG
+    {
+        let code = args
+            .next()
+            .map_or(2, |b| ac_host::child_main(std::path::Path::new(&b)));
+        std::process::exit(code);
+    }
     let project = std::env::args_os().nth(1).map(std::path::PathBuf::from);
     let opts = AppOptions {
         audio: AudioMode::Device(ac_io::AudioConfig::default()),
@@ -21,6 +32,7 @@ fn main() -> eframe::Result {
         settings: ac_app::settings::AppSettings::load_default(),
         library: ac_app::files::default_library_dir(),
         host_files: false,
+        plugins: Some(ac_app::plugins::PluginsConfig::desktop()),
     };
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

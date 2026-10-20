@@ -39,10 +39,13 @@ need them.
    what to try in it.
 10. [The plugin](plugin.md): running a patch inside other music software
     as an effect or an instrument, its macros, and how sessions save it.
-11. [In the browser](web.md): the editor as a web page, with MIDI,
+11. [Plugins as nodes](plugins-as-nodes.md): playing the synths and
+    effects installed on your computer inside a patch, their windows,
+    and what happens when one is missing.
+12. [In the browser](web.md): the editor as a web page, with MIDI,
     gamepads, and the microphone; opening and saving files there; and
     what a browser can't do.
-12. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
+13. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
     devices that don't show up, and other problems.
 
 "Try this" boxes like the one below suggest something to do with what a

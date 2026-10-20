@@ -60,6 +60,7 @@ fn record_thirty_seconds_play_back_from_a_clip_after_save_and_reopen() {
     let resources = Arc::new(FileResources {
         assets: AssetStore::new(&dir),
         recorder: Some(recorder.clone()),
+        plugins: None,
     });
     let (engine, report) = Engine::new(
         rec,
@@ -136,6 +137,7 @@ fn record_thirty_seconds_play_back_from_a_clip_after_save_and_reopen() {
         Arc::new(FileResources {
             assets,
             recorder: None,
+            plugins: None,
         }),
         &RenderOptions::default(),
     );

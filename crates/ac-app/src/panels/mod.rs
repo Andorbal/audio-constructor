@@ -6,6 +6,7 @@ mod help_tab;
 mod library;
 pub mod markdown;
 mod node_tab;
+mod plugins_ui;
 mod project_tab;
 mod status_tabs;
 
@@ -86,6 +87,10 @@ pub enum PanelRequest {
     OpenExample(std::path::PathBuf),
     /// Run an editor command.
     Run(crate::actions::Action),
+    /// Open a Plugin node's plugin window.
+    ShowPluginWindow(NodeId),
+    /// Look for plugins again (every bundle when `true`).
+    RescanPlugins(bool),
 }
 
 /// The Devices tab's state: the device list (read when first shown, since
@@ -149,6 +154,8 @@ pub struct PanelIo<'a> {
     pub missing: &'a BTreeSet<String>,
     /// Per-node timing, while it's shown (`Ctrl+T`).
     pub timing: Option<&'a crate::timing::Timings>,
+    /// The plugin host, when this editor hosts plugins.
+    pub plugins: Option<&'a crate::plugins::Plugins>,
     pub requests: Vec<PanelRequest>,
     pub now: f64,
     /// The host's automatable parameters (a plugin's macros), if any.

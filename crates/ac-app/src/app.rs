@@ -60,6 +60,9 @@ pub struct AppOptions {
     /// the editor can reach): file commands become
     /// [`EditorApp::take_file_requests`], and audio files live in memory.
     pub host_files: bool,
+    /// Host CLAP and VST3 plugins (the desktop editor; not tests unless
+    /// they ask, and not the editor inside a plugin).
+    pub plugins: Option<crate::plugins::PluginsConfig>,
 }
 
 impl AppOptions {
@@ -75,6 +78,7 @@ impl AppOptions {
             library: None,
             settings: AppSettings::in_memory(),
             host_files: false,
+            plugins: None,
         }
     }
 
@@ -93,6 +97,7 @@ impl AppOptions {
             seed: clock_seed(),
             library: files::default_library_dir(),
             settings: AppSettings::load_default(),
+            plugins: None,
             host_files: false,
         }
     }
@@ -113,6 +118,7 @@ impl AppOptions {
             library: None,
             settings,
             host_files: true,
+            plugins: None,
         }
     }
 }
@@ -222,6 +228,8 @@ pub struct EditorApp {
     host_controls: Option<Box<dyn HostControls>>,
     /// What the editor asked of a host that keeps the project.
     host_requests: Vec<HostRequest>,
+    /// CLAP and VST3 plugins found here, and the host that runs them.
+    pub plugins: Option<crate::plugins::Plugins>,
 }
 
 /// Where the document is in its history: equal stamps, same project.
@@ -324,11 +332,13 @@ impl EditorApp {
             .filter(|_| !opts.host_files)
             .and_then(|p| ac_io::DiskRecorder::new(&files::project_dir(p)).ok())
             .map(Arc::new);
+        let plugins = opts.plugins.clone().map(crate::plugins::Plugins::new);
         let resources = Arc::new(FileResources {
             assets: assets.clone(),
             recorder: recorder
                 .clone()
                 .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            plugins: plugins.as_ref().map(crate::plugins::Plugins::loader),
         });
         let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
         if path.is_some() {
@@ -390,7 +400,11 @@ impl EditorApp {
             after_host_save: None,
             host_controls: None,
             host_requests: Vec::new(),
+            plugins,
         };
+        if let Some(p) = &app.plugins {
+            app.palette.plugins = p.list().to_vec();
+        }
         // A plugin window can't go full screen: performance mode fills
         // the window instead.
         app.perform.fills_window = app.is_hosted();
@@ -903,6 +917,7 @@ impl EditorApp {
                         assets: &self.assets,
                         missing: &self.missing,
                         timing: self.show_timing.then_some(&self.timing),
+                        plugins: self.plugins.as_ref(),
                         requests: Vec::new(),
                         now,
                         host: self.host_controls.as_mut(),
@@ -1100,12 +1115,23 @@ impl EditorApp {
             }
         }
         self.engine.tick();
+        self.serve_plugins(now);
         self.poll_takes(now);
         self.sync_loop();
     }
 
     fn finish_frame(&mut self, ctx: &egui::Context, now: f64) {
         self.sync_engine(now);
+        // Plugins need their main-thread callbacks and timers answered even
+        // while nothing on screen changes; an open plugin window, often.
+        if let Some(p) = &self.plugins {
+            let running = crate::plugins::running();
+            if p.scanning() || !running.is_empty() {
+                let open = running.iter().any(|k| crate::plugins::window_open(k));
+                let ms = if open { 16 } else { 100 };
+                ctx.request_repaint_after(std::time::Duration::from_millis(ms));
+            }
+        }
 
         if let Some((path, rx)) = &self.export_job
             && let Ok(r) = rx.try_recv()
@@ -1195,6 +1221,10 @@ impl EditorApp {
         };
         self.missing = missing_of(&self.assets);
         self.loaded_assets = ac_io::assets::referenced_assets(&self.doc.project, &self.registry);
+        // Every node is rebuilt: running plugins carry their state over.
+        if let Some(p) = &self.plugins {
+            p.keep_states();
+        }
         let resources = self.resources();
         self.engine.set_resources(&self.doc.project, resources);
         self.engine.synced_revision = self.doc.engine_revision;
@@ -1226,10 +1256,74 @@ impl EditorApp {
                 .recorder
                 .clone()
                 .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            plugins: self.plugins.as_ref().map(crate::plugins::Plugins::loader),
         })
     }
 
     /// Takes the recorder finished: offer to turn them into Clip nodes.
+    /// What the plugins need from the main thread each frame: a finished
+    /// scan to install, their own callbacks (`ac_host::poll`), parameters
+    /// they moved themselves to follow, and restarts to rebuild.
+    fn serve_plugins(&mut self, now: f64) {
+        let Some(p) = self.plugins.as_mut() else {
+            return;
+        };
+        if p.poll_scan() {
+            let n = p.list().len();
+            self.palette.plugins = p.list().to_vec();
+            let failed = p.failed().len();
+            let mut msg = format!("Found {n} plugin{}", if n == 1 { "" } else { "s" });
+            if failed > 0 {
+                msg.push_str(&format!(
+                    " ({failed} couldn't be opened: see the Devices tab)"
+                ));
+            }
+            self.say(msg, now);
+            // Plugins this project uses may have just been found.
+            if crate::plugins::uses_plugins(&self.doc.project) {
+                self.reload_assets();
+            }
+        }
+        for event in crate::plugins::poll() {
+            match event {
+                crate::plugins::HostEvent::ParamChanged {
+                    node_key,
+                    socket,
+                    value,
+                } => {
+                    let value = ac_core::Value::Float(value);
+                    // A top-level node's value is the document's; inside a
+                    // group the definition is shared, so only that
+                    // instance follows.
+                    if let Ok(id) = node_key.parse::<NodeId>() {
+                        let v = value.clone();
+                        self.doc.at_root(|d| d.set_param(id, &socket, v, now));
+                    }
+                    if let Ok(path) = node_key.parse::<ac_core::NodePath>() {
+                        self.engine.handle.set_param(&path, &socket, value);
+                    }
+                }
+                crate::plugins::HostEvent::Restart { node_key } => {
+                    if let Some(p) = self.plugins.as_ref() {
+                        p.prepare_restart(&node_key);
+                    }
+                    self.engine.report = self.engine.handle.rebuild(&node_key);
+                }
+                crate::plugins::HostEvent::StateChanged { .. } => self.doc.changed(false),
+                crate::plugins::HostEvent::WindowClosed { .. } => {}
+            }
+        }
+    }
+
+    /// Open a Plugin node's own window (its node path as the engine knows
+    /// it).
+    fn show_plugin_window(&mut self, node: NodeId, now: f64) {
+        let key = self.doc.node_path(node).to_string();
+        if let Err(e) = crate::plugins::show_window(&key) {
+            self.warn(format!("Couldn't open the plugin's window: {e}"), now);
+        }
+    }
+
     fn poll_takes(&mut self, now: f64) {
         let Some(r) = &self.recorder else { return };
         let done = r.finished_takes();
@@ -1470,6 +1564,7 @@ impl EditorApp {
             CanvasEvent::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
+            CanvasEvent::ShowPluginWindow(node) => self.show_plugin_window(node, now),
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
                 let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
@@ -1561,6 +1656,13 @@ impl EditorApp {
             PanelRequest::ChooseClipFile(node) => {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
+            PanelRequest::ShowPluginWindow(node) => self.show_plugin_window(node, now),
+            PanelRequest::RescanPlugins(fresh) => {
+                if let Some(p) = self.plugins.as_mut() {
+                    p.rescan(fresh);
+                    self.say("Looking for plugins…", now);
+                }
+            }
             PanelRequest::Locate(path) => self.file_dialog(FilePurpose::Locate(path), now),
             PanelRequest::Add(c) => {
                 let at = self.canvas.view.center;
@@ -1587,6 +1689,9 @@ impl EditorApp {
             PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
             PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::SwitchAudio(config) => {
+                if let Some(p) = &self.plugins {
+                    p.keep_states();
+                }
                 let resources = self.resources();
                 self.engine
                     .switch(config, &self.doc.project, self.registry.clone(), resources);
@@ -2566,6 +2671,10 @@ impl EditorApp {
             self.engine.handle.set_recording(false);
             self.engine.handle.seek(0);
         }
+        // The old project's plugins mustn't hand their state to this one's.
+        if let Some(p) = &self.plugins {
+            p.clear_restarts();
+        }
         let resources = self.resources();
         self.engine.set_resources(&self.doc.project, resources);
         self.engine.synced_revision = self.doc.engine_revision;
@@ -2593,6 +2702,11 @@ impl EditorApp {
 
     pub fn save_to(&mut self, path: &Path, now: f64) {
         let path = files::with_extension(path.to_path_buf(), "acproj");
+        // Plugins' own state goes in their nodes, in the document itself
+        // (no undo step; the running plugins already hold it, D138).
+        if self.plugins.is_some() {
+            crate::plugins::store_states(&mut self.doc.project);
+        }
         let mut project = self.doc.project.clone();
         // Keep the view so the project reopens where it was.
         project.view = Some(ac_core::View {
@@ -2649,12 +2763,18 @@ impl EditorApp {
 
     fn export(&mut self, path: PathBuf, now: f64) {
         let path = files::with_extension(path, "wav");
-        let project = self.doc.project.clone();
+        let mut project = self.doc.project.clone();
+        // The plugins as they sound now, not as they were last saved.
+        if self.plugins.is_some() {
+            crate::plugins::store_states(&mut project);
+        }
         let registry = self.registry.clone();
         // Offline exports never record.
         let resources: Arc<dyn ac_core::Resources> = Arc::new(FileResources {
             assets: self.assets.clone(),
             recorder: None,
+            // The export renders its own instances on its own thread.
+            plugins: self.plugins.as_ref().map(crate::plugins::Plugins::loader),
         });
         let (tx, rx) = std::sync::mpsc::channel();
         let p = path.clone();

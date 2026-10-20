@@ -57,7 +57,7 @@ Contents
 | Lock-free plumbing | **rtrb** (SPSC rings), **arc-swap**, **triple_buffer** | Audio thread never blocks. |
 | Thread priority | **audio_thread_priority** | Real-time scheduling for worker threads. |
 | Plugin build | **nice-plug** (CLAP + VST3) | The maintained, crates.io-published successor of nih-plug (DECISIONS D117). Same engine, host-provided buffers. VST3 through the MIT/Apache `vst3` bindings (D118). |
-| Plugin hosting | **clack** (CLAP), **vst3** (VST3) | Phase 3 (M3.2). The plugin build's tests already use clack as their host. |
+| Plugin hosting | **clack** (CLAP), **vst3** (VST3) | Phase 3 (M3.2): `ac-host`, §13. MIT/Apache, so nothing of a plugin standard's license reaches our code (D118, D130). |
 | Benchmarks | **criterion** plus an `audioc bench` subcommand | Per-node and whole-graph throughput, tracked over time. |
 | UI tests | **egui_kittest** | Drive the editor without a display; snapshot where a software renderer is available. |
 
@@ -79,6 +79,7 @@ audio-constructor/
     ac-cli/               # `audioc` binary
     ac-app/               # the editor; `audio-constructor` desktop binary (eframe), and the plugin window (egui-baseview)
     ac-plugin/            # the engine as a CLAP/VST3 effect and instrument (nice-plug)
+    ac-host/              # hosting CLAP/VST3 plugins as nodes: scanning, loading, their threads, their windows. Native only.
     ac-web/               # the web build: the page (editor, mirror engine, browser devices and files) and the audio worklet's module
   examples/               # example projects shipped with the app
   scripts/release.py      # version bumps, changelog checks, release notes (CLAUDE.md)
@@ -95,14 +96,17 @@ Dependency direction is strictly downward: `ac-app`/`ac-cli` → `ac-io` →
 engine on `ac-engine` directly: a host provides its devices. Its window
 (the `editor` feature) is `ac-app` without the desktop shell, which still
 links `ac-io` and so the device libraries, though in a plugin it opens no
-device (D124). `ac-web` builds twice for wasm32: its `worklet` build is
-`ac-engine` and what's below it behind a few exported functions, and its
-`ui` build is `ac-app` without the desktop shell on eframe's web target
-(which links `ac-io` for files and opens no device; D150, D152). Natively
-it builds what both share, so the rings and the link are tested there. CI
-runs `cargo check --target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`,
-`ac-nodes`, and `ac-engine` on every change, and builds and plays the web
-build in a browser.
+device (D124). `ac-host` needs only `ac-core`; `ac-cli` and `ac-app` (its
+`plugins` feature, part of `desktop`) use it, and the editor inside our own
+plugin builds without it, so a plugin binary never hosts plugins. `ac-web`
+builds twice for wasm32: its `worklet` build is `ac-engine` and what's
+below it behind a few exported functions, and its `ui` build is `ac-app`
+without the desktop shell on eframe's web target (which links `ac-io` for
+files and opens no device; D150, D152). Natively it builds what both
+share, so the rings and the link are tested there. CI runs `cargo check
+--target wasm32-unknown-unknown` for `ac-core`, `ac-dsp`, `ac-nodes`, and
+`ac-engine` on every change, and builds and plays the web build in a
+browser.
 
 ## 4. The graph model
 
@@ -350,7 +354,10 @@ The audio callback thread obeys the usual rules, enforced by convention,
 review, and a debug-mode allocation detector (`assert_no_alloc`):
 
 - **No allocation, no locks, no I/O, no syscalls, no panics** inside
-  `process()` or the scheduler.
+  `process()` or the scheduler. A hosted plugin's own process call is the
+  one exception the allocation guard makes: the plugin is someone else's
+  code with its own allocator; everything of ours around it stays under
+  the guard (§13, D133).
 - **Graph swap**: compiled graphs arrive through an SPSC ring and are
   installed at the start of a block; the retired graph goes back through
   another ring and is dropped on the control thread (see the engine API
@@ -658,6 +665,7 @@ All hosts call the same `Engine`.
   - `audioc inspect <project>` prints nodes, wires, and groups.
   - `audioc nodes [--json] [--docs <dir>]` lists the registry; `--docs` generates the node reference.
   - `audioc devices` lists audio devices, MIDI inputs and outputs, and connected gamepads, and says how to receive and send OSC.
+  - `audioc plugins [--json] [--rescan] [--in-process]` lists the CLAP and VST3 plugins in the standard folders (and `CLAP_PATH`, `VST3_PATH`), describing each bundle in a child `audioc scan-bundle` process and caching the result. `render`, `run`, and `validate` host the plugins a project's `Plugin` nodes use (§13, Plugin hosting).
   - `audioc bench [--project <p>] [--threads N]` renders stress projects and reports the real-time ratio per node and overall, and with `--threads` the speedup on N threads.
   - `audioc pack <project> [-o out.acpack]` / `audioc unpack <pack> [-o dir] [--force]`.
   - `audioc blocks [--library DIR] [--json]` lists the block library; `audioc block-update <project>... [--library DIR] [--force] [--check]` updates projects' copies of library blocks.
@@ -705,6 +713,78 @@ All hosts call the same `Engine`.
     VST3 plugins have no window yet (D128).
   - *Bundles.* `scripts/bundle_plugin.py` builds `Audio Constructor.clap`
     and `Audio Constructor.vst3` (D123).
+- **Plugin hosting** (`ac-host`, DECISIONS D130–D138): third-party CLAP
+  and VST3 plugins run as `Plugin` nodes in the editor, `audioc render`,
+  `run`, and `validate`.
+  - *The node.* `ac-nodes`'s `Plugin` node knows its plugin only through a
+    `PluginDesc` in its config (`config.plugin`: format, id, name, vendor,
+    where it was found, audio ports and their channels, note in and out,
+    parameters with the socket each became), written when it's inserted
+    from the scanner's catalog. Its sockets come from that alone (D130).
+    When it's prepared it asks `Resources::plugin(&PluginRequest)` for a
+    `Box<dyn PluginProcessor>`; hosts that run plugins put an
+    `Arc<dyn PluginLoader>` (an `ac_host::PluginHost`) in their
+    `FileResources`. Without one, or with the plugin missing, the node
+    outputs silence and `Node::warning` puts the reason in the compile
+    report. The processor's latency is the node's.
+  - *A block.* The node copies its audio inputs into buffers allocated
+    when it was made, turns parameter inputs into sample-accurate events
+    (a still input when it changes, a moving one every 32 samples counted
+    from the node's start, D131), merges them before the block's MIDI,
+    adds the transport, and calls `PluginProcessor::process`. The CLAP
+    processor copies into buffers shaped like the plugin's own ports (a
+    description that no longer matches them still works), fills a
+    preallocated event list, and calls the plugin; what the plugin sends
+    back is parsed straight into fixed lists: notes and MIDI to
+    `midi_out`, parameter moves into a ring for the main thread. Nothing
+    of ours allocates, locks, or panics there; only the plugin's own call
+    runs with the allocation guard off (D133). `start_processing`,
+    `reset`, and `stop_processing` run marked as the audio thread for the
+    plugin's thread check.
+  - *Threads.* CLAP's main-thread calls happen on the thread that created
+    the instance, which is where the engine compiles: the editor's and
+    `audioc`'s main thread (a bake's copy, or an export's, lives on that
+    job's thread). That thread keeps the instance's main half in a
+    per-thread registry; the audio half carries an id and atomics, and
+    everything a plugin may call from another thread just sets a flag.
+    `ac_host::poll()` on the main thread (every editor frame, every tick
+    of `audioc run`) runs main-thread callbacks, timers, and file
+    descriptors, reports parameter moves (`HostEvent::ParamChanged`: the
+    editor sets the node's input as a drag would), state changes, closed
+    windows, and restarts (`HostEvent::Restart`: the host keeps the
+    instance's state and `EngineHandle::rebuild` builds the node anew).
+    The engine drops retired graphs on the thread that edits them, so an
+    instance is destroyed at once where it was made; an audio half
+    dropped elsewhere marks it orphaned for the next poll (D132).
+  - *State.* Saving (and exporting) asks each running top-level plugin
+    for its state and stores it in its node's config (`state`, base64).
+    `NodeMeta::state_keys` keeps that key out of carry-over's comparison,
+    so storing it doesn't rebuild the running plugin (D138).
+  - *Windows.* **Show Plugin Window** embeds the plugin's view in a
+    top-level window the host makes on the main thread (X11 with its own
+    connection, Win32, or Cocoa), or asks a plugin that only floats to
+    float its own (D134).
+  - *VST3.* The same, through the `vst3` bindings (D137): the module's
+    entry, the factory's audio classes, a component and controller on the
+    main thread (connected when they're separate), an `IAudioProcessor`
+    in the node fed preallocated `IParameterChanges` and `IEventList`
+    objects and a `ProcessContext`, normalized (0–1) parameter sockets,
+    window edits carried to the processor by the host, MIDI controllers
+    through `IMidiMapping`, the component's and controller's states in one
+    blob, and `IPlugView` windows with the host's `IPlugFrame` (and
+    `IRunLoop` on Linux).
+  - *Libraries.* Every plugin binary is opened once through a
+    process-wide list and never unloaded (`RTLD_NODELETE` on Unix, no
+    `FreeLibrary` on Windows); the formats' deinit and module exit still
+    run when the last user goes. Plugin code left behind (exit handlers,
+    thread-local destructors, threads) would otherwise crash the process
+    when it runs after the code is unmapped (D139).
+  - *Finding plugins.* `ac_host::scan` walks the standard CLAP and VST3
+    folders (and `CLAP_PATH`, `VST3_PATH`) and describes each bundle in a
+    child process (`audioc scan-bundle`, `audio-constructor
+    --scan-plugin`), caching the catalog by each bundle's size and time.
+    Running plugins stay in process; out-of-process hosting was weighed
+    and deferred (D135).
 - **Web** (`ac-web`, D150–D155): the engine runs inside an `AudioWorklet`;
   the editor is eframe's web target. They are two wasm instances that share
   no memory, joined by `SharedArrayBuffer` rings, the same abstraction as

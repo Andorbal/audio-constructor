@@ -382,6 +382,43 @@ fn state_carries_over_unless_config_changes() {
 }
 
 #[test]
+fn state_keys_dont_rebuild_warnings_stay_and_rebuild_starts_over() {
+    let p = P::new()
+        .node(1, "t_restored")
+        .node(2, "t_sum")
+        .node(3, "t_out")
+        .wire(1, "out", 2, "amount")
+        .wire(2, "out", 3, "in")
+        .build();
+    let mut p = p;
+    p.graph.node_mut(NodeId(1)).unwrap().config = json!({ "warn": "not installed" });
+    let (e, report) = engine(p.clone(), 32);
+    let warned = |r: &CompileReport| {
+        r.diagnostics.iter().any(|d| {
+            d.severity == Severity::Warning
+                && d.node.as_ref() == Some(&path(1))
+                && d.message == "not installed"
+        })
+    };
+    assert!(warned(&report), "{report}");
+    let mut host = NullHost::new(e, 0, 2);
+    host.handle().play();
+    host.run(32 * 5, 32);
+    // A new saved state: still the same running node, still warning.
+    let mut p2 = p.clone();
+    p2.graph.node_mut(NodeId(1)).unwrap().config["state"] = json!("c2F2ZWQ=");
+    let report = host.handle().edit(GraphEdit::Replace(Box::new(p2.clone())));
+    assert!(warned(&report), "{report}");
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 6.0);
+    // Asked to rebuild: a fresh node.
+    let report = host.handle().rebuild(&path(1).to_string());
+    assert!(warned(&report));
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 1.0);
+}
+
+#[test]
 fn set_param_smooths_float_changes() {
     let p = P::new()
         .node(1, "t_sum")

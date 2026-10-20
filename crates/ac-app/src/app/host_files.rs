@@ -220,6 +220,7 @@ impl EditorApp {
         let resources: Arc<dyn ac_core::Resources> = Arc::new(ac_io::FileResources {
             assets: self.assets.clone(),
             recorder: None,
+            plugins: None,
         });
         match crate::export::export_wav_bytes(&self.doc.project, self.registry.clone(), resources) {
             Ok((bytes, s)) => {
