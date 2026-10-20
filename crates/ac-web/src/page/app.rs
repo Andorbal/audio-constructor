@@ -308,7 +308,9 @@ impl WebApp {
                 ),
                 true,
             )
-        } else if audio == "suspended" {
+        } else if audio == "suspended" || audio == "interrupted" {
+            // Safari says "interrupted" where other browsers say
+            // "suspended" for a context made before any gesture.
             (
                 "Click anywhere or press a key to start the sound (browsers wait for you)."
                     .to_string(),
