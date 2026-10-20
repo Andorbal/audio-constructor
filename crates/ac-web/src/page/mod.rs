@@ -106,6 +106,15 @@ impl WebHandle {
             "inStep": st.link.in_step,
             "project": app.editor.document().title(),
             "errors": app.editor.engine.report.errors().count(),
+            "warnings": app
+                .editor
+                .engine
+                .report
+                .diagnostics
+                .iter()
+                .filter(|d| d.severity == ac_engine::Severity::Warning)
+                .map(|d| d.message.as_str())
+                .collect::<Vec<_>>(),
             "missingFiles": app.editor.assets().issues.len(),
             "baked": handle
                 .bakes()

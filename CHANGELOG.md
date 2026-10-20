@@ -43,6 +43,9 @@ and files opened and saved through the browser.
 - The Devices tab says what a browser can't do: OSC, recording takes to
   disk, plugins, choosing the output device. A patch with OSC or Record
   nodes says so when it opens.
+- A project made on the desktop with Plugin nodes opens in the browser
+  with them and their wires in place. They play silence, the Problems tab
+  says plugins can't run in a browser, and the rest of the patch plays.
 - The page's title shows unsaved changes, leaving the page with them asks
   first, and the theme and UI scale are remembered by the browser.
 - A static host serves the site as it is: a `_headers` file asks for the

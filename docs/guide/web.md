@@ -94,7 +94,9 @@ There's no Open Recent in the browser.
   `audioc run` for OSC.
 - **No recording to disk.** Record nodes can't write takes. Render with
   Export WAV instead.
-- **No plugins.** Plugin nodes can't load in a browser.
+- **No plugins.** Plugin nodes can't load in a browser. A project that
+  has one opens with the node and its wires in place; the node plays
+  silence, and the Problems tab says plugins can't run in a browser.
 - **The output is the system's.** The browser plays through the output
   your system uses; change it in the system's sound settings. There's no
   latency measurement, and the CPU load and per-node timing read 0

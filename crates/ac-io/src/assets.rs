@@ -171,7 +171,7 @@ impl Resources for FileResources {
     fn plugin(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
         match &self.plugins {
             Some(p) => p.load(req),
-            None => Err("plugins don't run here".into()),
+            None => Err(ac_core::NO_PLUGIN_HOST.into()),
         }
     }
 }
