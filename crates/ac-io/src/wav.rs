@@ -208,7 +208,8 @@ mod tests {
 
     #[test]
     fn bytes_match_the_file() {
-        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        // Not `ac-wav-bytes-…`: that test removes its folder when it ends.
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes24-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let chans = vec![vec![0.25f32, -0.5, 1.0], vec![0.0, 0.125, -1.0]];
         let p = dir.join("t.wav");
