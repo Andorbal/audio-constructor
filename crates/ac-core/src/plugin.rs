@@ -29,6 +29,13 @@ pub const PLUGIN_EVENT_CAPACITY: usize = 2048;
 /// moves, counted from the node's start so any block size gives the same
 /// events.
 pub const PLUGIN_PARAM_STRIDE: u64 = 32;
+/// Why a host that can't load plugins gives a `Plugin` node none. The only
+/// wasm32 hosts are the web build's page and worklet (DECISIONS D150).
+pub const NO_PLUGIN_HOST: &str = if cfg!(target_arch = "wasm32") {
+    "plugins can't run in a browser"
+} else {
+    "plugins don't run here"
+};
 
 /// The plugin standard a plugin is built for.
 #[derive(

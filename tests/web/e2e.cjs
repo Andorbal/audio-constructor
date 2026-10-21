@@ -221,6 +221,53 @@ async function files(browser, port, errors) {
   await sleep(800);
   let heard = await listen(page);
   check(Math.abs(heard.freq - 330) < 8, "and its text sets the pitch: 330 Hz", `${heard.freq.toFixed(1)} Hz`);
+  // A project made on the desktop with a plugin in it: the node stays, says
+  // why it's silent, and the rest plays.
+  const withPlugin = JSON.stringify({
+    schema_version: 2,
+    name: "With a Plugin",
+    graph: {
+      nodes: [
+        { id: "1", kind: "oscillator", params: { shape: "sine", freq: 550.0, start: "load" } },
+        {
+          id: "2",
+          kind: "plugin",
+          config: {
+            plugin: {
+              format: "clap",
+              id: "org.example.echo",
+              name: "Echo",
+              vendor: "Example",
+              audio_in: [{ name: "In", channels: 1 }],
+              audio_out: [{ name: "Out", channels: 1 }],
+            },
+          },
+          ui: { pos: [300, 200] },
+        },
+        { id: "3", kind: "gain", params: { gain: -12.0 } },
+        { id: "4", kind: "audio_out" },
+      ],
+      wires: [
+        { from: "1:out", to: "2:in" },
+        { from: "1:out", to: "3:in" },
+        { from: "3:out", to: "4:in" },
+      ],
+    },
+  });
+  await page.evaluate((t) => {
+    window.__acFiles.next = new File([t], "with-plugin.acproj", { type: "application/json" });
+  }, withPlugin);
+  await page.keyboard.press("Control+o");
+  s = await until(page, (x) => x.project === "With a Plugin" && x.inStep, 10000);
+  const pluginWarning = s && s.warnings.find((w) => w.includes("Echo"));
+  check(
+    s && s.errors === 0 && pluginWarning && pluginWarning.includes("plugins can't run in a browser"),
+    "a Plugin node opens, and says plugins can't run in a browser",
+    pluginWarning || (s && JSON.stringify(s.warnings)),
+  );
+  await sleep(800);
+  heard = await listen(page);
+  check(Math.abs(heard.freq - 550) < 8, "and the rest of the patch plays: 550 Hz", `${heard.freq.toFixed(1)} Hz`);
   // MIDI through a patch: MIDI In straight to MIDI Out comes back to the
   // page, for the outputs checked in the Devices tab.
   const thru = JSON.stringify({

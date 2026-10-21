@@ -11,9 +11,14 @@ let micState = "off"; // off | asking | on | denied | unavailable
 let micError = "";
 let worklet = { state: "loading", message: "" }; // loading | ready | failed
 
-// Browsers start audio only after the person clicks or presses a key.
+// Browsers start audio only after the person clicks or presses a key. A
+// context made before that is "suspended", or "interrupted" in Safari,
+// which reports that state (not "suspended") for a context the page
+// made without a gesture; both resume on one.
 function resume() {
-  if (context && context.state === "suspended") context.resume().catch(() => {});
+  if (!context) return;
+  const s = context.state;
+  if (s === "suspended" || s === "interrupted") context.resume().catch(() => {});
 }
 
 // Make the context, load the worklet and the engine module, and start the
@@ -80,7 +85,8 @@ export function postToAudio(bytes) {
   node.port.postMessage({ type: "posted", bytes: copy.buffer }, [copy.buffer]);
 }
 
-// "suspended" until the person clicks or presses a key, then "running".
+// "suspended" (or Safari's "interrupted") until the person clicks or
+// presses a key, then "running".
 export function audioState() {
   return context ? context.state : "none";
 }

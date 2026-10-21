@@ -845,9 +845,6 @@ All hosts call the same `Engine`.
     --scan-plugin`), caching the catalog by each bundle's size and time.
     Running plugins stay in process; out-of-process hosting was weighed
     and deferred (D135).
-- **Web** (Phase 3, `ac-web`): the engine runs inside an `AudioWorklet`; the
-  UI is eframe's web target. The two communicate through `SharedArrayBuffer`
-  rings, the same abstraction as native.
 - **Web** (`ac-web`, D150–D155): the engine runs inside an `AudioWorklet`;
   the editor is eframe's web target. They are two wasm instances that share
   no memory, joined by `SharedArrayBuffer` rings, the same abstraction as

@@ -11,7 +11,7 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
-## [0.14.0] - 2026-10-19
+## [0.14.0] - 2026-10-21
 
 The last part of Phase 3 makes Audio Constructor something to install and
 live with: installers for every system with the plugins inside, an update
@@ -167,7 +167,7 @@ and with a screen reader.
   ("Note on C4 · vel 100 · ch 1") the way the desktop editor does,
   instead of by number.
 
-## [0.13.0] - 2026-10-19
+## [0.13.0] - 2026-10-21
 
 ### Added
 
@@ -227,7 +227,7 @@ and with a screen reader.
   short sounds stay visible even in a long window. It passes its input
   through unchanged and can be pinned to a performance panel.
 
-## [0.12.0] - 2026-10-19
+## [0.12.0] - 2026-10-20
 
 Audio Constructor now runs in a web browser: the same editor and the same
 engine, with MIDI, gamepads, and the microphone, examples from the site,
@@ -259,6 +259,9 @@ and files opened and saved through the browser.
 - The Devices tab says what a browser can't do: OSC, recording takes to
   disk, plugins, choosing the output device. A patch with OSC or Record
   nodes says so when it opens.
+- A project made on the desktop with Plugin nodes opens in the browser
+  with them and their wires in place. They play silence, the Problems tab
+  says plugins can't run in a browser, and the rest of the patch plays.
 - The page's title shows unsaved changes, leaving the page with them asks
   first, and the theme and UI scale are remembered by the browser.
 - A static host serves the site as it is: a `_headers` file asks for the
@@ -422,7 +425,6 @@ in the Node tab.
   stops every packet when refused. The node's help also notes that most
   surfaces name controls by page and name (`/1/fader1`) and that the
   address match is exact.
-
 ## [0.7.0] - 2026-10-18
 
 The end of Phase 2: fourteen example projects to learn from, a user guide,

@@ -370,7 +370,7 @@ pub trait Resources: Send + Sync {
     /// there isn't one. Called on the thread that compiles the graph,
     /// which hosts keep on their main thread (plugins need it there).
     fn plugin(&self, _req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
-        Err("plugins don't run here".into())
+        Err(crate::NO_PLUGIN_HOST.into())
     }
 }
 

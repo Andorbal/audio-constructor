@@ -308,7 +308,9 @@ impl WebApp {
                 ),
                 true,
             )
-        } else if audio == "suspended" {
+        } else if audio == "suspended" || audio == "interrupted" {
+            // Safari says "interrupted" where other browsers say
+            // "suspended" for a context made before any gesture.
             (tr("web-audio-waiting"), false)
         } else {
             return;
