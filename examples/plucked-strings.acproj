@@ -1,0 +1,510 @@
+{
+  "schema_version": 2,
+  "name": "Plucked Strings",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 20.0,
+    "seed": 5,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 100.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "c1",
+        "kind": "comment",
+        "config": {
+          "text": "A plucked string built from parts, in tune, in a hall. Press Space to play.\n\nEach pluck is a 4 ms burst of noise into a loop: a Delay as long as one cycle of the note, a lowpass that softens every trip round, and a Gain just under 0 dB. The Feedback node closing the loop is set to one sample (Node tab: Delay round the loop), so the loop runs one sample at a time and is exactly as long as the Delay plus one sample: the string plays in tune at any buffer size. With a one-block Feedback it would play flat by a buffer's worth."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -360.0
+          ],
+          "size": [
+            820.0,
+            176.0
+          ]
+        }
+      },
+      {
+        "id": "1",
+        "kind": "clock",
+        "params": {
+          "duty": 0.5,
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Eighths"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "random",
+        "params": {
+          "max": 74.0,
+          "min": 45.0
+        },
+        "ui": {
+          "pos": [
+            280.0,
+            0.0
+          ],
+          "label": "Pick a note"
+        }
+      },
+      {
+        "id": "3",
+        "kind": "scale_quantize",
+        "params": {
+          "root": "D",
+          "scale": "dorian"
+        },
+        "ui": {
+          "pos": [
+            560.0,
+            0.0
+          ],
+          "label": "Snap to D dorian"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "convert",
+        "params": {
+          "op": "note_to_hz"
+        },
+        "ui": {
+          "pos": [
+            840.0,
+            0.0
+          ],
+          "label": "Note to Hz"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "math",
+        "params": {
+          "a": 1.0,
+          "op": "divide"
+        },
+        "ui": {
+          "pos": [
+            1120.0,
+            0.0
+          ],
+          "label": "One cycle"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "math",
+        "params": {
+          "op": "subtract"
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ],
+          "label": "Less one sample"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "info",
+        "ui": {
+          "pos": [
+            840.0,
+            260.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "math",
+        "params": {
+          "a": 1.0,
+          "op": "divide"
+        },
+        "ui": {
+          "pos": [
+            1120.0,
+            260.0
+          ],
+          "label": "One sample"
+        }
+      },
+      {
+        "id": "c2",
+        "kind": "comment",
+        "config": {
+          "text": "The Delay time is one cycle of the note (1 / frequency) less one sample, the sample the Feedback node adds. Info gives the sample rate, so it stays in tune at 44.1 or 96 kHz too. The lowpass adds a little delay of its own, so the string sits a few cents flat."
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            200.0
+          ],
+          "size": [
+            560.0,
+            110.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "noise",
+        "params": {
+          "gain": -3.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            560.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.0,
+          "curve": "linear",
+          "decay": 0.004,
+          "release": 0.0,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            820.0
+          ],
+          "label": "Pluck"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            280.0,
+            680.0
+          ],
+          "label": "Noise burst"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            560.0,
+            680.0
+          ]
+        }
+      },
+      {
+        "id": "13",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.0,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            840.0,
+            680.0
+          ],
+          "label": "String length"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "biquad",
+        "params": {
+          "cutoff": 4000.0
+        },
+        "ui": {
+          "pos": [
+            1120.0,
+            680.0
+          ],
+          "label": "Damping"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "gain",
+        "params": {
+          "gain": -0.12
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            680.0
+          ],
+          "label": "Sustain"
+        }
+      },
+      {
+        "id": "16",
+        "kind": "feedback",
+        "config": {
+          "delay": "sample"
+        },
+        "ui": {
+          "pos": [
+            1680.0,
+            680.0
+          ]
+        }
+      },
+      {
+        "id": "21",
+        "kind": "chaos",
+        "params": {
+          "chaos": 0.5,
+          "rate": 0.15
+        },
+        "ui": {
+          "pos": [
+            840.0,
+            1000.0
+          ],
+          "label": "Weather"
+        }
+      },
+      {
+        "id": "22",
+        "kind": "map",
+        "params": {
+          "curve": "exponential",
+          "in_max": 1.0,
+          "in_min": -1.0,
+          "out_max": 7000.0,
+          "out_min": 2000.0
+        },
+        "ui": {
+          "pos": [
+            1120.0,
+            1000.0
+          ],
+          "label": "Brightness"
+        }
+      },
+      {
+        "id": "c3",
+        "kind": "comment",
+        "config": {
+          "text": "A Chaos attractor wanders the lowpass between 2 and 7 kHz, so some notes ring bright and some dull, never quite repeating."
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            1000.0
+          ],
+          "size": [
+            420.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "17",
+        "kind": "convolution",
+        "config": {
+          "file": "assets/hall-ir.wav",
+          "channels": 2,
+          "partition": 1024
+        },
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            1960.0,
+            300.0
+          ],
+          "label": "Hall"
+        }
+      },
+      {
+        "id": "18",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "params": {
+          "gain_0": -2.0,
+          "gain_1": 0.0
+        },
+        "ui": {
+          "pos": [
+            2240.0,
+            300.0
+          ],
+          "label": "Dry and hall"
+        }
+      },
+      {
+        "id": "19",
+        "kind": "spectrogram",
+        "params": {
+          "window": 6.0
+        },
+        "ui": {
+          "pos": [
+            2520.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "20",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            2880.0,
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "c4",
+        "kind": "comment",
+        "config": {
+          "text": "The string plays in a hall through Convolution: its impulse response (assets/hall-ir.wav) is the Hall Reverb block's echo of one click, rendered with audioc. Its partition is 1024 samples, a quarter of the CPU of the default 256 for this two-second response; the Convolution reports that as latency (21 ms), so the dry string is delayed to match before the Mix. The Spectrogram shows each note's harmonics fading, the high ones first.\n\nTry: Sustain at −0.03 dB for strings that ring for seconds; the Feedback's delay back to block to hear it go out of tune; a Formant after the Mix with an LFO on its vowel."
+        },
+        "ui": {
+          "pos": [
+            1960.0,
+            560.0
+          ],
+          "size": [
+            640.0,
+            176.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:trigger",
+        "to": "2:trigger"
+      },
+      {
+        "from": "2:out",
+        "to": "3:in"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:b"
+      },
+      {
+        "from": "5:out",
+        "to": "6:a"
+      },
+      {
+        "from": "7:sample_rate",
+        "to": "8:b"
+      },
+      {
+        "from": "8:out",
+        "to": "6:b"
+      },
+      {
+        "from": "6:out",
+        "to": "13:time"
+      },
+      {
+        "from": "1:gate",
+        "to": "10:gate"
+      },
+      {
+        "from": "9:out",
+        "to": "11:a"
+      },
+      {
+        "from": "10:out",
+        "to": "11:b"
+      },
+      {
+        "from": "11:out",
+        "to": "12:in_0"
+      },
+      {
+        "from": "12:out",
+        "to": "13:in"
+      },
+      {
+        "from": "13:out",
+        "to": "14:in"
+      },
+      {
+        "from": "14:out",
+        "to": "15:in"
+      },
+      {
+        "from": "15:out",
+        "to": "16:in"
+      },
+      {
+        "from": "16:out",
+        "to": "12:in_1"
+      },
+      {
+        "from": "21:x",
+        "to": "22:in"
+      },
+      {
+        "from": "22:out",
+        "to": "14:cutoff"
+      },
+      {
+        "from": "12:out",
+        "to": "17:in"
+      },
+      {
+        "from": "12:out",
+        "to": "18:in_0"
+      },
+      {
+        "from": "17:out",
+        "to": "18:in_1"
+      },
+      {
+        "from": "18:out",
+        "to": "19:in"
+      },
+      {
+        "from": "19:out",
+        "to": "20:in"
+      }
+    ]
+  }
+}

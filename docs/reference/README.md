@@ -10,22 +10,22 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-118 nodes in 13 categories.
+125 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
 | [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
-| [Generators](#generators) | 8 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
+| [Generators](#generators) | 9 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
-| [Filters](#filters) | 6 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
-| [Time](#time) | 5 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
-| [Spectral](#spectral) | 6 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
+| [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
+| [Time](#time) | 7 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
+| [Spectral](#spectral) | 7 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
 | [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
-| [Modulation](#modulation) | 5 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
+| [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
-| [Display](#display) | 4 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
+| [Display](#display) | 5 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
 
 <a id="io"></a>
@@ -54,6 +54,7 @@ Sources of signal over time: oscillators, noise, audio files, samplers, drawn cu
 | Node | What it does |
 | --- | --- |
 | [Clip](generators.md#clip) | Plays an audio file, with looping, reverse, and variable speed. |
+| [Granular](generators.md#granular) | A cloud of grains: tiny, overlapping slices of a recorded sound, each a few milliseconds to a second long, played over and over from around one spot. A plain recording turns into a texture, a pad, or a shimmer, and it can stand still in time. |
 | [Graph](generators.md#graph) | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
 | [Impulse](generators.md#impulse) | A single-sample click on each `trigger`, as a sample-rate `Float`. |
 | [Noise](generators.md#noise) | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |
@@ -90,6 +91,7 @@ Filters for shaping tone, for synth sounds, and for building reverbs and resonat
 | [Biquad](filters.md#biquad) | A two-pole filter: lowpass, highpass, bandpass, notch, peak, low shelf, or high shelf. Works on any number of channels, each with its own state. |
 | [Comb](filters.md#comb) | A comb filter: a copy of the input delayed by `delay`, fed back (a resonator ringing at 1 / `delay`) or added once (evenly spaced notches). |
 | [DC Block](filters.md#dc-block) | Removes DC offset: a gentle one-pole highpass that pulls a signal back to center without touching anything you can hear. |
+| [Formant](filters.md#formant) | A vowel filter: three resonances placed where a voice puts them for "a", "e", "i", "o", and "u", so a bright sound fed through it seems to speak. |
 | [Ladder](filters.md#ladder) | A four-pole transistor-ladder filter with drive: warm, squelchy, and able to self-oscillate. |
 | [SVF](filters.md#svf) | A resonant state-variable filter with lowpass, bandpass, highpass, and notch outputs at once: the synth filter. |
 
@@ -100,11 +102,13 @@ Effects that work with time: delays, reversing, freezing, pitch shifting, and di
 
 | Node | What it does |
 | --- | --- |
+| [Convolution](time.md#convolution) | Plays its input through a recorded *impulse response*: the sound of a room, a speaker cabinet, a spring, or any filter, captured as the echo of a single click. Every sample of the input sets off a copy of the response, scaled by that sample, and the copies add up (convolution), so the input sounds as if it were played in that room or through that cabinet. |
 | [Delay](time.md#delay) | Echoes: the input comes back after `time`, repeating with `feedback`, blended with the dry signal by `mix` (0 dry, 1 wet). |
 | [Diffuser](time.md#diffuser) | Smears a signal into a dense wash: eight modulated allpass filters in series per channel, the building block of a reverb. |
 | [Freeze](time.md#freeze) | Holds a short loop of the input while `hold` is on: catch a moment and let it ring forever. |
 | [Pitch Shift](time.md#pitch-shift) | Shifts pitch up or down without changing speed, with the formants (the vowel color of a voice) kept in place or moved on their own. |
 | [Reverse](time.md#reverse) | Plays its input backwards. *Needs its whole input: baked, or off while live.* |
+| [Time Stretch](time.md#time-stretch) | Plays its input slower or faster without changing its pitch. *Needs its whole input: baked, or off while live.* |
 
 <a id="spectral"></a>
 ## Spectral
@@ -117,6 +121,7 @@ Work in frequencies instead of samples: transforms to and from spectra, band spl
 | [FFT](spectral.md#fft) | Turns audio into a stream of spectra: a short-time Fourier transform of `in`, one frame every hop. |
 | [IFFT](spectral.md#ifft) | Turns a stream of spectra back into audio by overlap-adding inverse transforms. |
 | [Pitch Detect](spectral.md#pitch-detect) | Follows the pitch of a monophonic sound: frequency, nearest note, how sure it is, and a trigger when a new note starts. |
+| [Spectral Freeze](spectral.md#spectral-freeze) | Holds one moment of a sound and keeps it ringing: while `hold` is on, the spectrum stops changing and plays the frame it caught, for as long as you like. |
 | [Spectral Gate](spectral.md#spectral-gate) | Silences the bins of a spectrum that fall below a threshold, leaving the louder ones: a noise gate per frequency. |
 | [Spectral Shift](spectral.md#spectral-shift) | Moves every partial of a spectrum to a new frequency: `frequency × scale + shift`. |
 
@@ -157,6 +162,7 @@ Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' i
 | Node | What it does |
 | --- | --- |
 | [ADSR](modulation.md#adsr) | An attack-decay-sustain-release envelope: when the gate opens it rises to 1, falls to `sustain`, and holds; when the gate closes it falls to 0. The output is a sample-rate `Float` from 0 to 1. |
+| [Chaos](modulation.md#chaos) | Modulation from a strange attractor: three signals, `x`, `y`, and `z`, that swirl in a pattern that never quite repeats, each between about −1 and 1. |
 | [Envelope](modulation.md#envelope) | A multi-stage envelope drawn as breakpoints: it plays a curve of levels over time each time it starts, with an optional sustain point and loop. |
 | [LFO](modulation.md#lfo) | A low-frequency oscillator for modulation: a cheap, block-rate wave to move other parameters. |
 | [Random Walk](modulation.md#random-walk) | Smooth random modulation that wanders around `center`, never further than `range` from it. |
@@ -231,6 +237,7 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 | [Meter](display.md#meter) | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |
+| [Spectrogram](display.md#spectrogram) | A scrolling spectrogram: a picture of a sound over time, with frequency going up, time running left to right (the newest moment at the right edge), and loudness as brightness. It passes the signal through unchanged, so it can sit inline. |
 
 <a id="utility"></a>
 ## Utility

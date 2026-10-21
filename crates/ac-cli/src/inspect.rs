@@ -74,6 +74,10 @@ pub fn validate(path: &Path, sample_rate: Option<u32>) -> Result<ExitCode> {
     for (p, input, samples) in &s.compensation {
         println!("  compensation: {p}:{input} delayed {samples}");
     }
+    for nodes in &s.sample_loops {
+        let list: Vec<String> = nodes.iter().map(ToString::to_string).collect();
+        println!("single-sample loop: {}", list.join(", "));
+    }
     let errors = r
         .diagnostics
         .iter()

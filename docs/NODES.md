@@ -79,7 +79,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Sampler` | P2 | Plays a `Buffer` (or, unwired, an audio file) with pitch (`note` against a `root` config), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
 | `Wavetable` | P2 | Scans a table (from a `Buffer` or the built-in sine → triangle → saw → square set) with `position: Float` morphing; band-limited per octave; `freq`, `phase`, `sync`, `fm`. |
 | `Impulse` | P2 | A single-sample click on `trigger`; for testing filters and building percussion. |
-| `Granular` | P3 | Grain cloud over a `Buffer`: grain size, density, spray, pitch, each a socket. |
+| `Granular` | P3 | Grain cloud over a `Buffer` (or, unwired, a `file`): `position`, `size`, `density`, `spray`, `pitch`, `spread`, `gain`, each a socket read as each grain starts; Hann grains, at most 128 at once, levelled by overlap; seeded scatter; generator contract (`start`/`stop`/`reset`, `playing`, `end`). |
 
 ## Level, dynamics, shaping
 
@@ -105,7 +105,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Comb` | P2 | Feed-forward/feed-back comb with `delay`, `feedback`, `damping`, `mix`; `max_delay` config. Reverb and Karplus-Strong ingredient. |
 | `Allpass` | P2 | Schroeder allpass; `delay` (modulatable, allpass-interpolated so it stays lossless), `gain`. Reverb ingredient. |
 | `DcBlock` | P2 | Removes DC offset (a one-pole highpass at `cutoff`, 10 Hz by default). |
-| `Formant` | P3 | Vowel filter bank with morphing. |
+| `Formant` | P3 | Vowel filter bank: three resonances at measured formants (`voice`: man, woman, child) of a, e, i, o, u; `vowel` (0–4) morphs between them, plus `shift` (semitones), `resonance`, `mix`. |
 
 ## Time
 
@@ -116,8 +116,8 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `Freeze` | P2 | Holds a short loop of the input while `hold: Bool` is true, with crossfaded seams; `size`, `position` (read when `hold` rises), `max_time` config. |
 | `PitchShift` | P2 | Real-time pitch shift (two crossfading read heads), `semitones`, `formant` (cepstral envelope correction), `grain`, `mix`. Reports its latency, set by the `max_grain` config. |
 | `Diffuser` | P2 | Eight modulated allpasses per channel with different prime delays left and right, mono or stereo in, stereo out; `size`, `diffusion`, `mod_depth`, `mod_rate`, `mix`. One node because doing it with eight Allpass nodes is tedious and slower. |
-| `TimeStretch` | P3, WI | Stretch without pitch change (phase-vocoder). |
-| `Convolution` | P3 | Partitioned convolution against a `Buffer` (impulse responses). Reports latency. |
+| `TimeStretch` | P3, WI | Stretch without pitch change: a phase vocoder with identity phase locking; `stretch` (0.25–4, how many times longer, may vary over time), `size` config (frame size). Baked like Reverse. |
+| `Convolution` | P3 | Uniformly partitioned convolution against a `Buffer` (or, unwired, a `file`) holding an impulse response, cut at `max_length` (config, default 5 s); `gain`; `channels` (1–2). Reports `partition` (config, default 256) samples of latency; a new buffer takes over a partition at a time. |
 
 ## Spectral
 
@@ -129,7 +129,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
 | `SpectralGate` | P2 | Turn down bins below `threshold` (absolute dB per bin) to `floor`, gliding over `smoothing`. |
 | `SpectralShift` | P2 | Shift (`shift`, Hz) and scale (`scale`, ratio) bin frequencies with a peak-locked phase vocoder. |
 | `PitchDetect` | P2 | `in: Audio` → `freq: Float(Hz)`, `confidence: Float`, `note: Int`, `onset: Trigger` (YIN; `min_freq`, `max_freq`, `threshold`). Guitar-to-synth. |
-| `SpectralFreeze` | P3 | Hold a spectral frame. |
+| `SpectralFreeze` | P3 | Holds a spectral frame while `hold` is on: levels kept, each bin turning at its partial's measured frequency (phase-locked to its peak), so a frozen chord sustains smoothly; `glide` crossfades live and frozen. |
 
 ## Math and logic
 
@@ -168,7 +168,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Envelope` | P2 | Multi-stage (AHDSR, arbitrary breakpoints drawn in the editor) with a sustain point and loop points; `gate`, `trigger`, `time_scale`. |
 | `StepSequencer` | P2 | N steps of `Float` values (drawn in the editor); advances on `clock`; `direction`, `length`, `glide`, `reset`. Out: `value`, `step: Int`, `step_trigger`. |
 | `RandomWalk` | P2 | Smooth random modulation; `rate`, `range`, `seed`. |
-| `Chaos` | P3 | Lorenz/Rössler attractor outputs. |
+| `Chaos` | P3 | A Lorenz or Rössler attractor (`system`) as three sample-rate outputs `x`, `y`, `z`, about −1..1; `rate` (about loops a second), `chaos` (steady or looping at 0, wilder towards 1), `reset`; the start is nudged by the seed. |
 
 ## Triggers and gates
 
@@ -231,13 +231,13 @@ Panels (UX.md) to make a performance surface.
 | `Scope` | P1 | Oscilloscope on `Audio`/`Float`, with `trigger` input for stable display; passes through. |
 | `Readout` | P1 | Shows the current value of any `Float`/`Int`/`Bool` input. |
 | `Analyzer` | P2 | Spectrum analyzer display: 64 log-spaced bands from 20 Hz to Nyquist in dB, falling by 20 dB every `decay`; passes `in` through unchanged. |
-| `Spectrogram` | P3 | Scrolling spectrogram. |
+| `Spectrogram` | P3 | Scrolling spectrogram on the card: 128 columns of the Analyzer's 64 bands across `window` seconds, each column the loudest moment of its slice; `size` config; passes `in` through unchanged. |
 
 ## Utility
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `Feedback` | P1 | The only legal way to make a cycle. One block of delay; shows its delay in the header. |
+| `Feedback` | P1 | The only legal way to make a cycle. One block of delay, or one sample with the `delay` config set to `sample` (P3): the loop then runs one sample at a time, the same at any block size (DECISIONS D140). |
 | `Reroute` | P1 | A dot for tidy wiring. |
 | `Group` | P1 | An instance of a `GroupDef`. Double-click to enter. |
 | `SplitChannels` | P1 | `Audio(N)` → N `Audio(1)` outputs. |

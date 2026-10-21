@@ -224,6 +224,48 @@ nothing clear is playing.
 | `note` | Int | Nearest MIDI note. |
 | `onset` | Trigger | Fires when a new stable pitch starts. |
 
+<a id="spectral-freeze"></a>
+## Spectral Freeze
+
+Kind: `spectral_freeze` · Also found by: freeze, hold, sustain, drone, infinite, spectrum, pad, stretch
+
+Holds one moment of a sound and keeps it ringing: while `hold` is
+on, the spectrum stops changing and plays the frame it caught,
+for as long as you like.
+
+When `hold` turns on, the next frame is caught: each bin's level,
+and how fast its phase was turning (the frequency of the partial in
+it, measured against the frame before). While held, every output
+frame repeats those levels with each bin's phase still turning at
+its own frequency, so through an `IFFT` a frozen chord sustains as
+a smooth drone rather than buzzing at the frame rate. When `hold`
+turns off the live spectrum comes back. `glide` (seconds) crossfades
+between live and frozen each way; 0 switches on the frame.
+
+`hold` is read at each frame's own sample. The output has the
+input's frame size and hop; a change of frame size, or a reset,
+lets go of the frozen frame. Frames that hold NaN or infinite bins
+count those bins as silent.
+
+**Try this:** `FFT` → Spectral Freeze → `IFFT`, with a `Button`'s
+`gate` on `hold`: play a chord, press the button, and the chord hangs
+in the air while you play over it. With `glide` at 1 s, the freeze
+swells in and fades out.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `spectrum` | Spectrum | — |  | Frames to freeze. |
+| `hold` | Bool | false |  | Freeze while on. |
+| `glide` | Float (s) | 0.05 | 0 … 2 | Crossfade between live and frozen. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `spectrum` | Spectrum | Live, or the frozen frame. |
+
 <a id="spectral-gate"></a>
 ## Spectral Gate
 

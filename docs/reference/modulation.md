@@ -57,6 +57,61 @@ chain a sound after the note dies away.
 | `active` | Bool | True from the attack until the release ends. |
 | `end` | Trigger | Fires when the release reaches 0. |
 
+<a id="chaos"></a>
+## Chaos
+
+Kind: `chaos` · Also found by: lorenz, rossler, rössler, attractor, strange, chaotic, wander, organic
+
+Modulation from a strange attractor: three signals, `x`, `y`, and
+`z`, that swirl in a pattern that never quite repeats, each between
+about −1 and 1.
+
+The `system` picks the equations. **Lorenz** (E. Lorenz's 1963
+weather model) loops around one of two lobes, then flips to the
+other at moments you can't predict: `x` swings between positive and
+negative stretches, `z` rises and falls with each loop. **Rössler**
+(O. Rössler, 1976) circles one center: `x` and `y` are a wobbly
+sine and cosine pair, and `z` stays low with a sharp spike once in
+a while.
+
+`rate` sets the speed, about how many loops it makes a second.
+`chaos` bends the shape: at low values Lorenz settles to a steady
+point and Rössler to a plain, repeating loop; higher values wander
+further (Rössler doubles its loop, then doubles again, on its way to
+chaos). Both are read every sample, so they can be modulated.
+`reset` starts the motion over from its first point on that sample.
+
+The motion is computed, not random: the same project renders the
+same curves every time, at any block size. The starting point is
+nudged by the project's seed, this node's place in the patch, and
+the `seed` config (an integer, default 0), so two Chaos nodes drift
+apart. It runs freely, even with the transport stopped, and a
+transport restart starts the same motion over. NaN or infinite
+inputs count as their defaults.
+
+**Try this:** wire `x` through a `Map` (−1..1 → 300..3000 Hz) into
+a `Biquad`'s `cutoff` and `z` into a `Pan`, with `rate` around 0.3,
+for a filter that sweeps like weather; or set `system` to Rössler,
+`rate` to 2, and sweep `chaos` slowly from 0 to 1 to hear the loop
+split as it turns chaotic.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `system` | Int | `lorenz` | `lorenz`, `rossler` | Which attractor. |
+| `rate` | Float (Hz) | 1 | 0.01 … 50 | Speed: about how many loops a second. |
+| `chaos` | Float | 0.5 | 0 … 1 | Steady or looping at 0, wilder towards 1. |
+| `reset` | Trigger | — |  | Start over from the first point. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `x` | Float | First coordinate, about −1..1. |
+| `y` | Float | Second coordinate, about −1..1. |
+| `z` | Float | Third coordinate, about −1..1. |
+
 <a id="envelope"></a>
 ## Envelope
 

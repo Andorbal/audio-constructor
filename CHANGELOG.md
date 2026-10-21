@@ -11,6 +11,66 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.13.0] - 2026-10-21
+
+### Added
+
+- **Plucked Strings** example: a string built from parts on a
+  single-sample feedback loop, in tune at any buffer size, played by
+  seeded random notes, its brightness wandering with Chaos, ringing in a
+  hall through Convolution (with an impulse response rendered from the
+  Hall Reverb block), with a Spectrogram to watch.
+- **Running on PipeWire** is now documented in the guide: the released
+  downloads play through PipeWire's ALSA layer, shared with other
+  programs, and a JACK build started with `pw-jack` runs at PipeWire's
+  buffer size for low latency.
+- **Single-sample feedback.** A Feedback node's new **Delay round the
+  loop** setting (`delay` in the project file) can be `sample` instead of
+  `block`. The nodes on that loop then run one sample at a time while the
+  rest of the patch keeps running in blocks, so the loop takes exactly one
+  sample plus whatever its Delay adds: a Karplus-Strong string stays in
+  tune, a filter with feedback rings like the circuit, and the loop
+  sounds the same at any buffer size, live or rendered. Nodes on such a
+  loop cost more CPU, since each runs once per sample. A loop through a
+  node that can't run that way (FFT frames, whole input, a device) keeps
+  one block of delay, and the Problems tab names the node in the way.
+  `audioc validate` lists each single-sample loop. Existing projects
+  sound exactly as before.
+- **Chaos** (Modulation): three smooth signals, `x`, `y`, and `z`, from a
+  Lorenz or Rössler strange attractor. They swirl in a pattern that never
+  quite repeats, at about `rate` loops a second; `chaos` takes them from
+  steady (or a plain loop) to wild. The same project always draws the same
+  curves, and two Chaos nodes drift apart.
+- **Formant** (Filters): a vowel filter. Three resonances sit where a
+  man's, a woman's, or a child's voice puts them for a, e, i, o, and u;
+  `vowel` morphs between them, `shift` moves them up or down, and an LFO
+  or envelope on `vowel` makes a synth talk.
+- **Convolution** (Time): plays a sound through a recorded impulse
+  response, the sound of a room, a cabinet, or a spring, from a file or a
+  wired buffer, for realistic reverbs and speaker sounds. It adds a little
+  latency (256 samples by default, its `partition` setting), and the
+  engine lines up a dry signal mixed back in. A new response can be
+  swapped in while playing: what's ringing finishes with the old one.
+- **Time Stretch** (Time): plays its input slower or faster without
+  changing its pitch, by `stretch` (2 lasts twice as long), which can
+  change over time. Like Reverse, it bakes from known sources (a Clip, an
+  Oscillator) and is switched off while fed live.
+- **Granular** (Generators): a cloud of tiny overlapping grains of a
+  recording, from a wired buffer (a Record node's take) or a file. Set
+  where grains read (`position`), how long they are (`size`), how many
+  start a second (`density`), how far they scatter (`spray`), their pitch,
+  and how wide they spread in stereo. It turns a phrase into a texture, a
+  pad, or a frozen, playable tone, and repeats exactly in every render.
+- **Spectral Freeze** (Spectral): between an FFT and an IFFT, `hold`
+  catches the sound of one moment and keeps it ringing as a smooth drone
+  for as long as it's on, each partial still at its own pitch; `glide`
+  fades the freeze in and out.
+- **Spectrogram** (Display): a scrolling picture of a sound on its card,
+  frequency going up, time running across, loudness as brightness, in the
+  same 64 bands as the Analyzer. `window` sets how many seconds it shows;
+  short sounds stay visible even in a long window. It passes its input
+  through unchanged and can be pinned to a performance panel.
+
 ## [0.12.0] - 2026-10-20
 
 Audio Constructor now runs in a web browser: the same editor and the same
@@ -706,6 +766,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.13.0]: https://github.com/Andorbal/audio-constructor/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Andorbal/audio-constructor/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Andorbal/audio-constructor/compare/v0.9.0...v0.10.0

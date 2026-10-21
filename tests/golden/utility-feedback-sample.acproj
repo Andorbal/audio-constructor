@@ -1,0 +1,216 @@
+{
+  "schema_version": 2,
+  "name": "Single-sample feedback: a plucked string in tune",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 1.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "clock",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Pluck"
+        }
+      },
+      {
+        "id": "2",
+        "kind": "adsr",
+        "params": {
+          "attack": 0.0,
+          "curve": "linear",
+          "decay": 0.004,
+          "release": 0.0,
+          "sustain": 0.0
+        },
+        "ui": {
+          "pos": [
+            200.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "9",
+        "kind": "noise",
+        "params": {
+          "gain": -6.0
+        },
+        "ui": {
+          "pos": [
+            400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "10",
+        "kind": "math",
+        "params": {
+          "op": "multiply"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "4",
+        "kind": "delay",
+        "params": {
+          "feedback": 0.0,
+          "mix": 1.0,
+          "time": 0.004479166666666667
+        },
+        "ui": {
+          "pos": [
+            1000.0,
+            0.0
+          ],
+          "label": "String length"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "biquad",
+        "params": {
+          "cutoff": 5000.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ],
+          "label": "Damping"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "gain",
+        "params": {
+          "gain": -0.1
+        },
+        "ui": {
+          "pos": [
+            1400.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "feedback",
+        "config": {
+          "delay": "sample"
+        },
+        "ui": {
+          "pos": [
+            1600.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "8",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "kind": "comment",
+        "config": {
+          "text": "A Karplus-Strong string at 220 Hz: a noise burst into a loop of Delay, filter, and a single-sample Feedback 218 samples long, so it plays in tune at any block size."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            200.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:gate",
+        "to": "2:gate"
+      },
+      {
+        "from": "9:out",
+        "to": "10:a"
+      },
+      {
+        "from": "2:out",
+        "to": "10:b"
+      },
+      {
+        "from": "10:out",
+        "to": "3:in_0"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      },
+      {
+        "from": "4:out",
+        "to": "5:in"
+      },
+      {
+        "from": "5:out",
+        "to": "6:in"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "3:in_1"
+      },
+      {
+        "from": "3:out",
+        "to": "8:in"
+      }
+    ]
+  },
+  "golden": {
+    "seconds": 1.0,
+    "block_independent": true
+  }
+}

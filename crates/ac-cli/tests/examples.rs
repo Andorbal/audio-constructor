@@ -30,6 +30,8 @@ const EXPECTED: &[&str] = &[
     "guitar-to-synth",
     "build-a-keyboard",
     "gamepad-jam",
+    // M3.4: single-sample feedback, Convolution, Chaos, Spectrogram.
+    "plucked-strings",
 ];
 
 /// Examples that only make sound from a live input.
@@ -770,4 +772,32 @@ fn gamepad_jam_plays_the_demo_and_follows_the_controller() {
             "{label} isn't pinned"
         );
     }
+}
+
+#[test]
+fn plucked_strings_runs_its_string_sample_by_sample() {
+    let path = example("plucked-strings");
+    let project = ac_io::load_project(&path).expect("example loads");
+    let at = |block: usize| {
+        render_with(
+            &project,
+            &path,
+            &RenderOptions {
+                to: Some(4.0),
+                block_size: Some(block),
+                ..RenderOptions::default()
+            },
+        )
+    };
+    let r = at(64);
+    // The string's loop (Mix, Delay, Damping, Sustain, Feedback) runs one
+    // sample at a time, and the hall's partition lines up the dry path.
+    let loops = &r.report.stats.sample_loops;
+    assert_eq!(loops.len(), 1, "{}", r.report);
+    assert_eq!(loops[0].len(), 5);
+    assert_eq!(r.report.stats.latency, 1024);
+    let p = peak(&r.channels);
+    assert!(p > 0.2 && p < 1.0, "peak {p}");
+    // So it plays the same at any block size.
+    assert!(at(1024).channels == r.channels);
 }

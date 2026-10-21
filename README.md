@@ -168,6 +168,8 @@ patch with notes on the canvas saying what each part does and what to try:
 - **Tape Loop**: phrases circling a worn, wobbling tape loop until they
   fade.
 - **Guitar-to-Synth**: a synth that follows a guitar's pitch and dynamics.
+- **Plucked Strings**: a string built from a single-sample feedback loop,
+  in tune at any buffer size, ringing in a convolution hall.
 
 ![The Subtractive Synth example: MIDI note, oscillator, filter, and envelopes, with a clock-driven demo note](docs/images/editor-synth.png)
 

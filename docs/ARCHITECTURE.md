@@ -311,9 +311,29 @@ Steps:
 2. **Validate types and channels.** Insert implicit conversions. Report errors
    per wire/socket, never panic.
 3. **Break feedback.** Cycles are legal only through a `Feedback` node, which
-   introduces exactly one block of delay (Phase 1) and is the cut point for
-   the topological sort. Single-sample feedback is a Phase 3 investigation
-   (compile the strongly connected component to a per-sample sub-schedule).
+   introduces exactly one block of delay and is the cut point for the
+   topological sort. A Feedback node whose `delay` config is `sample`
+   closes its loop with one sample instead (DECISIONS D140): the compiler
+   finds the strongly connected component of the wire graph that holds it
+   (edges out of block-mode Feedback nodes don't count, since those loops
+   are already cut) and compiles it to a per-sample sub-schedule, one
+   *loop step* in the outer schedule. The loop step's inputs are the wires
+   into the component and its outputs the member outputs read outside it;
+   each block it runs the members one sample at a time against a
+   one-frame store of its own, in the component's topological order with
+   each Feedback member split into its read (first) and write (last), so
+   the read and the write are a sample apart. To the rest of the compiler
+   the loop step is an ordinary step, so chains, waves, buffer reuse, and
+   the worker pool are unchanged, and a loop runs on one thread. Members
+   stay in the graph's node list (state carries over, resets reach them)
+   and are moved into the loop's runner for its step. Their unwired inputs
+   are ordinary params that the loop reads at each sample (a ramp at its
+   own sample, an inline button only at the first), events from outside
+   arrive on their own sample, and block-rate floats computed inside become
+   sample-rate. Latency compensation doesn't apply inside a loop. A
+   component holding a node that can't run one sample at a time (a
+   spectrum socket, whole input, or a device) is reported and keeps one
+   block of delay.
 4. **Infer rates** (Section 5) and **channel counts**.
 5. **Causality analysis** (Section 9) marks whole-input nodes disabled or
    baked.
@@ -523,8 +543,9 @@ This keeps a single project format and a single engine, with no mode switch.
   (floating-point library differences). Golden tests compare with a tolerance
   by default and bit-exactly on the reference CI platform.
 - All randomness comes from a PRNG seeded from `(project.seed, node path)`.
-- Block size must not change the output except for `Feedback` nodes, whose
-  delay is defined in blocks, and signals that are block-rate by definition
+- Block size must not change the output except for `Feedback` nodes in
+  block mode, whose delay is defined in blocks (a sample-mode loop runs one
+  sample at a time and doesn't depend on it), and signals that are block-rate by definition
   (an `Int` such as `Transport.bar`, or a block-rate value that changes
   over time), which update once per block. Sample-accurate sources
   (`Transport.time`, oscillators, envelopes, clocks, MIDI) are block-size
@@ -557,7 +578,7 @@ drains those.
 | --- | --- | --- |
 | macOS | CoreAudio | Already low latency; aggregate devices supported by the OS. |
 | Windows | WASAPI shared + exclusive; **ASIO** (feature `asio`) | ASIO needs the Steinberg ASIO SDK at build time and a signed license to distribute binaries; it ships as an opt-in build. WASAPI exclusive gets most of the way for many interfaces. |
-| Linux | ALSA; JACK (feature `jack`); PipeWire via its JACK/ALSA shims | Native PipeWire later if the shims prove limiting. |
+| Linux | ALSA; JACK (feature `jack`); PipeWire via its ALSA and JACK layers | The default build's ALSA `default` device is PipeWire's ALSA plugin on a PipeWire desktop (shared with other programs, with PipeWire's quantum on top of the ALSA buffer); a `jack` build run on PipeWire's JACK library (`pw-jack`) is a graph client at PipeWire's quantum. No native PipeWire backend for now (DECISIONS D141); cpal's `pipewire` host would add one as an opt-in feature. |
 | Web | Web Audio `AudioWorklet` (the page's own, not cpal) | The engine runs in the worklet (D150); `SharedArrayBuffer` needs cross-origin isolation (D152). Web MIDI, the Gamepad API, and the microphone come in on the page and go through the ring (D154). |
 
 The optional backends are built on every change (DECISIONS D100): CI

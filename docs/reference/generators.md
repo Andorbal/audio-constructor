@@ -58,6 +58,74 @@ the second one's `start`.
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
 
+<a id="granular"></a>
+## Granular
+
+Kind: `granular` · Also found by: grain, granular synthesis, cloud, texture, microsound, scatter, buffer, freeze, pad
+
+A cloud of grains: tiny, overlapping slices of a recorded sound,
+each a few milliseconds to a second long, played over and over from
+around one spot. A plain recording turns into a texture, a pad, or
+a shimmer, and it can stand still in time.
+
+**Source.** A wired `buffer` (a `Record` node's last take, say) is
+played; with `buffer` unwired, the `file` config (an audio file in
+the project) is used, converted to the engine's rate when the
+project loads. Nothing to play gives silence; a missing file is
+flagged in the editor. Each grain keeps the sound it started with,
+so a new buffer comes in grain by grain.
+
+**Grains.** About `density` grains start each second, at random
+moments around that rate. Each lasts `size` seconds under a smooth
+(Hann) fade in and out, and reads the sound from `position` (0 to
+1, a fraction of the whole sound), moved by a random amount of up
+to `spray` seconds either way so the grains don't all repeat the
+same slice. `pitch` (semitones) sets how fast each grain plays, so
+the cloud can be transposed while `position` holds still. Each grain
+sits somewhere in the stereo field, randomly within `spread` (0: all
+in the middle, 1: anywhere from left to right). Every input is read
+when a grain starts, so the cloud follows modulation grain by grain.
+As grains overlap more, each is turned down (by the square root of
+how many overlap), so the cloud stays about as loud as one grain;
+`gain` is in decibels. At most 128 grains sound at once.
+
+**Generator contract.** `start` begins the cloud, `stop` lets the
+grains that are playing finish and starts no more (`end` fires),
+and `reset` starts the random choices over, so a cloud repeats
+exactly. The randomness comes from the project's seed, this node's
+place, and the `seed` config, so renders repeat; output doesn't
+depend on the block size.
+
+**Try this:** record a phrase into a `Record` node and wire its
+`buffer` here with `size` at 0.08, `density` 30, and `spray` 0.05;
+sweep `position` slowly with an `LFO` to drift through the phrase,
+or hold it still and play `pitch` from a `Keyboard` for a frozen,
+tuned texture.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `buffer` | Buffer | — |  | Sound to granulate; unwired, the `file` config plays. |
+| `position` | Float | 0 | 0 … 1 | Where grains read from (fraction of the sound). |
+| `size` | Float (s) | 0.1 | 0.005 … 1 | Length of each grain. |
+| `density` | Float (Hz) | 20 | 0.5 … 200 | Grains started per second. |
+| `spray` | Float (s) | 0.02 | 0 … 1 | Random offset of each grain's start, either way. |
+| `pitch` | Float (st) | 0 | -24 … 24 | Transposes every grain. |
+| `spread` | Float | 0.5 | 0 … 1 | How far grains scatter across the stereo field. |
+| `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `reset` | Trigger | — |  | Returns to the beginning. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The cloud, in stereo. |
+| `playing` | Bool | True while running. |
+| `end` | Trigger | Fires on reaching the end or stopping. |
+
 <a id="graph"></a>
 ## Graph
 

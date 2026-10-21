@@ -38,6 +38,9 @@ use crate::graph::{
     At, Bypass, CompiledGraph, NodeBox, Pool, Range, SocketTele, Step, StepKind, Vacant, Wave, Work,
 };
 use crate::internal::{self, Baked, COMP_DELAY_KIND, Capture, CompDelay, CompType};
+use crate::loops::{
+    self, BoundaryIn, BoundaryOut, Inner, InnerStep, LoopRunner, MemberTele, SocketAcc,
+};
 use crate::report::{CompileReport, Severity};
 use crate::telemetry::{NodeTelemetry, TelemetryLayout, TelemetryStore, atomics};
 
@@ -184,14 +187,14 @@ enum Alloc {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum Item {
+pub(crate) enum Item {
     Main(usize),
     FbRead(usize),
     FbWrite(usize),
 }
 
 impl Item {
-    fn node(self) -> usize {
+    pub(crate) fn node(self) -> usize {
         match self {
             Item::Main(n) | Item::FbRead(n) | Item::FbWrite(n) => n,
         }
@@ -362,6 +365,36 @@ pub(crate) fn compile_with(
     }
     let scheduled: HashSet<usize> = order.iter().map(|it| it.node()).collect();
 
+    // --- 3b. single-sample loops (loops.rs): each runs as one step, its
+    // members back to back in the order ---
+    let mut regions = loops::find(&flat, &src_of, &order, &mut report);
+    let mut region_of: Vec<Option<usize>> = vec![None; n];
+    if !regions.is_empty() {
+        for (r, region) in regions.iter().enumerate() {
+            for &m in &region.members {
+                region_of[m] = Some(r);
+            }
+        }
+        order = loops::contiguous(&order, &mut regions, &region_of, &flat, &src_of);
+        regions.retain(|r| !r.items.is_empty());
+        region_of.fill(None);
+        for (r, region) in regions.iter().enumerate() {
+            for &m in &region.members {
+                region_of[m] = Some(r);
+            }
+        }
+        report.stats.sample_loops = regions
+            .iter()
+            .map(|r| {
+                r.members
+                    .iter()
+                    .map(|&m| flat.nodes[m].path.clone())
+                    .collect()
+            })
+            .collect();
+    }
+    let in_loop = |i: usize| region_of.get(i).copied().flatten();
+
     // --- 4. causality ---
     let mut whole: HashMap<usize, BakeSpec> = HashMap::new();
     for (i, f) in flat.nodes.iter().enumerate() {
@@ -427,7 +460,16 @@ pub(crate) fn compile_with(
         }
         let node = item.node();
         let feedback = matches!(item, Item::FbRead(_));
-        let stores = out_stores(&flat.nodes[node], &src_of[node], &store, feedback);
+        let mut stores = out_stores(&flat.nodes[node], &src_of[node], &store, feedback);
+        if in_loop(node).is_some() {
+            // A loop computes block-rate values one sample at a time, so
+            // they can change every sample.
+            for s in &mut stores {
+                if *s == OutStore::FloatBlock {
+                    *s = OutStore::FloatSample;
+                }
+            }
+        }
         store[node] = stores;
     }
 
@@ -519,9 +561,13 @@ pub(crate) fn compile_with(
             ins.push((i, l));
             in_lat = in_lat.max(l);
         }
-        for (i, l) in ins {
-            if l < in_lat {
-                comps.push((node, i, in_lat - l));
+        // Inside a single-sample loop every path comes back round, so
+        // there is nothing to line up.
+        if in_loop(node).is_none() {
+            for (i, l) in ins {
+                if l < in_lat {
+                    comps.push((node, i, in_lat - l));
+                }
             }
         }
         lat_out[node] = in_lat.saturating_add(nb.latency[node]);
@@ -635,9 +681,48 @@ pub(crate) fn compile_with(
     // Feedback node → its read step (its write step must come later).
     let mut fb_read_step: HashMap<usize, usize> = HashMap::new();
     let mut extra_deps: Vec<(usize, usize)> = Vec::new();
+    // Single-sample loops: their runners, and each loop step's index.
+    let mut runners: Vec<LoopRunner> = Vec::new();
+    let mut loop_steps: Vec<(usize, usize)> = Vec::new(); // (step, region)
+    let mut built = vec![false; regions.len()];
+    let used_outside: HashSet<(usize, usize)> = if regions.is_empty() {
+        HashSet::new()
+    } else {
+        src_of
+            .iter()
+            .enumerate()
+            .flat_map(|(c, srcs)| srcs.iter().flatten().map(move |&s| (c, s)))
+            .filter(|&(c, (s, _))| in_loop(s).is_some() && in_loop(c) != in_loop(s))
+            .map(|(_, s)| s)
+            .collect()
+    };
 
     for &item in &order {
         let node = item.node();
+        if let Some(r) = in_loop(node) {
+            if !built[r] {
+                built[r] = true;
+                let runner = build_loop(
+                    &mut b,
+                    runners.len() as u32,
+                    &regions[r],
+                    &LoopWiring {
+                        flat: &flat,
+                        src_of: &src_of,
+                        store: &store,
+                        region_of: &region_of,
+                        used_outside: &used_outside,
+                        node_index: &nb.index,
+                        smooth_len,
+                    },
+                    &mut alloc,
+                    &mut report,
+                );
+                loop_steps.push((b.steps.len() - 1, r));
+                runners.push(runner);
+            }
+            continue;
+        }
         let f = &flat.nodes[node];
         let phase = match item {
             Item::Main(_) => Phase::Main,
@@ -682,109 +767,27 @@ pub(crate) fn compile_with(
 
         // Outputs.
         let out_start = b.output_slots.len() as u32;
-        let (s0, sc0, i0, t0, m0, sp0, bu0, tx0) = (
-            b.out_samples.len() as u32,
-            b.out_scalars.len() as u32,
-            b.out_ints.len() as u32,
-            b.out_triggers.len() as u32,
-            b.out_midi.len() as u32,
-            b.out_spectra.len() as u32,
-            b.out_buffers.len() as u32,
-            b.out_texts.len() as u32,
-        );
+        let base = OutBase::of(&b);
         for o in 0..f.sig.outputs.len() {
             if !wants_outputs {
                 b.output_slots.push(OutputSlot::None);
                 continue;
             }
-            let (slot, a) = match store[node][o] {
-                OutStore::Audio(ch) => {
-                    let local = b.out_samples.len() as u32 - s0;
-                    let mut vs = Vec::with_capacity(ch);
-                    for _ in 0..ch {
-                        let v = b.new_vsample(step_index);
-                        b.out_samples.push(v);
-                        vs.push(v);
-                    }
-                    (
-                        OutputSlot::Audio {
-                            start: local,
-                            count: ch as u32,
-                        },
-                        Alloc::Audio(vs),
-                    )
-                }
-                OutStore::FloatSample => {
-                    let local = b.out_samples.len() as u32 - s0;
-                    let v = b.new_vsample(step_index);
-                    b.out_samples.push(v);
-                    (
-                        OutputSlot::Float {
-                            local,
-                            sample: true,
-                        },
-                        Alloc::Sample(v),
-                    )
-                }
-                OutStore::FloatBlock => {
-                    let local = b.out_scalars.len() as u32 - sc0;
-                    let k = b.scalar_def.len() as u32;
-                    b.scalar_def.push(step_index);
-                    b.out_scalars.push(k);
-                    (
-                        OutputSlot::Float {
-                            local,
-                            sample: false,
-                        },
-                        Alloc::Scalar(k),
-                    )
-                }
-                OutStore::Int => {
-                    let local = b.out_ints.len() as u32 - i0;
-                    let k = b.int_def.len() as u32;
-                    b.int_def.push(step_index);
-                    b.out_ints.push(k);
-                    (OutputSlot::Int(local), Alloc::Int(k))
-                }
-                OutStore::Trigger => {
-                    let local = b.out_triggers.len() as u32 - t0;
-                    let v = b.new_vtrigger(step_index);
-                    b.out_triggers.push(v);
-                    (OutputSlot::Trigger(local), Alloc::Trigger(v))
-                }
-                OutStore::Midi => {
-                    let local = b.out_midi.len() as u32 - m0;
-                    let v = b.new_vmidi(step_index);
-                    b.out_midi.push(v);
-                    (OutputSlot::Midi(local), Alloc::Midi(v))
-                }
-                OutStore::Spectrum(shape) => {
-                    let local = b.out_spectra.len() as u32 - sp0;
-                    let k = b.spectra.len() as u32;
-                    b.spectra.push((shape, step_index));
-                    b.out_spectra.push(k);
-                    (OutputSlot::Spectrum(local), Alloc::Spectrum(k))
-                }
-                OutStore::Buffer => {
-                    let local = b.out_buffers.len() as u32 - bu0;
-                    let k = b.buffer_def.len() as u32;
-                    b.buffer_def.push(step_index);
-                    b.out_buffers.push(k);
-                    (OutputSlot::Buffer(local), Alloc::Buffer(k))
-                }
-                OutStore::Text => {
-                    let local = b.out_texts.len() as u32 - tx0;
-                    let k = b.texts.len() as u32;
-                    b.texts.push((TextBuf::EMPTY, Some(step_index)));
-                    b.out_texts.push(k);
-                    (OutputSlot::Text(local), Alloc::Text(k))
-                }
-                OutStore::None => (OutputSlot::None, Alloc::None),
-            };
+            let (slot, a) = alloc_output(&mut b, store[node][o], step_index, &base);
             b.output_slots.push(slot);
             alloc[node][o] = a;
         }
         let outputs: Range = (out_start, b.output_slots.len() as u32);
+        let (s0, sc0, i0, t0, m0, sp0, bu0, tx0) = (
+            base.samples,
+            base.scalars,
+            base.ints,
+            base.triggers,
+            base.midi,
+            base.spectra,
+            base.buffers,
+            base.texts,
+        );
 
         let bypass = if f.muted { bypass_for(f) } else { Bypass::None };
         let mut step = Builder::empty_step(StepKind::Node { node: 0, phase });
@@ -811,11 +814,19 @@ pub(crate) fn compile_with(
     let mut socket_tele = Vec::new();
     let mut n_socket = 0usize;
     let mut live_sources = Vec::new();
+    // Loop members run inside their loop's step: (runner, member).
+    let mut member_of: HashMap<usize, (usize, usize)> = HashMap::new();
+    for (k, &(_, r)) in loop_steps.iter().enumerate() {
+        for (j, &m) in regions[r].members.iter().enumerate() {
+            member_of.insert(m, (k, j));
+        }
+    }
     for (fi, f) in flat.nodes.iter().enumerate() {
         let Some(idx) = nb.index[fi] else {
             continue;
         };
-        if node_steps[fi].is_empty() {
+        let member = member_of.get(&fi).copied();
+        if node_steps[fi].is_empty() && member.is_none() {
             continue;
         }
         if f.meta.live {
@@ -848,6 +859,31 @@ pub(crate) fn compile_with(
                 .insert((f.path.clone(), spec.name.to_string()), n_socket);
             slots.push(n_socket);
             n_socket += 1;
+        }
+        if let Some((k, j)) = member
+            && let Some(run) = runners.get_mut(k)
+        {
+            if let Some(t) = run.member_tele.get_mut(j) {
+                *t = MemberTele {
+                    values: (values.0 as u32, values.1 as u32),
+                    scope: (scope.0 as u32, scope.1 as u32),
+                    scope_pos: scope_pos.map(|p| p as u32),
+                    time: Some(time as u32),
+                };
+            }
+            if opts.socket_telemetry {
+                for (o, &slot) in slots.iter().enumerate() {
+                    let src = run
+                        .member_outputs
+                        .get(j)
+                        .and_then(|v| v.get(o))
+                        .copied()
+                        .flatten();
+                    if let Some(src) = src {
+                        run.sockets.push(SocketAcc::new(slot as u32, src));
+                    }
+                }
+            }
         }
         for &si in &node_steps[fi] {
             let step = &mut b.steps[si];
@@ -927,6 +963,21 @@ pub(crate) fn compile_with(
     for &(s, d) in &extra_deps {
         if let Some(info) = infos.get_mut(s) {
             info.after.push(d);
+        }
+    }
+    // A loop step belongs to the voice copy its members are in.
+    for &(s, r) in &loop_steps {
+        let mut voices = regions[r]
+            .members
+            .iter()
+            .map(|&m| copies.get(m).copied().flatten());
+        let first = voices.next().flatten();
+        if let Some(info) = infos.get_mut(s) {
+            info.voice = if voices.all(|v| v == first) {
+                first
+            } else {
+                None
+            };
         }
     }
     let plan = chains::plan(&infos);
@@ -1296,6 +1347,7 @@ pub(crate) fn compile_with(
         level_decay,
         latency: total_latency,
         bindings,
+        loops: runners.into_iter().map(|r| Some(Box::new(r))).collect(),
     });
     Compiled {
         graph,
@@ -1966,6 +2018,603 @@ fn wired_input(
             _ => InputSlot::Text(TextSrc::Const(const_text(b, f, spec))),
         },
         SignalType::Any => InputSlot::None,
+    }
+}
+
+/// Where a step's outputs of each kind start in the builder's tables.
+#[derive(Clone, Copy, Debug)]
+struct OutBase {
+    samples: u32,
+    scalars: u32,
+    ints: u32,
+    triggers: u32,
+    midi: u32,
+    spectra: u32,
+    buffers: u32,
+    texts: u32,
+}
+
+impl OutBase {
+    fn of(b: &Builder) -> OutBase {
+        OutBase {
+            samples: b.out_samples.len() as u32,
+            scalars: b.out_scalars.len() as u32,
+            ints: b.out_ints.len() as u32,
+            triggers: b.out_triggers.len() as u32,
+            midi: b.out_midi.len() as u32,
+            spectra: b.out_spectra.len() as u32,
+            buffers: b.out_buffers.len() as u32,
+            texts: b.out_texts.len() as u32,
+        }
+    }
+}
+
+/// Storage for one output of the step at `step_index`, whose outputs start
+/// at `base`: its slot (indices local to the step) and what readers wire to.
+fn alloc_output(
+    b: &mut Builder,
+    st: OutStore,
+    step_index: usize,
+    base: &OutBase,
+) -> (OutputSlot, Alloc) {
+    match st {
+        OutStore::Audio(ch) => {
+            let local = b.out_samples.len() as u32 - base.samples;
+            let mut vs = Vec::with_capacity(ch);
+            for _ in 0..ch {
+                let v = b.new_vsample(step_index);
+                b.out_samples.push(v);
+                vs.push(v);
+            }
+            (
+                OutputSlot::Audio {
+                    start: local,
+                    count: ch as u32,
+                },
+                Alloc::Audio(vs),
+            )
+        }
+        OutStore::FloatSample => {
+            let local = b.out_samples.len() as u32 - base.samples;
+            let v = b.new_vsample(step_index);
+            b.out_samples.push(v);
+            (
+                OutputSlot::Float {
+                    local,
+                    sample: true,
+                },
+                Alloc::Sample(v),
+            )
+        }
+        OutStore::FloatBlock => {
+            let local = b.out_scalars.len() as u32 - base.scalars;
+            let k = b.scalar_def.len() as u32;
+            b.scalar_def.push(step_index);
+            b.out_scalars.push(k);
+            (
+                OutputSlot::Float {
+                    local,
+                    sample: false,
+                },
+                Alloc::Scalar(k),
+            )
+        }
+        OutStore::Int => {
+            let local = b.out_ints.len() as u32 - base.ints;
+            let k = b.int_def.len() as u32;
+            b.int_def.push(step_index);
+            b.out_ints.push(k);
+            (OutputSlot::Int(local), Alloc::Int(k))
+        }
+        OutStore::Trigger => {
+            let local = b.out_triggers.len() as u32 - base.triggers;
+            let v = b.new_vtrigger(step_index);
+            b.out_triggers.push(v);
+            (OutputSlot::Trigger(local), Alloc::Trigger(v))
+        }
+        OutStore::Midi => {
+            let local = b.out_midi.len() as u32 - base.midi;
+            let v = b.new_vmidi(step_index);
+            b.out_midi.push(v);
+            (OutputSlot::Midi(local), Alloc::Midi(v))
+        }
+        OutStore::Spectrum(shape) => {
+            let local = b.out_spectra.len() as u32 - base.spectra;
+            let k = b.spectra.len() as u32;
+            b.spectra.push((shape, step_index));
+            b.out_spectra.push(k);
+            (OutputSlot::Spectrum(local), Alloc::Spectrum(k))
+        }
+        OutStore::Buffer => {
+            let local = b.out_buffers.len() as u32 - base.buffers;
+            let k = b.buffer_def.len() as u32;
+            b.buffer_def.push(step_index);
+            b.out_buffers.push(k);
+            (OutputSlot::Buffer(local), Alloc::Buffer(k))
+        }
+        OutStore::Text => {
+            let local = b.out_texts.len() as u32 - base.texts;
+            let k = b.texts.len() as u32;
+            b.texts.push((TextBuf::EMPTY, Some(step_index)));
+            b.out_texts.push(k);
+            (OutputSlot::Text(local), Alloc::Text(k))
+        }
+        OutStore::None => (OutputSlot::None, Alloc::None),
+    }
+}
+
+/// What building a loop step reads about the rest of the compile.
+struct LoopWiring<'a> {
+    flat: &'a Flat,
+    src_of: &'a [Vec<Option<(usize, usize)>>],
+    store: &'a [Vec<OutStore>],
+    region_of: &'a [Option<usize>],
+    /// Member outputs that something outside their loop reads.
+    used_outside: &'a HashSet<(usize, usize)>,
+    node_index: &'a [Option<u32>],
+    smooth_len: u32,
+}
+
+/// How a loop member's input is fed, before the store is laid out.
+enum LoopSrc {
+    /// An inner slot already (from outside the loop, or unwired).
+    Ready(InputSlot),
+    /// Another member's output.
+    Member(usize, usize),
+}
+
+/// Counts of the loop store's values of each kind (the next free index).
+#[derive(Clone, Copy, Debug, Default)]
+struct StoreAt {
+    samples: u32,
+    ints: u32,
+    triggers: u32,
+    midi: u32,
+    buffers: u32,
+    texts: u32,
+    cursors: u32,
+}
+
+/// Build the loop step of single-sample loop `region` (loops.rs) and return
+/// what it runs. Every wire from outside the loop becomes an input of the
+/// loop step, copied into the loop's one-frame store at each sample; every
+/// unwired member input becomes a graph param (so edits, smoothing, and
+/// bindings work as anywhere) that the loop reads at each sample; members
+/// read each other through the store; and every member output read outside
+/// the loop becomes an output of the loop step, so readers wire to it as to
+/// any step.
+fn build_loop(
+    b: &mut Builder,
+    index: u32,
+    region: &loops::Region,
+    w: &LoopWiring<'_>,
+    alloc: &mut [Vec<Alloc>],
+    report: &mut CompileReport,
+) -> LoopRunner {
+    let flat = w.flat;
+    let in_loop = |i: usize| w.region_of.get(i).copied().flatten();
+    let member_index: HashMap<usize, u32> = region
+        .members
+        .iter()
+        .enumerate()
+        .map(|(j, &m)| (m, j as u32))
+        .collect();
+    let mut run = LoopRunner::new(
+        region
+            .members
+            .iter()
+            .map(|&m| w.node_index.get(m).copied().flatten().unwrap_or(u32::MAX))
+            .collect(),
+    );
+    let mut at = StoreAt::default();
+
+    // Inputs: from outside (the loop step's inputs, first in the store),
+    // unwired (params), or from another member (resolved below).
+    let mut outer_inputs: Vec<InputSlot> = Vec::new();
+    let mut srcs: Vec<Vec<LoopSrc>> = Vec::with_capacity(region.items.len());
+    for &item in &region.items {
+        let node = item.node();
+        let f = &flat.nodes[node];
+        let mut list = Vec::with_capacity(f.sig.inputs.len());
+        for (i, spec) in f.sig.inputs.iter().enumerate() {
+            if matches!(item, Item::FbRead(_)) {
+                list.push(LoopSrc::Ready(InputSlot::None));
+                continue;
+            }
+            let src = w.src_of[node].get(i).copied().flatten();
+            let entry = match src {
+                Some((s, o)) if in_loop(s) == in_loop(node) => LoopSrc::Member(s, o),
+                Some((s, o)) => {
+                    let src_ty = flat.nodes[s].sig.outputs[o].ty;
+                    let a = alloc[s][o].clone();
+                    let slot = wired_input(b, f, spec, src_ty, &a, report);
+                    LoopSrc::Ready(boundary_input(
+                        b,
+                        &mut run,
+                        &mut outer_inputs,
+                        &mut at,
+                        slot,
+                    ))
+                }
+                None => {
+                    let slot = unwired_input(b, f, spec, w.smooth_len);
+                    LoopSrc::Ready(unwired_loop_input(
+                        &mut run,
+                        &mut outer_inputs,
+                        &mut at,
+                        slot,
+                    ))
+                }
+            };
+            list.push(entry);
+        }
+        srcs.push(list);
+    }
+    let step_index = b.steps.len();
+    let in_start = b.input_slots.len() as u32;
+    b.input_slots.extend(outer_inputs);
+    let inputs: Range = (in_start, b.input_slots.len() as u32);
+
+    // The members' steps, their outputs laid out after the inputs.
+    let mut inner: HashMap<(usize, usize), Inner> = HashMap::new();
+    for (k, &item) in region.items.iter().enumerate() {
+        let node = item.node();
+        let f = &flat.nodes[node];
+        let j = member_index.get(&node).copied().unwrap_or(0);
+        let in0 = run.input_slots.len() as u32;
+        for (i, entry) in srcs[k].iter().enumerate() {
+            let slot = match *entry {
+                LoopSrc::Ready(slot) => slot,
+                LoopSrc::Member(s, o) => {
+                    let spec = &f.sig.inputs[i];
+                    inner_input(&mut run, f, spec, inner.get(&(s, o)).copied(), report)
+                }
+            };
+            run.input_slots.push(slot);
+        }
+        let out0 = run.output_slots.len() as u32;
+        let first = at;
+        let mut outs = vec![None; f.sig.outputs.len()];
+        for (o, out) in outs.iter_mut().enumerate() {
+            if matches!(item, Item::FbWrite(_)) {
+                run.output_slots.push(OutputSlot::None);
+                continue;
+            }
+            let (slot, value) = match w.store[node][o] {
+                OutStore::Audio(ch) => {
+                    let v = at.samples;
+                    at.samples += ch as u32;
+                    (
+                        OutputSlot::Audio {
+                            start: v - first.samples,
+                            count: ch as u32,
+                        },
+                        Some(Inner::Samples {
+                            at: v,
+                            count: ch as u32,
+                        }),
+                    )
+                }
+                OutStore::FloatSample | OutStore::FloatBlock => {
+                    let v = at.samples;
+                    at.samples += 1;
+                    (
+                        OutputSlot::Float {
+                            local: v - first.samples,
+                            sample: true,
+                        },
+                        Some(Inner::Samples { at: v, count: 1 }),
+                    )
+                }
+                OutStore::Int => {
+                    at.ints += 1;
+                    (
+                        OutputSlot::Int(at.ints - 1 - first.ints),
+                        Some(Inner::Int(at.ints - 1)),
+                    )
+                }
+                OutStore::Trigger => {
+                    at.triggers += 1;
+                    (
+                        OutputSlot::Trigger(at.triggers - 1 - first.triggers),
+                        Some(Inner::Trigger(at.triggers - 1)),
+                    )
+                }
+                OutStore::Midi => {
+                    at.midi += 1;
+                    (
+                        OutputSlot::Midi(at.midi - 1 - first.midi),
+                        Some(Inner::Midi(at.midi - 1)),
+                    )
+                }
+                OutStore::Buffer => {
+                    at.buffers += 1;
+                    (
+                        OutputSlot::Buffer(at.buffers - 1 - first.buffers),
+                        Some(Inner::Buffer(at.buffers - 1)),
+                    )
+                }
+                OutStore::Text => {
+                    at.texts += 1;
+                    (
+                        OutputSlot::Text(at.texts - 1 - first.texts),
+                        Some(Inner::Text(at.texts - 1)),
+                    )
+                }
+                // Members have no spectrum sockets (loops::find refuses them).
+                OutStore::Spectrum(_) | OutStore::None => (OutputSlot::None, None),
+            };
+            run.output_slots.push(slot);
+            if let Some(v) = value {
+                inner.insert((node, o), v);
+            }
+            *out = value;
+        }
+        if !matches!(item, Item::FbWrite(_))
+            && let Some(m) = run.member_outputs.get_mut(j as usize)
+        {
+            *m = outs;
+        }
+        run.steps.push(InnerStep {
+            member: j,
+            phase: match item {
+                Item::Main(_) => Phase::Main,
+                Item::FbRead(_) => Phase::FeedbackRead,
+                Item::FbWrite(_) => Phase::FeedbackWrite,
+            },
+            muted: f.muted,
+            bypass: if f.muted { bypass_for(f) } else { Bypass::None },
+            inputs: (in0, run.input_slots.len() as u32),
+            outputs: (out0, run.output_slots.len() as u32),
+            samples: (first.samples, at.samples),
+            ints: (first.ints, at.ints),
+            triggers: (first.triggers, at.triggers),
+            midi: (first.midi, at.midi),
+            buffers: (first.buffers, at.buffers),
+            texts: (first.texts, at.texts),
+        });
+    }
+
+    // Outputs: member outputs read outside the loop.
+    let out_start = b.output_slots.len() as u32;
+    let base = OutBase::of(b);
+    for &m in &region.members {
+        let outputs = flat.nodes[m].sig.outputs.len();
+        for o in (0..outputs).filter(|&o| w.used_outside.contains(&(m, o))) {
+            let Some(&src) = inner.get(&(m, o)) else {
+                continue;
+            };
+            let (slot, a) = alloc_output(b, w.store[m][o], step_index, &base);
+            let output = b.output_slots.len() as u32 - out_start;
+            b.output_slots.push(slot);
+            alloc[m][o] = a;
+            run.boundary_out.push(BoundaryOut { output, src });
+        }
+    }
+    let mut step = Builder::empty_step(StepKind::Loop { index });
+    step.inputs = inputs;
+    step.outputs = (out_start, b.output_slots.len() as u32);
+    step.o_samples = (base.samples, b.out_samples.len() as u32);
+    step.o_scalars = (base.scalars, b.out_scalars.len() as u32);
+    step.o_ints = (base.ints, b.out_ints.len() as u32);
+    step.o_triggers = (base.triggers, b.out_triggers.len() as u32);
+    step.o_midi = (base.midi, b.out_midi.len() as u32);
+    step.o_spectra = (base.spectra, b.out_spectra.len() as u32);
+    step.o_buffers = (base.buffers, b.out_buffers.len() as u32);
+    step.o_texts = (base.texts, b.out_texts.len() as u32);
+    b.steps.push(step);
+
+    run.cursors = vec![0; at.cursors as usize];
+    run.buffers = vec![None; at.buffers as usize];
+    run.texts = vec![TextBuf::EMPTY; at.texts as usize];
+    run.allocate(
+        at.samples as usize,
+        at.ints as usize,
+        at.triggers as usize,
+        at.midi as usize,
+    );
+    run
+}
+
+/// A loop member's input wired from outside the loop: `slot` (built as for
+/// any step) becomes an input of the loop step, copied into the store at
+/// each sample; returns the member's slot reading the copy.
+fn boundary_input(
+    b: &Builder,
+    run: &mut LoopRunner,
+    outer: &mut Vec<InputSlot>,
+    at: &mut StoreAt,
+    slot: InputSlot,
+) -> InputSlot {
+    let input = outer.len() as u32;
+    let next = |n: &mut u32| {
+        *n += 1;
+        *n - 1
+    };
+    match slot {
+        InputSlot::Audio { start, count } => {
+            let chans = b
+                .chan_table
+                .get(start as usize..(start + count) as usize)
+                .unwrap_or(&[]);
+            let begin = run.chan_table.len() as u32;
+            if chans.iter().all(|&v| v == 0) {
+                // Silence (an error was reported): no copy needed.
+                run.chan_table
+                    .extend(std::iter::repeat_n(0, count as usize));
+            } else {
+                outer.push(slot);
+                let v = at.samples;
+                at.samples += count;
+                run.boundary_in.push(BoundaryIn::Audio {
+                    input,
+                    channels: count,
+                    at: v,
+                });
+                run.chan_table.extend((0..count).map(|c| LOCAL | (v + c)));
+            }
+            InputSlot::Audio {
+                start: begin,
+                count,
+            }
+        }
+        InputSlot::Float(_) => {
+            outer.push(slot);
+            let v = next(&mut at.samples);
+            run.boundary_in.push(BoundaryIn::Float { input, at: v });
+            InputSlot::Float(FloatSrc::Sample(LOCAL | v))
+        }
+        InputSlot::Int(_) => {
+            outer.push(slot);
+            let v = next(&mut at.ints);
+            run.boundary_in.push(BoundaryIn::Int { input, at: v });
+            InputSlot::Int(IntSrc::Int(LOCAL | v))
+        }
+        InputSlot::Trigger(TriggerSrc::Wired(_)) => {
+            outer.push(slot);
+            let v = next(&mut at.triggers);
+            let cursor = next(&mut at.cursors);
+            run.boundary_in.push(BoundaryIn::Trigger {
+                input,
+                at: v,
+                cursor,
+            });
+            InputSlot::Trigger(TriggerSrc::Wired(LOCAL | v))
+        }
+        InputSlot::Midi(Some(_)) => {
+            outer.push(slot);
+            let v = next(&mut at.midi);
+            let cursor = next(&mut at.cursors);
+            run.boundary_in.push(BoundaryIn::Midi {
+                input,
+                at: v,
+                cursor,
+            });
+            InputSlot::Midi(Some(LOCAL | v))
+        }
+        InputSlot::Buffer(Some(_)) => {
+            outer.push(slot);
+            let v = next(&mut at.buffers);
+            run.boundary_in.push(BoundaryIn::Buffer { input, at: v });
+            InputSlot::Buffer(Some(LOCAL | v))
+        }
+        InputSlot::Text(src) => {
+            outer.push(slot);
+            let v = next(&mut at.texts);
+            run.boundary_in.push(BoundaryIn::Text { input, at: v });
+            InputSlot::Text(match src {
+                TextSrc::Const(_) => TextSrc::Const(LOCAL | v),
+                TextSrc::Wired(_) => TextSrc::Wired(LOCAL | v),
+            })
+        }
+        InputSlot::Spectrum(_) => InputSlot::Spectrum(None),
+        other => other,
+    }
+}
+
+/// An unwired loop member input: a param becomes an inner param that
+/// follows the graph's at each sample; typed text is copied like an input.
+fn unwired_loop_input(
+    run: &mut LoopRunner,
+    outer: &mut Vec<InputSlot>,
+    at: &mut StoreAt,
+    slot: InputSlot,
+) -> InputSlot {
+    let mut param = |p: u32| {
+        run.param_src.push(p);
+        (run.param_src.len() - 1) as u32
+    };
+    match slot {
+        InputSlot::Float(FloatSrc::Param(p)) => InputSlot::Float(FloatSrc::Param(param(p))),
+        InputSlot::Int(IntSrc::Param(p)) => InputSlot::Int(IntSrc::Param(param(p))),
+        InputSlot::Trigger(TriggerSrc::Unwired { param: p, auto }) => {
+            InputSlot::Trigger(TriggerSrc::Unwired {
+                param: param(p),
+                auto,
+            })
+        }
+        InputSlot::Text(TextSrc::Const(_)) => {
+            let input = outer.len() as u32;
+            outer.push(slot);
+            let v = at.texts;
+            at.texts += 1;
+            run.boundary_in.push(BoundaryIn::Text { input, at: v });
+            InputSlot::Text(TextSrc::Const(LOCAL | v))
+        }
+        InputSlot::Audio { count, .. } => {
+            let start = run.chan_table.len() as u32;
+            run.chan_table
+                .extend(std::iter::repeat_n(0, count as usize));
+            InputSlot::Audio { start, count }
+        }
+        other => other,
+    }
+}
+
+/// A loop member's input wired from another member, through the store.
+fn inner_input(
+    run: &mut LoopRunner,
+    f: &FlatNode,
+    spec: &SocketSpec,
+    src: Option<Inner>,
+    report: &mut CompileReport,
+) -> InputSlot {
+    let silent = |run: &mut LoopRunner| {
+        let want = match spec.channels {
+            Channels::Fixed(n) => n as usize,
+            _ => 1,
+        };
+        let start = run.chan_table.len() as u32;
+        run.chan_table.extend(std::iter::repeat_n(0, want));
+        InputSlot::Audio {
+            start,
+            count: want as u32,
+        }
+    };
+    match (spec.ty, src) {
+        (SignalType::Audio, Some(Inner::Samples { at, count })) => {
+            let src = count.max(1) as usize;
+            let ok = match spec.channels {
+                Channels::Fixed(n) => src == 1 || src == n as usize,
+                Channels::UpTo(n) => src <= n as usize,
+                Channels::Follow => true,
+            };
+            if !ok {
+                report.error(
+                    Some(&f.path),
+                    Some(&spec.name),
+                    format!("channel mismatch: {src} channels into an input that takes fewer"),
+                );
+                return silent(run);
+            }
+            let want = input_channels(spec.channels, src);
+            let start = run.chan_table.len() as u32;
+            run.chan_table
+                .extend((0..want).map(|c| LOCAL | (at + (c % src) as u32)));
+            InputSlot::Audio {
+                start,
+                count: want as u32,
+            }
+        }
+        (SignalType::Audio, _) => silent(run),
+        (SignalType::Float | SignalType::Bool, Some(Inner::Samples { at, .. })) => {
+            InputSlot::Float(FloatSrc::Sample(LOCAL | at))
+        }
+        (SignalType::Float | SignalType::Bool, Some(Inner::Int(at))) => {
+            InputSlot::Float(FloatSrc::Int(LOCAL | at))
+        }
+        (SignalType::Float | SignalType::Bool, _) => InputSlot::Float(FloatSrc::Scalar(u32::MAX)),
+        (SignalType::Int, Some(Inner::Int(at))) => InputSlot::Int(IntSrc::Int(LOCAL | at)),
+        (SignalType::Trigger, Some(Inner::Trigger(at))) => {
+            InputSlot::Trigger(TriggerSrc::Wired(LOCAL | at))
+        }
+        (SignalType::Midi, Some(Inner::Midi(at))) => InputSlot::Midi(Some(LOCAL | at)),
+        (SignalType::Midi, _) => InputSlot::Midi(None),
+        (SignalType::Buffer, Some(Inner::Buffer(at))) => InputSlot::Buffer(Some(LOCAL | at)),
+        (SignalType::Buffer, _) => InputSlot::Buffer(None),
+        (SignalType::Text, Some(Inner::Text(at))) => InputSlot::Text(TextSrc::Wired(LOCAL | at)),
+        (SignalType::Spectrum, _) => InputSlot::Spectrum(None),
+        _ => InputSlot::None,
     }
 }
 

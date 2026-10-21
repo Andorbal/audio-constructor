@@ -732,9 +732,147 @@ written up with the plan in D135.
   Verified: `crates/ac-app/tests/host_files.rs` covers the editor's side (open, save as of a revision, Save As, packs with their audio both ways, Locate and a Clip's file kept in memory, examples, Export WAV, block files); in headless Chromium the e2e test opens a project through the File System Access API (pickers standing in for a person's choices), saves it back to the same file without asking and asks on Save As, then without the API takes an upload and downloads the save; every example in it loads from the site's `examples/index.json`, Four Tracks with its audio files; an unsaved edit shows in the page's title and leaving asks first.
 
 ### M3.4 Engine extras
-- [ ] Single-sample feedback for strongly connected components.
-- [ ] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
-- [ ] Native PipeWire backend if the shims prove limiting.
+- [x] Single-sample feedback for strongly connected components.
+- [x] `TimeStretch`, `Convolution`, `Granular`, `Formant`, `Chaos`, `SpectralFreeze`, `Spectrogram`.
+- [x] Native PipeWire backend if the shims prove limiting.
+
+*Verified:* each part is covered as follows.
+
+Single-sample feedback (DECISIONS D140): a Feedback node with `delay` set
+to `sample` makes the compiler run its strongly connected component as one
+loop step, one sample at a time (`crates/ac-engine/src/loops.rs`).
+- `cargo test -p ac-engine --test loops`:
+  - a loop through a Delay of `d` samples comes round every `d + 1`
+    samples (block mode: `d` + the block), and two sample-mode Feedback
+    nodes in one loop add a sample each;
+  - the loop is bit-identical at block sizes 1, 2, 7, 64, 333, and 1024,
+    and on 1, 2, and 4 threads, live matching offline;
+  - MIDI and triggers from outside reach a member on their own sample,
+    and a trigger leaves the loop on its sample, at every block size;
+  - a parameter moved while playing ramps sample by sample, the same at
+    block sizes 1, 8, 64, and 256;
+  - the loop keeps ringing through a recompile (state carries over), a
+    muted member passes through, and a Scope inside the loop records
+    every sample;
+  - each voice of a Voices node gets its own loop;
+  - a sample loop inside a block loop keeps both delays, and a sample
+    Feedback on no cycle delays by one sample;
+  - FFT and IFFT, or a whole-input node, inside the loop are reported on
+    each node and on the Feedback, and the loop keeps one block of delay;
+    a cycle with no Feedback beside it is still an error; a nonsense
+    `delay` value means a block. Nothing panics, and every block runs
+    under the allocation guard.
+- Golden `utility-feedback-sample`: a Karplus-Strong string whose loop is
+  218.2 samples long. A test measures it at 220.0 Hz (within 0.5 Hz) at
+  block sizes 32, 256, and 1024; with a block of delay the same patch
+  plays near 100 Hz at 256 and higher at 32. The golden is
+  block-independent; no existing golden hash changed.
+- `audioc bench` (release, 128-frame blocks, 10 s per project, best of 3,
+  five runs of the base and the new build alternated on the same 4-vCPU
+  VM, which other jobs shared): no project got slower beyond run-to-run
+  spread. Real-time ratios, base → new, best of five: oscillators-1000
+  3.12 → 3.26, effect-chain-200 3.87 → 3.93, mono-synths-16 15.0 → 16.0,
+  parallel-chains-8 8.33 → 8.58, poly-synth-16 25.2 → 23.5 (medians 20.4
+  → 22.6), subtractive-voices-16 10.05 → 10.31, fft-chains-16 24.6 →
+  26.6, pitch-shift-16 7.67 → 8.28, diffuser-16 4.35 → 4.50. Rerun at
+  the milestone's last commit (the engine unchanged since, the new nodes
+  in no bench project), four alternated runs: best-of-four changes from
+  −6.7 % (mono-synths-16) to +10.8 % (diffuser-16), with the two builds'
+  ranges overlapping on every project.
+
+The seven nodes, one file each, with a "Try this" tip and the DSP source
+cited in the code (`cargo test -p ac-nodes`):
+- **Chaos** (Lorenz 1963, Rössler 1976, fourth-order Runge-Kutta):
+  outputs stay within ±1 and use the range across `chaos`; Lorenz flips
+  between its lobes and settles below the onset of chaos; Rössler at 0
+  loops at `rate`; the motion matches at 48 and 96 kHz; block sizes 1, 64,
+  and 1024 and a reset repeat exactly; seeds drift apart.
+- **Formant** (Peterson and Barney's 1952 vowel formants, three
+  state-variable band-passes): each vowel's impulse response peaks at its
+  formants; a and i differ where they should; morphing glides in pitch;
+  `shift` and `voice` move them; the shape is the same at 48 and 96 kHz;
+  a saw comes out 11–18 dB down (documented); block size doesn't matter.
+- **Spectral Freeze** (Dolson's phase vocoder with Laroche and Dolson's
+  rigid phase locking): a held 1 kHz tone keeps its pitch and level a
+  second after its input stops; frozen bins keep their levels and turn
+  their phases; a frozen glide holds its level within 5 % (a test that
+  fails without the locking); glide and block size are exact.
+- **Spectrogram**: a tone lights its band in every column; time runs
+  through the columns; short sounds stay in long columns; the picture
+  starts silent; block size doesn't change it. The editor draws it as a
+  mesh: a unit test checks each cell's place and color, and
+  `cargo test -p ac-app --test editor a_spectrogram_draws_what_it_hears`
+  plays a 1 kHz tone on the null stream and finds the lit row in the
+  card's body (stable over repeated runs).
+- **Granular** (Roads' "Microsound" grains): onsets follow `density`;
+  `pitch` transposes and `position` picks the slice; a buffer at another
+  rate keeps its pitch; overlap keeps the level within 3 dB; `stop` lets
+  grains finish; reset repeats the seeded scatter; block sizes match.
+- **Convolution** (uniformly partitioned overlap-save, Wefers 2015):
+  matches the direct sum one partition late; a file response is ready at
+  once; the latency it reports follows `partition`; a stereo response
+  feeds each side; a new response takes over without cutting the old
+  tail; a response at another rate is converted; long responses are cut
+  at `max_length`. In the engine (`cargo test -p ac-engine --test
+  extras`) a dry path mixed with it arrives on the same sample at block
+  sizes 1, 64, and 1024.
+- **Time Stretch** (phase vocoder with identity phase locking): a stretch
+  of 1 returns the input within −60 dB; stretches of 0.5, 2, and 3 change
+  the length and keep the pitch and level; a changing stretch moves
+  through the input at its rate; it bakes offline and is disabled live
+  when fed by Audio In.
+
+Every node also runs in the allocation-guarded sweep at block sizes 1,
+64, and 1024 (`all_nodes.rs`; Granular and Convolution with buffers and
+files in `buffer_nodes.rs`), and a test checks all seven have NODES.md
+rows and are registered. Goldens, all block-independent and passing the
+live-vs-offline check: `modulation-chaos`, `filters-formant`,
+`spectral-freeze`, `display-spectrogram`, `generators-granular`, and
+`time-convolution-stretch` (its impulse response,
+`tests/golden/assets/plate-ir.wav`, was rendered with `audioc` from the
+shipped Plate Reverb block). The streaming nodes also run inside a
+single-sample loop, and a Spectral Freeze there is refused.
+
+PipeWire (DECISIONS D141): evaluated, and no native backend added, since
+neither PipeWire layer limits the engine. The evaluation, from the code
+and the libraries:
+- The engine takes whatever rate and buffer size a server gives it and
+  opens input and output as separate streams (D36).
+- The device layer lists and picks cpal's hosts by name
+  (`ac-io/src/audio.rs`), so nothing in it is PipeWire-specific.
+- The JACK route is what CI exercises for real (D100): it plays through
+  `jackd`'s dummy driver with the same libjack interface that PipeWire's
+  JACK library implements.
+- The ALSA route uses PipeWire's ALSA plugin, shared with other programs.
+  It has PipeWire's quantum on top of the ALSA buffer (documented, with
+  the low-latency JACK route, in the guide's getting-started and
+  troubleshooting chapters).
+- cpal 0.18.2, already in `Cargo.lock`, has a PipeWire host behind its
+  `pipewire` feature. Adopting it would mean linking `libpipewire-0.3`,
+  so like JACK it could only be an opt-in build. That is a feature flag
+  and a CI job away if a limitation turns up.
+
+Example: `examples/plucked-strings.acproj` plays a string built on a
+single-sample loop into a Convolution hall, with Chaos and a Spectrogram
+(`cargo test -p ac-cli --test examples`: its loop and latency, and the
+same render at block sizes 64 and 1024). Its impulse response,
+`examples/assets/hall-ir.wav`, was rendered with `audioc` from the
+shipped Hall Reverb block. Every example still lays out without
+overlaps.
+
+Needs manual verification (in the PR):
+- listening: the new goldens, the Plucked Strings example (in tune, with
+  its Feedback set to sample; flat with it set to block), Formant's
+  vowels, Granular clouds, Spectral Freeze holding a chord, Time Stretch
+  at 0.5 and 2, and Convolution with a real room's impulse response;
+- by eye: the Spectrogram on a card and on a performance panel, in both
+  themes;
+- on a PipeWire desktop, a release build plays and records through the
+  default device, and `audioc latency` with a loopback cable reports the
+  round trip;
+- also on PipeWire, a JACK build under `pw-jack` with
+  `PIPEWIRE_QUANTUM=128/48000` runs with 128-frame buffers (the Devices
+  tab shows the size) and a lower measured round trip.
 
 ### M3.5 Product
 - [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.

@@ -136,6 +136,8 @@ through a patch, this adds to the sound card's latency, so keep large
 FFTs and pitch shifters out of the live path, or give the FFT a smaller **Size**.
 
 A **Feedback** node delays its loop by one buffer. That's what makes a
-loop possible, and it means a loop's timing depends on the buffer size.
+loop possible, and it means a loop's timing depends on the buffer size,
+unless its delay is set to **sample**: then the loop runs one sample at a
+time and is the same at any buffer size.
 
 Next: [Blocks and sharing](blocks.md).

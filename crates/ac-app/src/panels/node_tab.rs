@@ -281,6 +281,64 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "seconds",
             },
         )],
+        "convolution" => vec![
+            f(
+                "file",
+                "Impulse response (when `buffer` is unwired)",
+                Kind::File,
+            ),
+            f(
+                "partition",
+                "Partition (samples, sets latency)",
+                Kind::NumberChoice {
+                    choices: &["64", "128", "256", "512", "1024", "2048", "4096"],
+                    default: "256",
+                },
+            ),
+            f(
+                "max_length",
+                "Longest response (s)",
+                Kind::Number { default: 5.0 },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
+        "time_stretch" => vec![f(
+            "size",
+            "Frame size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "2048",
+            },
+        )],
+        "granular" => vec![
+            f("file", "File (when `buffer` is unwired)", Kind::File),
+            f(
+                "seed",
+                "Seed",
+                Kind::Count {
+                    min: 0,
+                    max: 1_000_000,
+                    default: 0,
+                },
+            ),
+        ],
+        "chaos" => vec![f(
+            "seed",
+            "Seed",
+            Kind::Count {
+                min: 0,
+                max: 1_000_000,
+                default: 0,
+            },
+        )],
         "sampler" => vec![
             f("file", "File (when `buffer` is unwired)", Kind::File),
             f(
@@ -433,6 +491,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "4096",
             },
         )],
+        "spectrogram" => vec![f(
+            "size",
+            "FFT size",
+            Kind::NumberChoice {
+                choices: FFT_SIZES,
+                default: "2048",
+            },
+        )],
         "frequency_trigger" => vec![f(
             "mode",
             "Listen for",
@@ -580,6 +646,25 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                     min: 1,
                     max: 2,
                     default: 2,
+                },
+            ),
+        ],
+        "feedback" => vec![
+            f(
+                "delay",
+                "Delay round the loop",
+                Kind::Choice {
+                    choices: &["block", "sample"],
+                    default: "block",
+                },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 32,
+                    default: 1,
                 },
             ),
         ],
