@@ -6,10 +6,12 @@
 //! canvas hit-tests by hand rather than through egui widgets so that the
 //! drawing order, the hit order, and the zoomed geometry always agree.
 
+mod access;
 mod arrange;
 pub mod bodies;
 pub mod controls;
 mod interact;
+mod keys;
 pub mod live;
 mod menu;
 pub mod minimap;
@@ -22,6 +24,8 @@ pub mod view;
 pub mod widgets;
 pub mod wires;
 
+pub use access::Focus;
+pub use keys::{KeyCmd, NUDGE};
 pub use menu::arrange_items;
 pub use paint::pretty as paint_pretty;
 
@@ -33,6 +37,7 @@ use egui::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::document::Document;
 use crate::edit::{self, GROUP_IN, GROUP_OUT};
+use crate::i18n::{tr, tr_args};
 use crate::theme;
 use scene::{Body, Class, NodeView, Scene};
 use view::{Transform, View};
@@ -89,6 +94,8 @@ pub struct CanvasIo<'a> {
     pub can_record: bool,
     /// Bound inputs, with the values their bindings last set.
     pub bound: &'a crate::bindings::BoundInputs,
+    /// View ▸ Reduce Motion: no fades, eases, or flowing wires.
+    pub reduce_motion: bool,
     pub events: Vec<CanvasEvent>,
 }
 
@@ -316,6 +323,31 @@ pub struct Canvas {
     /// window and panels settle over the first few frames. Counts the
     /// frames left to follow size changes, with the rect last framed.
     fit_on_show: (u8, Rect),
+    /// The keyboard's place on the canvas (Tab, Alt+arrows), and whether
+    /// it shows (it hides when the pointer takes over).
+    pub focus: Option<Focus>,
+    pub focus_visible: bool,
+    /// Shift+Enter started a selection: Tab moves only the focus.
+    pub keep_selection: bool,
+    /// A wire being made from the keyboard (Enter on a socket).
+    kb_wire: Option<PendingWire>,
+    /// Keyboard commands waiting for the next frame.
+    keys: Vec<KeyCmd>,
+    /// The widgets drawn for cards and sockets last frame (egui focus to
+    /// canvas focus).
+    a11y_ids: HashMap<egui::Id, Focus>,
+    /// The focus as egui last saw it: when `focus` differs, the canvas
+    /// moved it (access.rs).
+    synced: Option<Focus>,
+    /// The open menu came from Shift+F10: the canvas takes the keyboard
+    /// back when it closes.
+    menu_from_keys: bool,
+    /// The arrows moved the grab: it splices into the wire under the
+    /// moved card rather than under the pointer.
+    grab_keys: bool,
+    /// The value being typed came from F2 on a socket: the canvas takes
+    /// the keyboard back when it's done.
+    edit_from_keys: bool,
 }
 
 impl Default for Canvas {
@@ -350,6 +382,16 @@ impl Default for Canvas {
             scope_views: HashMap::new(),
             graph_cache: ac_core::Graph::default(),
             fit_on_show: (0, Rect::NOTHING),
+            focus: None,
+            focus_visible: false,
+            keep_selection: false,
+            kb_wire: None,
+            keys: Vec::new(),
+            a11y_ids: HashMap::new(),
+            synced: None,
+            menu_from_keys: false,
+            grab_keys: false,
+            edit_from_keys: false,
         }
     }
 }
@@ -378,6 +420,17 @@ impl Canvas {
 
     pub fn is_idle(&self) -> bool {
         matches!(self.gesture, Gesture::Idle) && !self.controls.is_active()
+    }
+
+    /// A node was just added from the keyboard or a menu: it takes the
+    /// focus, and the ring shows when the pointer isn't on the canvas
+    /// (the palette's Enter, not a drop).
+    pub fn focus_added(&mut self, id: NodeId) {
+        self.focus = Some(Focus::Node(id));
+        self.keep_selection = false;
+        if self.pointer.is_none() {
+            self.focus_visible = true;
+        }
     }
 
     /// Note that nodes were just created (they fade in).
@@ -501,7 +554,7 @@ impl Canvas {
             .map(|n| pos2(n.ui.pos[0], n.ui.pos[1]))
             .collect();
         if own_step {
-            doc.checkpoint("Move");
+            doc.checkpoint(&tr("undo-move"));
         }
         self.gesture = Gesture::Move {
             ids,
@@ -510,13 +563,17 @@ impl Canvas {
             grab: true,
             insert: None,
         };
-        self.hint = Some("Move the pointer to place · click to confirm · Esc to cancel".into());
+        self.hint = Some(tr("hint-grab"));
     }
 
     /// Escape: cancel the current gesture (a grab returns nodes to where
     /// they were).
     pub fn cancel(&mut self, doc: &mut Document) -> bool {
         if self.menu.take().is_some() || self.choice.take().is_some() {
+            return true;
+        }
+        if self.kb_wire.take().is_some() {
+            self.hint = None;
             return true;
         }
         if self.edit.take().is_some() {
@@ -529,6 +586,7 @@ impl Canvas {
         match std::mem::replace(&mut self.gesture, Gesture::Idle) {
             Gesture::Idle => false,
             Gesture::Move { ids, starts, .. } => {
+                self.grab_keys = false;
                 let moves: Vec<(NodeId, [f32; 2])> = ids
                     .iter()
                     .zip(&starts)
@@ -574,11 +632,11 @@ impl Canvas {
             }
         }
         let label = if reconnect {
-            "Delete and reconnect"
+            tr("undo-delete-reconnect")
         } else {
-            "Delete"
+            tr("undo-delete")
         };
-        doc.edit(registry, label, |g, ctx| {
+        doc.edit(registry, &label, |g, ctx| {
             if reconnect {
                 edit::delete_reconnect(g, ctx, &ids);
             } else {
@@ -605,12 +663,12 @@ impl Canvas {
             b.max + vec2(theme::FRAME_PAD, theme::FRAME_PAD),
         );
         let n = doc.graph().frames.len() + 1;
-        doc.edit(registry, "Add frame", |g, _| {
+        doc.edit(registry, &tr("undo-add-frame"), |g, _| {
             g.frames.push(ac_core::Frame {
                 label: if n == 1 {
-                    "Frame".into()
+                    tr("canvas-frame")
                 } else {
-                    format!("Frame {n}")
+                    tr_args("canvas-frame-numbered", &[("number", n.into())])
                 },
                 rect: [r.min.x, r.min.y, r.width(), r.height()],
                 color: None,
@@ -730,6 +788,11 @@ impl Canvas {
         self.pointer = ui
             .input(|i| i.pointer.hover_pos())
             .filter(|p| rect.contains(*p) || !self.is_idle());
+        if io.reduce_motion
+            && let Some(target) = self.target.take()
+        {
+            self.view = target;
+        }
         self.handle_view_input(ui, &response, dt);
 
         // Releases held back so a quick tap still reaches the engine.
@@ -738,6 +801,19 @@ impl Canvas {
         }
 
         let mut scene = self.build(io.doc, io.registry);
+        // Keyboard commands from the app (Tab, Enter, the arrows…).
+        if !self.keys.is_empty() && self.run_keys(ui, io, &scene, now) {
+            scene = self.build(io.doc, io.registry);
+        }
+        // The pointer takes over from the keyboard.
+        if response.contains_pointer() && ui.input(|i| i.pointer.any_pressed()) {
+            self.focus_visible = false;
+            self.keep_selection = false;
+        }
+        if io.reduce_motion {
+            self.ghosts.clear();
+            self.born.clear();
+        }
         self.minimap_now = self.minimap_layout(&scene, io.doc);
         let changed = self.handle_pointer(ui, &response, io, &scene, now);
         if changed {
@@ -755,8 +831,26 @@ impl Canvas {
         self.paint(ui, &painter, io, &scene, now, dt);
         self.show_inline_edit(ui, io, now);
         self.show_menus(ui, io, &scene, now);
+        if self.menu_from_keys && self.menu.is_none() {
+            // The menu Shift+F10 opened closed: the keyboard comes back.
+            self.menu_from_keys = false;
+            self.focus_visible = true;
+        }
+        if self.edit_from_keys && self.edit.is_none() {
+            // The value F2 opened was set or dropped: the keyboard comes
+            // back to the socket.
+            self.edit_from_keys = false;
+            self.focus_visible = true;
+        }
         self.show_tooltips(ui, io, &scene);
+        self.accessibility(ui, io, &scene, &response);
 
+        if io.reduce_motion
+            && let Some(target) = self.target.take()
+        {
+            // Jump where a smooth zoom or fit was heading.
+            self.view = target;
+        }
         let animating = !self.ghosts.is_empty() || !self.born.is_empty() || self.target.is_some();
         if animating || self.live.active || !self.is_idle() {
             ui.ctx().request_repaint();

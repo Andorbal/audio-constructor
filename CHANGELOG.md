@@ -11,6 +11,162 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.14.0] - 2026-10-21
+
+The last part of Phase 3 makes Audio Constructor something to install and
+live with: installers for every system with the plugins inside, an update
+check that asks first, crash reports you choose to send, blocks shared with
+previews from any web host, themes of your own, an editor ready to be
+translated, and the whole canvas and its panels usable from the keyboard
+and with a screen reader.
+
+### Added
+
+- **Installers.** Each release now has an installer for every system,
+  carrying the editor, `audioc`, the examples, and the CLAP and VST3
+  plugins:
+  - Windows: a setup program that installs into Program Files, adds a
+    Start-menu entry, opens project, pack, and block files in the editor,
+    puts the plugins where hosts look (each a choice), and uninstalls from
+    Installed apps;
+  - macOS: an installer package that puts Audio Constructor in
+    Applications, `audioc` on the terminal's path, and the plugins in
+    `/Library/Audio/Plug-Ins` (each a choice);
+  - Linux: a `.deb` with a menu entry, file types, and the plugins in
+    `/usr/lib/clap` and `/usr/lib/vst3`.
+
+  The archives remain, now with the plugins in a `plugins/` folder, and the
+  Linux one has an `install.sh` that installs everything into your home
+  folder without root (`--uninstall` removes it). Releases list every
+  file's SHA-256 in `SHA256SUMS.txt`, and are signed (and on macOS
+  notarized) once signing certificates are set up for the project.
+- **Update check.** The editor asks once whether to look for new
+  versions; until you answer, it checks nothing. Checking daily, it asks
+  the project's release page once a day when it starts (sending nothing
+  but the request) and, when a newer version is out, offers its download
+  page, its notes, or to skip that version. **Help ▸ Check for Updates…**
+  asks right away, and **Help ▸ Check for Updates Daily** changes your
+  mind. Nothing is downloaded or installed for you.
+- **Crash reports.** If the editor stopped because of a bug, the next
+  start says so and offers the saved report: **Report…** opens the
+  project's issue form in your browser with it filled in, to read and send
+  yourself, or **Show Report** to see exactly what's in it. Nothing is
+  sent unless you submit the form, and the question can be turned off.
+- **Help ▸ Report a Problem…** opens the issue form with your version and
+  system filled in.
+- `audioc version` prints the version, and `audioc version --check` asks
+  whether a newer release is out and where to download it. It sends
+  nothing but the request.
+- When `audioc` stops because of a bug, it saves a crash report (the
+  version, the system, and where it stopped, with your home folder
+  written as `~`) in a `crashes` folder beside the editor's settings, and
+  says where. Nothing is sent anywhere.
+- The editor has an icon, in its window, the taskbar or dock, and the
+  desktop's menus.
+- `audio-constructor --version` prints the version without opening a
+  window.
+- **Block previews**: `audioc block-export` writes a group from a project
+  (or a block file) as an `.acblock` to share, with a five-second preview
+  beside it, `<name>.preview.wav`. An effect plays a built-in phrase of
+  drums, chords, and an arpeggio through it, an instrument plays the
+  phrase's chords or arpeggio, and a block that plays by itself just
+  plays. The preview is rendered offline, so the same block always gives
+  the same file, and the block file records the preview's name and
+  SHA-256.
+- **Shared libraries**: `audioc library-index <folder>` writes an
+  `index.json` describing a folder of blocks and their previews (the
+  library's name and description; each block's version, author, tags,
+  size, and SHA-256), so the folder can be shared from any web host that
+  serves files. Blocks that don't load are reported and left out of the
+  index, and `--check` says whether an index is up to date.
+- **Previews in the Library tab**: every block that makes sound has a
+  play button. It plays the block's preview over whatever the patch is
+  playing, from the preview file when the block has one and rendered on
+  the spot otherwise (the same audio an export writes); click again to
+  stop. Saving a group to your library keeps a preview beside it too.
+- **Export block file…** (in the Node tab for a group, and on a library
+  block's right-click menu) writes the block to share, with its preview
+  beside it, rendered in the background.
+- **Import from Link…** (in the File menu and the Library tab) takes a
+  link to a block, a pack, or a shared library's `index.json`. Blocks join
+  your library under Imported, with their previews; packs are saved to
+  your Downloads folder and open as packs do; a library is listed in the
+  Library tab under **Shared libraries**, remembered between sessions,
+  where its blocks can be searched, previewed (downloaded once, then kept
+  in the cache folder), and installed, each checked against the library's
+  index. Downloads run in the background and never hold up the editor;
+  only https links work, except to this computer.
+- `audioc block-import <link>` imports a block, a pack, or a whole
+  library (or some of it, with `--only`) from an https link, into your
+  library or the one `--library` names. Blocks from a library are checked
+  against its index and refused if they've changed; `--list` shows what a
+  library holds.
+- **High Contrast theme** (View ▸ Theme ▸ High Contrast): white text on
+  black at 7:1 or more on every surface, white outlines on node cards,
+  buttons, and fields, thicker outlines, a yellow ring around whatever has
+  keyboard focus, and socket colors brightened so every type still stands
+  out on black.
+- **Your own themes**: put a small JSON file in the themes folder next to
+  the editor's settings (View ▸ Theme ▸ Open Themes Folder), give it a
+  name and a base (Dark, Light, or High Contrast), and change any of the
+  base's colors by name. Your themes are listed under the built-in ones;
+  Reload Themes picks up edits at once. The editor remembers your choice
+  by name, and shows Dark if the file goes away. The guide's new
+  [Themes](docs/guide/themes.md) chapter lists every color with its value
+  in each built-in theme.
+- A theme file with a mistake never stops the editor: a file it can't use
+  is listed in View ▸ Theme with the reason, a misspelled color name
+  (with a suggestion) or a color that doesn't read is skipped, and a theme
+  whose text would be hard to read (under 4.5:1 contrast) is marked and
+  says which color is the problem.
+- **View ▸ Language**: the editor's menus, panels, tabs, transport bar,
+  dialogs, status messages, and undo names now come from translation
+  catalogs. **System** follows your computer's language when the editor
+  has it (English for now), and **Pseudo** is a made-up language with
+  accented letters, a third more length, and brackets around every
+  message, for checking that nothing was missed and that longer languages
+  fit. The choice is remembered. Node names and node help stay in English
+  for now. [docs/TRANSLATING.md](docs/TRANSLATING.md) says how to add a
+  language.
+- **The canvas from the keyboard**: Tab and Shift+Tab move a focus ring
+  from card to card, left to right the way the signal flows, and the
+  selection follows (Shift+Enter keeps a card selected while you move
+  on). Alt+↓ and Alt+↑ step through a card's sockets; Enter on a socket
+  picks up a wire, and Enter on another card or socket connects it. F2
+  on an input types its value, the arrow keys move what's selected (or
+  look around when nothing is), Shift+F10 opens the right-click menu,
+  and F6 moves between the canvas and the side panel. A node added from
+  the palette takes the focus, so a patch can be built without the mouse.
+- **Screen readers** can find and use everything: each card says its
+  name, kind, how many inputs and outputs it has, and whether it's
+  selected; each socket says its type and what it's wired to or set to;
+  on a panel, a knob or slider is a slider with its value, a toggle a
+  switch, and a meter says its peak. Menu entries with a check mark say
+  they're checked, and icons are never read out. A screen reader's
+  activate selects a card, and its increment, decrement, and set value
+  turn a panel's knobs. A library block's play button says which block it
+  plays, and the update and crash windows take the keyboard when they
+  appear. Scroll bars can be grabbed over a wider strip.
+- **Panels from the keyboard**: F6 puts the keyboard on the first card,
+  and Tab reaches every one. ↑ and ↓ (or ← and
+  →) turn a knob or slider by a hundredth of its range, a tenth with
+  Shift or Page Up and Page Down; Home and End go to its ends; Enter types
+  a value, opens a dropdown, or flips a toggle; and Space holds a button
+  down for as long as you hold it. In the panel view, Delete unpins the
+  focused card, and + and − resize it.
+- **View ▸ Reduce Motion**: no fades, eases, flowing wires, or flashes on
+  events, and the view jumps where it would glide. The choice is
+  remembered.
+
+### Changed
+
+- **Enter / Leave Group is now Ctrl+Enter** (it was Tab, which now moves
+  the keyboard from node to node). Double-clicking a group still goes
+  inside.
+- In the browser, the Devices tab's list of MIDI messages names notes
+  ("Note on C4 · vel 100 · ch 1") the way the desktop editor does,
+  instead of by number.
+
 ## [0.13.0] - 2026-10-21
 
 ### Added
@@ -766,6 +922,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.14.0]: https://github.com/Andorbal/audio-constructor/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Andorbal/audio-constructor/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/Andorbal/audio-constructor/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Andorbal/audio-constructor/compare/v0.10.0...v0.11.0

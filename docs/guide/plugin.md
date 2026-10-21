@@ -16,7 +16,18 @@ formats:
 
 ## Install
 
-Build the bundles from the source (see the [README](../../README.md)):
+The installers on the releases page include the plugins (see
+[Getting started](getting-started.md#install)): the Windows setup program
+and the macOS installer put them in the folders every host scans, as
+choices you can untick, and the Linux `.deb` puts them in `/usr/lib/clap`
+and `/usr/lib/vst3`. The archives have them in their `plugins/` folder;
+on Linux, the archive's `install.sh` copies them into `~/.clap` and
+`~/.vst3`. Then let your host rescan its plugins; they're listed under
+the vendor **Audio Constructor**. If your host can load either format,
+prefer CLAP.
+
+To build the bundles from the source instead (see the
+[README](../../README.md)):
 
 ```
 python3 scripts/bundle_plugin.py --install
@@ -169,5 +180,6 @@ what it costs in the app; the host's own meter shows it.
   for sidechaining isn't there yet.
 - **Macro names.** Hosts list the macros as Macro 1 to Macro 16 whatever
   they drive; the readout shows the value.
-- **Downloads.** The release archives don't include the plugin yet, and
-  the bundles aren't signed: build them as in [Install](#install).
+- **Unsigned releases.** Until a release is signed, a host on macOS may
+  refuse the plugins from an archive; clear the quarantine flag as in
+  [Install](#install), or use the installer.

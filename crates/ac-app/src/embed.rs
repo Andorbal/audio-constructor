@@ -24,6 +24,7 @@ use egui_baseview::{EguiWindow, EguiWindowSettings, Frame};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::app::EditorApp;
+use crate::i18n::tr;
 use crate::theme;
 
 pub use egui_baseview::RepaintNotifier;
@@ -401,8 +402,8 @@ fn failed(ui: &mut egui::Ui, why: &str) {
     egui::CentralPanel::default().show(ui, |ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(40.0);
-            ui.heading("The editor stopped");
-            ui.label("Your project is safe with the plugin. Close and reopen this window.");
+            ui.heading(tr("embed-stopped"));
+            ui.label(tr("embed-stopped-safe"));
             if !why.is_empty() {
                 ui.label(egui::RichText::new(why).small().color(theme::text_muted()));
             }

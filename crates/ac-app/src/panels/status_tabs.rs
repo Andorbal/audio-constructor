@@ -9,56 +9,83 @@ use ac_io::{InputChoice, MidiSelect};
 
 use super::{DevicesState, PanelIo, PanelRequest, section};
 use crate::audio::LatencyState;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
 /// The rows every host shows: the rate, the buffer, the channels, and how
 /// hard the engine works.
 fn engine_rows(ui: &mut egui::Ui, info: &ac_io::StreamInfo, status: &ac_engine::EngineStatus) {
-    ui.label("Sample rate");
-    ui.label(format!("{} Hz", info.sample_rate));
-    ui.end_row();
-    ui.label("Buffer");
-    ui.label(format!(
-        "{} frames ({:.1} ms)",
-        info.buffer_size,
-        f64::from(info.buffer_size) * 1000.0 / f64::from(info.sample_rate.max(1))
+    ui.label(tr("devices-sample-rate"));
+    ui.label(tr_args(
+        "devices-hz",
+        &[("rate", info.sample_rate.to_string().into())],
     ));
     ui.end_row();
-    ui.label("Channels");
-    ui.label(format!(
-        "{} in · {} out",
-        info.in_channels, info.out_channels
+    ui.label(tr("devices-buffer"));
+    ui.label(tr_args(
+        "devices-buffer-size",
+        &[
+            ("frames", info.buffer_size.to_string().into()),
+            (
+                "ms",
+                format!(
+                    "{:.1}",
+                    f64::from(info.buffer_size) * 1000.0 / f64::from(info.sample_rate.max(1))
+                )
+                .into(),
+            ),
+        ],
     ));
     ui.end_row();
-    ui.label("Load");
+    ui.label(tr("devices-channels"));
+    ui.label(tr_args(
+        "devices-channels-in-out",
+        &[
+            ("inputs", info.in_channels.to_string().into()),
+            ("outputs", info.out_channels.to_string().into()),
+        ],
+    ));
+    ui.end_row();
+    let load_label = ui.label(tr("devices-load"));
     let load = status.load_fraction();
     ui.add(
         egui::ProgressBar::new(load.clamp(0.0, 1.0))
-            .text(format!("{:.0} %", load * 100.0))
+            .text(tr_args(
+                "devices-percent",
+                &[("percent", format!("{:.0}", load * 100.0).into())],
+            ))
             .desired_width(160.0),
-    );
+    )
+    .labelled_by(load_label.id);
     ui.end_row();
     let cores = status.core_loads();
     if cores.len() > 1 {
-        ui.label("Per core");
+        ui.label(tr("devices-per-core"));
         ui.vertical(|ui| {
             for (k, c) in cores.iter().enumerate() {
                 let name = if k == 0 {
-                    "audio".to_string()
+                    tr("devices-core-audio")
                 } else {
-                    format!("worker {k}")
+                    tr_args("devices-core-worker", &[("number", k.into())])
                 };
                 ui.add(
                     egui::ProgressBar::new(c.clamp(0.0, 1.0))
-                        .text(format!("{name} {:.0} %", c * 100.0))
+                        .text(tr_args(
+                            "devices-core-load",
+                            &[
+                                ("core", (&name).into()),
+                                ("percent", format!("{:.0}", c * 100.0).into()),
+                            ],
+                        ))
                         .desired_width(160.0),
-                );
+                )
+                .accessible_name(name);
             }
         });
         ui.end_row();
     }
-    ui.label("Xruns");
+    ui.label(tr("devices-xruns"));
     let x = status.total_xruns();
     ui.colored_label(
         if x > 0 {
@@ -68,7 +95,7 @@ fn engine_rows(ui: &mut egui::Ui, info: &ac_io::StreamInfo, status: &ac_engine::
         },
         x.to_string(),
     )
-    .on_hover_text("Engine blocks over budget plus device underruns/overruns");
+    .on_hover_text(tr("devices-xruns-tip"));
     ui.end_row();
 }
 
@@ -82,12 +109,12 @@ fn hosted_devices(
 ) {
     let status = io.engine.handle.status().clone();
     let info = io.engine.info.clone();
-    section(ui, "Running");
+    section(ui, &tr("section-running"));
     egui::Grid::new("devices-now")
         .num_columns(2)
         .spacing(egui::vec2(12.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Audio");
+            ui.label(tr("devices-audio"));
             ui.label(RichText::new(&host.host).color(theme::text_strong()));
             ui.end_row();
             engine_rows(ui, &info, &status);
@@ -97,26 +124,16 @@ fn hosted_devices(
         panel.show(ui);
     } else {
         ui.label(
-            RichText::new(format!(
-                "{}  The host provides audio and MIDI. Set the sample rate, the buffer size, \
-                 and MIDI routing in the host.",
-                icons::INFO
-            ))
-            .color(theme::text_muted()),
+            RichText::new(format!("{}  {}", icons::INFO, tr("devices-host-provides")))
+                .color(theme::text_muted()),
         );
     }
     if let Some(controls) = io.host.as_mut() {
         host_params(ui, controls.as_mut());
     }
     if io.engine.keys_reach_engine() {
-        section(ui, "Computer keys");
-        ui.label(
-            RichText::new(
-                "Turn on Play keys (the keyboard button in the transport bar) to send key \
-                 presses to the patch instead of running shortcuts.",
-            )
-            .color(theme::text_muted()),
-        );
+        section(ui, &tr("section-computer-keys"));
+        ui.label(RichText::new(tr("devices-computer-keys")).color(theme::text_muted()));
     }
     // Transport buttons bind to the editor's transport; a host that keeps
     // the project runs its own.
@@ -131,14 +148,8 @@ fn hosted_devices(
 /// The host's automatable parameters (a plugin's macros): what each drives
 /// and a slider that moves it through the host, so the host records it.
 fn host_params(ui: &mut egui::Ui, host: &mut dyn crate::host::HostControls) {
-    section(ui, "Macros");
-    ui.label(
-        RichText::new(
-            "The host automates these. To drive an input from one, right-click the input, \
-             choose Bind…, and move the macro here or in the host.",
-        )
-        .color(theme::text_muted()),
-    );
+    section(ui, &tr("section-macros"));
+    ui.label(RichText::new(tr("devices-macros")).color(theme::text_muted()));
     ui.add_space(4.0);
     let params = host.params();
     egui::Grid::new("host-params")
@@ -150,16 +161,19 @@ fn host_params(ui: &mut egui::Ui, host: &mut dyn crate::host::HostControls) {
                     Some(_) => theme::text_strong(),
                     None => theme::text_muted(),
                 }));
+                let name_id = name.id;
                 name.on_hover_text(match &p.target {
-                    Some(t) => format!("Drives {t}"),
-                    None => "Drives nothing yet".into(),
+                    Some(t) => tr_args("devices-macro-drives", &[("target", t.to_string().into())]),
+                    None => tr("devices-macro-drives-nothing"),
                 });
                 let mut v = p.value;
-                let r = ui.add(
-                    egui::Slider::new(&mut v, 0.0..=1.0)
-                        .show_value(false)
-                        .clamping(egui::SliderClamping::Always),
-                );
+                let r = ui
+                    .add(
+                        egui::Slider::new(&mut v, 0.0..=1.0)
+                            .show_value(false)
+                            .clamping(egui::SliderClamping::Always),
+                    )
+                    .labelled_by(name_id);
                 // One gesture from press to release, as the host records it.
                 let dragging = r.dragged() || r.drag_stopped();
                 if r.drag_started() {
@@ -199,67 +213,82 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
     let status = io.engine.handle.status().clone();
     let info = io.engine.info.clone();
-    section(ui, "Running");
+    section(ui, &tr("section-running"));
     egui::Grid::new("devices-now")
         .num_columns(2)
         .spacing(egui::vec2(12.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Audio");
+            ui.label(tr("devices-audio"));
             if !io.engine.is_running() {
-                ui.label(RichText::new("off").color(theme::text_muted()));
+                ui.label(RichText::new(tr("devices-off")).color(theme::text_muted()));
             } else if io.engine.is_null() {
-                ui.label(RichText::new("no device (null)").color(theme::text_strong()));
+                ui.label(RichText::new(tr("devices-null")).color(theme::text_strong()));
             } else {
                 ui.label(RichText::new(&info.host).color(theme::text_strong()));
             }
             ui.end_row();
             if io.engine.is_running() && !io.engine.is_null() {
-                ui.label("Output");
-                ui.label(info.output_device.as_deref().unwrap_or("default"));
+                ui.label(tr("devices-output"));
+                ui.label(
+                    info.output_device
+                        .clone()
+                        .unwrap_or_else(|| tr("devices-default")),
+                );
                 ui.end_row();
-                ui.label("Input");
-                ui.label(info.input_device.as_deref().unwrap_or("none"));
+                ui.label(tr("devices-input"));
+                ui.label(
+                    info.input_device
+                        .clone()
+                        .unwrap_or_else(|| tr("devices-none")),
+                );
                 ui.end_row();
             }
             engine_rows(ui, &info, &status);
             if let Some(st) = io.engine.stats() {
                 if st.input_underruns + st.input_overruns + st.device_errors > 0 {
-                    ui.label("Device");
+                    ui.label(tr("devices-device"));
                     ui.colored_label(
                         theme::warning(),
-                        format!(
-                            "{} under · {} over · {} errors",
-                            st.input_underruns, st.input_overruns, st.device_errors
+                        tr_args(
+                            "devices-stream-problems",
+                            &[
+                                ("under", st.input_underruns.into()),
+                                ("over", st.input_overruns.into()),
+                                ("errors", st.device_errors.into()),
+                            ],
                         ),
                     );
                     ui.end_row();
                 }
                 if st.realtime_denied {
-                    ui.label("Priority");
-                    ui.colored_label(theme::warning(), "real-time scheduling was denied");
+                    ui.label(tr("devices-priority"));
+                    ui.colored_label(theme::warning(), tr("devices-realtime-denied"));
                     ui.end_row();
                 }
                 if st.disconnected {
-                    ui.label("Status");
-                    ui.colored_label(theme::error(), "device disconnected");
+                    ui.label(tr("devices-status"));
+                    ui.colored_label(theme::error(), tr("devices-disconnected"));
                     ui.end_row();
                 }
             }
-            ui.label("Latency");
+            ui.label(tr("devices-latency"));
             match &io.engine.latency {
                 LatencyState::Idle => {
-                    ui.label(RichText::new("not measured").color(theme::text_muted()));
+                    ui.label(RichText::new(tr("devices-not-measured")).color(theme::text_muted()));
                 }
                 LatencyState::Running => {
                     ui.horizontal(|ui| {
                         ui.spinner();
-                        ui.label("measuring…");
+                        ui.label(tr("devices-measuring"));
                     });
                 }
                 LatencyState::Done(Ok(l)) => {
                     ui.label(
-                        RichText::new(format!("{:.2} ms round trip", l.ms))
-                            .color(theme::text_strong()),
+                        RichText::new(tr_args(
+                            "devices-round-trip",
+                            &[("ms", format!("{:.2}", l.ms).into())],
+                        ))
+                        .color(theme::text_strong()),
                     )
                     .on_hover_text(l.to_string());
                 }
@@ -272,7 +301,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     if let Some(e) = &io.engine.device_error {
         ui.colored_label(theme::warning(), format!("{} {e}", icons::WARNING));
         ui.label(
-            RichText::new("Running on the silent null stream so the editor keeps working.")
+            RichText::new(tr("devices-on-null"))
                 .small()
                 .color(theme::text_faint()),
         );
@@ -286,27 +315,28 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
     ui.add_space(4.0);
     let can_measure = io.engine.is_running() && !io.engine.is_null() && info.in_channels > 0;
-    let r = ui.add_enabled(
+    let r = icons::spoken(ui.add_enabled(
         can_measure && io.engine.latency != LatencyState::Running,
-        egui::Button::new(format!("{}  Measure latency", icons::TIMER)),
-    );
+        egui::Button::new(format!(
+            "{}  {}",
+            icons::TIMER,
+            tr("devices-measure-latency")
+        )),
+    ));
     if r.clicked() {
         io.engine.measure_latency();
     }
-    r.on_hover_text(
-        "Plays a short burst on every output and listens on the inputs. Connect an output to an \
-         input with a cable first (turn speakers down).",
-    )
-    .on_disabled_hover_text("Needs an audio device with an input.");
+    r.on_hover_text(tr("devices-measure-latency-tip"))
+        .on_disabled_hover_text(tr("devices-measure-latency-needs"));
 
-    section(ui, "Device");
+    section(ui, &tr("section-device"));
     if state.hosts.is_none() {
         state.hosts = Some(ac_io::enumerate());
     }
     let hosts = state.hosts.clone().unwrap_or_default();
     let draft = state.draft.get_or_insert_with(|| io.engine.config.clone());
     if hosts.is_empty() {
-        ui.label(RichText::new("No audio hosts on this machine.").color(theme::text_muted()));
+        ui.label(RichText::new(tr("devices-no-hosts")).color(theme::text_muted()));
     } else {
         let host_name = draft
             .host
@@ -318,7 +348,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
             .num_columns(2)
             .spacing(egui::vec2(10.0, 6.0))
             .show(ui, |ui| {
-                ui.label("Host");
+                let label = ui.label(tr("devices-host"));
                 egui::ComboBox::from_id_salt("audio-host")
                     .selected_text(&host_name)
                     .width(190.0)
@@ -330,15 +360,17 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                 draft.input = InputChoice::Default;
                             }
                         }
-                    });
+                    })
+                    .response
+                    .labelled_by(label.id);
                 ui.end_row();
                 if let Some(h) = host {
-                    ui.label("Output");
+                    let label = ui.label(tr("devices-output"));
                     let out_name = draft.output_device.clone().unwrap_or_else(|| {
                         h.outputs
                             .iter()
                             .find(|d| d.default)
-                            .map_or("default".into(), |d| d.name.clone())
+                            .map_or_else(|| tr("devices-default"), |d| d.name.clone())
                     });
                     egui::ComboBox::from_id_salt("audio-out")
                         .selected_text(&out_name)
@@ -349,12 +381,14 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                     draft.output_device = Some(d.name.clone());
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .labelled_by(label.id);
                     ui.end_row();
-                    ui.label("Input");
+                    let label = ui.label(tr("devices-input"));
                     let in_name = match &draft.input {
-                        InputChoice::Default => "default".to_string(),
-                        InputChoice::None => "none".to_string(),
+                        InputChoice::Default => tr("devices-default"),
+                        InputChoice::None => tr("devices-none"),
                         InputChoice::Named(n) => n.clone(),
                     };
                     egui::ComboBox::from_id_salt("audio-in")
@@ -362,13 +396,19 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                         .width(190.0)
                         .show_ui(ui, |ui| {
                             if ui
-                                .selectable_label(draft.input == InputChoice::None, "none")
+                                .selectable_label(
+                                    draft.input == InputChoice::None,
+                                    tr("devices-none"),
+                                )
                                 .clicked()
                             {
                                 draft.input = InputChoice::None;
                             }
                             if ui
-                                .selectable_label(draft.input == InputChoice::Default, "default")
+                                .selectable_label(
+                                    draft.input == InputChoice::Default,
+                                    tr("devices-default"),
+                                )
                                 .clicked()
                             {
                                 draft.input = InputChoice::Default;
@@ -378,22 +418,28 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                     draft.input = InputChoice::Named(d.name.clone());
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .labelled_by(label.id);
                     ui.end_row();
                     let dev = h
                         .outputs
                         .iter()
                         .find(|d| Some(&d.name) == draft.output_device.as_ref())
                         .or_else(|| h.outputs.iter().find(|d| d.default));
-                    ui.label("Sample rate");
+                    let label = ui.label(tr("devices-sample-rate"));
+                    let hz = |r: u32| tr_args("devices-hz", &[("rate", r.to_string().into())]);
                     let rate_text = draft
                         .sample_rate
-                        .map_or("device default".into(), |r| format!("{r} Hz"));
+                        .map_or_else(|| tr("devices-device-default"), hz);
                     egui::ComboBox::from_id_salt("audio-rate")
                         .selected_text(rate_text)
                         .show_ui(ui, |ui| {
                             if ui
-                                .selectable_label(draft.sample_rate.is_none(), "device default")
+                                .selectable_label(
+                                    draft.sample_rate.is_none(),
+                                    tr("devices-device-default"),
+                                )
                                 .clicked()
                             {
                                 draft.sample_rate = None;
@@ -404,26 +450,30 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                     .is_none_or(|(lo, hi)| (lo..=hi).contains(&r));
                                 if ok
                                     && ui
-                                        .selectable_label(
-                                            draft.sample_rate == Some(r),
-                                            format!("{r} Hz"),
-                                        )
+                                        .selectable_label(draft.sample_rate == Some(r), hz(r))
                                         .clicked()
                                 {
                                     draft.sample_rate = Some(r);
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .labelled_by(label.id);
                     ui.end_row();
-                    ui.label("Buffer");
+                    let label = ui.label(tr("devices-buffer"));
+                    let frames =
+                        |b: u32| tr_args("devices-frames", &[("frames", b.to_string().into())]);
                     let buf_text = draft
                         .buffer_size
-                        .map_or("default".into(), |b| format!("{b} frames"));
+                        .map_or_else(|| tr("devices-default"), frames);
                     egui::ComboBox::from_id_salt("audio-buffer")
                         .selected_text(buf_text)
                         .show_ui(ui, |ui| {
                             if ui
-                                .selectable_label(draft.buffer_size.is_none(), "default")
+                                .selectable_label(
+                                    draft.buffer_size.is_none(),
+                                    tr("devices-default"),
+                                )
                                 .clicked()
                             {
                                 draft.buffer_size = None;
@@ -434,45 +484,41 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                                     .is_none_or(|(lo, hi)| (lo..=hi).contains(&b));
                                 if ok
                                     && ui
-                                        .selectable_label(
-                                            draft.buffer_size == Some(b),
-                                            format!("{b} frames"),
-                                        )
+                                        .selectable_label(draft.buffer_size == Some(b), frames(b))
                                         .clicked()
                                 {
                                     draft.buffer_size = Some(b);
                                 }
                             }
-                        });
-                    ui.end_row();
-                    ui.label("Engine threads");
-                    let threads = draft.threads.max(1);
-                    egui::ComboBox::from_id_salt("audio-threads")
-                        .selected_text(if threads == 1 {
-                            "1 (audio thread only)".to_string()
-                        } else {
-                            format!("{threads}")
                         })
+                        .response
+                        .labelled_by(label.id);
+                    ui.end_row();
+                    let threads_label = ui.label(tr("devices-threads"));
+                    let threads = draft.threads.max(1);
+                    let thread_text = |t: usize| {
+                        if t == 1 {
+                            tr("devices-threads-one")
+                        } else {
+                            format!("{t}")
+                        }
+                    };
+                    egui::ComboBox::from_id_salt("audio-threads")
+                        .selected_text(thread_text(threads))
                         .show_ui(ui, |ui| {
                             for t in 1..=ac_io::available_threads() {
-                                let label = if t == 1 {
-                                    "1 (audio thread only)".to_string()
-                                } else {
-                                    format!("{t}")
-                                };
+                                let label = thread_text(t);
                                 if ui.selectable_label(threads == t, label).clicked() {
                                     draft.threads = t;
                                 }
                             }
                         })
                         .response
-                        .on_hover_text(
-                            "Run independent parts of the patch (voices, parallel chains) \
-                             side by side. Extra threads keep a core busy while playing.",
-                        );
+                        .labelled_by(threads_label.id)
+                        .on_hover_text(tr("devices-threads-tip"));
                     ui.end_row();
                     if let Some(e) = &h.error {
-                        ui.label("");
+                        ui.allocate_space(egui::Vec2::ZERO);
                         ui.colored_label(theme::warning(), e);
                         ui.end_row();
                     }
@@ -481,38 +527,41 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
     }
     ui.horizontal(|ui| {
         let changed = state.draft.as_ref() != Some(&io.engine.config) || io.engine.is_null();
-        if ui
-            .add_enabled(
-                !hosts.is_empty() && changed,
-                egui::Button::new(format!("{}  Apply", icons::CHECK)),
-            )
-            .clicked()
+        if icons::spoken(ui.add_enabled(
+            !hosts.is_empty() && changed,
+            egui::Button::new(format!("{}  {}", icons::CHECK, tr("devices-apply"))),
+        ))
+        .clicked()
             && let Some(d) = state.draft.clone()
         {
             io.requests.push(PanelRequest::SwitchAudio(d));
         }
-        if ui.button(format!("{}  Refresh", icons::REDO)).clicked() {
+        if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-refresh")))).clicked()
+        {
             state.hosts = Some(ac_io::enumerate());
         }
     });
 
-    section(ui, "MIDI inputs");
+    section(ui, &tr("section-midi-inputs"));
     match io.engine.midi.as_mut() {
         None => {
-            ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::text_muted()));
+            ui.label(RichText::new(tr("devices-midi-off")).color(theme::text_muted()));
         }
         Some(m) => {
             let connected = m.connected();
             if let Some(e) = m.last_error() {
                 ui.label(RichText::new(e.to_string()).color(theme::text_muted()));
             } else if connected.is_empty() {
-                ui.label(RichText::new("No MIDI inputs found.").color(theme::text_muted()));
+                ui.label(RichText::new(tr("devices-no-midi-inputs")).color(theme::text_muted()));
             }
             for p in &connected {
                 ui.label(format!("{}  {p}", icons::MUSIC_NOTES));
             }
             if m.dropped() > 0 {
-                ui.colored_label(theme::warning(), format!("{} events dropped", m.dropped()));
+                ui.colored_label(
+                    theme::warning(),
+                    tr_args("devices-events-dropped", &[("count", m.dropped().into())]),
+                );
             }
             if !connected.is_empty() {
                 // What each port last sent, to find a knob's controller
@@ -521,19 +570,16 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Last messages")
+                        RichText::new(tr("devices-last-messages"))
                             .small()
                             .color(theme::text_muted()),
                     );
-                    if !seen.is_empty() && ui.small_button("Clear").clicked() {
+                    if !seen.is_empty() && ui.small_button(tr("devices-clear")).clicked() {
                         m.clear_recent();
                     }
                 });
                 if seen.is_empty() {
-                    ui.label(
-                        RichText::new("None yet. Play or turn something.")
-                            .color(theme::text_muted()),
-                    );
+                    ui.label(RichText::new(tr("devices-no-midi-yet")).color(theme::text_muted()));
                 } else {
                     let now = ac_io::clock::now_ns();
                     let one_port = connected.len() == 1;
@@ -566,13 +612,15 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
                         .request_repaint_after(std::time::Duration::from_millis(250));
                 }
             }
-            if ui.button(format!("{}  Rescan", icons::REDO)).clicked() {
+            if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-rescan"))))
+                .clicked()
+            {
                 io.engine.rescan_midi();
             }
         }
     }
 
-    section(ui, "MIDI outputs");
+    section(ui, &tr("section-midi-outputs"));
     midi_outputs(ui, io, state);
     control_surfaces(ui, io);
 
@@ -584,7 +632,7 @@ pub(super) fn devices(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesSt
 
 fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     if io.engine.midi_out.is_none() {
-        ui.label(RichText::new("MIDI is off (no device runtime).").color(theme::text_muted()));
+        ui.label(RichText::new(tr("devices-midi-off")).color(theme::text_muted()));
         return;
     }
     if state.midi_outputs.is_none() {
@@ -597,8 +645,11 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
     let ports = state.midi_outputs.clone().unwrap_or_default();
     let choice = io.engine.midi_out_choice.clone();
     let mut pick = None;
-    ui.label(RichText::new("MIDI Out nodes send to:").color(theme::text_muted()));
-    if ui.radio(choice == MidiSelect::None, "nowhere").clicked() {
+    ui.label(RichText::new(tr("devices-midi-out-to")).color(theme::text_muted()));
+    if ui
+        .radio(choice == MidiSelect::None, tr("devices-nowhere"))
+        .clicked()
+    {
         pick = Some(MidiSelect::None);
     }
     for p in &ports {
@@ -609,7 +660,11 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
             pick = Some(MidiSelect::Matching(p.clone()));
         }
     }
-    if ports.len() > 1 && ui.radio(choice == MidiSelect::All, "all ports").clicked() {
+    if ports.len() > 1
+        && ui
+            .radio(choice == MidiSelect::All, tr("devices-all-ports"))
+            .clicked()
+    {
         pick = Some(MidiSelect::All);
     }
     if let Some(p) = pick {
@@ -619,16 +674,16 @@ fn midi_outputs(ui: &mut egui::Ui, io: &mut PanelIo, state: &mut DevicesState) {
         if let Some(e) = m.last_error() {
             ui.label(RichText::new(e.to_string()).color(theme::text_muted()));
         } else if ports.is_empty() {
-            ui.label(RichText::new("No MIDI outputs found.").color(theme::text_muted()));
+            ui.label(RichText::new(tr("devices-no-midi-outputs")).color(theme::text_muted()));
         }
         if m.dropped() > 0 {
             ui.colored_label(
                 theme::warning(),
-                format!("{} messages dropped", m.dropped()),
+                tr_args("devices-messages-dropped", &[("count", m.dropped().into())]),
             );
         }
     }
-    if ui.button(format!("{}  Refresh", icons::REDO)).clicked() {
+    if icons::spoken(ui.button(format!("{}  {}", icons::REDO, tr("devices-refresh")))).clicked() {
         state.midi_outputs = None;
         io.engine.rescan_midi();
     }
@@ -648,49 +703,96 @@ fn selected_osc_in(io: &PanelIo) -> Option<ac_core::NodeId> {
 fn age_text(now_ns: u64, t_ns: u64) -> String {
     let s = now_ns.saturating_sub(t_ns) as f64 / 1e9;
     if s < 1.0 {
-        "now".to_string()
+        tr("devices-age-now")
     } else if s < 60.0 {
-        format!("{s:.0} s ago")
+        tr_args(
+            "devices-age-seconds",
+            &[("seconds", format!("{s:.0}").into())],
+        )
     } else {
-        format!("{:.0} min ago", s / 60.0)
+        tr_args(
+            "devices-age-minutes",
+            &[("minutes", format!("{:.0}", s / 60.0).into())],
+        )
     }
 }
 
-/// A MIDI message as people read it ("Note on C4 · vel 100 · ch 1").
-fn midi_text(msg: &ac_core::MidiMsg) -> String {
+/// A MIDI message as people read it ("Note on C4 · vel 100 · ch 1"), here
+/// and in the browser's Devices section.
+pub fn midi_text(msg: &ac_core::MidiMsg) -> String {
     use ac_core::MidiMsg;
     use ac_core::binding::note_name;
-    let ch = |c: u8| format!("ch {}", u16::from(c) + 1);
+    let ch = |c: u8| {
+        tr_args(
+            "devices-midi-channel",
+            &[("number", (u16::from(c) + 1).to_string().into())],
+        )
+    };
     match *msg {
         MidiMsg::NoteOn {
             channel,
             note,
             velocity,
-        } => format!(
-            "Note on {} · vel {velocity} · {}",
-            note_name(note),
-            ch(channel)
+        } => tr_args(
+            "devices-midi-note-on",
+            &[
+                ("note", note_name(note).into()),
+                ("velocity", velocity.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
         ),
-        MidiMsg::NoteOff { channel, note, .. } => {
-            format!("Note off {} · {}", note_name(note), ch(channel))
-        }
+        MidiMsg::NoteOff { channel, note, .. } => tr_args(
+            "devices-midi-note-off",
+            &[
+                ("note", note_name(note).into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
         MidiMsg::ControlChange {
             channel,
             controller,
             value,
-        } => format!("CC {controller} = {value} · {}", ch(channel)),
-        MidiMsg::PitchBend { channel, value } => format!("Pitch bend {value} · {}", ch(channel)),
-        MidiMsg::ChannelPressure { channel, value } => {
-            format!("Pressure {value} · {}", ch(channel))
-        }
+        } => tr_args(
+            "devices-midi-cc",
+            &[
+                ("controller", controller.to_string().into()),
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::PitchBend { channel, value } => tr_args(
+            "devices-midi-pitch-bend",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::ChannelPressure { channel, value } => tr_args(
+            "devices-midi-pressure",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
         MidiMsg::PolyPressure {
             channel,
             note,
             value,
-        } => format!("Pressure {} {value} · {}", note_name(note), ch(channel)),
-        MidiMsg::ProgramChange { channel, program } => {
-            format!("Program {program} · {}", ch(channel))
-        }
+        } => tr_args(
+            "devices-midi-poly-pressure",
+            &[
+                ("note", note_name(note).into()),
+                ("value", value.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
+        MidiMsg::ProgramChange { channel, program } => tr_args(
+            "devices-midi-program",
+            &[
+                ("program", program.to_string().into()),
+                ("channel", ch(channel).into()),
+            ],
+        ),
     }
 }
 
@@ -700,15 +802,15 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.label(RichText::new(t).color(theme::text_muted()));
     };
 
-    section(ui, "Gamepads");
+    section(ui, &tr("section-gamepads"));
     match io.engine.gamepads.as_ref() {
-        None => muted(ui, "Gamepads are off (no device runtime)."),
+        None => muted(ui, &tr("devices-gamepads-off")),
         Some(g) => {
             let pads = g.connected();
             if let Some(e) = g.error() {
                 muted(ui, &e);
             } else if pads.is_empty() {
-                muted(ui, "No gamepads connected. Plug one in any time.");
+                muted(ui, &tr("devices-no-gamepads"));
             }
             for p in &pads {
                 ui.label(format!(
@@ -717,7 +819,10 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                     p.number(),
                     p.name
                 ))
-                .on_hover_text(format!("Pad {} in Gamepad nodes and bindings", p.number()));
+                .on_hover_text(tr_args(
+                    "devices-gamepad-tip",
+                    &[("number", p.number().to_string().into())],
+                ));
             }
             // Hot-plugging shows up without a click.
             ui.ctx()
@@ -725,17 +830,19 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         }
     }
 
-    section(ui, "OSC");
+    section(ui, &tr("section-osc"));
     let listening = io.engine.osc_in.as_ref().map(|l| l.port());
     ui.horizontal(|ui| {
         let mut on = listening.is_some();
-        let r = ui.checkbox(&mut on, "Listen on UDP port");
+        let r = ui.checkbox(&mut on, tr("devices-osc-listen"));
         let mut port = io.engine.osc_port;
-        let field = ui.add(
-            egui::DragValue::new(&mut port)
-                .range(1024..=65535)
-                .speed(1.0),
-        );
+        let field = ui
+            .add(
+                egui::DragValue::new(&mut port)
+                    .range(1024..=65535)
+                    .speed(1.0),
+            )
+            .accessible_name(tr("devices-osc-port"));
         if field.changed() {
             io.engine.osc_port = port;
         }
@@ -745,10 +852,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
             let want = on.then_some(io.engine.osc_port);
             io.engine.set_osc_in(want);
         }
-        r.on_hover_text(
-            "Receive OSC from phone and tablet apps or other programs on the network. Each \
-             message argument is a control for OSC In nodes and bindings.",
-        );
+        r.on_hover_text(tr("devices-osc-listen-tip"));
     });
     if let Some(e) = &io.engine.osc_error {
         ui.colored_label(theme::warning(), format!("{} {e}", icons::WARNING));
@@ -758,29 +862,42 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         let st = l.stats();
         let seen = l.recent();
         let to = match ac_io::osc::local_ip() {
-            Some(ip) => format!("Send to {ip}:{port}"),
-            None => format!("Send to this computer, port {port}"),
+            Some(ip) => tr_args(
+                "devices-osc-send-to",
+                &[
+                    ("address", ip.to_string().into()),
+                    ("port", port.to_string().into()),
+                ],
+            ),
+            None => tr_args(
+                "devices-osc-send-here",
+                &[("port", port.to_string().into())],
+            ),
         };
         ui.label(RichText::new(to).color(theme::text_strong()));
-        let mut line = format!("{} messages", st.messages);
+        let mut line = tr_args("devices-osc-messages", &[("count", st.messages.into())]);
         if st.malformed > 0 {
-            line.push_str(&format!(" · {} not OSC", st.malformed));
+            line.push_str(" · ");
+            line.push_str(&tr_args(
+                "devices-osc-not-osc",
+                &[("count", st.malformed.into())],
+            ));
         }
         if st.dropped > 0 {
-            line.push_str(&format!(" · {} dropped", st.dropped));
+            line.push_str(" · ");
+            line.push_str(&tr_args(
+                "devices-osc-dropped",
+                &[("count", st.dropped.into())],
+            ));
         }
         ui.label(RichText::new(line).small().color(theme::text_muted()));
         if st.packets == 0 {
             // The usual silent failure: a phone or tablet refused the app's
             // local-network permission, so nothing ever leaves the device.
             ui.label(
-                RichText::new(
-                    "Nothing yet? Check the surface's host and port, and that the \
-                     device lets its app use the local network (a phone or tablet \
-                     asks once; if refused, the app sends nothing and shows no error).",
-                )
-                .small()
-                .color(theme::text_muted()),
+                RichText::new(tr("devices-osc-nothing-yet"))
+                    .small()
+                    .color(theme::text_muted()),
             );
         }
         // The newest messages as the surface wrote them, so an address can
@@ -791,19 +908,19 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new("Last messages")
+                RichText::new(tr("devices-last-messages"))
                     .small()
                     .color(theme::text_muted()),
             );
-            if !seen.is_empty() && ui.small_button("Clear").clicked() {
+            if !seen.is_empty() && ui.small_button(tr("devices-clear")).clicked() {
                 clear = true;
             }
         });
         if seen.is_empty() {
-            muted(ui, "None yet. Move a control on the surface.");
+            muted(ui, &tr("devices-no-osc-yet"));
         } else {
             if target.is_some() {
-                muted(ui, "Use sets the selected OSC In's address.");
+                muted(ui, &tr("devices-osc-use-tip"));
             }
             let now = ac_io::clock::now_ns();
             egui::ScrollArea::vertical()
@@ -812,7 +929,8 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                 .show(ui, |ui| {
                     for m in seen.iter().rev() {
                         ui.horizontal(|ui| {
-                            if target.is_some() && ui.small_button("Use").clicked() {
+                            if target.is_some() && ui.small_button(tr("devices-osc-use")).clicked()
+                            {
                                 use_address = Some(m.address.clone());
                             }
                             let addr = ui.add(
@@ -822,7 +940,7 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
                                 )
                                 .sense(egui::Sense::click()),
                             );
-                            if addr.on_hover_text("Click to copy").clicked() {
+                            if addr.on_hover_text(tr("devices-click-to-copy")).clicked() {
                                 ui.ctx().copy_text(m.address.clone());
                             }
                             if !m.args.is_empty() {
@@ -849,36 +967,38 @@ fn control_surfaces(ui: &mut egui::Ui, io: &mut PanelIo) {
     }
 
     match io.engine.osc_out.as_ref() {
-        None => muted(ui, "OSC Out is off (no device runtime)."),
+        None => muted(ui, &tr("devices-osc-out-off")),
         Some(o) => {
-            let mut line = format!(
-                "OSC Out nodes send to the address in their settings · {} sent",
-                o.sent()
-            );
+            let mut line = tr_args("devices-osc-out-sent", &[("count", o.sent().into())]);
             if o.errors() > 0 {
-                line.push_str(&format!(" · {} failed", o.errors()));
+                line.push_str(" · ");
+                line.push_str(&tr_args(
+                    "devices-osc-out-failed",
+                    &[("count", o.errors().into())],
+                ));
             }
             if o.dropped() > 0 {
-                line.push_str(&format!(" · {} dropped", o.dropped()));
+                line.push_str(" · ");
+                line.push_str(&tr_args(
+                    "devices-osc-dropped",
+                    &[("count", o.dropped().into())],
+                ));
             }
             ui.label(RichText::new(line).small().color(theme::text_muted()));
         }
     }
 
-    section(ui, "Computer keys");
-    ui.label(
-        RichText::new(
-            "Turn on Play keys (the keyboard button in the transport bar) to send key \
-             presses to the patch instead of running shortcuts.",
-        )
-        .color(theme::text_muted()),
-    );
+    section(ui, &tr("section-computer-keys"));
+    ui.label(RichText::new(tr("devices-computer-keys")).color(theme::text_muted()));
     if let Some(c) = io.engine.controls.as_ref()
         && c.dropped() > 0
     {
         ui.colored_label(
             theme::warning(),
-            format!("{} control events dropped", c.dropped()),
+            tr_args(
+                "devices-control-events-dropped",
+                &[("count", c.dropped().into())],
+            ),
         );
     }
     super::plugins_ui::devices_section(ui, io);
@@ -889,12 +1009,13 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
     if report.diagnostics.is_empty() {
         ui.add_space(16.0);
         ui.vertical_centered(|ui| {
-            ui.label(
+            let icon = ui.label(
                 RichText::new(icons::CHECK_CIRCLE)
                     .size(30.0)
                     .color(theme::ok()),
             );
-            ui.label(RichText::new("No problems").color(theme::text_muted()));
+            icons::decoration(&icon);
+            ui.label(RichText::new(tr("problems-none")).color(theme::text_muted()));
         });
         return;
     }
@@ -912,15 +1033,16 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
         let text = match (&where_, &d.socket) {
             (Some(n), Some(s)) => format!("{n} · {s}"),
             (Some(n), None) => n.clone(),
-            _ => "project".into(),
+            _ => tr("problems-project"),
         };
+        let spoken = format!("{text}: {}", d.message);
         let resp = egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(6, 4))
             .corner_radius(theme::radius(5.0))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal_top(|ui| {
-                    ui.colored_label(color, icon);
+                    icons::decoration(&ui.colored_label(color, icon));
                     ui.vertical(|ui| {
                         ui.label(RichText::new(text).small().color(theme::text_muted()));
                         ui.label(&d.message);
@@ -942,7 +1064,9 @@ pub(super) fn problems(ui: &mut egui::Ui, io: &mut PanelIo) {
         {
             io.requests.push(PanelRequest::Navigate(p.clone()));
         }
-        resp.on_hover_text("Click to show the node");
+        // The row is one button to screen readers: where, then what.
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &spoken));
+        resp.on_hover_text(tr("problems-click-to-show"));
     }
 }
 
@@ -961,7 +1085,7 @@ fn node_name(io: &PanelIo, path: &ac_core::NodePath) -> String {
                 .project
                 .group_defs
                 .get(&d)
-                .map_or("Group".into(), |d| d.name.clone()),
+                .map_or_else(|| tr("node-tab-group"), |d| d.name.clone()),
             None => io
                 .registry
                 .get(&n.kind)

@@ -206,6 +206,27 @@ sample. Live input (Audio In, MIDI In, controllers) isn't in a render
 unless you pass `--input` for Audio In; see
 [What plays in a render](recording-and-rendering.md#what-plays-in-a-render).
 
+## It stopped unexpectedly
+
+If the editor or `audioc` stops because of a bug, it saves a crash report
+on your computer first: the version, your system, and where in the
+program it stopped (your home folder is written as `~`). The reports are
+in a `crashes` folder beside the editor's settings, and `audioc` prints
+where it put its report.
+
+The next time the editor starts, it says a report was saved and offers:
+
+- **Report…** opens the project's issue form in your browser with the
+  report filled in. Read it, add what you were doing (that's the most
+  useful part), and send it, or close the page. Nothing is sent unless you
+  submit the form.
+- **Show Report** shows exactly what's in it.
+- **Dismiss** keeps it on your computer and doesn't ask again for it.
+- **Don't offer crash reports again** stops the question for good; reports
+  are still saved, and the newest twenty are kept.
+
+Your project isn't in a report. If the problem comes from a particular
+project, attach it (or a pack of it) to the issue yourself.
 ## In the browser
 
 The browser version has a few problems of its own (a page that isn't
@@ -219,4 +240,6 @@ microphone); see [In the browser](web.md#troubleshooting).
 - `audioc validate my.acproj` prints every problem in a project, and
   `audioc inspect` prints everything in it.
 - [Report a problem](https://github.com/Andorbal/audio-constructor/issues)
-  with the project file (or a pack) and what you expected to hear.
+  with the project file (or a pack) and what you expected to hear. **Help ▸
+  Report a Problem…** opens the form with your version and system filled
+  in.

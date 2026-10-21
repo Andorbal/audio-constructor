@@ -10,6 +10,7 @@ use super::{PanelIo, PanelRequest, markdown, section, set_config};
 use crate::canvas::widgets;
 use crate::edit::{self, GROUP_IN, GROUP_OUT, NodeClass};
 use crate::editors;
+use crate::i18n::{self, tr, tr_args};
 use crate::icons;
 use crate::params;
 use crate::theme;
@@ -813,7 +814,8 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             empty_state(ui, io);
         } else {
             ui.label(
-                RichText::new(format!("{} nodes selected", sel.len())).color(theme::text_muted()),
+                RichText::new(tr_args("node-tab-selected", &[("count", sel.len().into())]))
+                    .color(theme::text_muted()),
             );
         }
         return;
@@ -834,7 +836,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 .project
                 .group_defs
                 .get(d)
-                .map_or("Group".into(), |d| d.name.clone()),
+                .map_or_else(|| tr("node-tab-group"), |d| d.name.clone()),
             theme::group_header(),
         ),
         NodeClass::Missing(_) => (node.kind.clone(), theme::missing_header()),
@@ -857,15 +859,18 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         );
         if let Some(e) = entry {
             ui.label(
-                RichText::new(e.meta.category.name())
+                RichText::new(i18n::category(e.meta.category))
                     .small()
                     .color(theme::text_muted()),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .small_button(format!("{}  Help", icons::BOOK_OPEN))
-                    .on_hover_text("The node's reference: sockets, tips, and what uses it (F1)")
-                    .clicked()
+                if icons::spoken(ui.small_button(format!(
+                    "{}  {}",
+                    icons::BOOK_OPEN,
+                    tr("node-tab-help")
+                )))
+                .on_hover_text(tr("node-tab-help-tip"))
+                .clicked()
                 {
                     io.requests
                         .push(PanelRequest::Help(e.meta.kind.to_string()));
@@ -874,13 +879,19 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         }
     });
     ui.label(
-        RichText::new(format!("{} · id {}", node.kind, node.id))
-            .small()
-            .color(theme::text_faint()),
+        RichText::new(tr_args(
+            "node-tab-kind-id",
+            &[
+                ("kind", node.kind.as_str().into()),
+                ("id", node.id.to_string().into()),
+            ],
+        ))
+        .small()
+        .color(theme::text_faint()),
     );
     if let NodeClass::Missing(m) = &class {
         ui.colored_label(theme::warning(), format!("{} {m}", icons::WARNING));
-        ui.label("The node is kept in the project with its settings and wires, but does nothing.");
+        ui.label(tr("node-tab-missing"));
     }
 
     ui.add_space(4.0);
@@ -888,9 +899,9 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     let portal = edit::portal::tag(&node);
     if let Some(t) = &portal {
         let role = if t.send {
-            "Portal sender: the wire continues at its receivers"
+            tr("node-tab-portal-sender")
         } else {
-            "Portal receiver: the wire arrives from its sender"
+            tr("node-tab-portal-receiver")
         };
         ui.label(RichText::new(role).small().color(theme::text_muted()));
     }
@@ -909,24 +920,28 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         *label_edit = Some((id, current.clone()));
     }
     if let Some((_, text)) = label_edit.as_mut() {
-        let r = ui.add(
-            egui::TextEdit::singleline(text)
-                .id(field_id)
-                .hint_text(if portal.is_some() {
-                    "Portal name".to_string()
-                } else {
-                    format!("Label (default: {name})")
-                })
-                .desired_width(f32::INFINITY),
-        );
+        let hint = if portal.is_some() {
+            tr("node-tab-portal-name")
+        } else {
+            tr_args("node-tab-label-hint", &[("name", (&name).into())])
+        };
+        let r = ui
+            .add(
+                egui::TextEdit::singleline(text)
+                    .id(field_id)
+                    .hint_text(&hint)
+                    .desired_width(f32::INFINITY),
+            )
+            // The hint is all that says what the field is for.
+            .accessible_name(hint);
         if r.lost_focus() && text.trim() != current {
             let label = text.trim().to_string();
             if portal.is_some() {
-                io.doc.edit(io.registry, "Rename portal", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-rename-portal"), |g, _| {
                     edit::portal::rename(g, id, &label);
                 });
             } else {
-                io.doc.edit(io.registry, "Rename", |g, _| {
+                io.doc.edit(io.registry, &tr("undo-rename"), |g, _| {
                     if let Some(n) = g.node_mut(id) {
                         n.ui.label = (!label.is_empty()).then_some(label);
                     }
@@ -937,17 +952,20 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
 
     ui.horizontal(|ui| {
         let mut muted = node.muted;
-        if ui.checkbox(&mut muted, "Muted").changed() {
-            io.doc.edit(io.registry, "Mute", |g, _| {
+        if ui.checkbox(&mut muted, tr("node-tab-muted")).changed() {
+            io.doc.edit(io.registry, &tr("undo-mute"), |g, _| {
                 if let Some(n) = g.node_mut(id) {
                     n.muted = muted;
                 }
             });
         }
         if let NodeClass::Group(_) = class
-            && ui
-                .button(format!("{}  Enter group", icons::ARROW_SQUARE_IN))
-                .clicked()
+            && icons::spoken(ui.button(format!(
+                "{}  {}",
+                icons::ARROW_SQUARE_IN,
+                tr("node-tab-enter-group")
+            )))
+            .clicked()
         {
             io.doc.enter_group(id);
         }
@@ -966,7 +984,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         io.doc.interface().as_ref(),
     );
     if !sockets.inputs.is_empty() {
-        section(ui, "Inputs");
+        section(ui, &tr("section-inputs"));
         let graph = io.doc.display_graph();
         egui::Grid::new(("node-params", id))
             .num_columns(2)
@@ -974,17 +992,22 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
             .show(ui, |ui| {
                 for s in &sockets.inputs {
                     let wired = graph.wire_into(&ac_core::Endpoint::new(id, s.name.clone()));
-                    ui.horizontal(|ui| {
-                        let (r, _) =
-                            ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
-                        ui.painter()
-                            .circle_filled(r.center(), 3.5, theme::type_color(s.ty));
-                        let label = ui.label(crate::canvas::paint_pretty(&s.name));
-                        if let Some(doc) = s.spec.as_ref().map(|s| s.doc).filter(|d| !d.is_empty())
-                        {
-                            label.on_hover_text(doc);
-                        }
-                    });
+                    let label_id = ui
+                        .horizontal(|ui| {
+                            let (r, _) =
+                                ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter()
+                                .circle_filled(r.center(), 3.5, theme::type_color(s.ty));
+                            let label = ui.label(crate::canvas::paint_pretty(&s.name));
+                            let id = label.id;
+                            if let Some(doc) =
+                                s.spec.as_ref().map(|s| s.doc).filter(|d| !d.is_empty())
+                            {
+                                label.on_hover_text(doc);
+                            }
+                            id
+                        })
+                        .inner;
                     if let Some(w) = wired {
                         let src = io.doc.graph().node(w.from.node).map_or_else(
                             || w.from.node.to_string(),
@@ -997,7 +1020,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                             },
                         );
                         let from = if w.from.node == GROUP_IN {
-                            "group input".to_string()
+                            tr("node-tab-group-input")
                         } else {
                             src
                         };
@@ -1006,7 +1029,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                                 .color(theme::text_muted()),
                         );
                     } else if let Some(spec) = &s.spec {
-                        param_widget(ui, io, id, &node, spec);
+                        param_widget(ui, io, id, &node, spec, label_id);
                     } else {
                         ui.label(RichText::new("—").color(theme::text_faint()));
                     }
@@ -1022,7 +1045,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         super::bindings_ui::node_section(ui, io, id);
     }
     if !sockets.outputs.is_empty() {
-        section(ui, "Outputs");
+        section(ui, &tr("section-outputs"));
         let tele = io.engine.handle.telemetry();
         let path = io.doc.node_path(id);
         for s in &sockets.outputs {
@@ -1039,14 +1062,17 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                 let reading = match s.ty {
                     SignalType::Audio => tele.socket_level(&path, &s.name).map(|l| {
                         if l < 1e-6 {
-                            "silent".into()
+                            tr("canvas-tip-silent")
                         } else {
-                            format!("{:.1} dBFS", 20.0 * l.log10())
+                            tr_args(
+                                "node-tab-dbfs",
+                                &[("db", format!("{:.1}", 20.0 * l.log10()).into())],
+                            )
                         }
                     }),
                     SignalType::Trigger | SignalType::Midi => tele
                         .socket_events(&path, &s.name)
-                        .map(|c| format!("{c} events")),
+                        .map(|c| tr_args("canvas-tip-events", &[("count", c.into())])),
                     ty => tele
                         .socket_value(&path, &s.name)
                         .map(|v| widgets::live_text(v, ty, s.spec.as_ref())),
@@ -1073,16 +1099,19 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     if let NodeClass::Group(d) = &class
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()
     {
-        section(ui, "Group definition");
+        section(ui, &tr("section-group-definition"));
         let mut name = def.name.clone();
         ui.horizontal(|ui| {
-            ui.label("Name");
-            if ui.text_edit_singleline(&mut name).lost_focus()
+            let label = ui.label(tr("node-tab-name"));
+            if ui
+                .text_edit_singleline(&mut name)
+                .labelled_by(label.id)
+                .lost_focus()
                 && name.trim() != def.name
                 && !name.trim().is_empty()
             {
                 let (d, name) = (d.clone(), name.trim().to_string());
-                io.doc.edit_project("Rename group", |p| {
+                io.doc.edit_project(&tr("undo-rename-group"), |p| {
                     if let Some(def) = p.group_defs.get_mut(&d) {
                         def.name = name;
                     }
@@ -1091,27 +1120,25 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         });
         let instances = edit::group::instance_paths(&io.doc.project, d).len();
         ui.label(
-            RichText::new(format!(
-                "{} inputs · {} outputs · {} nodes inside · {} instance{}. Editing the inside changes every instance.",
-                def.inputs.len(),
-                def.outputs.len(),
-                def.graph.nodes.len(),
-                instances,
-                if instances == 1 { "" } else { "s" }
+            RichText::new(tr_args(
+                "node-tab-group-summary",
+                &[
+                    ("inputs", def.inputs.len().into()),
+                    ("outputs", def.outputs.len().into()),
+                    ("nodes", def.graph.nodes.len().into()),
+                    ("count", instances.into()),
+                ],
             ))
             .small()
             .color(theme::text_muted()),
         );
         let mut poly = node.kind == ac_core::VOICES_KIND;
         if ui
-            .checkbox(&mut poly, "Polyphonic (one copy per voice)")
-            .on_hover_text(
-                "Runs the inside once per voice and shares notes from the `midi` input \
-                 among the copies. Put a Voice node inside to read each copy's note.",
-            )
+            .checkbox(&mut poly, tr("node-tab-polyphonic"))
+            .on_hover_text(tr("node-tab-polyphonic-tip"))
             .changed()
         {
-            io.doc.edit(io.registry, "Polyphonic", |g, _| {
+            io.doc.edit(io.registry, &tr("undo-polyphonic"), |g, _| {
                 edit::group::set_polyphonic(g, id, poly);
             });
         }
@@ -1123,17 +1150,17 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
 
     // Documentation, with the tip highlighted; the Help tab has the rest.
     if let Some(e) = entry {
-        section(ui, "Help");
+        section(ui, &tr("section-help"));
         markdown::show(ui, &e.meta.description());
         if let Some(tip) = e.meta.tip() {
             super::help_tab::tip_box(ui, &tip);
         }
-        if ui
-            .link(format!(
-                "{}  Sockets, and the blocks and examples that use it",
-                icons::BOOK_OPEN
-            ))
-            .clicked()
+        if icons::spoken(ui.link(format!(
+            "{}  {}",
+            icons::BOOK_OPEN,
+            tr("node-tab-help-link")
+        )))
+        .clicked()
         {
             io.requests
                 .push(PanelRequest::Help(e.meta.kind.to_string()));
@@ -1156,12 +1183,17 @@ fn timing_line(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId) {
         .node(id)
         .is_some_and(|n| n.kind == ac_core::VOICES_KIND);
     ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("{}  Time", icons::TIMER)).color(theme::text_muted()));
+        ui.label(
+            RichText::new(format!("{}  {}", icons::TIMER, tr("node-tab-time")))
+                .color(theme::text_muted()),
+        );
         let Some(t) = io.timing else {
-            let r = ui.small_button("Measure").on_hover_text(format!(
-                "Measure how long every node takes each block ({shortcut}). \
-                 Measuring costs a little, so it's off until asked for."
-            ));
+            let r = ui
+                .small_button(tr("node-tab-measure"))
+                .on_hover_text(tr_args(
+                    "node-tab-measure-tip",
+                    &[("shortcut", shortcut.into())],
+                ));
             if r.clicked() {
                 io.requests.push(PanelRequest::Run(Action::ShowTiming));
             }
@@ -1169,7 +1201,7 @@ fn timing_line(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId) {
         };
         let Some(r) = t.node(id) else {
             ui.label(
-                RichText::new("— (doesn't run in the engine)")
+                RichText::new(tr("node-tab-not-timed"))
                     .small()
                     .color(theme::text_faint()),
             );
@@ -1188,10 +1220,12 @@ fn timing_line(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId) {
             ui.painter().rect_filled(fill, theme::radius(3.0), color);
         }
         let text = match r.share {
-            Some(s) => format!(
-                "{} · {} of budget",
-                timing::format_ns(r.ns),
-                timing::format_share(s)
+            Some(s) => tr_args(
+                "node-tab-time-share",
+                &[
+                    ("time", timing::format_ns(r.ns).into()),
+                    ("share", timing::format_share(s).into()),
+                ],
             ),
             None => timing::format_ns(r.ns),
         };
@@ -1211,19 +1245,25 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         let text = match io.library.get(&source) {
             Some(b) => {
                 let origin = match source.origin {
-                    Origin::Shipped => "a shipped block",
-                    Origin::User => "one of your blocks",
-                    Origin::Imported => "an imported block",
+                    Origin::Shipped => tr("node-tab-origin-shipped"),
+                    Origin::User => tr("node-tab-origin-user"),
+                    Origin::Imported => tr("node-tab-origin-imported"),
                 };
-                format!(
-                    "From {origin}, “{}” · this copy is v{}",
-                    b.name(),
-                    def.version
+                tr_args(
+                    "node-tab-block-from",
+                    &[
+                        ("origin", origin.into()),
+                        ("name", b.name().into()),
+                        ("version", def.version.to_string().into()),
+                    ],
                 )
             }
-            None => format!(
-                "From a block your library doesn't have ({source}) · v{}",
-                def.version
+            None => tr_args(
+                "node-tab-block-unknown",
+                &[
+                    ("source", source.to_string().into()),
+                    ("version", def.version.to_string().into()),
+                ],
             ),
         };
         ui.label(
@@ -1238,29 +1278,38 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
         .into_iter()
         .find(|u| &u.def == d);
     ui.horizontal_wrapped(|ui| {
-        if ui
-            .button(format!("{}  Save to library", icons::TRAY_ARROW_DOWN))
-            .on_hover_text(
-                "Save this definition as one of your blocks, so any project can add it from \
-                 the Library tab. Saving it again makes a new version.",
-            )
-            .clicked()
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::TRAY_ARROW_DOWN,
+            tr("node-tab-save-to-library")
+        )))
+        .on_hover_text(tr("node-tab-save-to-library-tip"))
+        .clicked()
         {
             io.requests.push(PanelRequest::SaveBlock(d.clone()));
         }
+        if icons::spoken(ui.button(format!("{}  {}", icons::EXPORT, tr("library-export"))))
+            .on_hover_text(tr("node-tab-export-block-tip"))
+            .clicked()
+        {
+            io.requests.push(PanelRequest::ExportBlock(
+                crate::dialogs::BlockToExport::Def(d.clone()),
+            ));
+        }
         if let Some(u) = update
-            && ui
-                .button(format!(
-                    "{}  Update from library (v{} → v{})",
-                    icons::ARROWS_CLOCKWISE,
-                    u.from,
-                    u.to
-                ))
-                .on_hover_text(
-                    "Replace this definition with the library's newer version. Every instance \
-                     changes; values set on inputs that still exist stay.",
+            && icons::spoken(ui.button(format!(
+                "{}  {}",
+                icons::ARROWS_CLOCKWISE,
+                tr_args(
+                    "node-tab-update-from-library",
+                    &[
+                        ("from", u.from.to_string().into()),
+                        ("to", u.to.to_string().into()),
+                    ],
                 )
-                .clicked()
+            )))
+            .on_hover_text(tr("node-tab-update-from-library-tip"))
+            .clicked()
         {
             io.requests.push(PanelRequest::UpdateBlock(d.clone()));
         }
@@ -1270,17 +1319,18 @@ fn library_buttons(ui: &mut egui::Ui, io: &mut PanelIo, d: &GroupId, def: &Group
 fn empty_state(ui: &mut egui::Ui, io: &PanelIo) {
     ui.add_space(20.0);
     ui.vertical_centered(|ui| {
-        ui.label(
+        let icon = ui.label(
             RichText::new(icons::CUBE)
                 .size(34.0)
                 .color(theme::text_faint()),
         );
-        ui.label(RichText::new("Nothing selected").color(theme::text_muted()));
+        icons::decoration(&icon);
+        ui.label(RichText::new(tr("node-tab-nothing-selected")).color(theme::text_muted()));
         ui.add_space(6.0);
         let hint = if io.doc.graph().nodes.is_empty() {
-            "Press Shift+A or double-click the canvas to add a node."
+            tr("node-tab-empty-hint")
         } else {
-            "Click a node to see its settings and help."
+            tr("node-tab-select-hint")
         };
         ui.label(RichText::new(hint).small().color(theme::text_faint()));
     });
@@ -1293,6 +1343,7 @@ fn param_widget(
     id: NodeId,
     node: &ac_core::NodeInstance,
     spec: &SocketSpec,
+    label: egui::Id,
 ) {
     let socket = spec.name.to_string();
     match widgets::field(spec) {
@@ -1310,7 +1361,7 @@ fn param_widget(
                     if spec.ty == SignalType::Int {
                         s = s.integer();
                     }
-                    ui.add(s)
+                    ui.add(s).labelled_by(label)
                 }
                 None => {
                     let speed = 0.01 * (v.abs() + 1.0);
@@ -1321,7 +1372,7 @@ fn param_widget(
                     d = d.custom_parser(move |t| {
                         widgets::parse(t, &parse_spec).and_then(|v| v.as_f64())
                     });
-                    ui.add(d)
+                    ui.add(d).labelled_by(label)
                 }
             };
             if changed.changed() {
@@ -1338,7 +1389,7 @@ fn param_widget(
         }
         widgets::Field::Choice => {
             let current = widgets::choice(node, spec);
-            egui::ComboBox::from_id_salt(("param-choice", id, &socket))
+            let combo = egui::ComboBox::from_id_salt(("param-choice", id, &socket))
                 .selected_text(widgets::choice_label(spec, &current))
                 .show_ui(ui, |ui| {
                     for c in spec.choices {
@@ -1358,10 +1409,11 @@ fn param_widget(
                         }
                     }
                 });
+            combo.response.labelled_by(label);
         }
         widgets::Field::Check => {
             let mut on = widgets::value(node, spec).as_bool().unwrap_or(false);
-            if ui.checkbox(&mut on, "").changed() {
+            if ui.checkbox(&mut on, "").labelled_by(label).changed() {
                 params::set(
                     io.doc,
                     &mut io.engine.handle,
@@ -1374,7 +1426,9 @@ fn param_widget(
             }
         }
         widgets::Field::Fire => {
-            if ui.button(format!("{} Fire", icons::LIGHTNING)).clicked() {
+            if icons::spoken(ui.button(format!("{} {}", icons::LIGHTNING, tr("node-tab-fire"))))
+                .clicked()
+            {
                 params::fire(io.doc, &mut io.engine.handle, id, &socket);
             }
         }
@@ -1386,11 +1440,13 @@ fn param_widget(
             let mut draft: String = ui
                 .data(|d| d.get_temp(edit_id))
                 .unwrap_or_else(|| current.clone());
-            let r = ui.add(
-                egui::TextEdit::singleline(&mut draft)
-                    .font(theme::mono_font(theme::FONT_SMALL))
-                    .desired_width(ui.available_width().max(80.0)),
-            );
+            let r = ui
+                .add(
+                    egui::TextEdit::singleline(&mut draft)
+                        .font(theme::mono_font(theme::FONT_SMALL))
+                        .desired_width(ui.available_width().max(80.0)),
+                )
+                .labelled_by(label);
             if r.lost_focus() {
                 if draft.trim() != current {
                     params::set_text(io.doc, id, &socket, draft.trim().to_string(), io.now);
@@ -1402,7 +1458,7 @@ fn param_widget(
             }
         }
         widgets::Field::Label => {
-            ui.label(RichText::new("unwired").color(theme::text_faint()));
+            ui.label(RichText::new(tr("node-tab-unwired")).color(theme::text_faint()));
         }
     }
 }
@@ -1413,10 +1469,10 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
     let Some(editor) = editors::editor_for(&node.kind, &node.config) else {
         return;
     };
-    section(ui, "Editor");
+    section(ui, &tr("section-editor"));
     if node.kind == "shaper" {
         ui.label(
-            RichText::new("The curve shapes the signal when `shape` is custom.")
+            RichText::new(tr("node-tab-shaper-hint"))
                 .small()
                 .color(theme::text_muted()),
         );
@@ -1434,9 +1490,12 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
     let open_id = egui::Id::unique(("node-editor-window", id));
     let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
     ui.horizontal(|ui| {
-        if ui
-            .button(format!("{}  Larger editor", icons::ARROW_SQUARE_OUT))
-            .clicked()
+        if icons::spoken(ui.button(format!(
+            "{}  {}",
+            icons::ARROW_SQUARE_OUT,
+            tr("node-tab-larger-editor")
+        )))
+        .clicked()
         {
             open = !open;
         }
@@ -1497,6 +1556,7 @@ fn draft_text(
     field_id: egui::Id,
     stored: &str,
     multiline: bool,
+    label: egui::Id,
 ) -> Option<String> {
     let focused = ui.memory(|m| m.has_focus(field_id));
     let mut text = if focused {
@@ -1518,7 +1578,8 @@ fn draft_text(
                 .id(field_id)
                 .desired_width(f32::INFINITY),
         )
-    };
+    }
+    .labelled_by(label);
     if r.lost_focus() {
         ui.data_mut(|d| d.remove_temp::<String>(field_id));
         return (text != stored).then_some(text);
@@ -1548,11 +1609,12 @@ fn line_text(stored: Option<&serde_json::Value>, default: &str) -> String {
 }
 
 fn remove_config(io: &mut PanelIo, id: NodeId, key: &str) {
-    io.doc.edit(io.registry, "Change setting", |g, _| {
-        if let Some(o) = g.node_mut(id).and_then(|n| n.config.as_object_mut()) {
-            o.remove(key);
-        }
-    });
+    io.doc
+        .edit(io.registry, &tr("undo-change-setting"), |g, _| {
+            if let Some(o) = g.node_mut(id).and_then(|n| n.config.as_object_mut()) {
+                o.remove(key);
+            }
+        });
 }
 
 fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
@@ -1580,18 +1642,19 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
     if known.is_empty() && extra.is_empty() {
         return;
     }
-    section(ui, "Settings");
+    section(ui, &tr("section-settings"));
     egui::Grid::new(("node-config", id))
         .num_columns(2)
         .spacing(egui::vec2(10.0, 6.0))
         .show(ui, |ui| {
             for f in &known {
-                ui.label(f.label);
+                let label = ui.label(f.label).id;
                 match &f.kind {
                     Kind::Count { min, max, default } => {
                         let mut v = node.config.get_u64_or(f.key, *default as u64) as i64;
                         if ui
                             .add(egui::DragValue::new(&mut v).range(*min..=*max).speed(0.05))
+                            .labelled_by(label)
                             .changed()
                         {
                             set_config(io, id, f.key, v.into());
@@ -1600,7 +1663,9 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                     Kind::Number { default } => {
                         let mut v = node.config.get_f64_or(f.key, *default);
                         let speed = 0.01 * (v.abs() + 1.0);
-                        let r = ui.add(egui::DragValue::new(&mut v).speed(speed));
+                        let r = ui
+                            .add(egui::DragValue::new(&mut v).speed(speed))
+                            .labelled_by(label);
                         if r.changed() {
                             set_config(io, id, f.key, v.into());
                         }
@@ -1615,19 +1680,21 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                                         set_config(io, id, f.key, (*c).into());
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .labelled_by(label);
                     }
                     Kind::Text { multiline } => {
                         let stored = node.config.get_str_or(f.key, "");
                         let field = egui::Id::unique(("cfg", id, f.key));
-                        if let Some(t) = draft_text(ui, field, stored, *multiline) {
+                        if let Some(t) = draft_text(ui, field, stored, *multiline, label) {
                             set_config(io, id, f.key, t.into());
                         }
                     }
                     Kind::Line { default } => {
                         let stored = line_text(node.config.get(f.key), default);
                         let field = egui::Id::unique(("cfg", id, f.key));
-                        if let Some(t) = draft_text(ui, field, &stored, false)
+                        if let Some(t) = draft_text(ui, field, &stored, false, label)
                             && t.trim() != stored
                         {
                             set_config(io, id, f.key, t.trim().into());
@@ -1641,6 +1708,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             .unwrap_or(*default);
                         if ui
                             .add(egui::DragValue::new(&mut v).range(*min..=*max).speed(0.05))
+                            .labelled_by(label)
                             .changed()
                         {
                             set_config(io, id, f.key, v.into());
@@ -1662,7 +1730,9 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                                         set_config(io, id, f.key, v.into());
                                     }
                                 }
-                            });
+                            })
+                            .response
+                            .labelled_by(label);
                     }
                     Kind::Numbers => {
                         let stored: Vec<f64> = node
@@ -1679,7 +1749,9 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             }
                         };
                         let mut t = stored.iter().map(fmt).collect::<Vec<_>>().join(", ");
-                        let r = ui.add(egui::TextEdit::singleline(&mut t).hint_text("0, 4, 7"));
+                        let r = ui
+                            .add(egui::TextEdit::singleline(&mut t).hint_text("0, 4, 7"))
+                            .labelled_by(label);
                         if r.lost_focus() {
                             let parsed: Vec<f64> = t
                                 .split([',', ' '])
@@ -1712,11 +1784,13 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             })
                             .unwrap_or_default();
                         let mut t = stored.join("\n");
-                        let r = ui.add(
-                            egui::TextEdit::multiline(&mut t)
-                                .desired_rows(3)
-                                .desired_width(f32::INFINITY),
-                        );
+                        let r = ui
+                            .add(
+                                egui::TextEdit::multiline(&mut t)
+                                    .desired_rows(3)
+                                    .desired_width(f32::INFINITY),
+                            )
+                            .labelled_by(label);
                         if r.lost_focus() {
                             let lines: Vec<String> = t
                                 .lines()
@@ -1733,7 +1807,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         let current = node.config.get(f.key).and_then(|v| v.as_f64());
                         ui.horizontal(|ui| {
                             let mut on = current.is_some();
-                            if ui.checkbox(&mut on, "").changed() {
+                            if ui.checkbox(&mut on, "").labelled_by(label).changed() {
                                 if on {
                                     set_config(io, id, f.key, (*default).into());
                                 } else {
@@ -1743,19 +1817,26 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                             match current {
                                 Some(mut v) => {
                                     let speed = 0.01 * (v.abs() + 1.0);
-                                    if ui.add(egui::DragValue::new(&mut v).speed(speed)).changed() {
+                                    if ui
+                                        .add(egui::DragValue::new(&mut v).speed(speed))
+                                        .labelled_by(label)
+                                        .changed()
+                                    {
                                         set_config(io, id, f.key, v.into());
                                     }
                                 }
                                 None => {
-                                    ui.label(RichText::new("none").color(theme::text_faint()));
+                                    ui.label(
+                                        RichText::new(tr("node-tab-none"))
+                                            .color(theme::text_faint()),
+                                    );
                                 }
                             }
                         });
                     }
                     Kind::Flag { default } => {
                         let mut on = node.config.get_bool_or(f.key, *default);
-                        if ui.checkbox(&mut on, "").changed() {
+                        if ui.checkbox(&mut on, "").labelled_by(label).changed() {
                             set_config(io, id, f.key, on.into());
                         }
                     }
@@ -1764,29 +1845,39 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                         ui.vertical(|ui| {
                             let missing = !file.is_empty() && io.missing.contains(&file);
                             if file.is_empty() {
-                                ui.label(RichText::new("no file").color(theme::text_faint()));
+                                ui.label(
+                                    RichText::new(tr("node-tab-no-file"))
+                                        .color(theme::text_faint()),
+                                );
                             } else if missing {
                                 ui.colored_label(
                                     theme::error(),
-                                    format!("{} {file} (missing)", icons::FILE_X),
+                                    format!(
+                                        "{} {}",
+                                        icons::FILE_X,
+                                        tr_args(
+                                            "node-tab-file-missing",
+                                            &[("file", (&file).into())]
+                                        )
+                                    ),
                                 );
                             } else {
                                 ui.label(format!("{} {file}", icons::FILE_AUDIO));
                             }
                             ui.horizontal(|ui| {
-                                if ui.button("Choose…").clicked() {
+                                if ui.button(tr("node-tab-choose")).clicked() {
                                     io.requests.push(PanelRequest::ChooseClipFile(id));
                                 }
-                                if missing && ui.button("Locate…").clicked() {
+                                if missing && ui.button(tr("node-tab-locate")).clicked() {
                                     io.requests.push(PanelRequest::Locate(file.clone()));
                                 }
                             });
                             let ch = node.config.get_u64_or("channels", 0);
                             if ch > 0 {
                                 ui.label(
-                                    RichText::new(format!(
-                                        "{ch} channel{}",
-                                        if ch == 1 { "" } else { "s" }
+                                    RichText::new(tr_args(
+                                        "node-tab-channels",
+                                        &[("count", ch.into())],
                                     ))
                                     .small()
                                     .color(theme::text_muted()),
@@ -1798,21 +1889,19 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                 ui.end_row();
             }
             for (k, v) in extra {
-                ui.label(&k);
+                let label = ui.label(&k).id;
                 match v {
                     serde_json::Value::Bool(mut b) => {
-                        if ui.checkbox(&mut b, "").changed() {
+                        if ui.checkbox(&mut b, "").labelled_by(label).changed() {
                             set_config(io, id, &k, b.into());
                         }
                     }
                     serde_json::Value::Number(n) => {
                         let mut x = n.as_f64().unwrap_or(0.0);
                         let int = n.is_i64() || n.is_u64();
-                        let r = ui.add(egui::DragValue::new(&mut x).speed(if int {
-                            0.05
-                        } else {
-                            0.01
-                        }));
+                        let r = ui
+                            .add(egui::DragValue::new(&mut x).speed(if int { 0.05 } else { 0.01 }))
+                            .labelled_by(label);
                         if r.changed() {
                             let v: serde_json::Value = if int {
                                 (x.round() as i64).into()
@@ -1824,7 +1913,7 @@ fn config_fields(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core
                     }
                     serde_json::Value::String(s) => {
                         let field = egui::Id::unique(("cfg", id, k.as_str()));
-                        if let Some(t) = draft_text(ui, field, &s, false) {
+                        if let Some(t) = draft_text(ui, field, &s, false, label) {
                             set_config(io, id, &k, t.into());
                         }
                     }
@@ -1882,22 +1971,35 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
     };
     ui.label(
         RichText::new(if input_side {
-            "Group Input"
+            tr("node-tab-group-input-title")
         } else {
-            "Group Output"
+            tr("node-tab-group-output-title")
         })
         .size(theme::FONT_HEADING)
         .color(theme::text_strong()),
     );
-    ui.label(RichText::new(format!("Interface of “{}”", def.name)).color(theme::text_muted()));
-    section(ui, if input_side { "Inputs" } else { "Outputs" });
+    ui.label(
+        RichText::new(tr_args(
+            "node-tab-interface-of",
+            &[("name", (&def.name).into())],
+        ))
+        .color(theme::text_muted()),
+    );
+    section(
+        ui,
+        &if input_side {
+            tr("section-inputs")
+        } else {
+            tr("section-outputs")
+        },
+    );
     let names: Vec<(String, SignalType)> = if input_side {
         def.inputs.iter().map(|i| (i.name.clone(), i.ty)).collect()
     } else {
         def.outputs.iter().map(|o| (o.name.clone(), o.ty)).collect()
     };
     if names.is_empty() {
-        ui.label(RichText::new("None yet. Drag a wire to the empty socket, or right-click an inner socket and choose Expose.").color(theme::text_muted()));
+        ui.label(RichText::new(tr("node-tab-interface-empty")).color(theme::text_muted()));
     }
     for (name, ty) in names {
         ui.horizontal(|ui| {
@@ -1907,6 +2009,7 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
             let mut text = name.clone();
             if ui
                 .add(egui::TextEdit::singleline(&mut text).desired_width(140.0))
+                .accessible_name(tr_args("node-tab-socket-name", &[("name", (&name).into())]))
                 .lost_focus()
                 && text != name
             {
@@ -1918,15 +2021,19 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
                     .small()
                     .color(theme::type_color(ty)),
             );
-            if ui
-                .small_button(icons::X)
-                .on_hover_text("Remove from the interface")
+            if icons::spoken(ui.small_button(icons::X))
+                .on_hover_text(tr("node-tab-remove-socket"))
+                .accessible_name(tr_args(
+                    "node-tab-remove-named-socket",
+                    &[("name", (&name).into())],
+                ))
                 .clicked()
             {
                 let n = name.clone();
-                io.doc.edit(io.registry, "Remove group socket", |g, ctx| {
-                    edit::remove_interface_socket(g, ctx, input_side, &n);
-                });
+                io.doc
+                    .edit(io.registry, &tr("undo-remove-group-socket"), |g, ctx| {
+                        edit::remove_interface_socket(g, ctx, input_side, &n);
+                    });
             }
         });
     }

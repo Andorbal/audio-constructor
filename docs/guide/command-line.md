@@ -2,7 +2,7 @@
 
 `audioc` does from a terminal what doesn't need the editor's window:
 rendering projects to files, playing them live on a computer without a
-screen, checking them, and managing blocks and packs. It's handy for
+screen, checking them, and managing and sharing blocks and packs. It's handy for
 batch jobs, for a music box running a patch in a corner, and for scripts
 that rebuild a set of renders whenever a project changes.
 
@@ -276,6 +276,97 @@ audioc block-update *.acproj --check
 
 It prints a line per updated block (`shipped:compressor v1 → v2`), and
 says when wires to sockets the new version doesn't have were removed.
+
+## block-export
+
+Write a group from a project, or a block file, as a block file to share,
+with a short recording of it playing (its **preview**) beside it.
+
+```
+audioc block-export my-song.acproj "Warm Echo" -o warm-echo.acblock
+audioc block-export my-song.acproj -o fx.acblock
+audioc block-export ~/.local/share/audioconstructor/blocks/my-bass.acblock -o shared/my-bass.acblock
+```
+
+The group is named by its definition's id or its name (any case); a
+project with one group needs neither. A block file is written again as
+it is, which is how a block you already have gets a preview. The output
+defaults to `<name>.acblock` in the current folder.
+
+The preview is `<name>.preview.wav` beside the block: five seconds at
+48 kHz, as described in [Blocks and sharing](blocks.md#previews). It
+prints what fed each of the block's inputs (`in ← the preview phrase …`).
+A block with no audio output, or one that's silent, is written without a
+preview, with a warning saying why.
+
+| Option | Does |
+| --- | --- |
+| `-o FILE` | The block file to write |
+| `--no-preview` | Write only the block file |
+
+## library-index
+
+Write the `index.json` that turns a folder of block files into a
+**shared library** anyone can browse and install from, once the folder is
+on a web server (any host that serves plain files will do).
+
+```
+audioc library-index shared-blocks --name "Tape and Space" --description "Delays and reverbs."
+audioc library-index shared-blocks --check
+```
+
+It lists every `.acblock` file directly in the folder, with its preview
+if it has one, and the size and SHA-256 of each file so a download can be
+checked. Every block is read and compiled first: one that doesn't load
+(or uses nodes this version doesn't have) is reported and left out, and
+the command exits with status 2. The name and description stay as they
+were in an existing index unless you give new ones; the name defaults to
+the folder's. The format is described in
+[Blocks and sharing](blocks.md#the-index-format).
+
+| Option | Does |
+| --- | --- |
+| `--name TEXT` | The library's name |
+| `--description TEXT` | A sentence or two about it |
+| `--check` | Only report whether `index.json` is up to date; exits with status 1 if it isn't |
+
+## block-import
+
+Import a block, a pack, or a shared library's blocks from a link.
+
+```
+audioc block-import https://example.org/blocks/warm-echo.acblock
+audioc block-import https://example.org/blocks/ --list
+audioc block-import https://example.org/blocks/index.json --only warm-echo --only plate
+audioc block-import https://example.org/songs/demo.acpack -o ~/Music
+```
+
+What the link holds decides what happens, as with **Import from Link…**
+in the editor:
+
+- **a block** (`.acblock`) goes into your library under `imported/`, with
+  its preview when it has one;
+- **a library** (its `index.json`, or its folder's link ending in `/`)
+  has every block it lists imported (or the ones `--only` names), each
+  checked against the size and SHA-256 in the index first; a block that
+  doesn't match isn't kept, and the command exits with status 2;
+- **a pack** (`.acpack`) is saved in the current folder (or the one `-o`
+  names) and unpacked beside itself, as `audioc unpack` does, and the
+  blocks it carries join your library.
+
+Blocks go into the library the editor uses unless `--library DIR` names
+another. Importing a block you already have changes nothing; a different
+block with the same name as one of yours is kept under a new id.
+
+Links must be `https://` (plain `http://` works only for this computer,
+for testing a library before publishing it).
+
+| Option | Does |
+| --- | --- |
+| `--library DIR` | The library folder to import into |
+| `--list` | List a library's blocks instead of importing them |
+| `--only ID` | From a library, only this block (repeat for more) |
+| `-o DIR` | Where a pack is saved and unpacked |
 
 ## pack and unpack
 

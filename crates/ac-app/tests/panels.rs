@@ -5,7 +5,6 @@
 use std::time::{Duration, Instant};
 
 use ac_app::audio::AudioMode;
-use ac_app::icons;
 use ac_app::{AppOptions, EditorApp};
 use ac_core::{Endpoint, NodeId, NodeInstance, Panel, PanelItem, Project, Value};
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, ViewportCommand, ViewportId, pos2};
@@ -259,7 +258,7 @@ fn several_panels_add_rename_and_switch() {
     ));
     press(&mut h, Modifiers::CTRL, Key::Tab);
     // The + tab adds a panel, shows it, and starts naming it.
-    h.get_by_label(icons::PLUS).click();
+    h.get_by_label("New panel").click();
     steps(&mut h, 3);
     assert_eq!(h.state().document().project.panels.len(), 2);
     assert_eq!(h.state().perform.current, 1);
@@ -624,7 +623,7 @@ fn performance_mode_turns_play_keys_on_and_restores_it() {
     h.state_mut().set_play_keys(false);
     press(&mut h, Modifiers::NONE, Key::F11);
     assert!(h.state().play_keys());
-    h.get_by_label(icons::KEYBOARD).click();
+    h.get_by_label("Play keys").click();
     steps(&mut h, 3);
     assert!(!h.state().play_keys());
     assert!(h.state().performance_mode());

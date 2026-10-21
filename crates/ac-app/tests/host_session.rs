@@ -225,11 +225,13 @@ fn macros_move_through_the_host_as_one_gesture() {
     h.get_by_label_contains("The host provides audio and MIDI");
     // The transport bindings are the editor's transport's, so they're gone.
     assert!(h.query_by_label_contains("TRANSPORT BUTTONS").is_none());
-    let rect = h.get_by_label("Macro 1").rect();
-    // The slider sits to the right of the name, on the same row.
+    // The macro's slider, named by its label for screen readers.
+    let rect = h
+        .get_by_role_and_label(egui::accesskit::Role::Slider, "Macro 1")
+        .rect();
     let y = rect.center().y;
-    let from = Pos2::new(rect.max.x + 40.0, y);
-    let to = Pos2::new(rect.max.x + 120.0, y);
+    let from = Pos2::new(rect.min.x + rect.width() * 0.2, y);
+    let to = Pos2::new(rect.min.x + rect.width() * 0.8, y);
     log.take();
     h.hover_at(from);
     h.run_steps(2);

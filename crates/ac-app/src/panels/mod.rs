@@ -18,12 +18,14 @@ use egui::{RichText, vec2};
 
 use crate::audio::EngineHost;
 use crate::document::Document;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::palette::Candidate;
 use crate::theme;
 
 pub use help_tab::HelpView;
 pub use library::{BlockFilter, LibraryItem, filter_blocks, first_sentence};
+pub use status_tabs::midi_text;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
@@ -46,14 +48,15 @@ impl Tab {
         Tab::Help,
     ];
 
-    fn label(self) -> (&'static str, &'static str) {
+    /// The tab's icon and name.
+    pub fn label(self) -> (&'static str, String) {
         match self {
-            Tab::Node => (icons::SLIDERS, "Node"),
-            Tab::Library => (icons::BOOKS, "Library"),
-            Tab::Project => (icons::GEAR, "Project"),
-            Tab::Devices => (icons::PLUGS, "Devices"),
-            Tab::Problems => (icons::WARNING, "Problems"),
-            Tab::Help => (icons::BOOK_OPEN, "Help"),
+            Tab::Node => (icons::SLIDERS, tr("tab-node")),
+            Tab::Library => (icons::BOOKS, tr("tab-library")),
+            Tab::Project => (icons::GEAR, tr("tab-project")),
+            Tab::Devices => (icons::PLUGS, tr("tab-devices")),
+            Tab::Problems => (icons::WARNING, tr("tab-problems")),
+            Tab::Help => (icons::BOOK_OPEN, tr("tab-help")),
         }
     }
 }
@@ -87,6 +90,19 @@ pub enum PanelRequest {
     OpenExample(std::path::PathBuf),
     /// Run an editor command.
     Run(crate::actions::Action),
+    /// Play a block's preview, or stop it if it's playing.
+    Preview(crate::online::PreviewKey),
+    /// Write a block file (with its preview) somewhere to share.
+    ExportBlock(crate::dialogs::BlockToExport),
+    /// Read, or read again, the shared library at this link.
+    RefreshLibrary(String),
+    /// Stop listing the shared library at this link.
+    RemoveLibrary(String),
+    /// Download a block from a shared library into the library.
+    Install {
+        link: String,
+        id: String,
+    },
     /// Open a Plugin node's plugin window.
     ShowPluginWindow(NodeId),
     /// Look for plugins again (every bundle when `true`).
@@ -116,6 +132,8 @@ pub struct SidePanel {
     pub devices: DevicesState,
     /// What the Help tab shows.
     pub help: HelpView,
+    /// The shown tab's button: where F6 puts the keyboard in the panel.
+    pub focus_target: Option<egui::Id>,
 }
 
 impl Default for SidePanel {
@@ -128,6 +146,7 @@ impl Default for SidePanel {
             label_edit: None,
             devices: DevicesState::default(),
             help: HelpView::default(),
+            focus_target: None,
         }
     }
 }
@@ -160,21 +179,24 @@ pub struct PanelIo<'a> {
     pub now: f64,
     /// The host's automatable parameters (a plugin's macros), if any.
     pub host: Option<&'a mut Box<dyn crate::host::HostControls>>,
+    /// Shared libraries, imports in progress, and the preview playing.
+    pub online: &'a crate::online::Online,
 }
 
 /// Set one config key on a node, as one undo step ("Change setting").
 pub(crate) fn set_config(io: &mut PanelIo, id: NodeId, key: &str, value: serde_json::Value) {
     let key = key.to_string();
-    io.doc.edit(io.registry, "Change setting", |g, _| {
-        if let Some(n) = g.node_mut(id) {
-            if !n.config.is_object() {
-                n.config = ac_core::empty_config();
+    io.doc
+        .edit(io.registry, &tr("undo-change-setting"), |g, _| {
+            if let Some(n) = g.node_mut(id) {
+                if !n.config.is_object() {
+                    n.config = ac_core::empty_config();
+                }
+                if let Some(obj) = n.config.as_object_mut() {
+                    obj.insert(key, value);
+                }
             }
-            if let Some(obj) = n.config.as_object_mut() {
-                obj.insert(key, value);
-            }
-        }
-    });
+        });
 }
 
 impl SidePanel {
@@ -230,6 +252,21 @@ impl SidePanel {
                 let mut r = ui.add(b);
                 if compact && !selected {
                     r = r.on_hover_text(tab.label().1);
+                }
+                // A tab to screen readers, named even when only its icon
+                // shows, with its count of problems.
+                let name = match count {
+                    0 => tab.label().1,
+                    n => tr_args(
+                        "tab-named-count",
+                        &[("tab", tab.label().1.into()), ("count", n.into())],
+                    ),
+                };
+                r.widget_info(|| {
+                    egui::WidgetInfo::selected(egui::Role::Tab, true, selected, &name)
+                });
+                if selected {
+                    self.focus_target = Some(r.id);
                 }
                 if r.clicked() {
                     self.tab = tab;

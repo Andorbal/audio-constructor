@@ -20,6 +20,36 @@ pub fn default_library_dir() -> Option<PathBuf> {
 }
 
 /// The directory a project file's relative paths resolve against.
+/// Show `dir` in the system's file manager, making it first if it doesn't
+/// exist yet (View ▸ Theme ▸ Open Themes Folder).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn open_folder(dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(target_os = "windows") {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let mut child = std::process::Command::new(opener)
+        .arg(dir)
+        .spawn()
+        .map_err(|e| format!("couldn't run {opener}: {e}"))?;
+    // The opener exits as soon as the file manager is up; waiting on it
+    // keeps it from lingering as a zombie process.
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
+/// The browser has no folders to show.
+#[cfg(target_arch = "wasm32")]
+pub fn open_folder(dir: &Path) -> Result<(), String> {
+    Err(format!("{} can't be shown here", dir.display()))
+}
+
 pub fn project_dir(path: &Path) -> PathBuf {
     match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
@@ -43,13 +73,17 @@ pub fn with_extension(path: PathBuf, ext: &str) -> PathBuf {
 }
 
 /// `examples/start.acproj`, looked for in the working directory, next to the
-/// executable and its ancestors (a `target/` build inside the workspace),
-/// and in the workspace this crate was built from.
+/// executable and its ancestors (an unpacked archive, or a `target/` build
+/// inside the workspace), where the installers put it (the macOS app's
+/// `Contents/Resources`, and `share/audio-constructor` beside a Linux
+/// `bin/`), and in the workspace this crate was built from.
 pub fn find_start_example() -> Option<PathBuf> {
     let mut candidates = vec![PathBuf::from("examples/start.acproj")];
     if let Ok(exe) = std::env::current_exe() {
         for dir in exe.ancestors().skip(1).take(5) {
             candidates.push(dir.join("examples/start.acproj"));
+            candidates.push(dir.join("Resources/examples/start.acproj"));
+            candidates.push(dir.join("share/audio-constructor/examples/start.acproj"));
         }
     }
     candidates.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/start.acproj"));
@@ -174,11 +208,7 @@ pub fn import_audio(src: &Path, project_path: Option<&Path>) -> Result<ImportedA
             file: abs.to_string_lossy().to_string(),
             channels,
             hash,
-            note: Some(
-                "The project isn't saved yet, so the clip refers to the file where it is. \
-                 Saving the project copies it into the project's assets folder."
-                    .into(),
-            ),
+            note: Some(crate::i18n::tr("status-clip-outside-project")),
         });
     };
     let rel = copy_into_assets(src, &bytes, &hash, &project_dir(project_path))?;

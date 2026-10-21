@@ -124,12 +124,12 @@ keyboard, or the computer keyboard through a Keyboard In node, or let a
 
 1. Add a **Voices** node from the palette. It comes with a starter body:
    a saw Oscillator and an ADSR multiplied together.
-2. Press `Tab` (or double-click it) to go inside. The **Voice** node there
+2. Double-click it (or press `Ctrl+Enter`) to go inside. The **Voice** node there
    is the note this copy plays: `freq`, `gate`, `velocity`, `note`, a
    `trigger` on each new note, and `index`, which copy this is (0, 1, 2,
    …).
 3. Change the voice like any patch: add a filter, a second oscillator, a
-   filter envelope. Every copy follows. Press `Tab` to come back out.
+   filter envelope. Every copy follows. Press `Ctrl+Enter` to come back out.
 4. In the Node tab, **Settings** sets how many **Voices** there are (1 to
    64, default 8) and, under **When all are busy**, which note gives way
    when you play more notes than that: the oldest by default, or the
@@ -187,7 +187,7 @@ song.
 
 Effects come two ways: as nodes, which do one job, and as **blocks**, which
 are groups of nodes saved for reuse. Blocks are in the palette and the
-Library tab like nodes. Press `Tab` on one to see how it's built and
+Library tab like nodes. Double-click one to see how it's built and
 change it (see [Blocks and sharing](blocks.md)).
 
 ### Delay and space

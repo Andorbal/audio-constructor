@@ -26,7 +26,8 @@ need them.
 4. [Live and baked](live-and-baked.md): why a few nodes switch themselves
    off when you play live, what "baking" means, and latency.
 5. [Blocks and sharing](blocks.md): groups, saving your own blocks, the
-   library, updates, and packs.
+   library, previews, updates, sharing blocks and whole libraries on the
+   web, and packs.
 6. [Performing](performing.md): controls, panels and performance mode,
    playing from the computer keyboard, MIDI, gamepads, and phones, and
    binding any of them to any knob.
@@ -47,6 +48,8 @@ need them.
     what a browser can't do.
 13. [Troubleshooting](troubleshooting.md): no sound, crackles, latency,
     devices that don't show up, and other problems.
+14. [Themes](themes.md): the built-in themes, including High Contrast,
+    and making your own.
 
 "Try this" boxes like the one below suggest something to do with what a
 section just explained:

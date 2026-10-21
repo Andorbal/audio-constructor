@@ -6,12 +6,13 @@ use ac_io::assets::{AssetIssue, referenced_assets};
 use egui::RichText;
 
 use super::{PanelIo, PanelRequest, section};
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
 /// Blocks the project uses that the library has newer versions of.
 fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
-    section(ui, "Blocks");
+    section(ui, &tr("section-blocks"));
     let from_library = io
         .doc
         .project
@@ -22,9 +23,9 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
     let updates = io.library.updates(&io.doc.project);
     if updates.is_empty() {
         let text = if from_library == 0 {
-            "This project uses no library blocks."
+            tr("project-no-blocks")
         } else {
-            "The library blocks this project uses are up to date."
+            tr("project-blocks-current")
         };
         ui.label(RichText::new(text).color(theme::text_muted()));
         return;
@@ -42,24 +43,39 @@ fn blocks(ui: &mut egui::Ui, io: &mut PanelIo) {
                     .map_or_else(|| u.def.0.clone(), |d| d.name.clone());
                 ui.label(RichText::new(name).color(theme::text()));
                 ui.label(
-                    RichText::new(format!("v{} → v{}", u.from, u.to))
-                        .font(theme::mono_font(theme::FONT_VALUE))
-                        .color(theme::text_muted()),
+                    RichText::new(tr_args(
+                        "project-update-versions",
+                        &[
+                            ("from", u.from.to_string().into()),
+                            ("to", u.to.to_string().into()),
+                        ],
+                    ))
+                    .font(theme::mono_font(theme::FONT_VALUE))
+                    .color(theme::text_muted()),
                 );
-                if ui
-                    .small_button(format!("{}  Update", icons::ARROWS_CLOCKWISE))
-                    .on_hover_text(format!("Take the library's version ({})", u.source))
-                    .clicked()
+                if icons::spoken(ui.small_button(format!(
+                    "{}  {}",
+                    icons::ARROWS_CLOCKWISE,
+                    tr("project-update")
+                )))
+                .on_hover_text(tr_args(
+                    "project-update-tip",
+                    &[("source", u.source.to_string().into())],
+                ))
+                .clicked()
                 {
                     io.requests.push(PanelRequest::UpdateBlock(u.def.clone()));
                 }
                 ui.end_row();
             }
         });
-    if ui
-        .button(format!("{}  Update all", icons::ARROWS_CLOCKWISE))
-        .on_hover_text("Update every block above, as one undo step.")
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::ARROWS_CLOCKWISE,
+        tr("project-update-all")
+    )))
+    .on_hover_text(tr("project-update-all-tip"))
+    .clicked()
     {
         io.requests.push(PanelRequest::UpdateAllBlocks);
     }
@@ -72,42 +88,44 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         .num_columns(2)
         .spacing(egui::vec2(10.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Name");
+            let label = ui.label(tr("project-name"));
             let mut name = io.doc.project.name.clone();
             if ui
                 .add(egui::TextEdit::singleline(&mut name).hint_text(io.doc.title()))
+                .labelled_by(label.id)
                 .changed()
             {
                 io.doc.edit_settings("name", now, |p| p.name = name);
             }
             ui.end_row();
 
-            ui.label("Sample rate");
+            let label = ui.label(tr("devices-sample-rate"));
+            let hz = |r: u32| tr_args("devices-hz", &[("rate", r.to_string().into())]);
             egui::ComboBox::from_id_salt("rate")
-                .selected_text(format!("{} Hz", s.sample_rate))
+                .selected_text(hz(s.sample_rate))
                 .show_ui(ui, |ui| {
                     for r in [44_100u32, 48_000, 88_200, 96_000, 192_000] {
-                        if ui
-                            .selectable_label(s.sample_rate == r, format!("{r} Hz"))
-                            .clicked()
-                        {
+                        if ui.selectable_label(s.sample_rate == r, hz(r)).clicked() {
                             io.doc
                                 .edit_settings("rate", now, |p| p.settings.sample_rate = r);
                             io.doc.end_coalescing();
                         }
                     }
-                });
+                })
+                .response
+                .labelled_by(label.id);
             ui.end_row();
 
-            ui.label("Length");
+            let label = ui.label(tr("project-length"));
             let mut len = s.length;
             if ui
                 .add(
                     egui::DragValue::new(&mut len)
                         .range(0.1..=36_000.0)
                         .speed(0.1)
-                        .suffix(" s"),
+                        .suffix(tr("project-seconds-suffix")),
                 )
+                .labelled_by(label.id)
                 .changed()
             {
                 io.doc
@@ -115,38 +133,42 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
             }
             ui.end_row();
 
-            ui.label("Render block");
+            let label = ui.label(tr("project-render-block"));
+            let frames = |b: u32| tr_args("devices-frames", &[("frames", b.to_string().into())]);
             egui::ComboBox::from_id_salt("block")
-                .selected_text(format!("{} frames", s.block_size))
+                .selected_text(frames(s.block_size))
                 .show_ui(ui, |ui| {
                     for b in [32u32, 64, 128, 256, 512, 1024, 2048, 4096] {
-                        if ui
-                            .selectable_label(s.block_size == b, format!("{b} frames"))
-                            .clicked()
-                        {
+                        if ui.selectable_label(s.block_size == b, frames(b)).clicked() {
                             io.doc
                                 .edit_settings("block", now, |p| p.settings.block_size = b);
                             io.doc.end_coalescing();
                         }
                     }
-                });
+                })
+                .response
+                .labelled_by(label.id);
             ui.end_row();
 
-            ui.label("Seed");
+            let label = ui.label(tr("project-seed"));
             let mut seed = s.seed;
-            if ui.add(egui::DragValue::new(&mut seed).speed(1.0)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut seed).speed(1.0))
+                .labelled_by(label.id)
+                .changed()
+            {
                 io.doc
                     .edit_settings("seed", now, |p| p.settings.seed = seed);
             }
             ui.end_row();
         });
     ui.label(
-        RichText::new("Offline renders use the sample rate and block size; the live engine runs at the device's rate.")
+        RichText::new(tr("project-rates-note"))
             .small()
             .color(theme::text_faint()),
     );
 
-    section(ui, "Tempo map");
+    section(ui, &tr("section-tempo-map"));
     let mut tempo = s.tempo.clone();
     let mut changed = false;
     let mut remove = None;
@@ -154,10 +176,22 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         .num_columns(4)
         .spacing(egui::vec2(8.0, 4.0))
         .show(ui, |ui| {
-            ui.label(RichText::new("at beat").small().color(theme::text_muted()));
-            ui.label(RichText::new("BPM").small().color(theme::text_muted()));
-            ui.label(RichText::new("time sig").small().color(theme::text_muted()));
-            ui.label("");
+            ui.label(
+                RichText::new(tr("project-at-beat"))
+                    .small()
+                    .color(theme::text_muted()),
+            );
+            ui.label(
+                RichText::new(tr("project-bpm"))
+                    .small()
+                    .color(theme::text_muted()),
+            );
+            ui.label(
+                RichText::new(tr("project-time-sig"))
+                    .small()
+                    .color(theme::text_muted()),
+            );
+            ui.allocate_space(egui::Vec2::ZERO);
             ui.end_row();
             for (i, seg) in tempo.iter_mut().enumerate() {
                 if i == 0 {
@@ -169,6 +203,10 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                                 .range(0.0..=1.0e6)
                                 .speed(0.25),
                         )
+                        .accessible_name(tr_args(
+                            "project-change-beat",
+                            &[("number", (i + 1).into())],
+                        ))
                         .changed();
                 }
                 changed |= ui
@@ -178,11 +216,16 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                             .speed(0.1)
                             .fixed_decimals(1),
                     )
+                    .accessible_name(tr_args("project-change-bpm", &[("number", (i + 1).into())]))
                     .changed();
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
                     changed |= ui
                         .add(egui::DragValue::new(&mut seg.time_sig[0]).range(1..=32))
+                        .accessible_name(tr_args(
+                            "project-change-beats",
+                            &[("number", (i + 1).into())],
+                        ))
                         .changed();
                     ui.label("/");
                     let mut den = seg.time_sig[1];
@@ -195,18 +238,23 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                                     changed = true;
                                 }
                             }
-                        });
+                        })
+                        .response
+                        .accessible_name(tr_args(
+                            "project-change-unit",
+                            &[("number", (i + 1).into())],
+                        ));
                     seg.time_sig[1] = den;
                 });
                 if i > 0
-                    && ui
-                        .small_button(icons::X)
-                        .on_hover_text("Remove this tempo change")
+                    && icons::spoken(ui.small_button(icons::X))
+                        .on_hover_text(tr("project-remove-tempo-change"))
+                        .accessible_name(tr("project-remove-tempo-change"))
                         .clicked()
                 {
                     remove = Some(i);
                 } else if i == 0 {
-                    ui.label("");
+                    ui.allocate_space(egui::Vec2::ZERO);
                 }
                 ui.end_row();
             }
@@ -215,9 +263,12 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         tempo.remove(i);
         changed = true;
     }
-    if ui
-        .button(format!("{}  Add tempo change", icons::PLUS))
-        .clicked()
+    if icons::spoken(ui.button(format!(
+        "{}  {}",
+        icons::PLUS,
+        tr("project-add-tempo-change")
+    )))
+    .clicked()
     {
         let last = tempo.last().cloned().unwrap_or_default();
         tempo.push(TempoSegment {
@@ -231,18 +282,20 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
             .edit_settings("tempo", now, |p| p.settings.tempo = tempo);
     }
 
-    section(ui, "Loop");
+    section(ui, &tr("section-loop"));
     let mut on = s.loop_region.is_some();
     let [mut a, mut b] = s.loop_region.unwrap_or([0.0, 16.0]);
     ui.horizontal(|ui| {
-        let mut changed = ui.checkbox(&mut on, "Loop between beats").changed();
+        let mut changed = ui.checkbox(&mut on, tr("project-loop-between")).changed();
         ui.add_enabled_ui(on, |ui| {
             changed |= ui
                 .add(egui::DragValue::new(&mut a).range(0.0..=1.0e6).speed(0.25))
+                .accessible_name(tr("project-loop-start"))
                 .changed();
             ui.label("–");
             changed |= ui
                 .add(egui::DragValue::new(&mut b).range(0.0..=1.0e6).speed(0.25))
+                .accessible_name(tr("project-loop-end"))
                 .changed();
         });
         if changed {
@@ -256,23 +309,26 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
 
     blocks(ui, io);
 
-    section(ui, "Engine");
+    section(ui, &tr("section-engine"));
     let stats = io.engine.report.stats.clone();
     let rate = io.engine.info.sample_rate.max(1);
     egui::Grid::new("project-engine")
         .num_columns(2)
         .spacing(egui::vec2(10.0, 6.0))
         .show(ui, |ui| {
-            ui.label("Output latency");
-            ui.label(format!(
-                "{} samples ({:.1} ms)",
-                stats.latency,
-                f64::from(stats.latency) * 1000.0 / f64::from(rate)
+            ui.label(tr("project-output-latency"));
+            ui.label(tr_args(
+                "project-latency",
+                &[
+                    ("samples", stats.latency.to_string().into()),
+                    (
+                        "ms",
+                        format!("{:.1}", f64::from(stats.latency) * 1000.0 / f64::from(rate))
+                            .into(),
+                    ),
+                ],
             ))
-            .on_hover_text(
-                "Delay that latency-reporting nodes add on the way to the outputs. Parallel \
-                 paths are delayed to match where they meet.",
-            );
+            .on_hover_text(tr("project-latency-tip"));
             ui.end_row();
             if !stats.whole_input.is_empty() {
                 let baked = stats
@@ -285,29 +341,38 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
                     .iter()
                     .filter(|(_, s)| matches!(s, ac_engine::WholeState::Disabled { .. }))
                     .count();
-                ui.label("Whole-input nodes");
-                ui.label(format!(
-                    "{baked} baked · {} baking · {disabled} disabled",
-                    stats.whole_input.len() - baked - disabled
+                ui.label(tr("project-whole-input"));
+                ui.label(tr_args(
+                    "project-whole-input-states",
+                    &[
+                        ("baked", baked.into()),
+                        (
+                            "baking",
+                            (stats.whole_input.len() - baked - disabled).into(),
+                        ),
+                        ("disabled", disabled.into()),
+                    ],
                 ));
                 ui.end_row();
             }
-            ui.label("Schedule");
-            ui.label(format!(
-                "{} steps in {} chains, {} waves · {} audio buffers",
-                stats.steps, stats.chains, stats.waves, stats.sample_buffers
+            ui.label(tr("project-schedule"));
+            ui.label(tr_args(
+                "project-schedule-stats",
+                &[
+                    ("steps", stats.steps.to_string().into()),
+                    ("chains", stats.chains.to_string().into()),
+                    ("waves", stats.waves.to_string().into()),
+                    ("buffers", stats.sample_buffers.to_string().into()),
+                ],
             ))
-            .on_hover_text(
-                "A chain's steps run in order on one core; the chains of one wave \
-                 can run on different cores (Devices tab).",
-            );
+            .on_hover_text(tr("project-schedule-tip"));
             ui.end_row();
         });
 
-    section(ui, "Audio files");
+    section(ui, &tr("section-audio-files"));
     let refs = referenced_assets(&io.doc.project, io.registry);
     if refs.is_empty() {
-        ui.label(RichText::new("No audio files. Clip nodes add them.").color(theme::text_muted()));
+        ui.label(RichText::new(tr("project-no-audio-files")).color(theme::text_muted()));
     }
     for (path, _) in refs {
         let issue = io.assets.issues.iter().find(|i| match i {
@@ -316,37 +381,41 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo) {
         ui.horizontal(|ui| {
             match issue {
                 Some(AssetIssue::Missing { reason, .. }) => {
-                    ui.colored_label(theme::error(), icons::FILE_X)
-                        .on_hover_text(reason);
+                    let r = ui.colored_label(theme::error(), icons::FILE_X);
+                    icons::picture(&r, reason);
+                    r.on_hover_text(reason);
                 }
                 Some(AssetIssue::Changed { .. }) => {
-                    ui.colored_label(theme::warning(), icons::WARNING)
-                        .on_hover_text(
-                            "The file changed since it was added (its content hash differs).",
-                        );
+                    let r = ui.colored_label(theme::warning(), icons::WARNING);
+                    icons::picture(&r, &tr("project-file-changed"));
+                    r.on_hover_text(tr("project-file-changed"));
                 }
                 None => {
-                    ui.colored_label(theme::ok(), icons::FILE_AUDIO);
+                    let r = ui.colored_label(theme::ok(), icons::FILE_AUDIO);
+                    icons::picture(&r, &tr("project-file-found"));
                 }
             }
             ui.add(
                 egui::Label::new(RichText::new(&path).font(theme::mono_font(theme::FONT_SMALL)))
                     .truncate(),
             );
-            if issue.is_some() && ui.small_button("Locate…").clicked() {
+            if issue.is_some() && ui.small_button(tr("node-tab-locate")).clicked() {
                 io.requests.push(PanelRequest::Locate(path.clone()));
             }
         });
     }
     if let Some(dir) = io.doc.path.as_ref().and_then(|p| p.parent()) {
         ui.label(
-            RichText::new(format!("Relative paths resolve against {}", dir.display()))
-                .small()
-                .color(theme::text_faint()),
+            RichText::new(tr_args(
+                "project-relative-paths",
+                &[("folder", dir.display().to_string().into())],
+            ))
+            .small()
+            .color(theme::text_faint()),
         );
     } else {
         ui.label(
-            RichText::new("Save the project to copy its audio files into its assets folder.")
+            RichText::new(tr("project-save-to-copy"))
                 .small()
                 .color(theme::text_faint()),
         );

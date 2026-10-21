@@ -2,6 +2,7 @@
 //! cards up by an edge or their centers, or space them with equal gaps.
 //! Only cards move; frames stay where they are (D101).
 
+use crate::i18n::tr;
 use ac_core::NodeId;
 use egui::{Rect, Vec2, vec2};
 
@@ -43,16 +44,16 @@ impl Align {
     }
 
     /// The undo step's name.
-    pub fn undo_label(self) -> &'static str {
+    pub fn undo_label(self) -> String {
         match self {
-            Align::Left => "Align left",
-            Align::Center => "Align centers",
-            Align::Right => "Align right",
-            Align::Top => "Align top",
-            Align::Middle => "Align middles",
-            Align::Bottom => "Align bottom",
-            Align::Horizontally => "Distribute horizontally",
-            Align::Vertically => "Distribute vertically",
+            Align::Left => tr("undo-align-left"),
+            Align::Center => tr("undo-align-centers"),
+            Align::Right => tr("undo-align-right"),
+            Align::Top => tr("undo-align-top"),
+            Align::Middle => tr("undo-align-middles"),
+            Align::Bottom => tr("undo-align-bottom"),
+            Align::Horizontally => tr("undo-distribute-horizontally"),
+            Align::Vertically => tr("undo-distribute-vertically"),
         }
     }
 }

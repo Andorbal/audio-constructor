@@ -6,8 +6,8 @@ node! {
     category: Utility,
     keywords: ["subpatch", "subgraph", "block", "container"],
     /// A piece of patch packed into one node, with its own sockets.
-    /// Double-click it (or select it and press `Tab`) to go inside and edit
-    /// it; `Tab` again comes back out.
+    /// Double-click it (or select it and press `Ctrl+Enter`) to go inside and
+    /// edit it; `Ctrl+Enter` again comes back out.
     ///
     /// Select some nodes and press `Ctrl+G` to make a group: wires that
     /// crossed the edge of the selection become the group's sockets. To add a

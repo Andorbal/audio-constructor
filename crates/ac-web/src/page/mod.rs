@@ -272,7 +272,7 @@ pub async fn start(canvas: web_sys::HtmlCanvasElement) -> Result<WebHandle, JsVa
                 Pending::Examples { list, open }
             }
             Err(e) => Pending::Say {
-                text: format!("Couldn't load the examples: {e}"),
+                text: ac_app::i18n::tr_args("web-couldnt-load-examples", &[("error", e.into())]),
                 warning: true,
             },
         };

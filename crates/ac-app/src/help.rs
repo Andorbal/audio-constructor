@@ -134,6 +134,7 @@ mod tests {
         let block = Block {
             def: def("Fx", vec![node(1, "gain"), node(2, "biquad")]),
             uses: BTreeMap::new(),
+            preview: None,
         };
         let kinds = block_kinds(&block);
         assert!(kinds.contains("gain") && kinds.contains("biquad"));
@@ -159,6 +160,7 @@ mod tests {
         let block = Block {
             def: def("Outer", vec![group(1, GROUP_KIND, "inner"), node(2, "mix")]),
             uses,
+            preview: None,
         };
         let kinds = block_kinds(&block);
         for k in ["gain_computer", "adsr", "mix", GROUP_KIND, VOICES_KIND] {
@@ -183,6 +185,7 @@ mod tests {
                 vec![group(1, GROUP_KIND, "a"), group(2, GROUP_KIND, "gone")],
             ),
             uses,
+            preview: None,
         };
         let kinds = block_kinds(&block);
         assert!(kinds.contains("noise"));

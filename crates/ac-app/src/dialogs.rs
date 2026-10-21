@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use egui::{Key, RichText};
 
 use crate::actions::Action;
+use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
@@ -21,18 +22,30 @@ pub enum FilePurpose {
     ExportPack,
     /// A block file to add to the library.
     ImportBlock,
+    /// Where to write a block file (and its preview, beside it).
+    ExportBlock(BlockToExport),
+}
+
+/// Which block an export writes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum BlockToExport {
+    /// A group definition in the project.
+    Def(ac_core::GroupId),
+    /// A block in the library.
+    Library(ac_core::BlockSource),
 }
 
 impl FilePurpose {
-    fn title(&self) -> &'static str {
+    fn title(&self) -> String {
         match self {
-            FilePurpose::Open => "Open project",
-            FilePurpose::SaveAs => "Save project as",
-            FilePurpose::Export => "Export WAV",
-            FilePurpose::ChooseClip(_) => "Choose an audio file",
-            FilePurpose::Locate(_) => "Locate missing file",
-            FilePurpose::ExportPack => "Export pack",
-            FilePurpose::ImportBlock => "Import block file",
+            FilePurpose::Open => tr("dialog-open-title"),
+            FilePurpose::SaveAs => tr("dialog-save-as-title"),
+            FilePurpose::Export => tr("dialog-export-title"),
+            FilePurpose::ChooseClip(_) => tr("dialog-choose-clip-title"),
+            FilePurpose::Locate(_) => tr("dialog-locate-title"),
+            FilePurpose::ExportPack => tr("dialog-export-pack-title"),
+            FilePurpose::ImportBlock => tr("dialog-import-block-title"),
+            FilePurpose::ExportBlock(_) => tr("dialog-export-block-title"),
         }
     }
 
@@ -40,7 +53,10 @@ impl FilePurpose {
     fn saving(&self) -> bool {
         matches!(
             self,
-            FilePurpose::SaveAs | FilePurpose::Export | FilePurpose::ExportPack
+            FilePurpose::SaveAs
+                | FilePurpose::Export
+                | FilePurpose::ExportPack
+                | FilePurpose::ExportBlock(_)
         )
     }
 }
@@ -61,18 +77,20 @@ pub fn native(
     d = match purpose {
         FilePurpose::Open => d
             .add_filter(
-                "Projects, packs, and blocks",
+                tr("dialog-filter-everything"),
                 &["acproj", "acpack", "acblock"],
             )
-            .add_filter("Audio Constructor project", &["acproj"])
-            .add_filter("Audio Constructor pack", &["acpack"])
-            .add_filter("Audio Constructor block", &["acblock"]),
-        FilePurpose::SaveAs => d.add_filter("Audio Constructor project", &["acproj"]),
-        FilePurpose::Export => d.add_filter("WAV audio", &["wav"]),
-        FilePurpose::ExportPack => d.add_filter("Audio Constructor pack", &["acpack"]),
-        FilePurpose::ImportBlock => d.add_filter("Audio Constructor block", &["acblock"]),
+            .add_filter(tr("dialog-filter-project"), &["acproj"])
+            .add_filter(tr("dialog-filter-pack"), &["acpack"])
+            .add_filter(tr("dialog-filter-block"), &["acblock"]),
+        FilePurpose::SaveAs => d.add_filter(tr("dialog-filter-project"), &["acproj"]),
+        FilePurpose::Export => d.add_filter(tr("dialog-filter-wav"), &["wav"]),
+        FilePurpose::ExportPack => d.add_filter(tr("dialog-filter-pack"), &["acpack"]),
+        FilePurpose::ImportBlock | FilePurpose::ExportBlock(_) => {
+            d.add_filter(tr("dialog-filter-block"), &["acblock"])
+        }
         FilePurpose::ChooseClip(_) | FilePurpose::Locate(_) => {
-            d.add_filter("WAV audio", &["wav", "wave"])
+            d.add_filter(tr("dialog-filter-wav"), &["wav", "wave"])
         }
     };
     if let Some(s) = suggested {
@@ -135,13 +153,15 @@ impl PathPrompt {
                     .size(theme::FONT_HEADING)
                     .color(theme::text_strong()),
             );
-            ui.label(RichText::new("Type the file's path.").color(theme::text_muted()));
+            let hint = ui.label(RichText::new(tr("dialog-type-path")).color(theme::text_muted()));
             ui.add_space(6.0);
-            let r = ui.add(
-                egui::TextEdit::singleline(&mut self.text)
-                    .desired_width(f32::INFINITY)
-                    .font(theme::mono_font(theme::FONT_VALUE)),
-            );
+            let r = ui
+                .add(
+                    egui::TextEdit::singleline(&mut self.text)
+                        .desired_width(f32::INFINITY)
+                        .font(theme::mono_font(theme::FONT_VALUE)),
+                )
+                .labelled_by(hint.id);
             if self.focus {
                 r.request_focus();
                 self.focus = false;
@@ -149,10 +169,15 @@ impl PathPrompt {
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("Cancel").clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                if ui.button(tr("dialog-cancel")).clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
                     result = Some(None);
                 }
-                let ok = ui.add_enabled(!self.text.trim().is_empty(), egui::Button::new("OK"));
+                let ok = ui.add_enabled(
+                    !self.text.trim().is_empty(),
+                    egui::Button::new(tr("dialog-ok")),
+                );
                 if (ok.clicked() || enter) && !self.text.trim().is_empty() {
                     let t = self.text.trim();
                     let p = if let Some(rest) = t.strip_prefix("~/") {
@@ -182,36 +207,34 @@ pub fn confirm_discard(ctx: &egui::Context, title: &str) -> Option<Confirm> {
     let r = egui::Modal::new(egui::Id::unique("confirm-discard")).show(ctx, |ui| {
         ui.set_width(380.0);
         ui.horizontal(|ui| {
-            ui.label(
+            let icon = ui.label(
                 RichText::new(icons::WARNING)
                     .size(24.0)
                     .color(theme::warning()),
             );
+            icons::decoration(&icon);
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new(format!("Save changes to “{title}”?"))
+                    RichText::new(tr_args("dialog-save-changes", &[("project", title.into())]))
                         .size(theme::FONT_HEADING)
                         .color(theme::text_strong()),
                 );
-                ui.label(
-                    RichText::new("Your changes will be lost if you don't save them.")
-                        .color(theme::text_muted()),
-                );
+                ui.label(RichText::new(tr("dialog-changes-lost")).color(theme::text_muted()));
             });
         });
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            if ui.button("Don't Save").clicked() {
+            if ui.button(tr("dialog-dont-save")).clicked() {
                 out = Some(Confirm::Discard);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .button(RichText::new("Save").color(theme::text_strong()))
+                    .button(RichText::new(tr("dialog-save")).color(theme::text_strong()))
                     .clicked()
                 {
                     out = Some(Confirm::Save);
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(tr("dialog-cancel")).clicked() {
                     out = Some(Confirm::Cancel);
                 }
             });
@@ -225,70 +248,93 @@ pub fn confirm_discard(ctx: &egui::Context, title: &str) -> Option<Confirm> {
 
 /// The keyboard shortcut reference.
 pub fn shortcuts(ctx: &egui::Context, open: &mut bool) {
-    egui::Window::new(format!("{}  Keyboard shortcuts", icons::KEYBOARD))
-        .open(open)
-        .collapsible(false)
-        .resizable(true)
-        .default_width(520.0)
-        .default_height(560.0)
-        .show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                egui::Grid::new("shortcut-table")
-                    .striped(true)
-                    .num_columns(2)
-                    .show(ui, |ui| {
-                        for a in Action::ALL {
-                            let Some(sc) = a.shortcut() else { continue };
-                            ui.label(a.label());
-                            ui.label(
-                                RichText::new(ctx.format_shortcut(&sc))
-                                    .font(theme::mono_font(theme::FONT_VALUE))
-                                    .color(theme::text_strong()),
-                            );
-                            ui.end_row();
-                        }
-                        for (what, how) in [
-                            ("Pan", "Middle-drag · Space+drag · two-finger scroll"),
-                            ("Zoom", "Wheel · pinch"),
-                            ("Box select", "Drag on empty canvas (Shift adds)"),
-                            ("Snap to grid", "Hold Ctrl while moving"),
-                            ("Cut wires", "Ctrl+drag across them"),
-                            ("Add reroute", "Shift+right-drag across a wire"),
-                            ("Disconnect", "Drag a wire's end off its input"),
-                            ("Insert on wire", "Drop an unwired node onto a wire"),
-                            (
-                                "Wire nodes into a new one",
-                                "Select two or more, then Shift+A",
-                            ),
-                            (
-                                "Fine / coarse values",
-                                "Ctrl / Shift while dragging a value",
-                            ),
-                            ("Type a value", "Click a value"),
-                            ("Delete", "X or Delete"),
-                            ("Move a panel card", "Drag it by its edge"),
-                            ("Leave performance mode", "Esc or F11"),
-                        ] {
-                            ui.label(what);
-                            ui.label(RichText::new(how).color(theme::text_muted()));
-                            ui.end_row();
-                        }
-                    });
-            });
+    egui::Window::new(format!(
+        "{}  {}",
+        icons::KEYBOARD,
+        tr("dialog-shortcuts-title")
+    ))
+    .open(open)
+    .collapsible(false)
+    .resizable(true)
+    .default_width(520.0)
+    .default_height(560.0)
+    .show(ctx, |ui| {
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::Grid::new("shortcut-table")
+                .striped(true)
+                .num_columns(2)
+                .show(ui, |ui| {
+                    for a in Action::ALL {
+                        let Some(sc) = a.shortcut() else { continue };
+                        ui.label(a.label());
+                        ui.label(
+                            RichText::new(ctx.format_shortcut(&sc))
+                                .font(theme::mono_font(theme::FONT_VALUE))
+                                .color(theme::text_strong()),
+                        );
+                        ui.end_row();
+                    }
+                    for (what, how) in [
+                        (tr("gesture-pan"), tr("gesture-pan-how")),
+                        (tr("gesture-zoom"), tr("gesture-zoom-how")),
+                        (tr("gesture-box-select"), tr("gesture-box-select-how")),
+                        (tr("gesture-snap"), tr("gesture-snap-how")),
+                        (tr("gesture-cut"), tr("gesture-cut-how")),
+                        (tr("gesture-reroute"), tr("gesture-reroute-how")),
+                        (tr("gesture-disconnect"), tr("gesture-disconnect-how")),
+                        (tr("gesture-insert"), tr("gesture-insert-how")),
+                        (tr("gesture-wire-into-new"), tr("gesture-wire-into-new-how")),
+                        (tr("gesture-fine-coarse"), tr("gesture-fine-coarse-how")),
+                        (tr("gesture-type-value"), tr("gesture-type-value-how")),
+                        (tr("gesture-delete"), tr("gesture-delete-how")),
+                        (tr("gesture-move-card"), tr("gesture-move-card-how")),
+                        (tr("gesture-focus-nodes"), tr("gesture-focus-nodes-how")),
+                        (tr("gesture-focus-sockets"), tr("gesture-focus-sockets-how")),
+                        (tr("gesture-keyboard-wire"), tr("gesture-keyboard-wire-how")),
+                        (
+                            tr("gesture-keyboard-value"),
+                            tr("gesture-keyboard-value-how"),
+                        ),
+                        (tr("gesture-keyboard-move"), tr("gesture-keyboard-move-how")),
+                        (tr("gesture-keyboard-menu"), tr("gesture-keyboard-menu-how")),
+                        (tr("gesture-switch-region"), tr("gesture-switch-region-how")),
+                        (tr("gesture-panel-keys"), tr("gesture-panel-keys-how")),
+                        (
+                            tr("gesture-leave-performance"),
+                            tr("gesture-leave-performance-how"),
+                        ),
+                    ] {
+                        ui.label(what);
+                        ui.label(RichText::new(how).color(theme::text_muted()));
+                        ui.end_row();
+                    }
+                });
         });
+    });
 }
 
 pub fn about(ctx: &egui::Context, open: &mut bool) {
-    egui::Window::new("About Audio Constructor")
+    egui::Window::new(Action::About.label())
         .open(open)
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            ui.label(RichText::new(format!("{}  Audio Constructor", icons::WAVEFORM)).size(theme::FONT_TITLE).color(theme::text_strong()));
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+            ui.label(
+                RichText::new(format!("{}  Audio Constructor", icons::WAVEFORM))
+                    .size(theme::FONT_TITLE)
+                    .color(theme::text_strong()),
+            );
+            ui.label(tr_args(
+                "dialog-about-version",
+                &[("version", env!("CARGO_PKG_VERSION").into())],
+            ));
             ui.add_space(6.0);
-            ui.label("A node-based audio construction suite: build instruments, effects, recorders, and sequencers from small nodes and wires.");
+            ui.label(tr("dialog-about-text"));
             ui.add_space(6.0);
-            ui.label(RichText::new("Fonts: Inter and JetBrains Mono (SIL Open Font License). Icons: Phosphor (MIT).").small().color(theme::text_muted()));
+            ui.label(
+                RichText::new(tr("dialog-about-credits"))
+                    .small()
+                    .color(theme::text_muted()),
+            );
         });
 }

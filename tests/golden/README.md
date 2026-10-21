@@ -46,3 +46,9 @@ change to a node's output, regenerate expectations and review the diff:
 ```
 GOLDEN_UPDATE=1 cargo test -p ac-cli --test golden
 ```
+
+`block-previews.json` holds every shipped block's preview (DECISIONS
+D190): its SHA-256 on the reference platform, its levels elsewhere, and
+what fed each input. `crates/ac-cli/tests/previews.rs` renders them all;
+regenerate after an intentional change with
+`GOLDEN_UPDATE=1 cargo test -p ac-cli --test previews`.

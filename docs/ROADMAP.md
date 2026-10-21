@@ -875,11 +875,35 @@ Needs manual verification (in the PR):
   tab shows the size) and a lower measured round trip.
 
 ### M3.5 Product
-- [ ] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.
-- [ ] Block sharing: export with preview render, import from URL, library index format.
-- [ ] Theming, localization scaffold, full accessibility pass.
+- [x] Installers and signed builds (cargo-dist), auto-update check, crash reporting opt-in.
+  Verified: installers are made by `scripts/package.py` with each platform's own tools rather than cargo-dist, which can't lay out an app bundle or put plugins where hosts look (D170). CI's *Bundles and installers* job builds the `.deb` and the tarball, the `.pkg`, and the NSIS setup program from release builds on Linux, macOS, and Windows, installs each on its runner (`apt-get install`, `installer -pkg`, `setup.exe /S`; the tarball's `install.sh` into a scratch home), runs `audioc --version` and `audio-constructor --version` from where they landed, checks the plugins, examples, menu entry, and (Windows) the uninstall entry are in place, renders the Start example with the installed `audioc`, and uninstalls again, checking the files are gone; the packages are kept as the run's artifacts. Signing (D171) runs only with the project's certificates, which don't exist yet, so the signed paths are untested: listed under the MR's manual checks. The update check (D173): `ac-io`'s `update` tests read the feed format, compare versions, and report a feed that's down, against a local server; `crates/ac-app/tests/product.rs` shows nothing is fetched before the person answers, a daily check offers a newer release with its download page and notes, a skipped version stays quiet while Help ▸ Check for Updates… still answers, a check within the day makes no request, and a failed check is silent unless asked for; `crates/ac-cli/tests/version.rs` covers `audioc version --check`, and run here against the real feed it reported 0.9.0 as the latest. Crash reports (D174): `ac-io`'s `crash` tests build a report from a real panic (thread, message, location), write `~` for the home folder, keep twenty, offer each once, and make an issue link that fits; `product.rs` shows a saved report offered once at start, Show Report, Report… opening the prefilled form, and "Don't offer again" kept; `ac_io::net` (bounded https fetching) refuses plain http beyond this machine, oversized bodies, and silent servers.
+- [x] Block sharing: export with preview render, import from URL, library index format.
+  Verified: `cargo test -p ac-io` covers the preview's wiring (an effect gets the built-in phrase, a sidechain its drums, a Voices instrument the chords, a gate/freq voice the arpeggio, triggers by name, a drum machine plays alone), that a preview is the same bytes every time, and that a silent block or one with no audio output gives a reason; the index (broken and unknown-node blocks left out, previews hashed, round trip, malformed entries skipped, a newer version refused, relative links); and links (a block brings its preview, an index lists and installs checked blocks, an altered or oversized block is refused, previews cached by hash, packs recognised, 404 and plain http reported). `crates/ac-cli/tests/previews.rs` checks every shipped block's preview against `tests/golden/block-previews.json` (SHA-256 on Linux x86-64, levels elsewhere), that `audioc block-export` writes what the editor renders, that `library-index` leaves out a broken block, and `block-import` from a local server (listing, choosing, a changed block refused, a pack). `crates/ac-app/tests/blocks.rs` plays a preview in the Library tab and from the cache, exports from the Node tab, imports a block and a library from a link, installs, plays a remote preview, opens a pack from a link, and removes a library.
+- [x] Theming, localization scaffold, full accessibility pass.
+  Verified: the theme tests check every palette in every theme (body text at least 4.5:1, 7:1 in High Contrast; signals 3:1; the focus ring 3:1 on canvas, cards, and panels) and that bad theme files, colours, and fields are reported without panics; the editor tests choose, reload, and save themes by name, fall back to Dark, and warn about low contrast, and the themes guide must list every palette field. `crates/ac-app/tests/catalogs.rs` checks the Fluent catalogs parse and that every id the code uses exists and none is unused; `tests/language.rs` opens every menu in the pseudo-locale and fails on any untranslated label. `tests/accessibility.rs` audits the AccessKit tree (the Start example with every side tab, the panel view, performance mode, every menu) and fails on an interactive node without a name; finds cards and sockets by their spoken labels; builds and plays a patch with the keyboard alone (a Gain from the palette, Oscillator → Gain → Audio Out wired, −12 dB typed with F2, Space); plays panel controls from keys and from screen-reader actions; and checks Reduce Motion and the size of every pointer target at 100 %. Real screen readers (NVDA, VoiceOver, Orca) are manual checks in the MR.
 
 **Phase 3 acceptance**
 - A project runs as a CLAP effect in a host, with its exposed parameters automatable.
 - A third-party CLAP synth runs as a node inside a project.
 - The web build runs the Start, Pedalboard (with browser mic), and Synth examples.
+
+*Verified* (all three in CI, on Linux, with the whole of Phase 3 on one
+branch):
+- **CLAP effect, automatable.** `crates/ac-plugin/tests/clap_host.rs`
+  (`a_project_runs_as_a_clap_effect_with_automatable_macros`) loads the
+  plugin in a real CLAP host: a sine passes at 0 dB, Macro 1 automated to
+  0.25 at frame 100 leaves the earlier samples alone and settles at
+  −12 dB within 0.05 dB, at uneven block sizes. CI's bundle job runs it
+  against the release `.clap` the installers ship.
+- **A third-party CLAP synth as a node.** CI's *Third-party plugin as a
+  node* job downloads Six Sines 1.2.1 for Linux (checked by SHA-256,
+  D136), renders it from a MIDI Pattern with `audioc` (notes at 220 and
+  440 Hz), its VST3 build too, and opens both windows while they play;
+  the process exits cleanly (D139).
+- **The web build.** CI's *Web build and browser test* job builds the site
+  and plays it in headless Chromium (`tests/web/e2e.cjs`): Start sounds at
+  220 Hz and follows a parameter change, the Guitar Pedalboard takes the
+  browser's (fake) microphone and passes its 1 kHz tone, and the
+  Subtractive Synth plays a MIDI note at 440 Hz and stops after note off.
+  A real microphone, MIDI keyboard, and browsers other than Chromium are
+  manual checks.

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The hardened runtime's exceptions for the editor and audioc, used when the
+  app is signed (scripts/package.py):
+  - audio-input: Audio In nodes record from the microphone (the system asks
+    first, with Info.plist's NSMicrophoneUsageDescription).
+  - disable-library-validation: plugin nodes load other makers' plugins,
+    which are signed by someone else or not at all.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.device.audio-input</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

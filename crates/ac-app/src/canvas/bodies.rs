@@ -8,6 +8,7 @@ use egui::{Align2, Color32, Mesh, Painter, Pos2, Rect, Shape, Stroke, StrokeKind
 
 use crate::canvas::live::MeterChannel;
 use crate::canvas::piano;
+use crate::i18n::tr;
 use crate::icons;
 use crate::theme;
 
@@ -54,7 +55,11 @@ pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: boo
             format!(
                 "{}  {}",
                 icons::HAND_TAP,
-                if down { "held" } else { "press" }
+                if down {
+                    tr("canvas-button-held")
+                } else {
+                    tr("canvas-button-press")
+                }
             ),
             theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
             theme::fade(
@@ -846,7 +851,7 @@ pub fn clip(
         return;
     }
     let name = if file.is_empty() {
-        "Choose a file…".to_string()
+        tr("canvas-choose-a-file")
     } else {
         std::path::Path::new(file)
             .file_name()
@@ -927,7 +932,11 @@ pub fn record(
         Align2::LEFT_CENTER,
         format!(
             "{}  {:.0}:{:04.1}",
-            if recording { "REC" } else { "idle" },
+            if recording {
+                tr("canvas-recording")
+            } else {
+                tr("canvas-record-idle")
+            },
             mins,
             secs
         ),
@@ -1020,7 +1029,11 @@ pub fn comment(
     painter.text(
         pos2(header.min.x + 8.0 * zoom, header.center().y),
         Align2::LEFT_CENTER,
-        format!("{}  {}", icons::NOTE, title.unwrap_or("Note")),
+        format!(
+            "{}  {}",
+            icons::NOTE,
+            title.map_or_else(|| tr("canvas-note"), str::to_string)
+        ),
         theme::canvas_font(theme::FONT_SMALL, zoom, false),
         theme::fade(theme::note_text(), 0.8 * alpha),
     );
@@ -1028,11 +1041,8 @@ pub fn comment(
         pos2(rect.min.x + 10.0 * zoom, header.max.y + 6.0 * zoom),
         pos2(rect.max.x - 10.0 * zoom, rect.max.y - 6.0 * zoom),
     );
-    let shown = if text.is_empty() {
-        "Double-click to write a note."
-    } else {
-        text
-    };
+    let empty = tr("canvas-note-empty");
+    let shown = if text.is_empty() { &empty } else { text };
     let galley = painter.layout(
         shown.to_string(),
         theme::canvas_font(theme::FONT_NODE_TITLE, zoom, false),

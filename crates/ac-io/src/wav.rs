@@ -96,8 +96,7 @@ pub fn write_wav(
     sample_rate: u32,
     depth: BitDepth,
 ) -> Result<(), WavError> {
-    let spec = spec(channels, sample_rate, depth);
-    let w = hound::WavWriter::create(path, spec)
+    let w = hound::WavWriter::create(path, spec(channels, sample_rate, depth))
         .map_err(|e| WavError(format!("{}: {e}", path.display())))?;
     write_samples(w, channels, depth)
 }
@@ -168,6 +167,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn bytes_in_memory_are_the_file() {
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chans = vec![
+            (0..300)
+                .map(|i| (i as f32 * 0.01).sin())
+                .collect::<Vec<f32>>(),
+        ];
+        let p = dir.join("a.wav");
+        write_wav(&p, &chans, 48_000, BitDepth::Pcm16).unwrap();
+        let bytes = wav_bytes(&chans, 48_000, BitDepth::Pcm16).unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), bytes);
+        assert_eq!(read_wav_bytes(&bytes).unwrap().channels[0].len(), 300);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn round_trip_all_depths() {
         let dir = std::env::temp_dir().join(format!("ac-wav-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -192,7 +208,8 @@ mod tests {
 
     #[test]
     fn bytes_match_the_file() {
-        let dir = std::env::temp_dir().join(format!("ac-wav-bytes-{}", std::process::id()));
+        // Not `ac-wav-bytes-…`: that test removes its folder when it ends.
+        let dir = std::env::temp_dir().join(format!("ac-wav-bytes24-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let chans = vec![vec![0.25f32, -0.5, 1.0], vec![0.0, 0.125, -1.0]];
         let p = dir.join("t.wav");

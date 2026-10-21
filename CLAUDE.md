@@ -61,8 +61,8 @@ section per version, newest first.
   entries into the section it opens.
 - **Releasing is automatic**: when CI passes on a `main` commit whose
   version has no tag, `.github/workflows/release.yml` tags it `vX.Y.Z`,
-  builds Linux, macOS, and Windows archives, and publishes a release with
-  the section as its notes. Never tag or publish releases by hand, and
+  builds Linux, macOS, and Windows archives and installers, and publishes
+  a release with the section as its notes. Never tag or publish releases by hand, and
   don't edit a released section except to correct it.
 
 ## Non-negotiables

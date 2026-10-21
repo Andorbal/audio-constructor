@@ -21,6 +21,7 @@ Contents
 12. [Persistence: projects, blocks, assets](#12-persistence-projects-blocks-assets)
 13. [Hosts: app, CLI, plugin, web](#13-hosts-app-cli-plugin-web)
 14. [Testing and performance](#14-testing-and-performance)
+15. [Packaging and releases](#15-packaging-and-releases)
 
 ---
 
@@ -637,6 +638,44 @@ without either feature.
   version: the definition is replaced, instance parameters carry over by
   socket name, and wires to sockets the new version lacks are dropped
   (DECISIONS D79–D80).
+- **Block previews**: `<id>.preview.wav` beside a block file, a 5 s,
+  48 kHz, 16-bit render of the block playing, which the block file
+  records as `preview: {file, sha256}` (a record of the file, not part of
+  the definition: projects don't copy it, and blocks that differ only
+  there are the same block). `ac_io::preview` builds a small project
+  around the block, an Audio Out on its first audio output and the
+  preview phrase (`crates/ac-io/src/preview/phrase.acblock`, two bars of
+  drums, chords, and an arpeggio from ordinary nodes, seeded noise), wired
+  by what the block takes: audio inputs get the phrase (the first of
+  several the music, the rest the drums), a Voices block the chords,
+  other MIDI inputs the arpeggio, trigger inputs the drum hits, and a
+  `gate`/`freq` pair on a sound maker the arpeggio. It renders offline at
+  a fixed rate, block size, and seed, so a preview is golden-testable by
+  hash (every shipped block's is) (D190). `audioc block-export` and the
+  editor's Export block file… write a block with its preview; the editor
+  plays previews over the patch through an audition tap the device
+  callback mixes in after the engine, lock-free (D193, D194).
+- **Shared libraries**: a folder of block files and their previews with
+  an `index.json`: `format` `audio-constructor/library`, `version` 1,
+  `name`, `description`, and `blocks`, each with `id`, `name`,
+  `version`, `description`, `tags`, `author`, `schema_version`, `file`,
+  `size`, `sha256`, and an optional `preview` (`file`, `size`,
+  `sha256`). Links are relative to the index (percent-encoded), so the
+  folder works on any static host; hashes are SHA-256. `audioc
+  library-index` writes it, compiling every block and leaving out the
+  ones that don't load; readers skip entries they can't use and refuse a
+  newer `version` (D191).
+- **Imports from links** (`ac_io::remote`, downloads through
+  `ac_io::net`: https only, except on this machine, and size-limited): a
+  link to an `.acblock` is a block, to an `.acpack` a pack, and anything
+  else a library index (a folder link means its `index.json`) or, failing
+  that, whatever the bytes are. A library's blocks and previews must
+  match its index's size and SHA-256 before they're kept. Blocks are
+  imported exactly as block files are (D83, `imported:` ids, the preview
+  kept beside the block); packs open as pack files do. The editor keeps
+  the libraries it lists as links in its settings and caches their
+  previews by hash in the platform cache folder; `audioc block-import`
+  imports into the editor's library unless told another (D192, D194).
 - **Assets**: audio clips are referenced by relative path plus content hash.
   Recordings land in `<project>/assets/` by default. `audioc pack` bundles a
   project and its assets into a zip (`.acpack`) for sharing: a
@@ -875,3 +914,42 @@ through the `Engine` API.
 - **Runtime instrumentation**: the xrun counter and per-thread load are
   always collected; per-node CPU time is collected while the editor shows
   it (`Ctrl+T`) and by `audioc bench`, and costs nothing otherwise.
+
+## 15. Packaging and releases
+
+Every merge to `main` is a release (CLAUDE.md): once CI passes on a
+`main` commit whose version has no tag, `.github/workflows/release.yml`
+builds on Linux (x86-64), macOS (Apple silicon), and Windows (x86-64)
+with `python3 scripts/package.py --build --target <triple>`, tags the
+commit, and publishes the packages with the changelog section as the
+notes and a `SHA256SUMS.txt` (D170).
+
+| Platform | Packages | Installs |
+| --- | --- | --- |
+| Linux | `audio-constructor_X.Y.Z_amd64.deb`; `audio-constructor-vX.Y.Z-<triple>.tar.gz` with `install.sh` | programs in `/usr/bin`, examples in `/usr/share/audio-constructor`, plugins in `/usr/lib/clap` and `/usr/lib/vst3`, a menu entry, icons, and file types; `install.sh` puts the same under `~/.local`, `~/.clap`, `~/.vst3` |
+| macOS | `audio-constructor-vX.Y.Z-<triple>.pkg`; the `.tar.gz` | `Audio Constructor.app` in Applications (both programs inside, the examples in `Contents/Resources`), `audioc` linked into `/usr/local/bin`, and the plugins (optional) in `/Library/Audio/Plug-Ins` |
+| Windows | `audio-constructor-vX.Y.Z-<triple>-setup.exe`; the `.zip` | Program Files, a Start-menu entry, the plugins (optional) in `Common Files\CLAP` and `\VST3`, file types, and an uninstaller in Installed apps; `/S` installs silently |
+
+Package sources live in `packaging/`: the icon set (drawn by
+`scripts/make_icon.py`), the Linux menu entry, file types, and install
+script, the macOS entitlements, and the Windows NSIS script. The editor
+looks for the examples beside its executable, in `Resources/` (the app
+bundle), and in `share/audio-constructor/` beside a `bin/` (D172).
+
+Signing (D171) is switched on by repository secrets; without them every
+package is built unsigned. `release.yml` reads:
+
+| Secret | Use |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD` | a base64 `.p12` holding the Developer ID Application and Installer identities, imported into a temporary keychain |
+| `MACOS_SIGNING_IDENTITY` | the Developer ID Application identity's name: signs the programs, the app, and the plugin bundles (hardened runtime, `packaging/macos/entitlements.plist`) |
+| `MACOS_INSTALLER_IDENTITY` | the Developer ID Installer identity's name: signs the `.pkg` |
+| `MACOS_NOTARY_APPLE_ID`, `MACOS_NOTARY_TEAM_ID`, `MACOS_NOTARY_PASSWORD` | notarize the signed `.pkg` (an app-specific password) and staple the ticket |
+| `WINDOWS_CERTIFICATE_PFX`, `WINDOWS_CERTIFICATE_PASSWORD` | a base64 Authenticode `.pfx`: signs both programs, the plugin library, the setup program, and its uninstaller (timestamped) |
+
+CI's *Bundles and installers* job builds the same packages on every
+change, installs each one on its runner, runs both programs from where
+they landed, renders an example with the installed `audioc`, and
+uninstalls; the packages are kept as the run's artifacts for two weeks,
+so a change can be tried before it's released.
+

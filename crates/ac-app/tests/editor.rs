@@ -193,14 +193,14 @@ fn group_and_enter() {
         assert_eq!(def.graph.nodes.len(), 2);
         assert_eq!(def.graph.wires.len(), 1);
     }
-    // Tab goes inside the selected group; Tab again comes back out.
-    press(&mut h, Modifiers::NONE, Key::Tab);
+    // Ctrl+Enter goes inside the selected group, and again comes back out.
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
     assert_eq!(h.state().document().scope.len(), 1);
     assert_eq!(h.state().document().graph().nodes.len(), 2);
     // Inside, the group's interface is drawn as cards with sockets.
     let scene = h.state().canvas.last_scene.as_ref().unwrap();
     assert!(scene.node(ac_app::edit::GROUP_IN).is_some());
-    press(&mut h, Modifiers::NONE, Key::Tab);
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
     assert!(h.state().document().scope.is_empty());
     // Ungroup restores the two nodes and their wire.
     press(
@@ -530,7 +530,7 @@ fn play_keys_send_keys_to_the_patch_instead_of_running_shortcuts() {
     assert!(!h.state().play_keys(), "off by default");
 
     // The transport bar's keyboard button turns it on.
-    h.get_by_label(ac_app::icons::KEYBOARD).click();
+    h.get_by_label("Play keys").click();
     steps(&mut h, 3);
     assert!(h.state().play_keys());
     // A goes to the patch (down and up); Select All doesn't run.
@@ -727,8 +727,10 @@ fn the_node_tab_edits_osc_addresses_and_flags_a_bad_one() {
 
     h.state_mut().doc.selection = [NodeId(2)].into();
     steps(&mut h, 3);
+    // Each input's label names its field, for screen readers (a slider's
+    // value box too).
     let _ = h.get_by_label("host");
-    let _ = h.get_by_label("port");
+    assert!(h.query_all_by_label("port").count() >= 1);
     let _ = h.get_by_label_contains("The OSC address must start with");
 }
 

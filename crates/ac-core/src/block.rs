@@ -14,7 +14,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::clipboard::{SUBGRAPH_FORMAT, Subgraph, merge_defs};
-use crate::graph::{GROUP_KIND, Graph, NodeInstance, VOICES_KIND};
+use crate::graph::{GROUP_KIND, Graph, NodeInstance, VOICE_KIND, VOICES_KIND};
 use crate::group::GroupDef;
 use crate::id::{GroupId, NodeId};
 use crate::project::{LoadError, Project, SCHEMA_VERSION, migrate, to_canonical_json};
@@ -22,6 +22,10 @@ use crate::registry::{group_signature, voices_signature};
 
 /// File extension of block files.
 pub const BLOCK_EXTENSION: &str = "acblock";
+
+/// What a block's preview file is called, next to the block file:
+/// `<id>.preview.wav`.
+pub const PREVIEW_SUFFIX: &str = ".preview.wav";
 
 /// A block: its definition and the definitions its group nodes use.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -31,6 +35,27 @@ pub struct Block {
     /// Definitions referenced by group nodes inside `def` (and inside them).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub uses: BTreeMap<GroupId, GroupDef>,
+    /// The short recording of the block that sits next to its file, if it
+    /// has one. It describes the file, not the definition: projects don't
+    /// copy it, and two blocks that differ only here are the same block
+    /// ([`Block::same_definition`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<BlockPreview>,
+}
+
+/// A block's preview: a few seconds of it playing, rendered offline
+/// (DECISIONS D190), kept as a WAV file beside the block file.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockPreview {
+    /// The WAV file's name, in the block file's folder.
+    pub file: String,
+    /// SHA-256 of the file, as 64 lowercase hex digits.
+    pub sha256: String,
+}
+
+/// The preview file name for block `id`.
+pub fn preview_file_name(id: &str) -> String {
+    format!("{id}{PREVIEW_SUFFIX}")
 }
 
 #[derive(Serialize)]
@@ -54,7 +79,28 @@ impl Block {
         // The file is the library's copy; where it came from is the
         // library's business, not the file's.
         block.def.source = None;
+        // A preview is a file beside this one: a name that could point
+        // anywhere else isn't one.
+        if block
+            .preview
+            .as_ref()
+            .is_some_and(|p| !is_plain_file_name(&p.file))
+        {
+            block.preview = None;
+        }
         Ok(block)
+    }
+
+    /// Whether `other` is the same block: the same definition and the same
+    /// definitions inside, whatever their files say about previews.
+    pub fn same_definition(&self, other: &Block) -> bool {
+        self.def == other.def && self.uses == other.uses
+    }
+
+    /// Whether the block plays notes as a polyphonic instrument: it reads a
+    /// Voice node, so it's used as a Voices node.
+    pub fn is_polyphonic(&self) -> bool {
+        self.def.graph.nodes.iter().any(|n| n.kind == VOICE_KIND)
     }
 
     /// The canonical file form.
@@ -81,7 +127,11 @@ impl Block {
                 uses.insert(d, inner.clone());
             }
         }
-        Some(Block { def, uses })
+        Some(Block {
+            def,
+            uses,
+            preview: None,
+        })
     }
 
     /// A subgraph holding one instance of this block, its definition stored
@@ -106,6 +156,18 @@ impl Block {
             group_defs,
         }
     }
+}
+
+/// Whether `name` is a file name and nothing more: no folders, no `..` or
+/// other leading dot, no drive letter, nothing a file system would read
+/// specially. Spaces and other letters are fine.
+pub fn is_plain_file_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 255
+        && !name.starts_with('.')
+        && !name
+            .chars()
+            .any(|c| matches!(c, '/' | '\\' | ':') || c.is_control())
 }
 
 /// Definitions referenced by group and voices nodes in `graph`.
@@ -349,10 +411,66 @@ mod tests {
     }
 
     #[test]
+    fn a_preview_belongs_to_the_file_not_the_definition() {
+        let mut b = Block {
+            def: def("Comp", &["in"]),
+            uses: BTreeMap::new(),
+            preview: Some(BlockPreview {
+                file: preview_file_name("comp"),
+                sha256: "ab".repeat(32),
+            }),
+        };
+        let text = b.to_json();
+        assert!(text.contains("\"file\": \"comp.preview.wav\""), "{text}");
+        assert_eq!(Block::from_json(&text).unwrap(), b);
+        // A project's copy has no preview, and is still the same block.
+        let mut p = Project::default();
+        p.group_defs.insert(GroupId("comp".into()), b.def.clone());
+        let copy = Block::from_project(&p, &GroupId("comp".into())).unwrap();
+        assert_eq!(copy.preview, None);
+        assert!(copy.same_definition(&b));
+        assert_ne!(copy, b);
+        // A name that would reach outside the block's folder isn't kept.
+        for bad in [
+            "../x.wav",
+            "/etc/x.wav",
+            "a/b.wav",
+            "a\\b.wav",
+            ".hidden.wav",
+            "c:x.wav",
+            "",
+        ] {
+            b.preview.as_mut().unwrap().file = bad.into();
+            let back = Block::from_json(&b.to_json()).unwrap();
+            assert_eq!(back.preview, None, "{bad}");
+        }
+        assert!(is_plain_file_name("My Comp.preview.wav"));
+        // Older apps' files (no preview) still read.
+        b.preview = None;
+        assert!(!b.to_json().contains("preview"));
+    }
+
+    #[test]
+    fn instruments_are_the_blocks_with_a_voice_inside() {
+        let mut b = Block {
+            def: def("Synth", &[]),
+            uses: BTreeMap::new(),
+            preview: None,
+        };
+        assert!(!b.is_polyphonic());
+        b.def
+            .graph
+            .nodes
+            .push(NodeInstance::new(NodeId(9), VOICE_KIND));
+        assert!(b.is_polyphonic());
+    }
+
+    #[test]
     fn an_instance_pastes_with_its_source() {
         let b = Block {
             def: def("Comp", &["in"]),
             uses: BTreeMap::new(),
+            preview: None,
         };
         let src = BlockSource::new(Origin::Shipped, "comp");
         let s = b.instance(&GroupId("comp".into()), &src, false);
@@ -400,6 +518,7 @@ mod tests {
         let block = Block {
             def: new,
             uses: BTreeMap::new(),
+            preview: None,
         };
         let src = BlockSource::new(Origin::Shipped, "fx");
         let r = update_def(&mut p, &id, &block, &src);

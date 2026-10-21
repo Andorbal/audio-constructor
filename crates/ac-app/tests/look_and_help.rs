@@ -12,6 +12,7 @@ use ac_app::settings::AppSettings;
 use ac_app::theme::{self, ThemeChoice};
 use ac_app::{AppOptions, EditorApp};
 use ac_core::{GROUP_KIND, NodeId, NodeInstance, Project};
+use egui::accesskit::Role;
 use egui::{Key, Modifiers};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
@@ -160,16 +161,26 @@ fn ui_scale_steps_change_the_zoom_factor_and_are_remembered() {
 fn every_side_panel_tab_fits_at_the_default_width() {
     let mut h = harness_with(AppSettings::in_memory(), None);
     let window = 1400.0;
+    // Tabs are named for screen readers whether or not their name shows.
+    let tab = |h: &Harness<'static, EditorApp>, name: &str| {
+        h.get_by_role_and_label(egui::accesskit::Role::Tab, name)
+            .rect()
+    };
     // Narrow: the tabs not shown keep only their icons.
-    let help = h.get_by_label(icons::BOOK_OPEN).rect();
+    let help = tab(&h, "Help");
     assert!(help.max.x <= window, "{help:?}");
-    let node = h.get_by_label(&format!("{} Node", icons::SLIDERS)).rect();
+    let node = tab(&h, "Node");
     assert!(node.min.x > window - 400.0 && node.max.x < help.min.x);
+    assert!(
+        node.width() > help.width() * 2.0,
+        "the shown tab has its name"
+    );
     // Shown, a tab has its name.
     h.state_mut().side.show_help(None);
     steps(&mut h, 2);
-    let help = h.get_by_label(&format!("{} Help", icons::BOOK_OPEN)).rect();
-    assert!(help.max.x <= window, "{help:?}");
+    let named = tab(&h, "Help");
+    assert!(named.max.x <= window, "{named:?}");
+    assert!(named.width() > help.width() * 2.0, "{named:?} vs {help:?}");
 }
 
 /// One node of `kind`, selected.
@@ -192,12 +203,14 @@ fn click_exact(h: &mut Harness<'static, EditorApp>, label: &str) {
     steps(h, 3);
 }
 
+/// A block's link in the help, as a screen reader says it (the icon
+/// tells blocks and examples apart on screen).
 fn block_link(name: &str) -> String {
-    format!("{}  {name}", icons::STACK)
+    format!("{name}, block")
 }
 
 fn example_link(name: &str) -> String {
-    format!("{}  {name}", icons::FOLDER_OPEN)
+    format!("{name}, example")
 }
 
 #[test]
@@ -243,12 +256,26 @@ fn the_node_tab_and_the_menu_open_the_same_help() {
     assert_eq!(h.state().side.tab, Tab::Node);
     // The Node tab shows the tip and a button to the full reference.
     let _ = h.get_by_label_contains("Try this");
-    click_exact(&mut h, &format!("{}  Help", icons::BOOK_OPEN));
+    // The Node tab's Help button (the menu bar's comes first).
+    let help = h
+        .query_all_by_role_and_label(Role::Button, "Help")
+        .last()
+        .unwrap();
+    help.scroll_to_me();
+    steps(&mut h, 3);
+    h.query_all_by_role_and_label(Role::Button, "Help")
+        .last()
+        .unwrap()
+        .click();
+    steps(&mut h, 3);
     assert_eq!(h.state().side.tab, Tab::Help);
     assert_eq!(h.state().side.help.kind.as_deref(), Some("oscillator"));
     // Help ▸ Node Help with nothing selected lists every node.
     h.state_mut().doc.selection.clear();
-    click_exact(&mut h, "Help");
+    // The menu bar's Help (the side panel has a Help tab too).
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Help")
+        .click();
+    steps(&mut h, 3);
     click(&mut h, "Node Help");
     assert_eq!(h.state().side.tab, Tab::Help);
     assert_eq!(h.state().side.help.kind, None);
@@ -332,4 +359,158 @@ fn file_examples_opens_an_untitled_copy() {
         doc.graph().nodes.len() > 1,
         "the example's patch, not the one node from before"
     );
+}
+
+#[test]
+fn view_theme_high_contrast_switches_at_once_and_is_remembered() {
+    let file = settings_file("contrast");
+    let mut h = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    click(&mut h, "View");
+    click(&mut h, "Theme");
+    click(&mut h, "High Contrast");
+    assert!(dark_mode(&h), "High Contrast is a dark theme");
+    let v = h.ctx.global_style().visuals.clone();
+    assert_eq!(v.panel_fill, theme::HIGH_CONTRAST.panel_bg);
+    assert_eq!(theme::canvas_bg(), theme::HIGH_CONTRAST.canvas_bg);
+    assert_eq!(theme::focus_ring(), theme::HIGH_CONTRAST.focus_ring);
+    assert_eq!(theme::outline_width(), 2.0);
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains(r#""theme": "high_contrast""#), "{text}");
+    let h2 = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    assert_eq!(h2.state().settings().prefs.theme, ThemeChoice::HighContrast);
+    assert_eq!(theme::canvas_bg(), theme::HIGH_CONTRAST.canvas_bg);
+    std::fs::remove_dir_all(file.parent().unwrap()).ok();
+}
+
+/// A settings file in a fresh folder with `themes` beside it holding
+/// `files` (name, text).
+fn with_theme_files(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+    let file = settings_file(tag);
+    let dir = file.parent().unwrap().join("themes");
+    std::fs::create_dir_all(&dir).unwrap();
+    for (name, text) in files {
+        std::fs::write(dir.join(name), text).unwrap();
+    }
+    file
+}
+
+#[test]
+fn a_theme_file_is_listed_chosen_by_name_and_reloaded() {
+    let file = with_theme_files(
+        "user",
+        &[
+            (
+                "midnight.json",
+                r##"{"name": "Midnight", "base": "dark", "colors": {"canvas_bg": "#05070A", "accent": "#FFB000"}}"##,
+            ),
+            (
+                "paper.json",
+                r##"{"name": "Paper", "base": "light", "colors": {"canvas_bg": "#FAF6EE"}}"##,
+            ),
+            ("broken.json", "{ nope"),
+        ],
+    );
+    let mut h = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    // A file that couldn't be used is said at startup.
+    assert!(
+        h.state()
+            .status()
+            .is_some_and(|s| s.contains("1 theme file couldn't be used (broken.json")),
+        "{:?}",
+        h.state().status()
+    );
+    click(&mut h, "View");
+    click(&mut h, "Theme");
+    // The menu says which file couldn't be used, and why.
+    let _ = h.get_by_label_contains(&format!(
+        "{}  broken.json: isn't a theme file",
+        icons::WARNING
+    ));
+    let _ = h.get_by_label_contains("Open Themes Folder");
+    click(&mut h, "Paper");
+    assert!(
+        !dark_mode(&h),
+        "a light-based theme shows in egui's light slot"
+    );
+    assert_eq!(
+        theme::canvas_bg(),
+        egui::Color32::from_rgb(0xFA, 0xF6, 0xEE)
+    );
+    assert_eq!(theme::text(), theme::LIGHT.text, "the rest is its base's");
+    assert_eq!(
+        h.state().settings().prefs.theme,
+        ThemeChoice::User("Paper".into())
+    );
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains(r#""theme": "Paper""#), "{text}");
+
+    // The next start shows it again.
+    let mut h = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    assert_eq!(
+        theme::canvas_bg(),
+        egui::Color32::from_rgb(0xFA, 0xF6, 0xEE)
+    );
+
+    // Edit the file and reload: the change shows at once.
+    let dir = file.parent().unwrap().join("themes");
+    std::fs::write(
+        dir.join("paper.json"),
+        r##"{"name": "Paper", "base": "light", "colors": {"canvas_bg": "#EEEEEE"}}"##,
+    )
+    .unwrap();
+    click(&mut h, "View");
+    click(&mut h, "Theme");
+    click(&mut h, "Reload Themes");
+    assert_eq!(
+        theme::canvas_bg(),
+        egui::Color32::from_rgb(0xEE, 0xEE, 0xEE)
+    );
+    assert!(
+        h.state()
+            .status()
+            .is_some_and(|s| s.starts_with("2 themes in your themes folder")),
+        "{:?}",
+        h.state().status()
+    );
+
+    // Gone: the editor is Dark and says why; the setting keeps the name
+    // so putting the file back brings it back.
+    std::fs::remove_file(dir.join("paper.json")).unwrap();
+    let h = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    assert!(dark_mode(&h));
+    assert_eq!(theme::canvas_bg(), theme::DARK.canvas_bg);
+    assert!(
+        h.state()
+            .status()
+            .is_some_and(|s| s.contains("The theme “Paper” isn't in your themes folder")),
+        "{:?}",
+        h.state().status()
+    );
+    assert_eq!(
+        h.state().settings().prefs.theme,
+        ThemeChoice::User("Paper".into())
+    );
+    std::fs::remove_dir_all(file.parent().unwrap()).ok();
+}
+
+#[test]
+fn a_theme_with_hard_to_read_text_is_flagged() {
+    let file = with_theme_files(
+        "dim",
+        &[(
+            "dim.json",
+            r##"{"name": "Dim", "base": "dark", "colors": {"text": "#45484F"}}"##,
+        )],
+    );
+    let mut h = harness_with(AppSettings::load_from(Some(file.clone())), None);
+    click(&mut h, "View");
+    click(&mut h, "Theme");
+    let _ = h.get_by_label_contains("low text contrast");
+    click(&mut h, "Dim");
+    let status = h.state().status().unwrap_or_default().to_string();
+    assert!(
+        status.contains("“Dim” has text at") && status.contains("under the 4.5:1"),
+        "{status}"
+    );
+    std::fs::remove_dir_all(file.parent().unwrap()).ok();
 }

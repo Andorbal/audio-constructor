@@ -47,26 +47,37 @@
 
 pub mod assets;
 pub mod audio;
+pub mod audition;
 pub mod clock;
 pub mod control;
 pub mod convert;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod crash;
 pub mod engine_threads;
 pub mod gamepad;
+pub mod hash;
+pub mod index;
 pub mod latency;
 pub mod library;
 pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
 pub mod monitor;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod net;
 pub mod null;
 pub mod osc;
 pub mod osc_out;
 pub mod pack;
+pub mod preview;
 pub mod priority;
 pub mod project_file;
 pub mod record;
+pub mod remote;
 pub mod rings;
 pub mod runtime;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod update;
 pub mod wav;
 pub mod zip;
 
@@ -74,6 +85,7 @@ pub use assets::{AssetStore, FileResources, RecorderFactory};
 pub use audio::{
     AudioConfig, CpalAudio, DeviceInfo, HostInfo, InputChoice, RunningAudio, enumerate,
 };
+pub use audition::{Audition, AuditionTap, audition};
 pub use control::{ControlError, ControlInputs, ControlReceiver, ControlSender};
 pub use engine_threads::{BAKE_DEBOUNCE, Baker, available_threads, worker_pool};
 pub use gamepad::{GamepadError, GamepadInfo, Gamepads, list_gamepads};
@@ -92,6 +104,7 @@ pub use pack::{
     PACK_EXTENSION, PackReport, Unpacked, pack_project, unpack, unpack_beside, unpack_in_memory,
     write_pack,
 };
+pub use preview::{Exported, Preview, export_block, render_preview};
 pub use project_file::{load_project, save_project};
 pub use record::{DiskRecorder, Take};
 pub use runtime::{

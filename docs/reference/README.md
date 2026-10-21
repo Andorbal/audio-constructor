@@ -248,7 +248,7 @@ Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tool
 | --- | --- |
 | [Comment](utility.md#comment) | A sticky note on the canvas, for explaining a patch to others or to yourself later. |
 | [Feedback](utility.md#feedback) | Sends a signal back to an earlier point in the patch. It is the only way to make a loop: a wire path that leads back to where it started. |
-| [Group](utility.md#group) | A piece of patch packed into one node, with its own sockets. Double-click it (or select it and press `Tab`) to go inside and edit it; `Tab` again comes back out. |
+| [Group](utility.md#group) | A piece of patch packed into one node, with its own sockets. Double-click it (or select it and press `Ctrl+Enter`) to go inside and edit it; `Ctrl+Enter` again comes back out. |
 | [Info](utility.md#info) | The engine's vital signs as signals: `sample_rate` (Hz), `block_size` (the largest block, in frames), `cpu_load` (how much of each block's time the patch used last block, 0 to 1 and beyond), `xruns` (dropouts so far, from overruns and the audio device), and `latency` (the patch's output latency in samples). *Live source.* |
 | [Latency](utility.md#latency) | Delays audio by a fixed number of samples and tells the engine so, which makes it a handy way to see latency compensation at work. |
 | [Merge Channels](utility.md#merge-channels) | Combines mono signals into one multichannel signal. |

@@ -4,20 +4,24 @@
 sequencers, and things that don't have names yet, by wiring together small,
 composable nodes, the way Blender's geometry nodes let you build visuals.
 
-> Status: Phases 1 (foundation) and 2 (depth) are built. Phase 1 gave the
-> engine, the command line, and the desktop editor. Phase 2 added
-> polyphony, nodes that bake their whole input, latency compensation,
-> multi-core processing, the Phase 2 node library (with editors for
-> curves, step grids, piano rolls, and bands), 23 shipped blocks, packs
-> for sharing projects, control surfaces (gamepads, the computer keyboard,
-> OSC, bindings with learn, performance panels), editor conveniences
-> (auto-layout, find, portals, a minimap, a light theme, UI scale, F1
-> help), 14 example projects, and a [user guide](docs/guide/README.md).
-> Phase 3 (plugins, the web, packaging) is under way: projects already
-> run inside other music software as CLAP and VST3 plugins, and the whole
-> editor runs in a web browser. See
-> [docs/ROADMAP.md](docs/ROADMAP.md) for where things stand and what still
-> needs a human with audio hardware.
+> Status: Phases 1 (foundation), 2 (depth), and 3 (reach) are built.
+> Phase 1 gave the engine, the command line, and the desktop editor.
+> Phase 2 added polyphony, nodes that bake their whole input, latency
+> compensation, multi-core processing, the Phase 2 node library (with
+> editors for curves, step grids, piano rolls, and bands), 23 shipped
+> blocks, packs for sharing projects, control surfaces (gamepads, the
+> computer keyboard, OSC, bindings with learn, performance panels),
+> editor conveniences (auto-layout, find, portals, a minimap, a light
+> theme, UI scale, F1 help), example projects, and a
+> [user guide](docs/guide/README.md). Phase 3 made projects run inside
+> other music software as CLAP and VST3 plugins, put other makers' CLAP
+> and VST3 plugins inside projects as nodes, ran the whole editor in a
+> web browser, added single-sample feedback and seven more nodes, and
+> made it a product: installers, an update check you opt into, crash
+> reports you choose to send, block previews and shared libraries,
+> themes of your own, a translation-ready editor, and a keyboard and
+> screen-reader pass. See [docs/ROADMAP.md](docs/ROADMAP.md) for what was
+> verified and what still needs a human with audio hardware.
 
 ![The Start example playing: an oscillator through a gain, meter, and scope to the output, with live meters and a flowing wire](docs/images/editor-start.png)
 
@@ -70,8 +74,8 @@ parts those tools are made of and lets you wire them up however you like.
 3. **A plugin**: the engine as a CLAP and VST3 effect and instrument, so a
    patch runs inside any music software that loads plugins, with sixteen
    macro knobs the host can automate and, in CLAP hosts, the whole editor
-   in the plugin's window. Hosting third-party plugins as nodes is
-   planned.
+   in the plugin's window. The other way round works too: the CLAP and
+   VST3 plugins installed on your computer run as nodes inside a patch.
 4. **In a browser**: the same editor and engine as a web page, with
    MIDI, gamepads, and the microphone, examples from the site, and files
    opened and saved through the browser. Nothing to install.
@@ -85,12 +89,14 @@ to building, playing, and rendering your own patches, step by step.
 
 Every release on the
 [releases page](https://github.com/Andorbal/audio-constructor/releases)
-has archives for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64)
-holding `audio-constructor`, `audioc`, and the examples. The binaries aren't
-signed yet: on macOS, clear the quarantine flag with
-`xattr -dr com.apple.quarantine <unpacked folder>`; on Windows, choose
-**More info → Run anyway**. What changed in each version is in
-[CHANGELOG.md](CHANGELOG.md).
+has an installer for Linux (x86-64, a `.deb`), macOS (Apple silicon, a
+`.pkg`), and Windows (x86-64, a setup program). Each installs the editor,
+`audioc`, the examples, and the CLAP and VST3 plugins where music software
+finds them. Plain archives are there too, to unpack and run anywhere (the
+Linux one has an `install.sh` that installs into your home folder). The
+[guide](docs/guide/getting-started.md#install) says what goes where and
+what to do if your system warns about an unsigned download. What changed
+in each version is in [CHANGELOG.md](CHANGELOG.md).
 
 ### Build
 
@@ -138,7 +144,8 @@ wire, `Ctrl+Z` to undo. Pick your audio interface in the side panel's
 **Devices** tab (`N` toggles the panel); MIDI inputs are opened on their own
 and listed there. `F1` on a node opens
 its help, with a "Try this" tip and the blocks and examples that use it.
-View ▸ Theme has a light theme, and View ▸ UI Scale sizes the whole
+View ▸ Theme has light and high-contrast themes (and your own, from
+theme files), and View ▸ UI Scale sizes the whole
 interface from 75 % to 200 %.
 
 The examples in `examples/` are good places to start. Each is a working
@@ -252,6 +259,7 @@ from the nodes' doc comments with `audioc nodes --docs docs/reference`.
 | [docs/NODES.md](docs/NODES.md) | The node catalog and node design conventions |
 | [docs/UX.md](docs/UX.md) | Look and feel, editor behaviors, conveniences |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log with alternatives considered |
+| [docs/TRANSLATING.md](docs/TRANSLATING.md) | How the editor's text is translated, and how to add a language |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 | [CLAUDE.md](CLAUDE.md) | Working agreements for AI agents contributing to the repo |
 

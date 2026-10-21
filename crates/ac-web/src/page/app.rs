@@ -11,6 +11,7 @@ use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use ac_app::i18n::{tr, tr_args};
 use ac_app::{EditorApp, FileRequest, SaveKind};
 use ac_core::{ControlEvent, Project, Registry};
 use ac_engine::Processor;
@@ -118,18 +119,11 @@ impl WebApp {
         let osc = kinds.contains("osc_in") || kinds.contains("osc_out");
         if osc && !self.told_osc {
             self.told_osc = true;
-            self.editor.notify(
-                "This patch uses OSC, which needs UDP: browsers can't send or receive it, so its \
-                 OSC nodes stay quiet here",
-                true,
-            );
+            self.editor.notify(tr("web-osc-quiet"), true);
         }
         if kinds.contains("record") && !self.told_record {
             self.told_record = true;
-            self.editor.notify(
-                "Record nodes can't write takes in the browser; Export WAV renders the project",
-                true,
-            );
+            self.editor.notify(tr("web-record-no-takes"), true);
         }
     }
 
@@ -174,32 +168,32 @@ impl WebApp {
             match r {
                 FileRequest::Open => spawn(weak, async move {
                     let accept = [".acproj", ".acpack", ".acblock"];
-                    pick(
-                        "Audio Constructor project, pack, or block",
-                        &accept,
-                        |name, bytes, handle| (Pending::Opened { name, bytes }, Some(handle)),
-                    )
+                    pick(&tr("web-file-openable"), &accept, |name, bytes, handle| {
+                        (Pending::Opened { name, bytes }, Some(handle))
+                    })
                     .await
                 }),
                 FileRequest::ImportBlock => spawn(weak, async move {
-                    pick(
-                        "Audio Constructor block",
-                        &[".acblock"],
-                        |name, bytes, _| (Pending::Opened { name, bytes }, None),
-                    )
+                    pick(&tr("web-file-block"), &[".acblock"], |name, bytes, _| {
+                        (Pending::Opened { name, bytes }, None)
+                    })
                     .await
                 }),
                 FileRequest::Audio(purpose) => spawn(weak, async move {
-                    pick("WAV audio", &[".wav", ".wave"], move |name, bytes, _| {
-                        (
-                            Pending::Audio {
-                                purpose,
-                                name,
-                                bytes,
-                            },
-                            None,
-                        )
-                    })
+                    pick(
+                        &tr("web-file-wav"),
+                        &[".wav", ".wave"],
+                        move |name, bytes, _| {
+                            (
+                                Pending::Audio {
+                                    purpose,
+                                    name,
+                                    bytes,
+                                },
+                                None,
+                            )
+                        },
+                    )
                     .await
                 }),
                 FileRequest::Example(path) => spawn(weak, async move {
@@ -207,7 +201,10 @@ impl WebApp {
                         Ok(p) => Some((p, None)),
                         Err(e) => Some((
                             Pending::Say {
-                                text: format!("Couldn't load the example: {e}"),
+                                text: tr_args(
+                                    "status-couldnt-open-example",
+                                    &[("error", e.into())],
+                                ),
                                 warning: true,
                             },
                             None,
@@ -228,15 +225,16 @@ impl WebApp {
                     };
                     spawn(weak, async move {
                         let description = match kind {
-                            SaveKind::Project => "Audio Constructor project",
-                            SaveKind::Wav => "WAV audio",
-                            SaveKind::Pack => "Audio Constructor pack",
+                            SaveKind::Project => tr("web-file-project"),
+                            SaveKind::Wav => tr("web-file-wav"),
+                            SaveKind::Pack => tr("web-file-pack"),
+                            SaveKind::Block => tr("web-file-block"),
                         };
                         let r = js::save_file(
                             &name,
                             &bytes,
                             kind.mime(),
-                            description,
+                            &description,
                             &handle,
                             !same_place,
                         )
@@ -271,10 +269,12 @@ impl WebApp {
     fn title(&mut self) {
         let doc = self.editor.document();
         let dirty = doc.is_dirty();
-        let title = format!(
-            "{}{} — Audio Constructor",
-            if dirty { "● " } else { "" },
-            doc.title()
+        let title = tr_args(
+            "app-window-title",
+            &[
+                ("dirty", if dirty { "● " } else { "" }.into()),
+                ("project", doc.title().into()),
+            ],
         );
         let mut st = self.state.borrow_mut();
         st.dirty = dirty;
@@ -302,20 +302,16 @@ impl WebApp {
         let worklet = js::worklet_state();
         let (text, warning) = if worklet == "failed" {
             (
-                format!(
-                    "The audio stopped: {}. Reload the page to start it again.",
-                    js::worklet_message()
+                tr_args(
+                    "web-audio-stopped",
+                    &[("error", js::worklet_message().into())],
                 ),
                 true,
             )
         } else if audio == "suspended" || audio == "interrupted" {
             // Safari says "interrupted" where other browsers say
             // "suspended" for a context made before any gesture.
-            (
-                "Click anywhere or press a key to start the sound (browsers wait for you)."
-                    .to_string(),
-                false,
-            )
+            (tr("web-audio-waiting"), false)
         } else {
             return;
         };
@@ -383,7 +379,10 @@ async fn pick(
         }
         Err(e) => Some((
             Pending::Say {
-                text: format!("Couldn't open the file: {}", js::error_text(&e)),
+                text: tr_args(
+                    "web-couldnt-open-file",
+                    &[("error", js::error_text(&e).into())],
+                ),
                 warning: true,
             },
             None,

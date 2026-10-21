@@ -36,7 +36,10 @@ pub use binding::{
     Binding, Effect, GateMode, InputEvent, Learner, Mapping, Reading, Source, SourceKey, Target,
     TransportAction,
 };
-pub use block::{BLOCK_EXTENSION, Block, BlockSource, Origin, UpdateReport, slug, update_def};
+pub use block::{
+    BLOCK_EXTENSION, Block, BlockPreview, BlockSource, Origin, PREVIEW_SUFFIX, UpdateReport,
+    is_plain_file_name, preview_file_name, slug, update_def,
+};
 pub use clipboard::Subgraph;
 pub use control::{
     CONTROL_CAPACITY, Control, ControlEvent, GamepadAxis, GamepadButton, Key, MACRO_COUNT,

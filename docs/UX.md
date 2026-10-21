@@ -24,13 +24,32 @@ patterns; the look is our own.
 
 ## Look
 
-- Own look on every platform, like Blender. Dark theme by default, and a
-  light theme: View ▸ Theme picks **Dark**, **Light**, or **Follow
-  System** (the operating system's light or dark mode, followed while the
-  editor runs), switching at once and remembered in the editor's settings
-  (D107, D109). All colors, radii, spacing, and type scale live in one theme
-  module (`ac-app/src/theme.rs`) so the look can be tuned in one place:
-  each theme is a `Palette` of every color the editor draws with.
+- Own look on every platform, like Blender. Dark theme by default, a
+  light theme, and a high-contrast one: View ▸ Theme picks **Dark**,
+  **Light**, **High Contrast**, or **Follow System** (the operating
+  system's light or dark mode, followed while the editor runs), then the
+  person's own themes, switching at once and remembered in the editor's
+  settings by name (D107, D109, D180). All colors, radii, spacing, and type
+  scale live in one theme module (`ac-app/src/theme.rs`) so the look can be
+  tuned in one place: each theme is a `Palette` of every color the editor
+  draws with.
+- **High Contrast** is white text on black, at least 7:1 on every surface
+  (WCAG AAA), with white outlines on cards, buttons, and fields, outlines
+  drawn twice as thick, a yellow focus ring unlike any other color on
+  screen, and socket colors brightened so types that share a shape stay
+  far apart in color.
+- **Theme files** (D181): JSON in `themes/` beside `settings.json`, each
+  with a `name`, a `base` (`dark`, `light`, or `high_contrast`), an
+  optional `header_mix`, and `colors` overriding any `Palette` color by
+  its field name (`#RRGGBB` or `#RRGGBBAA`); anything left out is the
+  base's. View ▸ Theme lists them after the built-ins, with **Open Themes
+  Folder** and **Reload Themes**. A file that can't be used is listed in
+  the menu with why (and said at startup); a misspelled name or a bad
+  color is skipped and noted on hover; a theme whose body text falls
+  under 4.5:1 on any surface is marked in the menu and says so when
+  chosen. A saved theme whose file is gone shows Dark. The guide's
+  [Themes](guide/themes.md) chapter lists every field with the built-in
+  values (a test keeps it complete and current).
 - Readable in both themes: body text has at least 4.5:1 contrast on every
   panel and card (the WCAG AA level), and signal colors at least 3:1 on the
   canvas and on cards; tests check both. The light theme keeps the dark
@@ -77,6 +96,21 @@ Category header colors: I/O red, Generators orange, Level/Dynamics gold,
 Filters green, Time teal, Spectral cyan, Math blue, Modulation indigo,
 Triggers yellow, Sequencing violet, Controls pink, Display grey, Utility
 slate.
+
+### Language
+
+View ▸ Language picks **System** (the operating system's language when
+the editor has a catalog for it, else English), **English**, or
+**Pseudo**, remembered in the settings (D182). Everything the editor says
+itself goes through the catalog: menus and command names, panel and tab
+titles, the transport bar's labels and tooltips, dialogs, status and
+error messages, undo names, hints, badges, and the settings and help
+chrome. Node names, node docs, socket names, node settings labels, units,
+and project content aren't translated yet. Pseudo accents every letter,
+pads each message to about 135 % of its English length, and brackets it,
+so untranslated text (no brackets) and layouts that can't take longer
+words show up at a glance; a test opens every menu in Pseudo and fails on
+a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
 
 ## Node anatomy
 
@@ -125,7 +159,7 @@ slate.
 | Copy/paste | `Ctrl+C`/`Ctrl+V` as JSON text; works across projects and into chat |
 | Mute | `M` bypasses the node (passes `in` → `out` where types match) |
 | Collapse | `H`; `Ctrl+H` collapses all unwired sockets |
-| Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; `Tab` enters/leaves a group; `Ctrl+Alt+G` ungroups |
+| Group | `Ctrl+G` makes a group of the selection, exposing dangling wires as sockets; double-click or `Ctrl+Enter` enters a group, `Ctrl+Enter` leaves it (D183); `Ctrl+Alt+G` ungroups |
 | Frame | `Ctrl+J` puts a labeled frame around the selection; frames move their contents |
 | Minimap | `Shift+M` shows or hides it; click or drag in it to move the view |
 | Align / distribute | `Shift+Alt+A` menu at the pointer (also Edit ▸ Align / Distribute, and a node's right-click menu with several selected); **auto-layout** `Ctrl+L` lays out the selection, or the whole graph with nothing selected (layered, left to right) |
@@ -135,6 +169,9 @@ slate.
 | Help | `F1` on a node opens its reference in the side panel's Help tab (also Node Help in its right-click menu, and the Help button in the Node tab); with nothing selected, the list of every node |
 | Pin to a panel | `P` pins the selected controls and displays to the current panel (`P` again unpins) |
 | Panels | `Ctrl+Tab` switches between the canvas and the panels; `F11` performance mode (`Esc` or `F11` leaves) |
+| Keyboard focus | `Tab`/`Shift+Tab` move a focus ring through the cards in signal order (columns left to right, top to bottom in each), and the selection follows; `Shift+Enter` keeps the focused card selected (adds or removes it); `Alt+↓`/`Alt+↑` step through the focused card's inputs, then outputs; `Enter` selects the focused card or opens a selected group; `F6` moves the keyboard between the canvas and the side panel; `Esc` with nothing to cancel hides the ring (D183) |
+| Wire from the keyboard | `Enter` on a socket picks up a wire (the hint says from where); move the focus and `Enter` again wires it to the focused socket, or to the focused card's first socket that fits; `Esc` drops it |
+| Keyboard moves and values | arrows nudge the selection a grid step (`Shift` five, `Ctrl` one unit; one undo step per run), or pan with nothing selected; after `G` they move the grab and `Enter` places it (splicing onto a wire under the moved card); `F2` on an input types its value; `Shift+F10` opens the focused card's or socket's menu with the keyboard in it |
 
 Wire routing: béziers (a "straight with bends" option is planned, not built
 yet). Wires behind nodes are dimmed. Long wires can be turned into named **portals**
@@ -223,6 +260,22 @@ A resizable panel (`N` toggles) with tabs:
 
 - **Node**: everything about the selected node: full parameter list, docs
   (with its "Try this" tip highlighted), bindings, timing, latency.
+- **Library**: nodes by category and user/shared blocks; drag to the canvas.
+  Search here is the same engine as the palette. Every block that makes
+  sound has a play button at the right of its row: it plays the block's
+  preview over whatever the patch is playing (its preview file, or a
+  render made then, with a spinner-like **…** while it renders) and
+  becomes a stop button while it plays; one preview plays at a time
+  (D190, D193). A block's right-click menu has **Export block file…**,
+  which writes it with its preview beside it. Below the blocks, **Import
+  block file…** and **Import from Link…**, then **Shared libraries**:
+  each library added by link (a collapsible section named after it, with
+  its description), its blocks filtered by the same search, each with its
+  version and author, a play button when it has a preview (downloaded on
+  first play), and **Install** (a spinner while it downloads,
+  **Installed** once that version is in the library), plus **Refresh**
+  and **Remove** for the library. A library still loading shows a
+  spinner; one that couldn't be read says why (D194).
 - **Library**: nodes by category, the plugins installed on this computer
   (**Plugins**), and user/shared blocks; drag to the canvas. Search here is
   the same engine as the palette.
@@ -267,6 +320,22 @@ A resizable panel (`N` toggles) with tabs:
 
 When the panel is too narrow for every tab's name, the tabs not shown keep
 only their icons, named on hover.
+
+## Sharing blocks
+
+- **File ▸ Import from Link…** asks for a link (an `.acblock`, an
+  `.acpack`, or a shared library's `index.json`) in a small dialog and
+  downloads it in the background, the status bar showing what it's
+  downloading: a block joins the library under Imported (the Library tab
+  opens on it), a pack is saved to the Downloads folder and opens as a
+  pack file does (asking about unsaved changes first), and a library is
+  listed under Shared libraries. Failures (an `http` link elsewhere than
+  this computer, a 404, a download that doesn't match its index) are
+  reported in the status bar (D192).
+- **Export block file…** in the Node tab (under **Group definition**,
+  next to **Save to library**) and on library rows asks where to save
+  and writes the block and its preview in the background; the status bar
+  says when it's done, or why there's no preview.
 
 ## Transport bar
 
@@ -430,11 +499,65 @@ all honor them (DECISIONS D92).
   typing or with the panels shown. It is egui's zoom factor, so everything
   scales, canvas text included; the canvas's own zoom is separate. The
   scale is remembered in the editor's settings (D108, D109).
-- A light theme (View ▸ Theme) with the same contrast rules as the dark
-  one (see "Look").
+- A light theme and a High Contrast theme (View ▸ Theme) with the same
+  contrast rules as the dark one, and High Contrast's stricter ones (see
+  "Look"). The keyboard focus ring is the theme's `focus_ring` color, at
+  least 3:1 on the canvas, cards, and panels in every theme, and unlike
+  the selection outline.
 - Socket shapes carry type information in addition to color.
-- All canvas actions have keyboard equivalents; the palette is fully
-  keyboard driven.
+- **Keyboard.** Every canvas action has a keyboard path ("Canvas
+  interactions": focus, sockets, wiring, values, moves, menus); the
+  palette and find bar are fully keyboard driven. On the panels, `F6` puts
+  the keyboard on the first card and `Tab` reaches each one: arrows turn a knob, slider, or number (a hundredth of
+  the range, a tenth with `Shift`/`Page Up`/`Page Down`; whole numbers by
+  at least one), `Home`/`End` go to the ends, `Enter` (or `F2`) types a
+  value, opens a dropdown, flips a toggle, or picks a clip's file, and
+  `Space` holds a Button down while it's held; in the panel view (not
+  performance mode) `Delete` unpins the card and `+`/`-` resize it. The
+  update and crash windows give their first button the keyboard when they
+  appear.
+- **Screen readers** (AccessKit, D185). Each card is a button named for
+  its title, kind (when it has a title of its own), and socket counts,
+  with its selected, muted, and collapsed states ("Level, Gain, 2 inputs,
+  1 output, selected"); each socket says its card, name, type, side, and
+  what it's wired to or set to ("Level gain: Float input, -6 dB"). The
+  canvas is named for its node count and the group it shows. On a panel,
+  knobs and sliders are sliders (numbers spin buttons) with value, range,
+  and increment, decrement, and set value; toggles are switches; meters
+  say their peak; readouts their number. Icon-only buttons are named for
+  what they do (a library block's play button says "Play preview of
+  Plate Reverb"), icons are left out of every name, decorative icons are
+  hidden, and check-marked menu entries are checked menu items. A screen
+  reader's activate selects a card, and moving its focus moves the
+  canvas's.
+- **View ▸ Reduce Motion** (D184): no fades or ghosts, no wire snap ease,
+  no flowing-wire texture or event pulses, no smooth zoom or fit (the view
+  jumps), and egui's own animations off. Meters and scopes still move.
+  Remembered in the settings.
+- **The audit** (`crates/ac-app/tests/accessibility.rs`, run in CI): it
+  walks the AccessKit tree of the main window on the Start example with
+  the side panel on each of its tabs and a node selected, the panel view
+  and performance mode on an example with a panel, and every menu and
+  submenu, and fails on any interactive node (one that takes focus or a
+  click, a text field, a slider) without a name, or whose name carries an
+  icon's code point. egui's own scroll bars are left out (their role is
+  all they say). Other tests there find cards and sockets by their names,
+  build, wire, set, and play a patch from the keyboard alone, play panel
+  controls from the keys and from AccessKit actions, and check Reduce
+  Motion. At 100 % every pointer target in the window is at least 14
+  points on its short side (egui's compact one-line buttons; most buttons
+  are 22) and every socket's grab area 20 × 20; scroll bars can be
+  grabbed 14 points wide. That is under WCAG 2.5.8's 24 px for the compact
+  buttons; UI Scale 175 % brings them there.
+- **Not covered yet**: the canvas's inline widgets (an input's slider,
+  dropdown, or checkbox on a card) are reached through their socket (`F2`)
+  rather than as widgets of their own; a panel's XY Pad and Keyboard play
+  from the pointer only (Play keys plays notes from the computer
+  keyboard); a frame's rename and remove are pointer-only; panel and side
+  panel widths change by dragging their edges only; System language finds
+  English only (no other catalogs yet), and in the browser it can't read
+  the system's language. Manual checks with NVDA, VoiceOver, and Orca are
+  listed in the M3.5 merge request.
 
 ## Fun, deliberately
 
@@ -444,3 +567,5 @@ all honor them (DECISIONS D92).
 - The Start project ends with a "now break it" section.
 - Nothing bounces, nothing takes longer than 150 ms, nothing animates while
   the CPU is busy with audio.
+- View ▸ Reduce Motion turns every one of these off (see "Accessibility
+  and scaling").

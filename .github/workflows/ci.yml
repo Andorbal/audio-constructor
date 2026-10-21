@@ -161,16 +161,21 @@ jobs:
           grep -q '^ASIO' devices.txt
 
   plugin:
-    name: Plugin bundles (${{ matrix.os }})
+    name: Bundles and installers (${{ matrix.os }})
     # The test job already runs the plugin's tests on a debug build (a real
     # CLAP host loads it, aborting on audio-thread allocations); this one
-    # builds the release .clap and .vst3 bundles people install and runs the
-    # same host tests against the binary inside them.
+    # builds what a release ships: the .clap and .vst3 bundles (running the
+    # same host tests against the binary inside them), then the programs
+    # and each platform's archive and installer, which it installs, runs,
+    # and uninstalls again.
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # As release.yml builds them: symbols but no line tables.
+      CARGO_PROFILE_RELEASE_STRIP: debuginfo
     steps:
       - uses: actions/checkout@v4
       # The editor links the device layer (ALSA, udev); xvfb and Mesa's GLX
@@ -178,6 +183,27 @@ jobs:
       - name: Install system libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev xvfb libgl1 libglx-mesa0 libgl1-mesa-dri mesa-utils
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        # An installed NSIS if the image has one; otherwise NSIS's own
+        # portable release, pinned by its SHA-256 (no package feed, which
+        # throttles and goes down; no installer). Fails here, not later.
+        run: |
+          $dirs = @("${env:ProgramFiles(x86)}\NSIS", "$env:ProgramFiles\NSIS")
+          $found = $dirs | Where-Object { Test-Path (Join-Path $_ "makensis.exe") } | Select-Object -First 1
+          if (-not $found) {
+            $zip = Join-Path $env:RUNNER_TEMP "nsis-3.11.zip"
+            curl.exe -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o $zip "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip"
+            if ($LASTEXITCODE -ne 0) { Write-Error "couldn't download NSIS ($LASTEXITCODE)"; exit 1 }
+            $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+            if ($hash -ne "C7D27F780DDB6CFFB4730138CD1591E841F4B7EDB155856901CDF5F214394FA1") { Write-Error "NSIS download has SHA-256 $hash, not the pinned one"; exit 1 }
+            Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+            $found = Join-Path $env:RUNNER_TEMP "nsis-3.11"
+          }
+          if (-not (Test-Path (Join-Path $found "makensis.exe"))) { Write-Error "makensis.exe isn't in $found"; exit 1 }
+          Write-Host "NSIS is in $found"
+          $found | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - run: rustup show
       - uses: Swatinem/rust-cache@v2
       - name: Build the bundles
@@ -205,11 +231,91 @@ jobs:
         run: |
           xvfb-run -a -s "-screen 0 1280x1024x24" sh -c \
             'glxinfo -B && cargo test -p ac-plugin --test clap_host -- --ignored'
+      - name: Build the programs
+        run: cargo build --release --locked -p ac-cli -p ac-app
+      - name: Package
+        shell: bash
+        run: |
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/package.py --out dist
+      - name: Install, run, and remove the .deb and the tarball (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/audio-constructor_*.deb
+          audioc --version
+          audio-constructor --version
+          test -f "/usr/lib/clap/Audio Constructor.clap"
+          test -d "/usr/lib/vst3/Audio Constructor.vst3"
+          test -f /usr/share/audio-constructor/examples/start.acproj
+          test -f /usr/share/applications/audio-constructor.desktop
+          audioc render /usr/share/audio-constructor/examples/start.acproj -o "$RUNNER_TEMP/start.wav" --to 1 -q
+          sudo apt-get remove -y audio-constructor
+          test ! -e /usr/bin/audioc
+          # The per-user install, into a scratch home.
+          export HOME="$RUNNER_TEMP/home"
+          mkdir -p "$HOME" "$RUNNER_TEMP/tarball"
+          tar -xzf dist/audio-constructor-v*.tar.gz -C "$RUNNER_TEMP/tarball"
+          "$RUNNER_TEMP"/tarball/*/install.sh
+          "$HOME/.local/bin/audioc" --version
+          test -f "$HOME/.clap/Audio Constructor.clap"
+          test -f "$HOME/.local/share/audio-constructor/examples/start.acproj"
+          "$RUNNER_TEMP"/tarball/*/install.sh --uninstall
+          test ! -e "$HOME/.local/bin/audioc"
+      - name: Install, run, and remove the .pkg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          pkg=$(ls dist/*.pkg)
+          pkgutil --check-signature "$pkg" || true
+          sudo installer -pkg "$pkg" -target /
+          app="/Applications/Audio Constructor.app"
+          "$app/Contents/MacOS/audio-constructor" --version
+          /usr/local/bin/audioc --version
+          plutil -lint "$app/Contents/Info.plist"
+          test -f "$app/Contents/Resources/examples/start.acproj"
+          test -d "/Library/Audio/Plug-Ins/CLAP/Audio Constructor.clap"
+          test -d "/Library/Audio/Plug-Ins/VST3/Audio Constructor.vst3"
+          audioc render "$app/Contents/Resources/examples/start.acproj" -o "$RUNNER_TEMP/start.wav" --to 1 -q
+      - name: Install, run, and remove the setup program (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\*-setup.exe | Select-Object -First 1
+          $dir = "$env:RUNNER_TEMP\ac-install"
+          # /D must come last and unquoted.
+          $run = Start-Process -FilePath $setup.FullName -ArgumentList "/S", "/D=$dir" -Wait -PassThru
+          if ($run.ExitCode -ne 0) { Write-Error "setup exited with $($run.ExitCode)"; exit 1 }
+          & "$dir\audioc.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$dir\audio-constructor.exe" --version | Out-Host
+          foreach ($p in @("$dir\examples\start.acproj", "$env:CommonProgramFiles\CLAP\Audio Constructor.clap", "$env:CommonProgramFiles\VST3\Audio Constructor.vst3")) {
+            if (-not (Test-Path $p)) { Write-Error "missing $p"; exit 1 }
+          }
+          $key = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AudioConstructor"
+          if ((Get-ItemProperty $key).DisplayName -ne "Audio Constructor") { Write-Error "no uninstall entry"; exit 1 }
+          & "$dir\audioc.exe" render "$dir\examples\start.acproj" -o "$env:RUNNER_TEMP\start.wav" --to 1 -q
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # `_?=` runs the uninstaller in place, so this waits for it.
+          $run = Start-Process -FilePath "$dir\uninstall.exe" -ArgumentList "/S", "_?=$dir" -Wait -PassThru
+          if ($run.ExitCode -ne 0) { Write-Error "uninstall exited with $($run.ExitCode)"; exit 1 }
+          foreach ($p in @("$dir\audioc.exe", "$env:CommonProgramFiles\CLAP\Audio Constructor.clap", $key)) {
+            if (Test-Path $p) { Write-Error "still there: $p"; exit 1 }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-bundles-${{ matrix.os }}
           path: target/bundled/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.pkg
+            dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
 
   third-party-plugin:
     name: Third-party plugin as a node (Linux)

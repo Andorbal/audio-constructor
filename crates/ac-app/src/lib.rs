@@ -21,19 +21,24 @@ pub mod files;
 pub mod find;
 pub mod help;
 pub mod host;
+pub mod i18n;
 pub mod icons;
 pub mod menubar;
+pub mod online;
 pub mod palette;
 pub mod panels;
 pub mod params;
 pub mod perform;
 pub mod play_keys;
 pub mod plugins;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod product;
 pub mod settings;
 pub mod theme;
 pub mod timing;
 pub mod transport;
 pub mod undo;
+pub mod user_themes;
 
 pub use app::{AppOptions, AudioPurpose, EditorApp, FileRequest, SaveKind, clock_seed};
 pub use audio::HostAudio;
