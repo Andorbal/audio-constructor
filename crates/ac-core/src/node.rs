@@ -4,6 +4,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::io::{AudioIn, Io};
+use crate::plugin::{PluginProcessor, PluginRequest};
 use crate::signal::Signature;
 use crate::time::TransportView;
 use crate::value::Config;
@@ -117,6 +118,10 @@ pub struct NodeMeta {
     pub feedback: bool,
     /// Config keys that hold asset paths the host must load (e.g. `"file"`).
     pub asset_keys: &'static [&'static str],
+    /// Config keys holding state the node restores when it's created (a
+    /// hosted plugin's saved state). A running node already holds that
+    /// state, so changing these keys doesn't rebuild it on recompile.
+    pub state_keys: &'static [&'static str],
     /// Number of `f32` telemetry values the node publishes.
     pub telemetry: usize,
     /// Length of the node's scope ring (0 for none).
@@ -146,6 +151,7 @@ impl NodeMeta {
             live: false,
             feedback: false,
             asset_keys: &[],
+            state_keys: &[],
             telemetry: 0,
             scope: 0,
             whole_input: false,
@@ -176,6 +182,11 @@ impl NodeMeta {
 
     pub fn assets(mut self, keys: &'static [&'static str]) -> Self {
         self.asset_keys = keys;
+        self
+    }
+
+    pub fn state_keys(mut self, keys: &'static [&'static str]) -> Self {
+        self.state_keys = keys;
         self
     }
 
@@ -354,6 +365,13 @@ pub trait Resources: Send + Sync {
     fn file_out(&self, _req: &FileRequest<'_>) -> Option<Box<dyn RecordSink>> {
         None
     }
+
+    /// A running instance of the plugin a `Plugin` node describes, or why
+    /// there isn't one. Called on the thread that compiles the graph,
+    /// which hosts keep on their main thread (plugins need it there).
+    fn plugin(&self, _req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
+        Err(crate::NO_PLUGIN_HOST.into())
+    }
 }
 
 /// Resources for hosts with no assets or recording (tests, quick renders).
@@ -451,6 +469,13 @@ pub trait Node: Send + 'static {
     /// Samples of delay this node introduces (for latency compensation).
     fn latency(&self) -> u32 {
         0
+    }
+
+    /// A problem the node found while it was created (a plugin that isn't
+    /// installed), shown as a compile warning on the node for as long as
+    /// this instance runs. Called on the control thread after `new`.
+    fn warning(&self) -> Option<String> {
+        None
     }
 
     /// Streaming (can run live) or WholeInput (needs the entire input first).

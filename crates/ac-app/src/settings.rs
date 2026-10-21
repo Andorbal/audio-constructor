@@ -101,6 +101,20 @@ impl AppSettings {
         self.file.as_deref()
     }
 
+    /// Settings kept as text somewhere other than a file (the web build's
+    /// browser storage), read the way the file is read.
+    pub fn from_text(text: &str) -> AppSettings {
+        AppSettings {
+            prefs: parse(text),
+            file: None,
+        }
+    }
+
+    /// The settings as the file holds them.
+    pub fn to_text(&self) -> String {
+        serde_json::to_string_pretty(&self.prefs).unwrap_or_default()
+    }
+
     pub fn set_theme(&mut self, theme: ThemeChoice) {
         if self.prefs.theme != theme {
             self.prefs.theme = theme;
@@ -123,9 +137,7 @@ impl AppSettings {
         if let Some(dir) = file.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        if let Ok(text) = serde_json::to_string_pretty(&self.prefs) {
-            let _ = std::fs::write(file, text);
-        }
+        let _ = std::fs::write(file, self.to_text());
     }
 }
 
@@ -180,6 +192,17 @@ mod tests {
         assert_eq!(again.prefs.theme, ThemeChoice::Light);
         assert_eq!(again.prefs.ui_scale, 1.25);
         std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn settings_round_trip_through_text() {
+        let mut s = AppSettings::in_memory();
+        s.set_theme(ThemeChoice::Light);
+        s.set_ui_scale(1.25);
+        let back = AppSettings::from_text(&s.to_text());
+        assert_eq!(back.prefs, s.prefs);
+        assert!(back.file().is_none());
+        assert_eq!(AppSettings::from_text("garbage").prefs, Prefs::default());
     }
 
     #[test]

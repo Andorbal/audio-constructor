@@ -206,6 +206,12 @@ sample. Live input (Audio In, MIDI In, controllers) isn't in a render
 unless you pass `--input` for Audio In; see
 [What plays in a render](recording-and-rendering.md#what-plays-in-a-render).
 
+## In the browser
+
+The browser version has a few problems of its own (a page that isn't
+cross-origin isolated, sound that waits for a click, a blocked
+microphone); see [In the browser](web.md#troubleshooting).
+
 ## Still stuck
 
 - Press `F1` on the node in question: its Help page explains every socket

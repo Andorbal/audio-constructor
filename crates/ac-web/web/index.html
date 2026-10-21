@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Audio Constructor: a node-based audio construction suite, in the browser." />
+    <title>Audio Constructor</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #17191d;
+      }
+      #editor {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      #message {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2em;
+        color: #d8dbe0;
+        font: 15px/1.5 system-ui, sans-serif;
+        text-align: center;
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="editor"></canvas>
+    <div id="message">Loading Audio Constructor…</div>
+    <script type="module" src="boot.js"></script>
+  </body>
+</html>

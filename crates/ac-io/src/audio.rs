@@ -17,6 +17,10 @@
 //! `EngineStatus::device_xruns`, a vanished device sets
 //! [`crate::StreamStats::disconnected`] so the host can rebuild the stream.
 
+// Dropping a stream stops it; cpal's streams in a browser build have
+// nothing to drop, which clippy points out there.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::drop_non_drop))]
+
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;

@@ -28,11 +28,12 @@ pub mod panels;
 pub mod params;
 pub mod perform;
 pub mod play_keys;
+pub mod plugins;
 pub mod settings;
 pub mod theme;
 pub mod timing;
 pub mod transport;
 pub mod undo;
 
-pub use app::{AppOptions, EditorApp, clock_seed};
+pub use app::{AppOptions, AudioPurpose, EditorApp, FileRequest, SaveKind, clock_seed};
 pub use audio::HostAudio;

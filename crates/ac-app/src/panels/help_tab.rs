@@ -32,6 +32,12 @@ impl HelpView {
         self.query.clear();
     }
 
+    /// Use these examples instead of reading the shipped folder (a host
+    /// that gets them elsewhere: the web build fetches them from its site).
+    pub fn set_examples(&mut self, examples: Vec<Example>) {
+        self.examples = Some(examples);
+    }
+
     /// The shipped example projects (read once).
     pub fn examples(&mut self) -> &[Example] {
         self.examples.get_or_insert_with(|| {

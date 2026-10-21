@@ -28,6 +28,10 @@ use crate::pool::{MAX_WORKERS, RtPool};
 use crate::report::CompileReport;
 use crate::telemetry::{EngineStatus, TelemetryLayout, TelemetryReader, TelemetryStore};
 
+mod relay;
+
+pub use relay::Relayed;
+
 const GRAPH_RING: usize = 4;
 const GARBAGE_RING: usize = 8;
 const PARAM_RING: usize = 4096;
@@ -321,6 +325,15 @@ impl EngineHandle {
         self.resources_generation += 1;
         // New resources mean nodes must be rebuilt, not carried.
         self.carry = CarryLayout::default();
+        self.recompile()
+    }
+
+    /// Rebuild one node instead of carrying its state over, and
+    /// recompile. `node_key` is the node's flattened path as nodes see it
+    /// (`PrepareCtx::node_key`). A hosted plugin that asks to restart gets
+    /// a fresh instance this way; everything else keeps playing.
+    pub fn rebuild(&mut self, node_key: &str) -> CompileReport {
+        self.carry.forget(node_key);
         self.recompile()
     }
 

@@ -658,12 +658,78 @@ Needs a human with a host and a screen: the steps are in the M3.1 merge
 request.
 
 ### M3.2 Plugin hosting
-- [ ] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
-- [ ] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+- [x] CLAP plugin scanner and `Plugin` node with dynamic sockets from the plugin's ports and parameters; plugin GUI in a floating window.
+- [x] VST3 hosting (licensing per DECISIONS); sandboxing or crash isolation investigated.
+
+*Verified (CLAP):* the `Plugin` node (`crates/ac-nodes/src/utility/plugin.rs`)
+builds its sockets from the description in its config; its unit tests,
+against a fake processor, check the sockets, notes at their pitch at block
+sizes 1, 64, and 1000, parameter events (still inputs once, moving ones
+every 32 samples at the same frames for block sizes 7, 64, and 1000),
+changes before notes on a shared frame, the transport, latency, a failing
+plugin silenced, and a missing one keeping its sockets with a warning.
+`crates/ac-host` hosts real CLAP plugins with clack:
+- `tests/clap_hosting.rs` scans our own Audio Constructor Instrument and
+  Effect (the `ac-plugin` build) and renders them as nodes through the
+  engine, with the allocation guard aborting on any allocation of ours
+  around the plugin: A3 and A4 come out strongest at 220 and 440 Hz
+  (±3 Hz) and die away after the note-off; the level macro moves the
+  output by 36 dB (±3); the effect passes a 330 Hz oscillator at unity;
+  renders are deterministic; a state saved into the node's config
+  restores in a fresh engine without rebuilding the running instance; a
+  changed description rebuilds the node and the old instance goes; a
+  missing plugin is silent with a warning.
+- `tests/plugin_window.rs` and `tests/third_party_window.rs` (ignored;
+  CI runs them under xvfb) open plugin windows embedded in the host's
+  X11 window while audio plays, close them, and reopen them: our
+  instrument's node editor, and the third-party Six Sines while it plays
+  a note (checked by screenshot on a virtual display, both drawn inside
+  the host window).
+- `crates/ac-cli/tests/plugins_cli.rs`: `audioc plugins --json` scans a
+  `CLAP_PATH` folder in child processes and lists both plugins; a file
+  that isn't a plugin is listed as failed; `audioc render` of a project
+  with the instrument comes out at 440 Hz; `validate` warns for a missing
+  plugin.
+- `crates/ac-app/tests/plugins.rs`: installed plugins are offered by name
+  in the palette (the bare node isn't), adding one makes a Plugin node
+  with its sockets, the Node tab shows a missing plugin's warning, and
+  saving stores a running plugin's state in its node without rebuilding
+  it.
+- Phase 3 acceptance #2 ("a third-party CLAP synth runs as a node inside a
+  project"): CI's *Third-party plugin as a node* job downloads Six Sines
+  1.2.1 for Linux, checks its SHA-256, and renders it from a MIDI Pattern
+  with `audioc`: notes come out at 220 and 440 Hz (D136); verified locally
+  the same way.
+
+*Verified (VST3):* `crates/ac-host` hosts VST3 plugins through the
+MIT-licensed `vst3` bindings (no SDK code, D137) with the same node,
+scanner, state, and window paths as CLAP:
+- `tests/vst3_hosting.rs` hosts our own plugins' VST3 build: the scanner
+  describes both (parameters 0 to 1); the instrument renders A3 and A4 at
+  220 and 440 Hz (±3) under the allocation guard; a parameter input moves
+  the level; the effect passes a 330 Hz oscillator at unity; a saved state
+  restores in a fresh engine; a missing plugin is silent with a warning.
+- CI's *Third-party plugin as a node* job also renders Six Sines' VST3
+  build from a MIDI Pattern with `audioc` (220 and 440 Hz) and opens its
+  window embedded in the host's X11 window while it plays (checked
+  locally by screenshot on a virtual display).
+- `cargo check -p ac-host` passes for `aarch64-apple-darwin` and
+  `x86_64-pc-windows-gnu`; windows on macOS and Windows need a human
+  (MR description).
+
+Sandboxing: the scan runs each bundle in a child process, so a plugin
+that crashes or hangs while it's looked at is listed as failed instead of
+stopping the scan (a bundle that fails to open is checked in
+`plugins_cli.rs`). Crash isolation for
+running plugins was investigated and deferred: out-of-process hosting
+costs a context switch per block and shared-memory audio, and is
+written up with the plan in D135.
 
 ### M3.3 Web
-- [ ] `ac-web`: engine in an AudioWorklet, eframe UI, SharedArrayBuffer rings, Web MIDI, Gamepad API; static hosting with cross-origin isolation headers.
-- [ ] Projects open from and save to the browser's file API; examples load from the site.
+- [x] `ac-web`: engine in an AudioWorklet, eframe UI, SharedArrayBuffer rings, Web MIDI, Gamepad API; static hosting with cross-origin isolation headers.
+  Verified: natively, `cargo test -p ac-web` runs the editor with its mirror engine against the worklet's engine through the same rings, messages, and snapshots the browser uses, and the Start, Guitar Pedalboard (a 1 kHz input), and Subtractive Synth (Demo off, a MIDI note) examples play sample for sample what a local engine plays, with the editor's transport and meters following; ring tests cover two threads, wrapping past `u32::MAX`, full rings, and damaged records, the snapshot a writer racing a reader, and `ac-engine/tests/relay.rs` a relayed engine across edits, seeks, and parameter changes. In the browser, `tests/web/e2e.cjs` (CI's *Web build and browser test* job) serves the site built by `scripts/build_web.py` with the COOP/COEP headers and opens it in headless Chromium: Start plays a 220 Hz saw at the −18 dB level (analyser and master meter) with the position moving and the editor in step, a parameter change moves it to 440 Hz; the Pedalboard asks for the (fake) microphone and passes its 1 kHz tone; the Synth is silent until a MIDI note through the page's MIDI path sounds at 440 Hz and stops after note off; Four Tracks plays its clips; Reverse Delay's Reverse node bakes on the page and plays (natively, the worklet then plays sample for sample what a local engine that baked plays); a patch whose oscillator pitch comes from a Text constant read by Text to Number plays at 330 Hz (natively, sample for sample as locally); a MIDI In → MIDI Out patch sends its messages back to the page; no ring records are dropped and the console logs no errors. Web MIDI ports and gamepads are covered by unit tests of the mapping and by the script-driven MIDI path; real devices need a person (see the MR's manual steps). The service worker path (a host without headers) and the `_headers` file were not exercised against a real host.
+- [x] Projects open from and save to the browser's file API; examples load from the site.
+  Verified: `crates/ac-app/tests/host_files.rs` covers the editor's side (open, save as of a revision, Save As, packs with their audio both ways, Locate and a Clip's file kept in memory, examples, Export WAV, block files); in headless Chromium the e2e test opens a project through the File System Access API (pickers standing in for a person's choices), saves it back to the same file without asking and asks on Save As, then without the API takes an upload and downloads the save; every example in it loads from the site's `examples/index.json`, Four Tracks with its audio files; an unsaved edit shows in the page's title and leaving asks first.
 
 ### M3.4 Engine extras
 - [x] Single-sample feedback for strongly connected components.

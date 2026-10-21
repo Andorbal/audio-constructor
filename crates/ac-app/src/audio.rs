@@ -15,7 +15,9 @@
 //! through a sender thread here.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use web_time::Instant;
 
 use ac_core::{CONTROL_CAPACITY, Control, ControlEvent, Key, Project, Registry, Resources};
 use ac_engine::{CompileReport, Engine, EngineHandle, EngineOptions, GraphEdit, HostIo, Processor};
@@ -89,6 +91,26 @@ impl HostAudio {
     }
 }
 
+/// `Send` where the editor must be (everywhere but a browser page, whose
+/// devices live on its one thread).
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send> MaybeSend for T {}
+/// `Send` where the editor must be (everywhere but a browser page, whose
+/// devices live on its one thread).
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T> MaybeSend for T {}
+
+/// What a host that runs the processor shows in the Devices tab under its
+/// audio (the web build: the microphone, MIDI ports, and gamepads it gives
+/// the engine). Without one the tab says the host provides audio and MIDI.
+pub trait DevicesPanel: MaybeSend {
+    fn show(&mut self, ui: &mut egui::Ui);
+}
+
 /// A latency measurement's progress.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LatencyState {
@@ -146,6 +168,8 @@ pub struct EngineHost {
     /// What the host provides, when a host runs the processor
     /// (`AudioMode::Hosted`).
     hosted: Option<HostAudio>,
+    /// The host's own devices, shown in the Devices tab.
+    pub devices_panel: Option<Box<dyn DevicesPanel>>,
     /// The host keeps the project and the engine (a plugin's session): the
     /// editor compiles nothing itself and leaves the engine's upkeep and
     /// transport to the host. See [`EngineHost::keep_in_host`].
@@ -253,6 +277,7 @@ impl EngineHost {
             idle_ports: EventPorts::default(),
             idle_controls: Vec::with_capacity(CONTROL_CAPACITY),
             hosted,
+            devices_panel: None,
             in_host: false,
             outgoing: None,
         };

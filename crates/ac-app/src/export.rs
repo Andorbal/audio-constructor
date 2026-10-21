@@ -36,6 +36,25 @@ pub fn export_wav(
     })
 }
 
+/// Render as [`export_wav`] does, into the bytes of a WAV file (a host
+/// that saves through something other than a path).
+pub fn export_wav_bytes(
+    project: &Project,
+    registry: Arc<Registry>,
+    resources: Arc<dyn Resources>,
+) -> Result<(Vec<u8>, ExportSummary), String> {
+    let out = render(project, registry, resources, &RenderOptions::default());
+    let bytes = ac_io::wav_bytes(&out.channels, out.sample_rate, BitDepth::Pcm24)
+        .map_err(|e| e.to_string())?;
+    let summary = ExportSummary {
+        frames: out.frames(),
+        channels: out.channels.len(),
+        sample_rate: out.sample_rate,
+        report: out.report,
+    };
+    Ok((bytes, summary))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -90,6 +109,12 @@ mod tests {
 
         let bytes_a = std::fs::read(&a).unwrap();
         let bytes_b = std::fs::read(&b).unwrap();
+        // Exported in memory, it's the same file.
+        let (bytes_c, _) = export_wav_bytes(&p, Arc::new(ac_nodes::registry()), {
+            Arc::new(ac_core::NoResources)
+        })
+        .unwrap();
+        assert_eq!(bytes_c, bytes_a);
         assert_eq!(bytes_a, bytes_b);
         // And it isn't silence: 0.5 at -6 dB.
         let back = ac_io::read_wav(&a).unwrap();

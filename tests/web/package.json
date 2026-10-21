@@ -1,0 +1,11 @@
+{
+  "name": "audio-constructor-web-tests",
+  "private": true,
+  "description": "The web build's end-to-end test (e2e.cjs).",
+  "scripts": {
+    "test": "node e2e.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

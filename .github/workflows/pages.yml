@@ -1,0 +1,50 @@
+name: Web (GitHub Pages)
+
+# Publishes the web build of main to GitHub Pages once CI passes on it,
+# using the site CI built and tested (its `web-site` artifact). Off until
+# the repository owner turns it on: in Settings ▸ Pages choose "GitHub
+# Actions" as the source, then add a repository variable PAGES_ENABLED set
+# to `true` (Settings ▸ Secrets and variables ▸ Actions ▸ Variables). Pages
+# can't send headers, so the site's service worker (sw.js) makes it
+# cross-origin isolated after one reload.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish
+    if: >-
+      vars.PAGES_ENABLED == 'true' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-site
+          path: site
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

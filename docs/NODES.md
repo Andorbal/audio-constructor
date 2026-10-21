@@ -246,6 +246,7 @@ Panels (UX.md) to make a performance surface.
 | `Latency` | P2 | Delay by N samples (config) and report it; also outputs the path latency at this point (for debugging PDC). |
 | `Info` | P2 | `sample_rate`, `block_size`, `cpu_load`, `xruns` as signals. |
 | `Comment` | P1 | Sticky-note text. (Frames around nodes are a canvas feature, not a node.) |
+| `Plugin` | P3 (added in M3.2) | A CLAP or VST3 plugin installed on the computer, as a node (DECISIONS D130). Its sockets come from a description stored in its config when it's inserted: audio ports (`in`, `out`, `in_2`, …), `midi` / `midi_out`, and a `Float` input per parameter (up to 128, named after it). Parameter changes reach the plugin sample-accurately; it reports the plugin's latency; **Show Plugin Window** opens its interface. Missing on this machine: keeps its sockets, plays silence, and warns. |
 
 ## Blocks that ship in `blocks/` (built from the above)
 

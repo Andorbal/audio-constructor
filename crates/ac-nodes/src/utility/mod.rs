@@ -9,6 +9,7 @@ pub mod info;
 pub mod latency;
 pub mod merge_channels;
 pub mod mid_side;
+pub mod plugin;
 pub mod reroute;
 pub mod split_channels;
 
@@ -23,6 +24,7 @@ pub fn register(r: &mut Registry) {
     r.register::<comment::Comment>();
     r.register::<latency::Latency>();
     r.register::<info::Info>();
+    r.register::<plugin::Plugin>();
 }
 
 /// Most channels a channel-count config accepts; bounds the sockets and

@@ -96,3 +96,5 @@ pub const HEADPHONES: &str = "\u{E2A6}";
 pub const GAUGE: &str = "\u{E628}";
 pub const HAND_TAP: &str = "\u{EC90}";
 pub const CUBE: &str = "\u{E1DA}";
+pub const PUZZLE_PIECE: &str = "\u{E596}";
+pub const APP_WINDOW: &str = "\u{E5DA}";

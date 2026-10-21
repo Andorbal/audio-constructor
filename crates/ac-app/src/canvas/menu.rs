@@ -304,6 +304,13 @@ impl Canvas {
                     io.events.push(CanvasEvent::ChooseClipFile(*node));
                     return true;
                 }
+                if n.kind == ac_core::PLUGIN_KIND
+                    && crate::plugins::has_window(&io.doc.node_path(*node).to_string())
+                    && item(ui, icons::APP_WINDOW, "Show Plugin Window", None)
+                {
+                    io.events.push(CanvasEvent::ShowPluginWindow(*node));
+                    return true;
+                }
                 // A control binds its main value (an XY Pad either axis).
                 let main = crate::bindings::control_inputs(&n.kind);
                 for socket in main {

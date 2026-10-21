@@ -202,7 +202,7 @@ fn blurb(cat: Category) -> &'static str {
         }
         Category::Utility => {
             "Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel \
-             tools, notes on the canvas, and the engine's vital signs."
+             tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer."
         }
     }
 }

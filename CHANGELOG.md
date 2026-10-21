@@ -11,7 +11,7 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
-## [0.13.0] - 2026-10-19
+## [0.13.0] - 2026-10-21
 
 ### Added
 
@@ -71,9 +71,86 @@ fixes and smaller changes.
   short sounds stay visible even in a long window. It passes its input
   through unchanged and can be pinned to a performance panel.
 
-## [0.12.0] - 2026-10-19
+## [0.12.0] - 2026-10-20
+
+Audio Constructor now runs in a web browser: the same editor and the same
+engine, with MIDI, gamepads, and the microphone, examples from the site,
+and files opened and saved through the browser.
+
+### Added
+
+- **The web version.** `python3 scripts/build_web.py` builds a static site
+  (`--serve` serves it at <http://localhost:8000>). The engine plays in the
+  browser's audio thread, sample for sample what the desktop plays, while
+  the editor works as it does on the desktop: meters, scopes, inline
+  values, bindings and learning, panels, undo. Click or press a key once to
+  start the sound, as browsers ask.
+- **Examples from the site**: File ▸ Examples and the help's "Used in"
+  list every shipped example, and each opens with its audio files.
+  Reverse and Normalize bake in the page (the editor waits a moment while
+  they do) and play as on the desktop. Add
+  `?example=guitar-pedalboard` (or any example's file name) to the address
+  to open one straight away.
+- **Files in the browser**: Open takes projects, packs, and block files;
+  Save writes back to the file you opened where the browser allows it,
+  and downloads it elsewhere; Export WAV and Export Pack save or download
+  their files. Audio files you pick are kept in the page, and Export Pack
+  saves them with the project.
+- **Devices in the browser**: MIDI inputs (all heard) and outputs (checked
+  in the Devices tab) through Web MIDI, gamepads after a first button
+  press, and the microphone for Audio In nodes, asked for when a patch has
+  one. The browser's echo cancellation and noise suppression stay off.
+- The Devices tab says what a browser can't do: OSC, recording takes to
+  disk, plugins, choosing the output device. A patch with OSC or Record
+  nodes says so when it opens.
+- A project made on the desktop with Plugin nodes opens in the browser
+  with them and their wires in place. They play silence, the Problems tab
+  says plugins can't run in a browser, and the rest of the patch plays.
+- The page's title shows unsaved changes, leaving the page with them asks
+  first, and the theme and UI scale are remembered by the browser.
+- A static host serves the site as it is: a `_headers` file asks for the
+  cross-origin isolation the engine needs, and the site's own service
+  worker provides it where a host can't send headers. A guide chapter, [In
+  the browser](docs/guide/web.md), covers using and hosting it.
 
 ## [0.11.0] - 2026-10-19
+
+### Added
+
+- **Plugins as nodes**: a new **Plugin** node runs a CLAP or VST3 plugin
+  installed on your computer inside a patch, a synth played from MIDI or
+  an effect on audio. Its sockets come from the plugin: audio in and out
+  (extra ports such as a sidechain as `in_2`, `out_2`), `midi` and
+  `midi_out` when it takes or sends notes, and one input per parameter
+  (up to 128), named after the parameter. Parameter inputs can be set
+  inline or wired to any modulator, and the plugin follows them on the
+  right sample. The node reports the plugin's latency, so the engine
+  lines up the paths around it.
+- VST3 plugins' parameter inputs go from 0 to 1, the way the format
+  carries them (CLAP plugins' use the plugin's own ranges). A VST3 synth
+  that answers the mod wheel, pitch bend, or other MIDI controllers gets
+  them from its `midi` input.
+- A project with a plugin that isn't installed still opens with its
+  sockets and wires; the node plays silence and the compile report says
+  which plugin is missing.
+- In the editor, every plugin found is listed by name in the add-node
+  palette (`Shift+A`) and under **Plugins** in the Library tab. Adding
+  one makes a Plugin node with its sockets. **Show Plugin Window** (in
+  the node's right-click menu and the Node tab) opens the plugin's own
+  interface in a window beside the editor; moving a control there moves
+  the node's input, and saving the project saves everything the plugin
+  keeps. The Node tab says whether the plugin runs, or what's missing.
+- The editor looks for new and changed plugins each time it starts; the
+  Devices tab's **Plugins** section rescans, lists the folders it looks
+  in, and lists plugins that couldn't be opened. Each plugin is opened
+  in a separate process while it's looked at, so one that crashes
+  can't close the editor.
+- `audioc plugins` lists the CLAP and VST3 plugins installed on the
+  computer (`--json` for scripts), looking in the standard folders and
+  in `CLAP_PATH` and `VST3_PATH`. Each plugin is opened in a separate
+  process, so one that crashes is listed as failed instead of stopping
+  the scan. `audioc render`, `run`, and `validate` play the plugins a
+  project uses.
 
 ## [0.10.0] - 2026-10-19
 
