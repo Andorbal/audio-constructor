@@ -62,6 +62,30 @@ should be protected:
 - **Voices** turns any body into an instrument, and a custom body (the
   two-zone sampled keys) took eight nodes.
 
+## What the first run showed
+
+Two things stood out as soon as the studies were opened and played,
+before any gesture was counted. They go first in the priorities below.
+
+- **A panel doesn't say what belongs with what.** The Mixer panel's 39
+  cards flow into equal cells in pin order. A toggle gets the same cell
+  as a knob, a meter spans three cells and pushes the next track's first
+  knob to the end of the line, and the only thing relating a pan to its
+  fader is the word in front of it. Everything works and nothing reads.
+  A mixer is strips; a drum rack is rows; a session grid is tracks by
+  scenes. Panels have none of those shapes, and moving one card at a
+  time can't make them.
+- **Stop doesn't always stop.** Transport Stop fires a generator's
+  `stop` only when that input is unwired, and only if the transport was
+  playing. In the launcher study every clip's `stop` is wired (the slot
+  logic needs it), so Stop leaves six clips looping; the slot stop
+  buttons then wait for a bar clock that is quiet while the transport is
+  stopped, so nothing short of closing the project ends the sound. In
+  the recorder the input monitor is a toggle defaulting to on, so the
+  microphone is live from the moment the project loads whatever the
+  transport does. Nothing in the editor silences the graph as a whole,
+  and nothing shows what is sounding.
+
 ## The studies, one by one
 
 ### 1. The multitrack recorder
@@ -88,6 +112,8 @@ Five tracks need four Logic nodes just so solo works.
 | Add a track that shows up on the mixer with fader, pan, mute, solo, and a meter | about 50 (9 nodes from the palette, 10 wires, 5 renames, a Mix input, 5 pins, the solo OR) | 1 or 2 | No strip; a block's inputs can't go on a panel, so every control is its own node |
 | Record a take on a new track and hear it in the mix | about 25 (Audio In, Record, save the project first, `R`, `R`, Create Clip from take, a Track, wires, a Mix input) | 4 (new track, arm, record, stop) | Record has no place in a track; the take has to be wired in by hand |
 | Hear yourself while recording | 8 (Switch, Toggle, 3 wires) | 1 (monitor button) | No monitor path |
+| Tell which controls belong to which track on the mixer | read the label prefixes; 39 cards flow in pin order and each meter breaks the line | default: one strip per track | Panels have no strips, rows, or labels; every card takes the same cell |
+| Make the room quiet | Stop, then find the Monitor toggle among 39 cards | Stop | Stop reaches generators and nothing else; a live input through a Switch plays on, and nothing shows what is sounding |
 | Punch in on bars 5–6 | about 30 (2 Compares with typed beats, 2 Logics, a Toggle, 6 wires) | 2 drags on the ruler | No punch range in the transport |
 | Place a clip at bar 5 | 11 (Compare with a typed beat, Gate to Trigger, `start` set to Never, 3 wires) | 1 drag | Generators start when the transport starts; nothing is placed in time |
 | Start playing from bar 9 | impossible | 1 click on the ruler | The transport only seeks to 0 (`Rewind`); a seek restarts every generator from its own top (`Command::Seek` sets `start_flag`) |
@@ -208,6 +234,7 @@ because a trigger input takes one wire.
 | --- | --- | --- | --- |
 | Add a clip slot that launches on the bar | about 50 (10 nodes, 13 wires, `start` Never, `edge` falling, a typed Compare) | 1 drag | No launch quantization anywhere; it's built from Latch, Sample & Hold, and edges |
 | Launch and stop it | 1 and 1 | 1 and 1 | Fine, once built |
+| Stop everything | impossible once the transport is stopped: the clips keep looping and the stop buttons wait for a bar that never comes | 1 (Stop) | Transport Stop fires only an unwired `stop`, and only while playing; the Clock is quiet while stopped; no panic |
 | Make slots on a track exclusive | 2 Merges and 4 wires per track | default | A trigger input takes one wire; every extra source is a Merge |
 | Add a scene | 1 Button plus a Merge and 2 wires per slot | 1 | Same |
 | See which slot is playing | a Readout showing 0 or 1 | default | No light; Buttons don't light up |
@@ -232,6 +259,7 @@ S sampler, L launcher).
 | Gap | Helps | What's needed |
 | --- | --- | --- |
 | **Nothing is placed in time; playback can't start mid-song.** A seek restarts every generator from its own top, and the editor only seeks to 0. | R P L | **Song-locked generators**: an `at: Float(Beats)` on Clip, MIDI Pattern, Pattern, and Graph (a new choice in the `start` dropdown, *At beat…*), and a seek that lands each of them at the right place inside themselves (`seek(sample)` on the Node trait, defaulting to reset). Then a **seekable transport**: click or drag the position, a ruler, `Home`/`End`, bar jumps. |
+| **Stop doesn't always stop.** Transport Stop fires a generator's `stop` only when it is unwired (wiring it replaces *On transport stop*), and only if the transport was playing; anything started by a button, a clock, or a live input while stopped plays on. | L S R | **Stop reaches everything**: a wired `stop` still fires on transport stop unless its dropdown says *Never*, so the dropdown stays beside a wired `stop` as a second source; Stop also fires with the transport already stopped. A **Panic** action (a transport-bar button, `Escape` twice, bindable) that resets every generator, releases every voice, and mutes every Audio Out for one block. The status bar shows which outputs are sounding. |
 | **No view of the song.** | R P | An **Arrangement panel card**: lanes of song-locked Clips and MIDI Patterns drawn in time, draggable; a view onto nodes, in keeping with UX principle 1. Patterns with banks (below) show as blocks on the lane. |
 | **No markers, punch range, or count-in.** | R | Markers in the tempo map section of settings, shown on the ruler and jumpable; a punch range the transport applies to armed Record nodes; a count-in setting (bars) that the metronome plays before recording starts. |
 | **No swing.** | P S | A `swing` input (0–1) on Clock, shifting every other subdivision late, so Pattern, Euclidean, Step Sequencer, and Arpeggiator all swing from the clock. A `swing` on MIDI Pattern for drawn notes. |
@@ -267,8 +295,9 @@ S sampler, L launcher).
 
 | Gap | Helps | What's needed |
 | --- | --- | --- |
+| **Nothing says what belongs with what.** Cards flow in pin order into equal cells; a toggle takes a knob's cell, a meter spanning cells breaks the line, and the only thing relating a pan to its fader is its label prefix. The first thing anyone sees. | R P S L | **Strips**: a named vertical group of cards with one header, kept together as a column and moved, resized, and unpinned as one; a pinned block (next row) is a strip by default. **Section labels and row breaks** between strips (Tracks, Buses, Master). **Compact cards**: toggles and buttons at half height, two to a cell; a meter narrow beside a fader. A card keeps its place: pinning something new never reflows the others. |
 | **A block's controls can't go on a panel.** Only top-level nodes with widgets pin, so every fader is a Knob node. | R P S L | **Pin a group or block**: its card shows a widget per unwired input (knob, toggle, dropdown by type and unit) and a meter or light per output; pinning a Track gives a strip. Inputs that are wired show the wire's value. Pinned group inputs are the group's `params`, already in the project. |
-| **No layout.** Cards flow in pin order; moving is one at a time; no rows, columns, headers, or separators; no color. | L P R | Panels get a **grid with named rows and columns** (a slot grid is tracks × scenes), **labels and separators**, a **color per card**, and multi-select drag. A panel can be **generated from a selection**: "Mixer from these Tracks", "Pads from these Samplers", "Grid from these Clips". |
+| **No grid.** A slot grid is tracks × scenes and a drum rack is rows, but a panel is a flow; no color; moving is one card at a time. | L P R | A **grid with named rows and columns**, a **color per card or strip**, multi-select drag. A panel can be **generated from a selection**: "Mixer from these Tracks", "Pads from these Samplers", "Grid from these Clips". |
 | **The drawn editors never leave the Node tab.** | P S R | Pattern grids, Step Sequencer rows, piano rolls, Graph curves, and the waveform as **panel cards**, live and editable, sized by span. The whole pattern studio front becomes a panel. |
 | **No state on controls.** | L S | `lit` inputs (above) and a playing/armed/stopped look for Clip and Sampler cards on panels. |
 | **Panels in the plugin window and the web** already work; keep them in the test matrix as cards are added. | all | |
@@ -300,36 +329,40 @@ makes each one *complete*; the third is polish.
 
 **First: the things every study hit.**
 
-1. **Pin blocks and groups to panels** (C). Every study's mixer, rack,
-   pad bank, and session grid is made of control nodes standing in for a
-   block's inputs. This one change removes 4–6 nodes per unit in all four
-   studies and makes the Track block a channel strip.
-2. **Song-locked generators and a seekable transport** (A). Without it
+1. **Stop always stops, and a panic key** (A). A fix before a feature,
+   and a small one: the launcher study traps its player with sound that
+   nothing in the editor can end. Anything built from wired generators
+   has the same hole.
+2. **Panels with structure** (C): strips, section labels, compact cards,
+   and blocks pinned as strips. Every study's mixer, rack, pad bank, and
+   session grid is a flow of equal cards related only by their labels,
+   and it was the first thing seen on opening them. Pinning a block as a
+   strip also removes 4–6 nodes per unit in all four studies.
+3. **Song-locked generators and a seekable transport** (A). Without it
    there is no recorder and no playlist. It is also the engine's biggest
    missing semantic, so it belongs early, before an arrangement view is
    drawn on top.
-3. **Sample, Note Split, Route** (B). Three small nodes that cut the pad
+4. **Sample, Note Split, Route** (B). Three small nodes that cut the pad
    chain from 6 nodes to 2, make zones and round robins two nodes, and let
    blocks take their sounds as inputs.
-4. **Light, `lit` on buttons, Pad with velocity, Fader** (B, C). Panels
+5. **Light, `lit` on buttons, Pad with velocity, Fader** (B, C). Panels
    that show state and feel pressure are what make a pad bank or a session
    grid playable.
-5. **Templates and growing Mix/Merge** (D). Add ▸ Track in one gesture is
+6. **Templates and growing Mix/Merge** (D). Add ▸ Track in one gesture is
    the direct answer to "twenty controls to record a track."
 
 **Second: the thing each tool can't do without.**
 
-6. **Looper** node (L).
-7. **Pattern banks and velocity, swing on Clock** (P).
-8. **Arrangement panel card, markers, punch, count-in, monitor outputs,
+7. **Looper** node (L).
+8. **Pattern banks and velocity, swing on Clock** (P).
+9. **Arrangement panel card, markers, punch, count-in, monitor outputs,
    MIDI recording** (R).
-9. **Zones, Slicer, Waveform display, file drop** (S).
-10. **Panel grid, labels, colors, generated panels; editors as panel
-    cards** (C).
+10. **Zones, Slicer, Waveform display, file drop** (S).
+11. **Panel grid, colors, generated panels; editors as panel cards** (C).
 
 **Third: polish.**
 
-11. Logic and Math with N inputs; Velocity; Humanize; MIDI Monitor;
+12. Logic and Math with N inputs; Velocity; Humanize; MIDI Monitor;
     Tuner; automation write; Tempo node; several editors at once.
 
 ## How to use this document

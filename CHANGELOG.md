@@ -37,7 +37,12 @@ familiar kinds of music software, and what to build next because of it.
   drawn editors on panels), transport and engine changes (song-locked
   generators, seeking, markers, swing, monitor outputs, MIDI recording),
   and editor templates.
-- **A draft Phase 4** in `docs/ROADMAP.md` turning that list into five
+  Opening the studies added two findings that lead the list: a panel
+  doesn't say which controls belong together (a mixer needs strips, not
+  a flow of equal cards), and Stop doesn't reach a generator whose
+  `stop` is wired, so the launcher study can be left sounding with no
+  way to end it.
+- **A draft Phase 4** in `docs/ROADMAP.md` turning that list into six
   milestones, each ending with a study rebuilt the new way, for a human
   to confirm, reorder, or cut before it starts.
 
