@@ -1,9 +1,10 @@
 # Roadmap
 
 Three phases, each a large chunk of work delivered through many small
-commits and a merge request per milestone. Finish a phase before starting the
-next; within a phase, milestones are ordered but later ones can start when
-their inputs exist.
+commits and a merge request per milestone, and a fourth, drafted from the
+gap studies in [GAPS.md](GAPS.md), for a human to confirm, reorder, or cut
+before it starts. Finish a phase before starting the next; within a phase,
+milestones are ordered but later ones can start when their inputs exist.
 
 Check boxes as milestones land. Update acceptance notes with what was
 actually verified and how.
@@ -907,3 +908,66 @@ branch):
   Subtractive Synth plays a MIDI note at 440 Hz and stops after note off.
   A real microphone, MIDI keyboard, and browsers other than Chromium are
   manual checks.
+
+---
+
+## Phase 4 — Tools: what the studies found missing (draft)
+
+> Drafted from [GAPS.md](GAPS.md), which built the basics of a multitrack
+> recorder, a pattern studio, a sampler, and a clip launcher from today's
+> nodes (`studies/`) and counted nodes and gestures. The order follows its
+> priorities: first what every study hit, then what each tool can't do
+> without. Nothing here is settled until a human confirms the milestones;
+> cut or reorder freely, and keep each milestone's "rebuild the study" box,
+> which is how a milestone proves it closed a gap.
+
+**Goal.** A person can build those four tools from nodes and panels, and
+each feels like the tool: adding a track is one gesture, a clip sits at a
+bar and playback can start anywhere, a pad lights up and feels velocity, a
+loop records on the bar. Every milestone rebuilds at least one study the
+new way and updates its node count in `studies/README.md` and its gesture
+table in `GAPS.md`.
+
+### M4.1 Stop always stops
+- [ ] Transport Stop fires every generator's `stop`, wired or not, unless its dropdown says *Never* (the dropdown stays beside a wired `stop` as a second source), and fires with the transport already stopped (GAPS A).
+- [ ] A **Panic** action: a transport-bar button, `Escape` twice, and a bindable transport action, that resets every generator, releases every voice, and mutes every Audio Out for one block; the status bar shows which outputs are sounding.
+- [ ] In `studies/scenes`, Stop ends the loops with the transport playing or not; the recorder's input monitor defaults to off.
+
+### M4.2 Panels have structure
+- [ ] **Strips**: a named vertical group of cards with one header, kept together as a column and moved, resized, and unpinned as one; **section labels and row breaks** between strips; **compact cards** (toggles and buttons at half height, two to a cell; a meter narrow beside a fader); a card keeps its place when something new is pinned (GAPS C).
+- [ ] Pin a group or block instance to a panel: a card with a widget per unwired input (by type and unit) and a meter or light per output, so the Track block pins as a channel strip (GAPS C).
+- [ ] `lit: Bool` input on Button and Toggle; a **Light** display node (`Bool` or level, with a color); a **Fader** control (vertical, in dB, with a `meter` audio input beside it); a **Pad** control with velocity and pressure; a **Pads** grid control (rows × columns → `midi` or per-pad triggers).
+- [ ] Panel layout: named rows and columns, labels and separators, a color per card, multi-select drag; **panel from selection** (Mixer from these Tracks, Pads from these Samplers, Grid from these Clips).
+- [ ] Rebuild `studies/multitrack-recorder` and `studies/scenes` with pinned blocks; update their node counts and the Mixer and Session rows in GAPS.md.
+
+### M4.3 Song-locked time
+- [ ] An `at: Float(Beats)` on Clip, MIDI Pattern, Pattern, and Graph (a new `start` choice, *At beat…*); `seek` on the Node trait, defaulting to a reset; a transport seek lands every song-locked generator at the right place inside itself; `audioc render --from` and a live seek agree (GAPS A).
+- [ ] Transport: click or drag the position to seek, a ruler with bars, loop set by dragging on the ruler, markers (in the project, on the ruler, jumpable), a metronome button on the monitor path, a count-in in bars, a punch range applied to armed Record nodes.
+- [ ] Audio Out `role` config, *main* or *monitor*: monitor outputs play live and are left out of renders and File Outs.
+- [ ] Create Clip from take places the clip at the bar the take started and wires it where the Record's input went.
+- [ ] Rebuild the recorder study: play from bar 9 works, the Compare/Gate to Trigger arrangement logic is gone, the click stays out of the export.
+
+### M4.4 Sampler nodes
+- [ ] **Sample** (a file as a `Buffer` output); **Note Split** (one note or a list → per-note `trigger`, `gate`, `velocity`, with choke groups); **Route** (the mirror of Select: `index` picks an output, and a gate mode that passes while open; triggers, MIDI, audio, and Buffer); Buffer in Select and Switch; **Zones** (key and velocity ranges → zone index and per-zone triggers, with a map editor); **Slicer** (equal, transient, or marked slices of a Buffer, played by index); **Velocity** (scale, curve, fixed); **Waveform** display (a Buffer or a Clip's file with the playhead and drag handles for start, end, and loop points; the same widget is the Node-tab editor for Clip and Sampler); **MIDI Monitor** and **Tuner** displays (GAPS B).
+- [ ] Drop an audio file on the canvas (a Clip; with `Shift` a Sampler), on a Clip or Sampler card to assign it, on a panel to make a pad.
+- [ ] Rebuild the pads study: a pad from MIDI with velocity is two nodes; the keys are Zones + Route + Samplers; the slices come from a Slicer.
+
+### M4.5 Patterns and loops
+- [ ] Pattern banks (`bank: Int` input, banks added in the editor) and cell velocity (painted by drag height; `velocity_k` per row); MIDI Pattern banks; `swing` on Clock and MIDI Pattern; **Humanize** (seeded timing and velocity jitter).
+- [ ] **Looper** node: record, play, stop, overdub, undo triggers, quantized to beats, length free or from the first pass; `out`, `buffer`, `playing`, `recording`, `position`.
+- [ ] Logic (and, or) and Math (add, multiply, min, max) with an `inputs` config; Mix and Merge grow when wired into their last input, and the palette offers a Merge when a second wire is dropped on a wired trigger input.
+- [ ] The drawn editors as panel cards, live and editable: Pattern grid, Step Sequencer, piano roll, Graph, Waveform; several editor windows open at once; one docked under the canvas.
+- [ ] Rebuild the pattern and scenes studies: the pattern Switches are gone, the hats have accents and swing, the looper is one node and overdubs.
+
+### M4.6 Recording and arranging
+- [ ] **MIDI Record** node (a take becomes a MIDI Pattern beside it, optionally quantized); automation write and touch (moving a knob while recording writes a song-locked Graph into that input); a **Tempo** node (`bpm` in, `tap` trigger; an edit to the tempo map, not a signal).
+- [ ] An **Arrangement** panel card: lanes of song-locked Clips and MIDI Patterns drawn in time, draggable and trimmable, with the markers and the loop; a view onto nodes, nothing of its own.
+- [ ] Templates: Add ▸ Track, Drum Pad, Clip Slot, Send, each a block instance wired in and pinned; user-saved templates from a selection.
+- [ ] Rebuild all four studies; the gesture tables in GAPS.md get their "after" column.
+
+**Phase 4 acceptance** (each measured against the gesture tables in GAPS.md)
+- Press Stop in any study, with the transport playing or already stopped, and nothing sounds; the Mixer panel reads as one strip per track with a label over each section.
+- From the Four Tracks example, add a track and record a take in five gestures or fewer, then play the song from bar 9.
+- A 4×4 pad bank from a MIDI drum pad in at most 20 nodes, each pad lit by the pattern and playing with velocity.
+- A three-track, two-scene session grid in at most 12 nodes besides the clips, launched on the bar, each slot showing its state; a loop recorded and overdubbed with one node.
+- A pattern studio with two patterns alternating every four bars in at most 20 nodes, with swing and accents, its grid and piano roll on one panel.

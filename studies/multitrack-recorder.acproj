@@ -1,0 +1,3450 @@
+{
+  "schema_version": 2,
+  "name": "Multitrack Recorder",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 32.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each with a fader, pan, mute, solo, a reverb send, and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. Chords enter at bar 5 and lead at bar 9, a volume ride on the lead, and a punch-in window for the vocal on bars 5 and 6. The Mixer panel is the mixer window.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, start playing from bar 9 (every clip restarts from its own top), record MIDI, comp takes, trim or fade a clip, drop markers, or keep the click out of the export. Read docs/GAPS.md for the full list."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -560.0
+          ],
+          "size": [
+            760.0,
+            230.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            -300.0
+          ],
+          "label": "Song position"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "3",
+        "kind": "clip",
+        "config": {
+          "file": "../examples/assets/drums.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            0.0
+          ],
+          "label": "Drums"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "clip",
+        "config": {
+          "file": "../examples/assets/bass.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            680.0
+          ],
+          "label": "Bass"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "clip",
+        "config": {
+          "file": "../examples/assets/chords.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true,
+          "start": "never"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            1360.0
+          ],
+          "label": "Chords"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "compare",
+        "params": {
+          "b": 16.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            1360.0
+          ],
+          "label": "Bar 5 reached"
+        }
+      },
+      {
+        "id": "7",
+        "kind": "gate_to_trigger",
+        "ui": {
+          "pos": [
+            300.0,
+            1360.0
+          ],
+          "label": "Enter"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "compare",
+        "params": {
+          "b": 48.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            1560.0
+          ],
+          "label": "Bar 13 reached"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "gate_to_trigger",
+        "ui": {
+          "pos": [
+            300.0,
+            1560.0
+          ],
+          "label": "Leave"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "clip",
+        "config": {
+          "file": "../examples/assets/lead.wav",
+          "channels": 1
+        },
+        "params": {
+          "loop": true,
+          "start": "never"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            2040.0
+          ],
+          "label": "Lead"
+        }
+      },
+      {
+        "id": "b",
+        "kind": "compare",
+        "params": {
+          "b": 32.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            2040.0
+          ],
+          "label": "Bar 9 reached"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "gate_to_trigger",
+        "ui": {
+          "pos": [
+            300.0,
+            2040.0
+          ],
+          "label": "Enter"
+        }
+      },
+      {
+        "id": "d",
+        "kind": "audio_in",
+        "config": {
+          "channel": 0,
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            2720.0
+          ],
+          "label": "Mic (input 1)"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "toggle",
+        "params": {
+          "value": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            2870.0
+          ],
+          "label": "Monitor input"
+        }
+      },
+      {
+        "id": "f",
+        "kind": "switch",
+        "config": {
+          "type": "audio"
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            2720.0
+          ],
+          "label": "Monitor"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "toggle",
+        "params": {
+          "value": true
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            3020.0
+          ],
+          "label": "Punch in (bars 5-6)"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "compare",
+        "params": {
+          "b": 16.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            2900.0
+          ],
+          "label": "Bar 5 reached"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "compare",
+        "params": {
+          "b": 24.0,
+          "op": "less"
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            3080.0
+          ],
+          "label": "Before bar 7"
+        }
+      },
+      {
+        "id": "13",
+        "kind": "logic",
+        "params": {
+          "op": "and"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            2960.0
+          ],
+          "label": "In window"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "logic",
+        "params": {
+          "op": "and"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            3110.0
+          ],
+          "label": "Arm"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "record",
+        "config": {
+          "channels": 1
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            2720.0
+          ],
+          "label": "Vocal"
+        }
+      },
+      {
+        "id": "16",
+        "kind": "comment",
+        "config": {
+          "text": "Recording: press R. The Record node writes a take while Arm is on: the Punch toggle AND the song being inside bars 5-6. Monitor passes the input to the track so you hear yourself. After the take, the status line offers Create Clip from take; the clip then needs its own enter/leave logic like Chords above to sit at bar 5. There's no count-in, no pre-roll, and no take lanes."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            3260.0
+          ],
+          "size": [
+            760.0,
+            110.0
+          ]
+        }
+      },
+      {
+        "id": "17",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -6.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ],
+          "label": "Drums volume"
+        }
+      },
+      {
+        "id": "18",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            150.0
+          ],
+          "label": "Drums pan"
+        }
+      },
+      {
+        "id": "19",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            150.0
+          ],
+          "label": "Drums mute"
+        }
+      },
+      {
+        "id": "1a",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            300.0
+          ],
+          "label": "Drums solo"
+        }
+      },
+      {
+        "id": "1b",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            0.0
+          ],
+          "label": "Drums track"
+        }
+      },
+      {
+        "id": "1c",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ],
+          "label": "Drums meter"
+        }
+      },
+      {
+        "id": "1d",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -40.0
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            150.0
+          ],
+          "label": "Drums reverb send"
+        }
+      },
+      {
+        "id": "1e",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2100.0,
+            150.0
+          ],
+          "label": "Drums send"
+        }
+      },
+      {
+        "id": "1f",
+        "kind": "file_out",
+        "config": {
+          "path": "stems/drums.wav",
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            0.0
+          ],
+          "label": "Drums stem"
+        }
+      },
+      {
+        "id": "20",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -8.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            680.0
+          ],
+          "label": "Bass volume"
+        }
+      },
+      {
+        "id": "21",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": -0.1
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            830.0
+          ],
+          "label": "Bass pan"
+        }
+      },
+      {
+        "id": "22",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            830.0
+          ],
+          "label": "Bass mute"
+        }
+      },
+      {
+        "id": "23",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            980.0
+          ],
+          "label": "Bass solo"
+        }
+      },
+      {
+        "id": "24",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            680.0
+          ],
+          "label": "Bass track"
+        }
+      },
+      {
+        "id": "25",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1800.0,
+            680.0
+          ],
+          "label": "Bass meter"
+        }
+      },
+      {
+        "id": "26",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -18.0
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            830.0
+          ],
+          "label": "Bass reverb send"
+        }
+      },
+      {
+        "id": "27",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2100.0,
+            830.0
+          ],
+          "label": "Bass send"
+        }
+      },
+      {
+        "id": "28",
+        "kind": "file_out",
+        "config": {
+          "path": "stems/bass.wav",
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            680.0
+          ],
+          "label": "Bass stem"
+        }
+      },
+      {
+        "id": "29",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -12.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1360.0
+          ],
+          "label": "Chords volume"
+        }
+      },
+      {
+        "id": "2a",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": -0.4
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1510.0
+          ],
+          "label": "Chords pan"
+        }
+      },
+      {
+        "id": "2b",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            1510.0
+          ],
+          "label": "Chords mute"
+        }
+      },
+      {
+        "id": "2c",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            1660.0
+          ],
+          "label": "Chords solo"
+        }
+      },
+      {
+        "id": "2d",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1360.0
+          ],
+          "label": "Chords track"
+        }
+      },
+      {
+        "id": "2e",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1800.0,
+            1360.0
+          ],
+          "label": "Chords meter"
+        }
+      },
+      {
+        "id": "2f",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -18.0
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            1510.0
+          ],
+          "label": "Chords reverb send"
+        }
+      },
+      {
+        "id": "30",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2100.0,
+            1510.0
+          ],
+          "label": "Chords send"
+        }
+      },
+      {
+        "id": "31",
+        "kind": "file_out",
+        "config": {
+          "path": "stems/chords.wav",
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            1360.0
+          ],
+          "label": "Chords stem"
+        }
+      },
+      {
+        "id": "32",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -12.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            2040.0
+          ],
+          "label": "Lead volume"
+        }
+      },
+      {
+        "id": "33",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.4
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            2190.0
+          ],
+          "label": "Lead pan"
+        }
+      },
+      {
+        "id": "34",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            2190.0
+          ],
+          "label": "Lead mute"
+        }
+      },
+      {
+        "id": "35",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            2340.0
+          ],
+          "label": "Lead solo"
+        }
+      },
+      {
+        "id": "36",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2040.0
+          ],
+          "label": "Lead track"
+        }
+      },
+      {
+        "id": "37",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1800.0,
+            2040.0
+          ],
+          "label": "Lead meter"
+        }
+      },
+      {
+        "id": "38",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -18.0
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            2190.0
+          ],
+          "label": "Lead reverb send"
+        }
+      },
+      {
+        "id": "39",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2100.0,
+            2190.0
+          ],
+          "label": "Lead send"
+        }
+      },
+      {
+        "id": "3a",
+        "kind": "file_out",
+        "config": {
+          "path": "stems/lead.wav",
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            2040.0
+          ],
+          "label": "Lead stem"
+        }
+      },
+      {
+        "id": "3b",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -6.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            2720.0
+          ],
+          "label": "Vocal volume"
+        }
+      },
+      {
+        "id": "3c",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            2870.0
+          ],
+          "label": "Vocal pan"
+        }
+      },
+      {
+        "id": "3d",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            2870.0
+          ],
+          "label": "Vocal mute"
+        }
+      },
+      {
+        "id": "3e",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1200.0,
+            3020.0
+          ],
+          "label": "Vocal solo"
+        }
+      },
+      {
+        "id": "3f",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2720.0
+          ],
+          "label": "Vocal track"
+        }
+      },
+      {
+        "id": "40",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            1800.0,
+            2720.0
+          ],
+          "label": "Vocal meter"
+        }
+      },
+      {
+        "id": "41",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 0.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -18.0
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            2870.0
+          ],
+          "label": "Vocal reverb send"
+        }
+      },
+      {
+        "id": "42",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2100.0,
+            2870.0
+          ],
+          "label": "Vocal send"
+        }
+      },
+      {
+        "id": "43",
+        "kind": "file_out",
+        "config": {
+          "path": "stems/vocal.wav",
+          "channels": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            2720.0
+          ],
+          "label": "Vocal stem"
+        }
+      },
+      {
+        "id": "44",
+        "kind": "graph",
+        "config": {
+          "unit": "beats",
+          "points": [
+            [
+              0,
+              -24
+            ],
+            [
+              0.5,
+              -24
+            ],
+            [
+              0.56,
+              0
+            ],
+            [
+              0.9,
+              0
+            ],
+            [
+              1,
+              -12
+            ]
+          ]
+        },
+        "params": {
+          "duration": 64.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            2340.0
+          ],
+          "label": "Lead ride (dB)"
+        }
+      },
+      {
+        "id": "45",
+        "kind": "math",
+        "params": {
+          "op": "add"
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            2040.0
+          ],
+          "label": "Fader + ride"
+        }
+      },
+      {
+        "id": "46",
+        "kind": "comment",
+        "config": {
+          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song and is added to the fader. The fader and the curve both live on; there's no automation lane under the track, no write/touch/latch, and the curve has no idea where bar 9 is."
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2370.0
+          ],
+          "size": [
+            466.0,
+            110.0
+          ]
+        }
+      },
+      {
+        "id": "47",
+        "kind": "logic",
+        "params": {
+          "op": "or"
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            0.0
+          ],
+          "label": "Any solo 1"
+        }
+      },
+      {
+        "id": "48",
+        "kind": "logic",
+        "params": {
+          "op": "or"
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            150.0
+          ],
+          "label": "Any solo 2"
+        }
+      },
+      {
+        "id": "49",
+        "kind": "logic",
+        "params": {
+          "op": "or"
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            300.0
+          ],
+          "label": "Any solo 3"
+        }
+      },
+      {
+        "id": "4a",
+        "kind": "logic",
+        "params": {
+          "op": "or"
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            450.0
+          ],
+          "label": "Any solo"
+        }
+      },
+      {
+        "id": "4b",
+        "kind": "mix",
+        "config": {
+          "inputs": 5
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            0.0
+          ],
+          "label": "Reverb bus"
+        }
+      },
+      {
+        "id": "4c",
+        "kind": "group",
+        "config": {
+          "def": "hall-reverb"
+        },
+        "params": {
+          "decay": 2.2,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            3000.0,
+            0.0
+          ],
+          "label": "Hall"
+        }
+      },
+      {
+        "id": "4d",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 6.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -6.0
+        },
+        "ui": {
+          "pos": [
+            3000.0,
+            400.0
+          ],
+          "label": "Reverb return"
+        }
+      },
+      {
+        "id": "4e",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            2700.0,
+            500.0
+          ],
+          "label": "Delay send (lead)"
+        }
+      },
+      {
+        "id": "4f",
+        "kind": "delay",
+        "config": {
+          "unit": "beats"
+        },
+        "params": {
+          "feedback": 0.35,
+          "mix": 1.0,
+          "time": 0.75
+        },
+        "ui": {
+          "pos": [
+            3000.0,
+            600.0
+          ],
+          "label": "Delay"
+        }
+      },
+      {
+        "id": "50",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 6.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -12.0
+        },
+        "ui": {
+          "pos": [
+            3000.0,
+            820.0
+          ],
+          "label": "Delay return"
+        }
+      },
+      {
+        "id": "51",
+        "kind": "mix",
+        "config": {
+          "inputs": 7
+        },
+        "ui": {
+          "pos": [
+            3300.0,
+            0.0
+          ],
+          "label": "Master"
+        }
+      },
+      {
+        "id": "52",
+        "kind": "group",
+        "config": {
+          "def": "compressor"
+        },
+        "params": {
+          "makeup": 2.0,
+          "ratio": 2.0,
+          "threshold": -14.0
+        },
+        "ui": {
+          "pos": [
+            3600.0,
+            0.0
+          ],
+          "label": "Bus compressor"
+        }
+      },
+      {
+        "id": "53",
+        "kind": "group",
+        "config": {
+          "def": "limiter"
+        },
+        "params": {
+          "ceiling": -0.3
+        },
+        "ui": {
+          "pos": [
+            3900.0,
+            0.0
+          ],
+          "label": "Limiter"
+        }
+      },
+      {
+        "id": "54",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            4200.0,
+            0.0
+          ],
+          "label": "Master meter"
+        }
+      },
+      {
+        "id": "55",
+        "kind": "analyzer",
+        "ui": {
+          "pos": [
+            4200.0,
+            150.0
+          ],
+          "label": "Master analyzer"
+        }
+      },
+      {
+        "id": "56",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            4500.0,
+            0.0
+          ],
+          "label": "Main out"
+        }
+      },
+      {
+        "id": "57",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 6.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            3300.0,
+            500.0
+          ],
+          "label": "Master fader"
+        }
+      },
+      {
+        "id": "58",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            3600.0,
+            400.0
+          ],
+          "label": "Master gain"
+        }
+      },
+      {
+        "id": "59",
+        "kind": "toggle",
+        "params": {
+          "value": false
+        },
+        "ui": {
+          "pos": [
+            3300.0,
+            700.0
+          ],
+          "label": "Click"
+        }
+      },
+      {
+        "id": "5a",
+        "kind": "group",
+        "config": {
+          "def": "metronome"
+        },
+        "params": {
+          "volume": -12.0
+        },
+        "ui": {
+          "pos": [
+            3600.0,
+            650.0
+          ],
+          "label": "Metronome"
+        }
+      },
+      {
+        "id": "5b",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            3900.0,
+            650.0
+          ],
+          "label": "Click out"
+        }
+      },
+      {
+        "id": "5c",
+        "kind": "comment",
+        "config": {
+          "text": "The master: a Mix of five tracks and two returns, the Compressor and Limiter blocks, a fader, meters, and the output. The click goes to a second Audio Out, which a render still sums into the file: a cue path that stays out of the export doesn't exist yet."
+        },
+        "ui": {
+          "pos": [
+            3300.0,
+            900.0
+          ],
+          "size": [
+            560.0,
+            96.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:beat",
+        "to": "6:a"
+      },
+      {
+        "from": "6:out",
+        "to": "7:in"
+      },
+      {
+        "from": "7:out",
+        "to": "5:start"
+      },
+      {
+        "from": "2:beat",
+        "to": "8:a"
+      },
+      {
+        "from": "8:out",
+        "to": "9:in"
+      },
+      {
+        "from": "9:out",
+        "to": "5:stop"
+      },
+      {
+        "from": "2:beat",
+        "to": "b:a"
+      },
+      {
+        "from": "b:out",
+        "to": "c:in"
+      },
+      {
+        "from": "c:out",
+        "to": "a:start"
+      },
+      {
+        "from": "d:out",
+        "to": "f:b"
+      },
+      {
+        "from": "e:out",
+        "to": "f:select"
+      },
+      {
+        "from": "d:out",
+        "to": "15:in"
+      },
+      {
+        "from": "2:beat",
+        "to": "11:a"
+      },
+      {
+        "from": "2:beat",
+        "to": "12:a"
+      },
+      {
+        "from": "11:out",
+        "to": "13:a"
+      },
+      {
+        "from": "12:out",
+        "to": "13:b"
+      },
+      {
+        "from": "13:out",
+        "to": "14:a"
+      },
+      {
+        "from": "10:out",
+        "to": "14:b"
+      },
+      {
+        "from": "14:out",
+        "to": "15:arm"
+      },
+      {
+        "from": "3:out",
+        "to": "1b:in"
+      },
+      {
+        "from": "17:out",
+        "to": "1b:volume"
+      },
+      {
+        "from": "18:out",
+        "to": "1b:pan"
+      },
+      {
+        "from": "19:out",
+        "to": "1b:mute"
+      },
+      {
+        "from": "1a:out",
+        "to": "1b:solo"
+      },
+      {
+        "from": "1b:out",
+        "to": "1c:in"
+      },
+      {
+        "from": "1c:out",
+        "to": "1f:in"
+      },
+      {
+        "from": "1c:out",
+        "to": "1e:in"
+      },
+      {
+        "from": "1d:out",
+        "to": "1e:gain"
+      },
+      {
+        "from": "4:out",
+        "to": "24:in"
+      },
+      {
+        "from": "20:out",
+        "to": "24:volume"
+      },
+      {
+        "from": "21:out",
+        "to": "24:pan"
+      },
+      {
+        "from": "22:out",
+        "to": "24:mute"
+      },
+      {
+        "from": "23:out",
+        "to": "24:solo"
+      },
+      {
+        "from": "24:out",
+        "to": "25:in"
+      },
+      {
+        "from": "25:out",
+        "to": "28:in"
+      },
+      {
+        "from": "25:out",
+        "to": "27:in"
+      },
+      {
+        "from": "26:out",
+        "to": "27:gain"
+      },
+      {
+        "from": "5:out",
+        "to": "2d:in"
+      },
+      {
+        "from": "29:out",
+        "to": "2d:volume"
+      },
+      {
+        "from": "2a:out",
+        "to": "2d:pan"
+      },
+      {
+        "from": "2b:out",
+        "to": "2d:mute"
+      },
+      {
+        "from": "2c:out",
+        "to": "2d:solo"
+      },
+      {
+        "from": "2d:out",
+        "to": "2e:in"
+      },
+      {
+        "from": "2e:out",
+        "to": "31:in"
+      },
+      {
+        "from": "2e:out",
+        "to": "30:in"
+      },
+      {
+        "from": "2f:out",
+        "to": "30:gain"
+      },
+      {
+        "from": "a:out",
+        "to": "36:in"
+      },
+      {
+        "from": "33:out",
+        "to": "36:pan"
+      },
+      {
+        "from": "34:out",
+        "to": "36:mute"
+      },
+      {
+        "from": "35:out",
+        "to": "36:solo"
+      },
+      {
+        "from": "36:out",
+        "to": "37:in"
+      },
+      {
+        "from": "37:out",
+        "to": "3a:in"
+      },
+      {
+        "from": "37:out",
+        "to": "39:in"
+      },
+      {
+        "from": "38:out",
+        "to": "39:gain"
+      },
+      {
+        "from": "f:out",
+        "to": "3f:in"
+      },
+      {
+        "from": "3b:out",
+        "to": "3f:volume"
+      },
+      {
+        "from": "3c:out",
+        "to": "3f:pan"
+      },
+      {
+        "from": "3d:out",
+        "to": "3f:mute"
+      },
+      {
+        "from": "3e:out",
+        "to": "3f:solo"
+      },
+      {
+        "from": "3f:out",
+        "to": "40:in"
+      },
+      {
+        "from": "40:out",
+        "to": "43:in"
+      },
+      {
+        "from": "40:out",
+        "to": "42:in"
+      },
+      {
+        "from": "41:out",
+        "to": "42:gain"
+      },
+      {
+        "from": "32:out",
+        "to": "45:a"
+      },
+      {
+        "from": "44:out",
+        "to": "45:b"
+      },
+      {
+        "from": "45:out",
+        "to": "36:volume"
+      },
+      {
+        "from": "1b:soloed",
+        "to": "47:a"
+      },
+      {
+        "from": "24:soloed",
+        "to": "47:b"
+      },
+      {
+        "from": "47:out",
+        "to": "48:a"
+      },
+      {
+        "from": "2d:soloed",
+        "to": "48:b"
+      },
+      {
+        "from": "48:out",
+        "to": "49:a"
+      },
+      {
+        "from": "36:soloed",
+        "to": "49:b"
+      },
+      {
+        "from": "49:out",
+        "to": "4a:a"
+      },
+      {
+        "from": "3f:soloed",
+        "to": "4a:b"
+      },
+      {
+        "from": "4a:out",
+        "to": "1b:any_solo"
+      },
+      {
+        "from": "4a:out",
+        "to": "24:any_solo"
+      },
+      {
+        "from": "4a:out",
+        "to": "2d:any_solo"
+      },
+      {
+        "from": "4a:out",
+        "to": "36:any_solo"
+      },
+      {
+        "from": "4a:out",
+        "to": "3f:any_solo"
+      },
+      {
+        "from": "1e:out",
+        "to": "4b:in_0"
+      },
+      {
+        "from": "27:out",
+        "to": "4b:in_1"
+      },
+      {
+        "from": "30:out",
+        "to": "4b:in_2"
+      },
+      {
+        "from": "39:out",
+        "to": "4b:in_3"
+      },
+      {
+        "from": "42:out",
+        "to": "4b:in_4"
+      },
+      {
+        "from": "4b:out",
+        "to": "4c:in"
+      },
+      {
+        "from": "37:out",
+        "to": "4e:in"
+      },
+      {
+        "from": "4e:out",
+        "to": "4f:in"
+      },
+      {
+        "from": "1c:out",
+        "to": "51:in_0"
+      },
+      {
+        "from": "25:out",
+        "to": "51:in_1"
+      },
+      {
+        "from": "2e:out",
+        "to": "51:in_2"
+      },
+      {
+        "from": "37:out",
+        "to": "51:in_3"
+      },
+      {
+        "from": "40:out",
+        "to": "51:in_4"
+      },
+      {
+        "from": "4c:out",
+        "to": "51:in_5"
+      },
+      {
+        "from": "4d:out",
+        "to": "51:gain_5"
+      },
+      {
+        "from": "4f:out",
+        "to": "51:in_6"
+      },
+      {
+        "from": "50:out",
+        "to": "51:gain_6"
+      },
+      {
+        "from": "51:out",
+        "to": "52:in"
+      },
+      {
+        "from": "52:out",
+        "to": "58:in"
+      },
+      {
+        "from": "57:out",
+        "to": "58:gain"
+      },
+      {
+        "from": "58:out",
+        "to": "53:in"
+      },
+      {
+        "from": "53:out",
+        "to": "54:in"
+      },
+      {
+        "from": "54:out",
+        "to": "55:in"
+      },
+      {
+        "from": "55:out",
+        "to": "56:in"
+      },
+      {
+        "from": "59:out",
+        "to": "5a:enabled"
+      },
+      {
+        "from": "5a:out",
+        "to": "5b:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Drums",
+        "rect": [
+          576.0,
+          -52.0,
+          1744.0,
+          506.0
+        ]
+      },
+      {
+        "label": "Bass",
+        "rect": [
+          576.0,
+          628.0,
+          1744.0,
+          506.0
+        ]
+      },
+      {
+        "label": "Chords",
+        "rect": [
+          -24.0,
+          1308.0,
+          2344.0,
+          506.0
+        ]
+      },
+      {
+        "label": "Lead",
+        "rect": [
+          -24.0,
+          1988.0,
+          2344.0,
+          647.0
+        ]
+      },
+      {
+        "label": "Vocal",
+        "rect": [
+          -24.0,
+          2668.0,
+          2344.0,
+          583.0
+        ]
+      },
+      {
+        "label": "Solo: four OR gates so five tracks can solo",
+        "rect": [
+          2376.0,
+          -52.0,
+          244.0,
+          643.0
+        ]
+      },
+      {
+        "label": "Buses",
+        "rect": [
+          2676.0,
+          -52.0,
+          544.0,
+          1036.0
+        ]
+      },
+      {
+        "label": "Master",
+        "rect": [
+          3276.0,
+          -52.0,
+          1444.0,
+          906.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "compressor": {
+      "name": "Compressor",
+      "description": "Evens out levels: whenever the signal rises above `threshold`, it is turned down so that every `ratio` dB over the threshold comes out as 1 dB over. Mono or stereo (both sides are turned down together, so the image stays put).\n\n- `threshold` (dB): the level where compression starts.\n- `ratio`: how hard levels over the threshold are pressed down; 4 means 4:1, 20 and up is close to limiting.\n- `attack` and `release` (seconds): how quickly the compressor turns down when the level jumps up, and how quickly it lets go when it falls back (the time the measured level takes to cover about 63 % of a jump). Attacks of a few milliseconds or more let the start of each note through, which keeps drums punchy.\n- `knee` (dB): rounds the corner at the threshold over that width so compression sets in gradually; 0 is a hard knee.\n- `makeup` (dB): gain added after compression to win back the lost level.\n- `gain_reduction` (output, dB): how far the signal is being turned down right now (0 or negative, before `makeup`), for a meter or to drive something else.\n\nInside: an Envelope Follower measures the peak level in decibels with the attack and release times, a Gain Computer turns that level into a gain change from the threshold, ratio, and knee, a Math node adds the make-up gain, and a Gain applies the result to the input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "dynamics",
+        "compressor",
+        "mixing"
+      ],
+      "source": "shipped:compressor",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "4:in"
+          ]
+        },
+        {
+          "name": "threshold",
+          "type": "float",
+          "unit": "db",
+          "default": -20.0,
+          "range": [
+            -60.0,
+            0.0
+          ],
+          "targets": [
+            "2:threshold"
+          ]
+        },
+        {
+          "name": "ratio",
+          "type": "float",
+          "unit": "ratio",
+          "default": 4.0,
+          "range": [
+            1.0,
+            20.0
+          ],
+          "targets": [
+            "2:ratio"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.01,
+          "range": [
+            0.0,
+            0.5
+          ],
+          "targets": [
+            "1:attack"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.1,
+          "range": [
+            0.0,
+            2.0
+          ],
+          "targets": [
+            "1:release"
+          ]
+        },
+        {
+          "name": "knee",
+          "type": "float",
+          "unit": "db",
+          "default": 6.0,
+          "range": [
+            0.0,
+            24.0
+          ],
+          "targets": [
+            "2:knee"
+          ]
+        },
+        {
+          "name": "makeup",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            0.0,
+            24.0
+          ],
+          "targets": [
+            "3:b"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "4:out"
+        },
+        {
+          "name": "gain_reduction",
+          "type": "float",
+          "source": "2:gain_reduction"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "envelope_follower",
+            "params": {
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Detector"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "gain_computer",
+            "params": {
+              "mode": "compress"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "math",
+            "params": {
+              "op": "add"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Make-up"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:level_db",
+            "to": "2:level"
+          },
+          {
+            "from": "2:gain_reduction",
+            "to": "3:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:gain"
+          }
+        ]
+      }
+    },
+    "hall-reverb": {
+      "name": "Hall Reverb",
+      "description": "A large, dark hall: a soft wash of early echoes that blooms into a long, smooth tail whose highs fade first, as in a big room. Mono or stereo in, stereo out.\n\n- `in`: the signal.\n- `predelay` (s): the gap before the reverb, as if the walls were further away; 0.02 to 0.08 s for a hall.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60) in the low and middle frequencies.\n- `damping` (0 to 1): how much faster the highs die away; 0 is a bright, hard room, 0.2 a concert hall (highs last about half as long as lows), 0.5 a dark, heavy space. Above about 0.6 the lows shorten too.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; around 0.25 places a sound in the hall, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the classic parallel-comb, series-allpass reverberator of M. R. Schroeder (\"Natural sounding artificial reverberation\", JAES, 1962), with J. A. Moorer's lowpass filters in the comb loops and his six comb delays from 50 to 78 ms (\"About this reverberation business\", Computer Music Journal, 1979). A Delay sets `predelay`, and a Diffuser smears the input into a decorrelated stereo pair (its left and right chains have different delays), which gives the early echoes and the width. Six feedback Combs in parallel, each fed both channels, make the tail, with `damping` as their loop lowpass. For every comb to fall 60 dB in `decay` seconds, a comb of delay d needs a feedback of 10^(−3·d ÷ `decay`): Math and Convert work out 10^(−3 ÷ `decay`), the gain per second, and a Math power per comb raises it to that comb's delay. A Mix sums the combs with the Diffuser's own output, which fills the first 50 ms before the combs answer, two Allpasses (6 and 1.7 ms) thicken the echoes, and an equal-power Crossfade blends the result with the dry input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "reverb",
+        "space",
+        "hall",
+        "stereo",
+        "effect"
+      ],
+      "source": "shipped:hall-reverb",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "33:a"
+          ]
+        },
+        {
+          "name": "predelay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.03,
+          "range": [
+            0.0,
+            0.25
+          ],
+          "targets": [
+            "1:time"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 3.5,
+          "range": [
+            0.5,
+            20.0
+          ],
+          "targets": [
+            "3:b"
+          ]
+        },
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.2,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "20:damping",
+            "21:damping",
+            "22:damping",
+            "23:damping",
+            "24:damping",
+            "25:damping"
+          ]
+        },
+        {
+          "name": "mix",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "33:mix"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "33:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.5
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Predelay"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "diffuser",
+            "params": {
+              "diffusion": 0.7,
+              "mix": 1.0,
+              "mod_depth": 0.3,
+              "mod_rate": 0.5,
+              "size": 0.8
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                0.0
+              ],
+              "label": "Early diffusion"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "math",
+            "params": {
+              "a": -60.0,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                250.0
+              ],
+              "label": "dB per second"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                380.0
+              ],
+              "label": "Gain per second"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "b": 0.05,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                250.0
+              ],
+              "label": "Gain per pass 1"
+            }
+          },
+          {
+            "id": "20",
+            "kind": "comb",
+            "params": {
+              "delay": 0.05,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                0.0
+              ],
+              "label": "Comb 1"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "math",
+            "params": {
+              "b": 0.0561,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                380.0
+              ],
+              "label": "Gain per pass 2"
+            }
+          },
+          {
+            "id": "21",
+            "kind": "comb",
+            "params": {
+              "delay": 0.0561,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                190.0
+              ],
+              "label": "Comb 2"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "math",
+            "params": {
+              "b": 0.0613,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                510.0
+              ],
+              "label": "Gain per pass 3"
+            }
+          },
+          {
+            "id": "22",
+            "kind": "comb",
+            "params": {
+              "delay": 0.0613,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                380.0
+              ],
+              "label": "Comb 3"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "math",
+            "params": {
+              "b": 0.0679,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                640.0
+              ],
+              "label": "Gain per pass 4"
+            }
+          },
+          {
+            "id": "23",
+            "kind": "comb",
+            "params": {
+              "delay": 0.0679,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                570.0
+              ],
+              "label": "Comb 4"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "math",
+            "params": {
+              "b": 0.0721,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                770.0
+              ],
+              "label": "Gain per pass 5"
+            }
+          },
+          {
+            "id": "24",
+            "kind": "comb",
+            "params": {
+              "delay": 0.0721,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                760.0
+              ],
+              "label": "Comb 5"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "math",
+            "params": {
+              "b": 0.0781,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                900.0
+              ],
+              "label": "Gain per pass 6"
+            }
+          },
+          {
+            "id": "25",
+            "kind": "comb",
+            "params": {
+              "delay": 0.0781,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                950.0
+              ],
+              "label": "Comb 6"
+            }
+          },
+          {
+            "id": "30",
+            "kind": "mix",
+            "config": {
+              "inputs": 7
+            },
+            "params": {
+              "gain_0": -22.0,
+              "gain_1": -22.0,
+              "gain_2": -22.0,
+              "gain_3": -22.0,
+              "gain_4": -22.0,
+              "gain_5": -22.0,
+              "gain_6": -12.0
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Combs + early"
+            }
+          },
+          {
+            "id": "31",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.006,
+              "gain": 0.7
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                300.0
+              ],
+              "label": "Allpass 6 ms"
+            }
+          },
+          {
+            "id": "32",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.0017,
+              "gain": 0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                300.0
+              ],
+              "label": "Allpass 1.7 ms"
+            }
+          },
+          {
+            "id": "33",
+            "kind": "crossfade",
+            "params": {
+              "curve": "equal_power"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "10:a"
+          },
+          {
+            "from": "10:out",
+            "to": "20:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "20:in"
+          },
+          {
+            "from": "20:out",
+            "to": "30:in_0"
+          },
+          {
+            "from": "4:out",
+            "to": "11:a"
+          },
+          {
+            "from": "11:out",
+            "to": "21:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "21:in"
+          },
+          {
+            "from": "21:out",
+            "to": "30:in_1"
+          },
+          {
+            "from": "4:out",
+            "to": "12:a"
+          },
+          {
+            "from": "12:out",
+            "to": "22:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "22:in"
+          },
+          {
+            "from": "22:out",
+            "to": "30:in_2"
+          },
+          {
+            "from": "4:out",
+            "to": "13:a"
+          },
+          {
+            "from": "13:out",
+            "to": "23:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "23:in"
+          },
+          {
+            "from": "23:out",
+            "to": "30:in_3"
+          },
+          {
+            "from": "4:out",
+            "to": "14:a"
+          },
+          {
+            "from": "14:out",
+            "to": "24:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "24:in"
+          },
+          {
+            "from": "24:out",
+            "to": "30:in_4"
+          },
+          {
+            "from": "4:out",
+            "to": "15:a"
+          },
+          {
+            "from": "15:out",
+            "to": "25:feedback"
+          },
+          {
+            "from": "2:out",
+            "to": "25:in"
+          },
+          {
+            "from": "25:out",
+            "to": "30:in_5"
+          },
+          {
+            "from": "2:out",
+            "to": "30:in_6"
+          },
+          {
+            "from": "30:out",
+            "to": "31:in"
+          },
+          {
+            "from": "31:out",
+            "to": "32:in"
+          },
+          {
+            "from": "32:out",
+            "to": "33:b"
+          }
+        ]
+      }
+    },
+    "limiter": {
+      "name": "Limiter",
+      "description": "Keeps peaks at or below `ceiling`, whatever comes in: the last stage before an output or a render, or a way to make a track louder without clipping. Mono or stereo.\n\n- `ceiling` (dB): the highest level that gets out.\n- `release` (seconds): how quickly the limiter lets go after a peak. Short releases are louder but can pump or distort low notes; longer ones are smoother.\n- `gain_reduction` (output, dB): how far the signal is being turned down right now (0 or negative).\n\nThe limiter looks 5 ms ahead, so it can start turning down before a peak arrives instead of letting its first few milliseconds through. That 5 ms is reported as latency, so the engine delays parallel paths to stay in step.\n\nInside: a Lookahead splits the input into `early` (as it comes in) and `out` (5 ms later). A peak Envelope Follower on `early` with an instant attack finds each peak 5 ms before it is heard, and a Smooth spreads the rise of that level over about a millisecond so the gain ramps down instead of jumping. By the time a peak is heard, the first level has already begun to release and sags a little, so a second instant follower on `out` catches whatever is left over, and a Math node keeps the louder of the two levels. A Gain Computer with a ratio of 1000:1 and a hard knee, its threshold set 0.05 dB under the ceiling so that even a signal 50 dB too hot stays under, turns any level over the ceiling into the gain change for the Gain on `out`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "dynamics",
+        "limiter",
+        "mastering",
+        "mixing"
+      ],
+      "source": "shipped:limiter",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "ceiling",
+          "type": "float",
+          "unit": "db",
+          "default": -1.0,
+          "range": [
+            -24.0,
+            0.0
+          ],
+          "targets": [
+            "8:a"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.1,
+          "range": [
+            0.01,
+            1.0
+          ],
+          "targets": [
+            "2:release",
+            "4:release"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "gain_reduction",
+          "type": "float",
+          "source": "6:gain_reduction"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "lookahead",
+            "config": {
+              "time": 0.005
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ],
+              "label": "Early detector"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "smooth",
+            "params": {
+              "fall": 0.0,
+              "mode": "exponential",
+              "rise": 0.0007
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Ramp"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                160.0
+              ],
+              "label": "Catch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "max"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ],
+              "label": "Louder"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "gain_computer",
+            "params": {
+              "knee": 0.0,
+              "mode": "compress",
+              "ratio": 1000.0
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1100.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "8",
+            "kind": "math",
+            "params": {
+              "b": 0.05,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                -160.0
+              ],
+              "label": "Margin"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "8:out",
+            "to": "6:threshold"
+          },
+          {
+            "from": "1:early",
+            "to": "2:in"
+          },
+          {
+            "from": "1:out",
+            "to": "4:in"
+          },
+          {
+            "from": "1:out",
+            "to": "7:in"
+          },
+          {
+            "from": "2:level_db",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "5:a"
+          },
+          {
+            "from": "4:level_db",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:level"
+          },
+          {
+            "from": "6:gain_reduction",
+            "to": "7:gain"
+          }
+        ]
+      }
+    },
+    "metronome": {
+      "name": "Metronome",
+      "description": "Clicks on every beat while the transport plays, with a higher click on the first beat of each bar. Follows the project tempo.\n\n- `volume` (dB): how loud the clicks are.\n- `enabled`: switch the clicks on or off (with a 5 ms fade).\n- `beats_per_bar`: beats in a bar, counted from the start of the song; set it to match the time signature (3 for a waltz).\n- `out` (audio, mono): the clicks. Send it to its own output to make a click track only you hear.\n\nInside: one Clock ticks on every beat and another on every bar. The bar ticks start the accent click; a Switch in trigger mode passes the beat ticks only while the bar clock's short gate is low, so the downbeat doesn't get both clicks. Each click is a sine Oscillator, restarted from the top of its cycle by the tick so every click sounds the same, multiplied by an ADSR that jumps up and dies away in about 40 ms. The accent sounds an octave higher (1760 Hz against 880 Hz) and 3 dB louder. A Mix adds the two, a Gain sets the volume, and a Switch in audio mode turns the result on and off.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "rhythm",
+        "utility",
+        "click",
+        "tempo"
+      ],
+      "source": "shipped:metronome",
+      "inputs": [
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "11:gain"
+          ]
+        },
+        {
+          "name": "enabled",
+          "type": "bool",
+          "default": true,
+          "targets": [
+            "12:select"
+          ]
+        },
+        {
+          "name": "beats_per_bar",
+          "type": "float",
+          "unit": "beats",
+          "default": 4.0,
+          "range": [
+            1.0,
+            16.0
+          ],
+          "targets": [
+            "2:interval"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "12:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "clock",
+            "params": {
+              "duty": 0.5,
+              "interval": 1.0
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Beat"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "clock",
+            "params": {
+              "duty": 0.02
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Bar"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "switch",
+            "config": {
+              "type": "trigger"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not the downbeat"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.04,
+              "release": 0.01,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Accent envelope"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "oscillator",
+            "params": {
+              "freq": 1760.0,
+              "shape": "sine",
+              "start": "play"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                160.0
+              ],
+              "label": "Accent tone"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "7",
+            "kind": "adsr",
+            "params": {
+              "attack": 0.0,
+              "curve": "exponential",
+              "decay": 0.04,
+              "release": 0.01,
+              "sustain": 0.0
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Beat envelope"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "oscillator",
+            "params": {
+              "freq": 880.0,
+              "shape": "sine",
+              "start": "play"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                480.0
+              ],
+              "label": "Beat tone"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                320.0
+              ]
+            }
+          },
+          {
+            "id": "10",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": 0.0,
+              "gain_1": -3.0
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "11",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1100.0,
+                160.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                1320.0,
+                160.0
+              ],
+              "label": "Enabled"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:trigger",
+            "to": "3:a"
+          },
+          {
+            "from": "2:gate",
+            "to": "3:select"
+          },
+          {
+            "from": "2:trigger",
+            "to": "4:on"
+          },
+          {
+            "from": "2:trigger",
+            "to": "5:sync"
+          },
+          {
+            "from": "4:out",
+            "to": "6:a"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "3:out",
+            "to": "7:on"
+          },
+          {
+            "from": "3:out",
+            "to": "8:sync"
+          },
+          {
+            "from": "7:out",
+            "to": "9:a"
+          },
+          {
+            "from": "8:out",
+            "to": "9:b"
+          },
+          {
+            "from": "6:out",
+            "to": "10:in_0"
+          },
+          {
+            "from": "9:out",
+            "to": "10:in_1"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "11:out",
+            "to": "12:b"
+          }
+        ]
+      }
+    },
+    "track": {
+      "name": "Track",
+      "description": "One channel of a mixer: a volume fader, a pan knob, and mute and solo switches for whatever you wire into `in`. Put one Track after each sound and add them up with a Mix.\n\n- `in` (audio): the track's sound, mono or stereo. Usually a Clip playing your file: wire the Clip into `in`. The Clip stays outside because every instance of a block shares the same inside, so a Clip inside would make every Track play the same file.\n- `volume` (dB): the track's level.\n- `pan`: −1 is left, 0 center, 1 right. A mono track keeps the same loudness as it moves (−3 dB per side at the center); a stereo track is balanced.\n- `mute`: silences the track (with a 5 ms fade, so it doesn't click).\n- `solo` and `soloed`: solo comes back out of `soloed` for the rest of the mix to see; on its own it doesn't change this track's sound. To make solo work across a mix, combine the `soloed` outputs of every track with Logic `or` nodes and wire the result into every track's `any_solo`.\n- `any_solo`: on while any track in the mix is soloed. A track that isn't soloed itself goes silent while it's on, so only the soloed tracks play. Mute wins over solo.\n- `out` (audio): always stereo.\n\nInside: a Gain sets the volume and a Pan places the sound. Three Logic nodes work out whether the track should be silent (muted, or another track soloed and not this one), and a Switch in audio mode fades between the track and silence. A Logic `or` with nothing on its second input passes `solo` to the `soloed` output.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "mixing",
+        "utility",
+        "channel"
+      ],
+      "source": "shipped:track",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "1:gain"
+          ]
+        },
+        {
+          "name": "pan",
+          "type": "float",
+          "default": 0.0,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "targets": [
+            "2:pan"
+          ]
+        },
+        {
+          "name": "mute",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "6:a"
+          ]
+        },
+        {
+          "name": "solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "any_solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "5:a"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "soloed",
+          "type": "bool",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pan",
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Soloed"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "logic",
+            "params": {
+              "op": "not"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not soloed"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "logic",
+            "params": {
+              "op": "and"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Another track soloed"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                160.0
+              ],
+              "label": "Silent"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ],
+              "label": "Mute"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "7:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:a"
+          },
+          {
+            "from": "4:out",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "6:out",
+            "to": "7:select"
+          }
+        ]
+      }
+    }
+  },
+  "panels": [
+    {
+      "name": "Mixer",
+      "items": [
+        {
+          "node": "17"
+        },
+        {
+          "node": "18"
+        },
+        {
+          "node": "19"
+        },
+        {
+          "node": "1a"
+        },
+        {
+          "node": "1c"
+        },
+        {
+          "node": "1d"
+        },
+        {
+          "node": "20"
+        },
+        {
+          "node": "21"
+        },
+        {
+          "node": "22"
+        },
+        {
+          "node": "23"
+        },
+        {
+          "node": "25"
+        },
+        {
+          "node": "26"
+        },
+        {
+          "node": "29"
+        },
+        {
+          "node": "2a"
+        },
+        {
+          "node": "2b"
+        },
+        {
+          "node": "2c"
+        },
+        {
+          "node": "2e"
+        },
+        {
+          "node": "2f"
+        },
+        {
+          "node": "32"
+        },
+        {
+          "node": "33"
+        },
+        {
+          "node": "34"
+        },
+        {
+          "node": "35"
+        },
+        {
+          "node": "37"
+        },
+        {
+          "node": "38"
+        },
+        {
+          "node": "3b"
+        },
+        {
+          "node": "3c"
+        },
+        {
+          "node": "3d"
+        },
+        {
+          "node": "3e"
+        },
+        {
+          "node": "40"
+        },
+        {
+          "node": "41"
+        },
+        {
+          "node": "57"
+        },
+        {
+          "node": "54"
+        },
+        {
+          "node": "55"
+        },
+        {
+          "node": "4d"
+        },
+        {
+          "node": "50"
+        },
+        {
+          "node": "59"
+        },
+        {
+          "node": "e"
+        },
+        {
+          "node": "10"
+        },
+        {
+          "node": "15"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "source": {
+        "type": "key",
+        "key": "F5"
+      },
+      "target": {
+        "type": "input",
+        "node": "10",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    }
+  ]
+}

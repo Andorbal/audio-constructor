@@ -1,0 +1,4402 @@
+{
+  "schema_version": 2,
+  "name": "Pattern Studio",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 30.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 128.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "comment",
+        "config": {
+          "text": "Study: a pattern-based studio (channel rack, step sequencer, piano roll, playlist), built from today's nodes.\n\nFour drum channels play slices of one sample from a 16-step Pattern; a chord channel and a bass channel play from MIDI Patterns (piano rolls). Each channel has volume, pan, and mute on a Track block. There are two patterns, A and B, and a four-node playlist that alternates them every four bars. The hats get a velocity row from a Step Sequencer. The Rack panel is the channel rack's knobs and mutes.\n\nWhat the real thing has that this can't: a playlist you draw patterns onto, a step grid on a panel, swing, per-step velocity and pitch inside the grid, and a fill button. Read docs/GAPS.md."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -560.0
+          ],
+          "size": [
+            760.0,
+            230.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "transport",
+        "ui": {
+          "pos": [
+            0.0,
+            -300.0
+          ],
+          "label": "Song position"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "3",
+        "kind": "clock",
+        "params": {
+          "interval": 0.25
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -120.0
+          ],
+          "label": "Sixteenths"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "math",
+        "params": {
+          "b": 8.0,
+          "op": "modulo"
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            -300.0
+          ],
+          "label": "Bar mod 8"
+        }
+      },
+      {
+        "id": "5",
+        "kind": "compare",
+        "params": {
+          "b": 4.0,
+          "op": "greater_equal"
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            -300.0
+          ],
+          "label": "Pattern B plays"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "comment",
+        "config": {
+          "text": "The playlist: bar number modulo 8, and B plays when that is 4 or more. Both patterns run all the time; Switches pick which one each channel hears. Any other arrangement means more Compares."
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            -300.0
+          ],
+          "size": [
+            466.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "pattern",
+        "config": {
+          "steps": 16,
+          "rows": 4,
+          "cells": [
+            "x...x...x...x...",
+            "....x.......x...",
+            "x.x.x.x.x.x.x.x.",
+            "............x..."
+          ]
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            -120.0
+          ],
+          "label": "Pattern A"
+        }
+      },
+      {
+        "id": "8",
+        "kind": "pattern",
+        "config": {
+          "steps": 16,
+          "rows": 4,
+          "cells": [
+            "x..x..x...x.x...",
+            "....x.......x..x",
+            "x.xxx.x.x.xxx.x.",
+            "....x.......x..."
+          ]
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            320.0
+          ],
+          "label": "Pattern B"
+        }
+      },
+      {
+        "id": "9",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ],
+          "label": "Kick steps"
+        }
+      },
+      {
+        "id": "a",
+        "kind": "sampler",
+        "config": {
+          "file": "../examples/assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.125,
+          "gain": -4.0,
+          "note": 60.0,
+          "start": "never",
+          "start_point": 0.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ],
+          "label": "Kick"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "b",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            470.0
+          ],
+          "label": "Snare steps"
+        }
+      },
+      {
+        "id": "c",
+        "kind": "sampler",
+        "config": {
+          "file": "../examples/assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": 0.0,
+          "note": 48.0,
+          "start": "never",
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            470.0
+          ],
+          "label": "Snare"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "d",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            940.0
+          ],
+          "label": "Hat steps"
+        }
+      },
+      {
+        "id": "e",
+        "kind": "sampler",
+        "config": {
+          "file": "../examples/assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -10.0,
+          "note": 60.0,
+          "start": "never",
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            940.0
+          ],
+          "label": "Hat"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "f",
+        "kind": "step_sequencer",
+        "config": {
+          "steps": 16,
+          "values": [
+            1.0,
+            0.4,
+            0.7,
+            0.4,
+            1.0,
+            0.4,
+            0.7,
+            0.5,
+            1.0,
+            0.4,
+            0.7,
+            0.4,
+            1.0,
+            0.5,
+            0.8,
+            0.6
+          ]
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1120.0
+          ],
+          "label": "Hat velocity"
+        }
+      },
+      {
+        "id": "10",
+        "kind": "map",
+        "params": {
+          "out_max": -8.0,
+          "out_min": -30.0
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            1120.0
+          ],
+          "label": "Velocity to dB"
+        }
+      },
+      {
+        "id": "11",
+        "kind": "switch",
+        "config": {
+          "type": "trigger"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1410.0
+          ],
+          "label": "Clap steps"
+        }
+      },
+      {
+        "id": "12",
+        "kind": "sampler",
+        "config": {
+          "file": "../examples/assets/drums.wav",
+          "channels": 1,
+          "root": 60
+        },
+        "params": {
+          "end_point": 0.225,
+          "gain": -8.0,
+          "note": 53.0,
+          "start": "never",
+          "start_point": 0.185
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            1410.0
+          ],
+          "label": "Clap"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "13",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 16.0,
+          "notes": [
+            [
+              0,
+              3.5,
+              57,
+              90
+            ],
+            [
+              0,
+              3.5,
+              60,
+              90
+            ],
+            [
+              0,
+              3.5,
+              64,
+              90
+            ],
+            [
+              4,
+              3.5,
+              53,
+              90
+            ],
+            [
+              4,
+              3.5,
+              57,
+              90
+            ],
+            [
+              4,
+              3.5,
+              60,
+              90
+            ],
+            [
+              8,
+              3.5,
+              60,
+              90
+            ],
+            [
+              8,
+              3.5,
+              64,
+              90
+            ],
+            [
+              8,
+              3.5,
+              67,
+              90
+            ],
+            [
+              12,
+              3.5,
+              55,
+              90
+            ],
+            [
+              12,
+              3.5,
+              59,
+              90
+            ],
+            [
+              12,
+              3.5,
+              62,
+              90
+            ]
+          ]
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            1880.0
+          ],
+          "label": "Chords A"
+        }
+      },
+      {
+        "id": "14",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 16.0,
+          "notes": [
+            [
+              0,
+              0.5,
+              57,
+              100
+            ],
+            [
+              1,
+              0.5,
+              60,
+              100
+            ],
+            [
+              2,
+              0.5,
+              64,
+              100
+            ],
+            [
+              3,
+              0.5,
+              69,
+              100
+            ],
+            [
+              4,
+              0.5,
+              53,
+              100
+            ],
+            [
+              5,
+              0.5,
+              57,
+              100
+            ],
+            [
+              6,
+              0.5,
+              60,
+              100
+            ],
+            [
+              7,
+              0.5,
+              65,
+              100
+            ],
+            [
+              8,
+              0.5,
+              60,
+              100
+            ],
+            [
+              9,
+              0.5,
+              64,
+              100
+            ],
+            [
+              10,
+              0.5,
+              67,
+              100
+            ],
+            [
+              11,
+              0.5,
+              72,
+              100
+            ],
+            [
+              12,
+              0.5,
+              55,
+              100
+            ],
+            [
+              13,
+              0.5,
+              59,
+              100
+            ],
+            [
+              14,
+              0.5,
+              62,
+              100
+            ],
+            [
+              15,
+              0.5,
+              67,
+              100
+            ]
+          ]
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            2210.0
+          ],
+          "label": "Chords B"
+        }
+      },
+      {
+        "id": "15",
+        "kind": "switch",
+        "config": {
+          "type": "midi"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1880.0
+          ],
+          "label": "Chords pattern"
+        }
+      },
+      {
+        "id": "16",
+        "kind": "voices",
+        "config": {
+          "def": "subtractive-synth-voice",
+          "voices": 6,
+          "steal": "oldest"
+        },
+        "params": {
+          "attack": 0.01,
+          "cutoff": 1200.0,
+          "decay": 0.4,
+          "env_amount": 2.0,
+          "level": -10.0,
+          "release": 0.4,
+          "resonance": 0.2,
+          "sustain": 0.5
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            1880.0
+          ],
+          "label": "Poly synth"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "17",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 64.0,
+          "notes": [
+            [
+              0.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              0.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              1.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              1.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              2.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              2.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              3.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              3.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              4.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              4.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              5.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              5.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              6.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              6.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              7.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              7.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              8.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              8.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              9.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              9.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              10.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              10.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              11.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              11.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              12.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              12.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              13.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              13.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              14.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              14.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              15.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              15.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              16.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              16.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              17.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              17.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              18.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              18.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              19.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              19.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              20.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              20.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              21.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              21.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              22.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              22.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              23.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              23.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              24.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              24.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              25.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              25.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              26.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              26.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              27.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              27.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              28.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              28.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              29.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              29.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              30.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              30.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              31.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              31.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              32.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              32.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              33.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              33.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              34.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              34.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              35.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              35.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              36.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              36.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              37.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              37.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              38.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              38.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              39.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              39.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              40.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              40.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              41.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              41.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              42.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              42.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              43.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              43.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              44.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              44.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              45.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              45.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              46.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              46.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              47.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              47.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              48.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              48.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              49.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              49.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              50.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              50.5,
+              0.4,
+              45,
+              80
+            ],
+            [
+              51.0,
+              0.4,
+              45,
+              100
+            ],
+            [
+              51.5,
+              0.4,
+              52,
+              80
+            ],
+            [
+              52.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              52.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              53.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              53.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              54.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              54.5,
+              0.4,
+              41,
+              80
+            ],
+            [
+              55.0,
+              0.4,
+              41,
+              100
+            ],
+            [
+              55.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              56.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              56.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              57.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              57.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              58.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              58.5,
+              0.4,
+              48,
+              80
+            ],
+            [
+              59.0,
+              0.4,
+              48,
+              100
+            ],
+            [
+              59.5,
+              0.4,
+              55,
+              80
+            ],
+            [
+              60.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              60.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              61.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              61.5,
+              0.4,
+              50,
+              80
+            ],
+            [
+              62.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              62.5,
+              0.4,
+              43,
+              80
+            ],
+            [
+              63.0,
+              0.4,
+              43,
+              100
+            ],
+            [
+              63.5,
+              0.4,
+              50,
+              80
+            ]
+          ]
+        },
+        "ui": {
+          "pos": [
+            300.0,
+            2580.0
+          ],
+          "label": "Bass (whole song)"
+        }
+      },
+      {
+        "id": "18",
+        "kind": "voices",
+        "config": {
+          "def": "fm-operator-pair",
+          "voices": 2,
+          "steal": "oldest"
+        },
+        "params": {
+          "attack": 0.005,
+          "decay": 0.2,
+          "index": 1.5,
+          "level": -8.0,
+          "mod_decay": 0.15,
+          "mod_sustain": 0.1,
+          "ratio": 1.0,
+          "release": 0.1,
+          "sustain": 0.3
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            2580.0
+          ],
+          "label": "FM bass"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "19",
+        "kind": "comment",
+        "config": {
+          "text": "A 64-beat MIDI Pattern holds the bass for the whole song: the 'one long clip' way of arranging. Select it to see the piano roll in the Node tab; there is no way to see it next to the drums in time."
+        },
+        "ui": {
+          "pos": [
+            600.0,
+            2730.0
+          ],
+          "size": [
+            466.0,
+            80.0
+          ]
+        }
+      },
+      {
+        "id": "1a",
+        "kind": "mix",
+        "config": {
+          "inputs": 8
+        },
+        "params": {
+          "gain_6": -8.0,
+          "gain_7": -14.0
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            0.0
+          ],
+          "label": "Master"
+        }
+      },
+      {
+        "id": "1b",
+        "kind": "mix",
+        "config": {
+          "inputs": 2
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            1000.0
+          ],
+          "label": "Reverb bus"
+        }
+      },
+      {
+        "id": "1c",
+        "kind": "group",
+        "config": {
+          "def": "plate-reverb"
+        },
+        "params": {
+          "decay": 1.4,
+          "mix": 1.0
+        },
+        "ui": {
+          "pos": [
+            2400.0,
+            1000.0
+          ],
+          "label": "Plate"
+        }
+      },
+      {
+        "id": "1d",
+        "kind": "delay",
+        "config": {
+          "unit": "beats"
+        },
+        "params": {
+          "feedback": 0.4,
+          "mix": 1.0,
+          "time": 0.75
+        },
+        "ui": {
+          "pos": [
+            2100.0,
+            1400.0
+          ],
+          "label": "Chord echo"
+        }
+      },
+      {
+        "id": "1e",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            0.0
+          ],
+          "label": "Kick volume"
+        }
+      },
+      {
+        "id": "1f",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            150.0
+          ],
+          "label": "Kick pan"
+        }
+      },
+      {
+        "id": "20",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            150.0
+          ],
+          "label": "Kick mute"
+        }
+      },
+      {
+        "id": "21",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            0.0
+          ],
+          "label": "Kick strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "22",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            470.0
+          ],
+          "label": "Snare volume"
+        }
+      },
+      {
+        "id": "23",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.1
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            620.0
+          ],
+          "label": "Snare pan"
+        }
+      },
+      {
+        "id": "24",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            620.0
+          ],
+          "label": "Snare mute"
+        }
+      },
+      {
+        "id": "25",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            470.0
+          ],
+          "label": "Snare strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "26",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            940.0
+          ],
+          "label": "Hat volume"
+        }
+      },
+      {
+        "id": "27",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": -0.3
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1090.0
+          ],
+          "label": "Hat pan"
+        }
+      },
+      {
+        "id": "28",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            1090.0
+          ],
+          "label": "Hat mute"
+        }
+      },
+      {
+        "id": "29",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            940.0
+          ],
+          "label": "Hat strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "2a",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1410.0
+          ],
+          "label": "Clap volume"
+        }
+      },
+      {
+        "id": "2b",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.3
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1560.0
+          ],
+          "label": "Clap pan"
+        }
+      },
+      {
+        "id": "2c",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            1560.0
+          ],
+          "label": "Clap mute"
+        }
+      },
+      {
+        "id": "2d",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            1410.0
+          ],
+          "label": "Clap strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "2e",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": -2.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1880.0
+          ],
+          "label": "Chords volume"
+        }
+      },
+      {
+        "id": "2f",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2030.0
+          ],
+          "label": "Chords pan"
+        }
+      },
+      {
+        "id": "30",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            2030.0
+          ],
+          "label": "Chords mute"
+        }
+      },
+      {
+        "id": "31",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            1880.0
+          ],
+          "label": "Chords strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "32",
+        "kind": "knob",
+        "config": {
+          "min": -60.0,
+          "max": 12.0,
+          "unit": "db"
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2580.0
+          ],
+          "label": "Bass volume"
+        }
+      },
+      {
+        "id": "33",
+        "kind": "knob",
+        "config": {
+          "min": -1.0,
+          "max": 1.0
+        },
+        "params": {
+          "value": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            2730.0
+          ],
+          "label": "Bass pan"
+        }
+      },
+      {
+        "id": "34",
+        "kind": "toggle",
+        "ui": {
+          "pos": [
+            1800.0,
+            2730.0
+          ],
+          "label": "Bass mute"
+        }
+      },
+      {
+        "id": "35",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "ui": {
+          "pos": [
+            1800.0,
+            2580.0
+          ],
+          "label": "Bass strip"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "36",
+        "kind": "group",
+        "config": {
+          "def": "limiter"
+        },
+        "params": {
+          "ceiling": -0.5
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            0.0
+          ],
+          "label": "Limiter"
+        }
+      },
+      {
+        "id": "37",
+        "kind": "meter",
+        "ui": {
+          "pos": [
+            3000.0,
+            0.0
+          ],
+          "label": "Master meter"
+        }
+      },
+      {
+        "id": "38",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            3300.0,
+            0.0
+          ],
+          "label": "Main out"
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "2:bar",
+        "to": "4:a"
+      },
+      {
+        "from": "4:out",
+        "to": "5:a"
+      },
+      {
+        "from": "3:trigger",
+        "to": "7:clock"
+      },
+      {
+        "from": "3:trigger",
+        "to": "8:clock"
+      },
+      {
+        "from": "7:trigger_0",
+        "to": "9:a"
+      },
+      {
+        "from": "8:trigger_0",
+        "to": "9:b"
+      },
+      {
+        "from": "5:out",
+        "to": "9:select"
+      },
+      {
+        "from": "9:out",
+        "to": "a:start"
+      },
+      {
+        "from": "7:trigger_1",
+        "to": "b:a"
+      },
+      {
+        "from": "8:trigger_1",
+        "to": "b:b"
+      },
+      {
+        "from": "5:out",
+        "to": "b:select"
+      },
+      {
+        "from": "b:out",
+        "to": "c:start"
+      },
+      {
+        "from": "7:trigger_2",
+        "to": "d:a"
+      },
+      {
+        "from": "8:trigger_2",
+        "to": "d:b"
+      },
+      {
+        "from": "5:out",
+        "to": "d:select"
+      },
+      {
+        "from": "d:out",
+        "to": "e:start"
+      },
+      {
+        "from": "3:trigger",
+        "to": "f:clock"
+      },
+      {
+        "from": "f:value",
+        "to": "10:in"
+      },
+      {
+        "from": "10:out",
+        "to": "e:gain"
+      },
+      {
+        "from": "7:trigger_3",
+        "to": "11:a"
+      },
+      {
+        "from": "8:trigger_3",
+        "to": "11:b"
+      },
+      {
+        "from": "5:out",
+        "to": "11:select"
+      },
+      {
+        "from": "11:out",
+        "to": "12:start"
+      },
+      {
+        "from": "13:midi",
+        "to": "15:a"
+      },
+      {
+        "from": "14:midi",
+        "to": "15:b"
+      },
+      {
+        "from": "5:out",
+        "to": "15:select"
+      },
+      {
+        "from": "15:out",
+        "to": "16:midi"
+      },
+      {
+        "from": "17:midi",
+        "to": "18:midi"
+      },
+      {
+        "from": "a:out",
+        "to": "21:in"
+      },
+      {
+        "from": "1e:out",
+        "to": "21:volume"
+      },
+      {
+        "from": "1f:out",
+        "to": "21:pan"
+      },
+      {
+        "from": "20:out",
+        "to": "21:mute"
+      },
+      {
+        "from": "21:out",
+        "to": "1a:in_0"
+      },
+      {
+        "from": "c:out",
+        "to": "25:in"
+      },
+      {
+        "from": "22:out",
+        "to": "25:volume"
+      },
+      {
+        "from": "23:out",
+        "to": "25:pan"
+      },
+      {
+        "from": "24:out",
+        "to": "25:mute"
+      },
+      {
+        "from": "25:out",
+        "to": "1a:in_1"
+      },
+      {
+        "from": "e:out",
+        "to": "29:in"
+      },
+      {
+        "from": "26:out",
+        "to": "29:volume"
+      },
+      {
+        "from": "27:out",
+        "to": "29:pan"
+      },
+      {
+        "from": "28:out",
+        "to": "29:mute"
+      },
+      {
+        "from": "29:out",
+        "to": "1a:in_2"
+      },
+      {
+        "from": "12:out",
+        "to": "2d:in"
+      },
+      {
+        "from": "2a:out",
+        "to": "2d:volume"
+      },
+      {
+        "from": "2b:out",
+        "to": "2d:pan"
+      },
+      {
+        "from": "2c:out",
+        "to": "2d:mute"
+      },
+      {
+        "from": "2d:out",
+        "to": "1a:in_3"
+      },
+      {
+        "from": "2d:out",
+        "to": "1b:in_0"
+      },
+      {
+        "from": "16:out",
+        "to": "31:in"
+      },
+      {
+        "from": "2e:out",
+        "to": "31:volume"
+      },
+      {
+        "from": "2f:out",
+        "to": "31:pan"
+      },
+      {
+        "from": "30:out",
+        "to": "31:mute"
+      },
+      {
+        "from": "31:out",
+        "to": "1a:in_4"
+      },
+      {
+        "from": "31:out",
+        "to": "1b:in_1"
+      },
+      {
+        "from": "31:out",
+        "to": "1d:in"
+      },
+      {
+        "from": "18:out",
+        "to": "35:in"
+      },
+      {
+        "from": "32:out",
+        "to": "35:volume"
+      },
+      {
+        "from": "33:out",
+        "to": "35:pan"
+      },
+      {
+        "from": "34:out",
+        "to": "35:mute"
+      },
+      {
+        "from": "35:out",
+        "to": "1a:in_5"
+      },
+      {
+        "from": "1b:out",
+        "to": "1c:in"
+      },
+      {
+        "from": "1c:out",
+        "to": "1a:in_6"
+      },
+      {
+        "from": "1d:out",
+        "to": "1a:in_7"
+      },
+      {
+        "from": "1a:out",
+        "to": "36:in"
+      },
+      {
+        "from": "36:out",
+        "to": "37:in"
+      },
+      {
+        "from": "37:out",
+        "to": "38:in"
+      }
+    ],
+    "frames": [
+      {
+        "label": "Kick",
+        "rect": [
+          876.0,
+          -52.0,
+          1144.0,
+          366.0
+        ]
+      },
+      {
+        "label": "Snare",
+        "rect": [
+          876.0,
+          418.0,
+          1144.0,
+          366.0
+        ]
+      },
+      {
+        "label": "Hat",
+        "rect": [
+          876.0,
+          888.0,
+          1144.0,
+          461.0
+        ]
+      },
+      {
+        "label": "Clap",
+        "rect": [
+          876.0,
+          1358.0,
+          1144.0,
+          366.0
+        ]
+      },
+      {
+        "label": "Chords",
+        "rect": [
+          276.0,
+          1828.0,
+          1744.0,
+          633.0
+        ]
+      },
+      {
+        "label": "Bass",
+        "rect": [
+          276.0,
+          2528.0,
+          1744.0,
+          366.0
+        ]
+      },
+      {
+        "label": "Mixer and master",
+        "rect": [
+          2076.0,
+          -52.0,
+          1444.0,
+          1615.0
+        ]
+      }
+    ]
+  },
+  "group_defs": {
+    "fm-operator-pair": {
+      "name": "FM Operator Pair",
+      "description": "Two-operator FM synthesis: a modulator sine bends the phase of a carrier sine, adding sidebands that brighten the tone the harder it pushes, from a pure sine through mellow and brassy to bell-like and clangorous. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one and wire MIDI into its `midi` input to play it.\n\n- `ratio` is the modulator's frequency as a multiple of the note's. Whole numbers (1, 2, 3) give harmonic tones; others (1.41, 3.5) give metallic, bell-like ones.\n- `index` is how hard the modulator pushes, in radians of phase: 0 is a pure sine, 1 to 3 warm to bright, 5 and up harsh. Each sideband's level follows the Bessel functions of the index, as in any FM synth.\n- `mod_attack`, `mod_decay`, and `mod_release` (seconds) and `mod_sustain` (0 to 1) shape the index over each note: the modulator's envelope. A fast decay to a low sustain makes notes start bright and mellow out, like a struck or plucked sound; a slow attack makes them bloom.\n- `attack`, `decay`, `release`, and `sustain` shape the volume: the carrier's envelope.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. The modulator Oscillator runs at the frequency times `ratio`. `index` divided by 2π (radians to cycles), times the modulator's ADSR, sets how far its output swings, and that goes into the carrier Oscillator's `phase` input. This is phase modulation, which gives the same spectrum as frequency modulation but keeps the pitch steady however deep it goes. The carrier, at the note's frequency, passes through a VCA (a Math multiply) driven by its own ADSR times velocity, then a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "fm",
+        "polyphonic",
+        "bell"
+      ],
+      "source": "shipped:fm-operator-pair",
+      "inputs": [
+        {
+          "name": "ratio",
+          "type": "float",
+          "unit": "ratio",
+          "default": 1.0,
+          "range": [
+            0.25,
+            16.0
+          ],
+          "targets": [
+            "2:b"
+          ]
+        },
+        {
+          "name": "index",
+          "type": "float",
+          "default": 2.5,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "9:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 1.0,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "9:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.6,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "9:release"
+          ]
+        },
+        {
+          "name": "mod_attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "5:attack"
+          ]
+        },
+        {
+          "name": "mod_decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.5,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "5:decay"
+          ]
+        },
+        {
+          "name": "mod_sustain",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "5:sustain"
+          ]
+        },
+        {
+          "name": "mod_release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "5:release"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": -6.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "c:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "c:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Modulator pitch"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "math",
+            "params": {
+              "b": 0.15915494309189537,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                160.0
+              ],
+              "label": "Index in cycles"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Modulator"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                340.0
+              ],
+              "label": "Modulator envelope"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                340.0
+              ],
+              "label": "Depth"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ],
+              "label": "Phase modulation"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "oscillator",
+            "params": {
+              "shape": "sine",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ],
+              "label": "Carrier"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                340.0
+              ],
+              "label": "Carrier envelope"
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                340.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:freq",
+            "to": "2:a"
+          },
+          {
+            "from": "2:out",
+            "to": "4:freq"
+          },
+          {
+            "from": "1:gate",
+            "to": "5:gate"
+          },
+          {
+            "from": "3:out",
+            "to": "6:a"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "4:out",
+            "to": "7:a"
+          },
+          {
+            "from": "6:out",
+            "to": "7:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "8:freq"
+          },
+          {
+            "from": "7:out",
+            "to": "8:phase"
+          },
+          {
+            "from": "1:gate",
+            "to": "9:gate"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "a:b"
+          },
+          {
+            "from": "8:out",
+            "to": "b:a"
+          },
+          {
+            "from": "a:out",
+            "to": "b:b"
+          },
+          {
+            "from": "b:out",
+            "to": "c:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Modulator",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              678.0
+            ]
+          },
+          {
+            "label": "Carrier",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              678.0
+            ]
+          }
+        ]
+      }
+    },
+    "limiter": {
+      "name": "Limiter",
+      "description": "Keeps peaks at or below `ceiling`, whatever comes in: the last stage before an output or a render, or a way to make a track louder without clipping. Mono or stereo.\n\n- `ceiling` (dB): the highest level that gets out.\n- `release` (seconds): how quickly the limiter lets go after a peak. Short releases are louder but can pump or distort low notes; longer ones are smoother.\n- `gain_reduction` (output, dB): how far the signal is being turned down right now (0 or negative).\n\nThe limiter looks 5 ms ahead, so it can start turning down before a peak arrives instead of letting its first few milliseconds through. That 5 ms is reported as latency, so the engine delays parallel paths to stay in step.\n\nInside: a Lookahead splits the input into `early` (as it comes in) and `out` (5 ms later). A peak Envelope Follower on `early` with an instant attack finds each peak 5 ms before it is heard, and a Smooth spreads the rise of that level over about a millisecond so the gain ramps down instead of jumping. By the time a peak is heard, the first level has already begun to release and sags a little, so a second instant follower on `out` catches whatever is left over, and a Math node keeps the louder of the two levels. A Gain Computer with a ratio of 1000:1 and a hard knee, its threshold set 0.05 dB under the ceiling so that even a signal 50 dB too hot stays under, turns any level over the ceiling into the gain change for the Gain on `out`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "dynamics",
+        "limiter",
+        "mastering",
+        "mixing"
+      ],
+      "source": "shipped:limiter",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "ceiling",
+          "type": "float",
+          "unit": "db",
+          "default": -1.0,
+          "range": [
+            -24.0,
+            0.0
+          ],
+          "targets": [
+            "8:a"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.1,
+          "range": [
+            0.01,
+            1.0
+          ],
+          "targets": [
+            "2:release",
+            "4:release"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "gain_reduction",
+          "type": "float",
+          "source": "6:gain_reduction"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "lookahead",
+            "config": {
+              "time": 0.005
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ],
+              "label": "Early detector"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "smooth",
+            "params": {
+              "fall": 0.0,
+              "mode": "exponential",
+              "rise": 0.0007
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                0.0
+              ],
+              "label": "Ramp"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "envelope_follower",
+            "params": {
+              "attack": 0.0,
+              "mode": "peak"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                160.0
+              ],
+              "label": "Catch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "max"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                0.0
+              ],
+              "label": "Louder"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "gain_computer",
+            "params": {
+              "knee": 0.0,
+              "mode": "compress",
+              "ratio": 1000.0
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1100.0,
+                160.0
+              ]
+            }
+          },
+          {
+            "id": "8",
+            "kind": "math",
+            "params": {
+              "b": 0.05,
+              "op": "subtract"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                -160.0
+              ],
+              "label": "Margin"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "8:out",
+            "to": "6:threshold"
+          },
+          {
+            "from": "1:early",
+            "to": "2:in"
+          },
+          {
+            "from": "1:out",
+            "to": "4:in"
+          },
+          {
+            "from": "1:out",
+            "to": "7:in"
+          },
+          {
+            "from": "2:level_db",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "5:a"
+          },
+          {
+            "from": "4:level_db",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:level"
+          },
+          {
+            "from": "6:gain_reduction",
+            "to": "7:gain"
+          }
+        ]
+      }
+    },
+    "plate-reverb": {
+      "name": "Plate Reverb",
+      "description": "A dense, bright plate reverb: a burst of echoes that thickens at once into a smooth, shimmering tail. Mono or stereo in (summed to mono, as a plate is), wide stereo out.\n\n- `in`: the signal.\n- `predelay` (s): a gap before the reverb starts, which keeps the dry attack clear; 0.01 to 0.04 s for vocals and snares.\n- `decay` (s): how long the tail takes to fall by 60 dB (its RT60).\n- `damping` (0 to 1): how much faster the highs die away than the lows; 0 is a bright metal plate, 0.5 a darker, softer one.\n- `mix` (0 to 1): 0 is dry, 1 only the reverb. The blend is equal-power, so the loudness holds steady; 0.2 to 0.35 sits a sound in a mix, 1 is for a reverb on a send.\n- `out`: the stereo result.\n\nInside: the figure-eight tank from Jon Dattorro's \"Effect Design, Part 1: Reverberator and Other Filters\" (JAES, 1997), with his delay lengths converted to seconds. The input is summed to mono, delayed by `predelay`, and smeared by four input Allpasses (4.8, 3.6, 12.7, and 9.3 ms). It then enters two tank halves, each an Allpass whose delay wobbles slightly (a slow sine Oscillator through a Map, to keep the tail from ringing), a feedforward Comb used as a delay line with the damping lowpass and the decay gain, a second Allpass, and another Comb as a delay with the decay gain. Each half feeds the other: the left half goes straight into the right, and the right comes back to the left through a Feedback node, the loop's only cycle (its one block of delay barely lengthens a loop of about 0.73 s). The decay gain comes from `decay` through Math and Convert: the loop applies it four times per trip, so each is −60 dB × 0.19 s ÷ `decay`. As in the original, each output reads the opposite half: the left channel mixes the outputs of the right half's four stages, and the right channel the left half's. A Mid/Side encode and decode at width 1.6 then widens the pair until the two sides are uncorrelated, and an equal-power Crossfade blends that with the dry input.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "reverb",
+        "space",
+        "plate",
+        "stereo",
+        "effect"
+      ],
+      "source": "shipped:plate-reverb",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in",
+            "26:a"
+          ]
+        },
+        {
+          "name": "predelay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.02,
+          "range": [
+            0.0,
+            0.25
+          ],
+          "targets": [
+            "2:time"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 2.5,
+          "range": [
+            0.3,
+            20.0
+          ],
+          "targets": [
+            "10:b"
+          ]
+        },
+        {
+          "name": "damping",
+          "type": "float",
+          "default": 0.25,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "14:damping",
+            "19:damping"
+          ]
+        },
+        {
+          "name": "mix",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "26:mix"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "26:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Mono sum"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "delay",
+            "config": {
+              "max_time": 0.5
+            },
+            "params": {
+              "feedback": 0.0,
+              "mix": 1.0
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                0.0
+              ],
+              "label": "Predelay"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.004771,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                0.0
+              ],
+              "label": "Input diffuser 1"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.003595,
+              "gain": 0.75
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                130.0
+              ],
+              "label": "Input diffuser 2"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.012735,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                0.0
+              ],
+              "label": "Input diffuser 3"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.02
+            },
+            "params": {
+              "delay": 0.009307,
+              "gain": 0.625
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                130.0
+              ],
+              "label": "Input diffuser 4"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "config": {
+              "pure": true
+            },
+            "params": {
+              "freq": 0.7,
+              "shape": "sine",
+              "start": "load"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                300.0
+              ],
+              "label": "Wobble"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.023118,
+              "out_min": 0.022042
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                300.0
+              ],
+              "label": "Left wobble (s)"
+            }
+          },
+          {
+            "id": "9",
+            "kind": "map",
+            "params": {
+              "in_max": 1.0,
+              "in_min": -1.0,
+              "out_max": 0.029972,
+              "out_min": 0.031048
+            },
+            "ui": {
+              "pos": [
+                240.0,
+                520.0
+              ],
+              "label": "Right wobble (s)"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "a": -11.4,
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                480.0,
+                300.0
+              ],
+              "label": "dB per pass"
+            }
+          },
+          {
+            "id": "11",
+            "kind": "convert",
+            "params": {
+              "op": "db_to_gain"
+            },
+            "ui": {
+              "pos": [
+                720.0,
+                300.0
+              ],
+              "label": "Decay gain"
+            }
+          },
+          {
+            "id": "12",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                300.0
+              ],
+              "label": "Into left half"
+            }
+          },
+          {
+            "id": "13",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                300.0
+              ],
+              "label": "Left diffuser"
+            }
+          },
+          {
+            "id": "14",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.149625,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                300.0
+              ],
+              "label": "Left delay 1 + damping"
+            }
+          },
+          {
+            "id": "15",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.060482,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                300.0
+              ],
+              "label": "Left allpass"
+            }
+          },
+          {
+            "id": "16",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.124996,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                300.0
+              ],
+              "label": "Left delay 2"
+            }
+          },
+          {
+            "id": "17",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                960.0,
+                600.0
+              ],
+              "label": "Into right half"
+            }
+          },
+          {
+            "id": "18",
+            "kind": "allpass",
+            "config": {
+              "max_delay": 0.05
+            },
+            "params": {
+              "gain": -0.7
+            },
+            "ui": {
+              "pos": [
+                1200.0,
+                600.0
+              ],
+              "label": "Right diffuser"
+            }
+          },
+          {
+            "id": "19",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.141696,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1440.0,
+                600.0
+              ],
+              "label": "Right delay 1 + damping"
+            }
+          },
+          {
+            "id": "20",
+            "kind": "allpass",
+            "params": {
+              "delay": 0.089244,
+              "gain": 0.5
+            },
+            "ui": {
+              "pos": [
+                1680.0,
+                600.0
+              ],
+              "label": "Right allpass"
+            }
+          },
+          {
+            "id": "21",
+            "kind": "comb",
+            "config": {
+              "max_delay": 0.2
+            },
+            "params": {
+              "delay": 0.10628,
+              "mix": 1.0,
+              "mode": "feedforward"
+            },
+            "ui": {
+              "pos": [
+                1920.0,
+                600.0
+              ],
+              "label": "Right delay 2"
+            }
+          },
+          {
+            "id": "22",
+            "kind": "feedback",
+            "ui": {
+              "pos": [
+                1920.0,
+                820.0
+              ],
+              "label": "Back to the left half"
+            }
+          },
+          {
+            "id": "23",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                300.0
+              ],
+              "label": "Left: right-half taps"
+            }
+          },
+          {
+            "id": "24",
+            "kind": "mix",
+            "config": {
+              "inputs": 4
+            },
+            "params": {
+              "gain_0": -6.0,
+              "gain_1": -6.0,
+              "gain_2": -6.0,
+              "gain_3": -6.0
+            },
+            "ui": {
+              "pos": [
+                2160.0,
+                560.0
+              ],
+              "label": "Right: left-half taps"
+            }
+          },
+          {
+            "id": "25",
+            "kind": "merge_channels",
+            "ui": {
+              "pos": [
+                2400.0,
+                300.0
+              ],
+              "label": "Stereo"
+            }
+          },
+          {
+            "id": "27",
+            "kind": "mid_side",
+            "ui": {
+              "pos": [
+                2400.0,
+                440.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "28",
+            "kind": "mid_side",
+            "config": {
+              "mode": "decode"
+            },
+            "params": {
+              "width": 1.6
+            },
+            "ui": {
+              "pos": [
+                2400.0,
+                560.0
+              ],
+              "label": "Width"
+            }
+          },
+          {
+            "id": "26",
+            "kind": "crossfade",
+            "params": {
+              "curve": "equal_power"
+            },
+            "ui": {
+              "pos": [
+                2640.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:mid",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "3:out",
+            "to": "4:in"
+          },
+          {
+            "from": "4:out",
+            "to": "5:in"
+          },
+          {
+            "from": "5:out",
+            "to": "6:in"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in"
+          },
+          {
+            "from": "7:out",
+            "to": "9:in"
+          },
+          {
+            "from": "10:out",
+            "to": "11:in"
+          },
+          {
+            "from": "6:out",
+            "to": "12:in_0"
+          },
+          {
+            "from": "12:out",
+            "to": "13:in"
+          },
+          {
+            "from": "13:out",
+            "to": "14:in"
+          },
+          {
+            "from": "14:out",
+            "to": "15:in"
+          },
+          {
+            "from": "15:out",
+            "to": "16:in"
+          },
+          {
+            "from": "11:out",
+            "to": "14:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "16:feedback"
+          },
+          {
+            "from": "6:out",
+            "to": "17:in_0"
+          },
+          {
+            "from": "17:out",
+            "to": "18:in"
+          },
+          {
+            "from": "18:out",
+            "to": "19:in"
+          },
+          {
+            "from": "19:out",
+            "to": "20:in"
+          },
+          {
+            "from": "20:out",
+            "to": "21:in"
+          },
+          {
+            "from": "11:out",
+            "to": "19:feedback"
+          },
+          {
+            "from": "11:out",
+            "to": "21:feedback"
+          },
+          {
+            "from": "8:out",
+            "to": "13:delay"
+          },
+          {
+            "from": "9:out",
+            "to": "18:delay"
+          },
+          {
+            "from": "16:out",
+            "to": "17:in_1"
+          },
+          {
+            "from": "21:out",
+            "to": "22:in"
+          },
+          {
+            "from": "22:out",
+            "to": "12:in_1"
+          },
+          {
+            "from": "18:out",
+            "to": "23:in_0"
+          },
+          {
+            "from": "19:out",
+            "to": "23:in_1"
+          },
+          {
+            "from": "20:out",
+            "to": "23:in_2"
+          },
+          {
+            "from": "21:out",
+            "to": "23:in_3"
+          },
+          {
+            "from": "13:out",
+            "to": "24:in_0"
+          },
+          {
+            "from": "14:out",
+            "to": "24:in_1"
+          },
+          {
+            "from": "15:out",
+            "to": "24:in_2"
+          },
+          {
+            "from": "16:out",
+            "to": "24:in_3"
+          },
+          {
+            "from": "23:out",
+            "to": "25:in_0"
+          },
+          {
+            "from": "24:out",
+            "to": "25:in_1"
+          },
+          {
+            "from": "25:out",
+            "to": "27:in"
+          },
+          {
+            "from": "27:mid",
+            "to": "28:mid"
+          },
+          {
+            "from": "27:side",
+            "to": "28:side"
+          },
+          {
+            "from": "28:out",
+            "to": "26:b"
+          }
+        ]
+      }
+    },
+    "subtractive-synth-voice": {
+      "name": "Subtractive Synth Voice",
+      "description": "One voice of a classic subtractive synth: two detuned sawtooth oscillators, a resonant ladder filter swept by an envelope, and the same envelope on the volume. It is a body for a Voices node: tick **Polyphonic** on its Node tab to make it one and wire MIDI into its `midi` input for a polyphonic synth that plays chords, pads, leads, and basses.\n\n- `cutoff` (Hz) is where the filter sits while the envelope is at rest; `resonance` (0 to 1) adds a peak there, and near 1 the filter starts to whistle.\n- `env_amount` (octaves) is how far the envelope opens the filter above `cutoff` at its peak: 3 means three octaves (eight times the frequency). Negative values close the filter instead.\n- `attack`, `decay`, and `release` (seconds) and `sustain` (0 to 1) shape the envelope. It sweeps the filter and sets the volume at once, so a short decay with a low sustain makes a pluck, and a slow attack makes a pad.\n- `detune` (cents) pulls the two oscillators apart, one up and one down by half of it, for a thicker, beating sound; 0 makes them one.\n- `level` (dB) is the voice's loudness, and each note's velocity scales it. The voices of a Voices node add up, so turn it down for big chords.\n- `out` is the voice, mono.\n\nInside: a Voice node gives the note's frequency, gate, and velocity. Half of `detune`, in semitones, becomes a frequency ratio (Convert) that divides one Oscillator's frequency and multiplies the other's. A Mix adds the two saws at −9 dB each, and a 24 dB per octave Ladder filters them. An ADSR follows the gate: multiplied by `env_amount` it is an offset in octaves, 2 raised to it multiplies `cutoff`, and the envelope times velocity drives the VCA, a Math multiply on the filtered sound, followed by a Gain for `level`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "synth",
+        "instrument",
+        "subtractive",
+        "polyphonic",
+        "filter"
+      ],
+      "source": "shipped:subtractive-synth-voice",
+      "inputs": [
+        {
+          "name": "cutoff",
+          "type": "float",
+          "unit": "hz",
+          "default": 500.0,
+          "range": [
+            20.0,
+            20000.0
+          ],
+          "targets": [
+            "f:a"
+          ]
+        },
+        {
+          "name": "resonance",
+          "type": "float",
+          "default": 0.3,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "9:resonance"
+          ]
+        },
+        {
+          "name": "env_amount",
+          "type": "float",
+          "default": 3.0,
+          "range": [
+            -4.0,
+            8.0
+          ],
+          "targets": [
+            "d:b"
+          ]
+        },
+        {
+          "name": "attack",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.005,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:attack"
+          ]
+        },
+        {
+          "name": "decay",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.4,
+          "range": [
+            0.0,
+            10.0
+          ],
+          "targets": [
+            "c:decay"
+          ]
+        },
+        {
+          "name": "sustain",
+          "type": "float",
+          "default": 0.5,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "c:sustain"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "float",
+          "unit": "seconds",
+          "default": 0.3,
+          "range": [
+            0.0,
+            20.0
+          ],
+          "targets": [
+            "c:release"
+          ]
+        },
+        {
+          "name": "detune",
+          "type": "float",
+          "default": 12.0,
+          "range": [
+            0.0,
+            100.0
+          ],
+          "targets": [
+            "2:a"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "b:gain"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "b:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "voice",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "2",
+            "kind": "math",
+            "params": {
+              "b": 0.005,
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                0.0
+              ],
+              "label": "Half the detune (st)"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "convert",
+            "params": {
+              "op": "semitones_to_ratio"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                140.0
+              ],
+              "label": "Detune ratio"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "math",
+            "params": {
+              "op": "divide"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                0.0
+              ],
+              "label": "Lower pitch"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                140.0
+              ],
+              "label": "Upper pitch"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                0.0
+              ],
+              "label": "Saw A"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "oscillator",
+            "params": {
+              "shape": "saw",
+              "start": "load",
+              "stop": "never"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                320.0
+              ],
+              "label": "Saw B"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "params": {
+              "gain_0": -9.0,
+              "gain_1": -9.0
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "9",
+            "kind": "ladder",
+            "params": {
+              "drive": 0.0,
+              "mode": "lp24"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "a",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1500.0,
+                0.0
+              ],
+              "label": "VCA"
+            }
+          },
+          {
+            "id": "b",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                1750.0,
+                0.0
+              ],
+              "label": "Level"
+            }
+          },
+          {
+            "id": "c",
+            "kind": "adsr",
+            "params": {
+              "curve": "exponential"
+            },
+            "ui": {
+              "pos": [
+                250.0,
+                680.0
+              ]
+            }
+          },
+          {
+            "id": "d",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                500.0,
+                680.0
+              ],
+              "label": "Octaves above cutoff"
+            }
+          },
+          {
+            "id": "e",
+            "kind": "math",
+            "params": {
+              "a": 2.0,
+              "op": "power"
+            },
+            "ui": {
+              "pos": [
+                750.0,
+                680.0
+              ],
+              "label": "2^octaves"
+            }
+          },
+          {
+            "id": "f",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1000.0,
+                680.0
+              ],
+              "label": "Filter cutoff"
+            }
+          },
+          {
+            "id": "10",
+            "kind": "math",
+            "params": {
+              "op": "multiply"
+            },
+            "ui": {
+              "pos": [
+                1250.0,
+                840.0
+              ],
+              "label": "Volume"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "2:out",
+            "to": "3:in"
+          },
+          {
+            "from": "1:freq",
+            "to": "4:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:b"
+          },
+          {
+            "from": "1:freq",
+            "to": "5:a"
+          },
+          {
+            "from": "3:out",
+            "to": "5:b"
+          },
+          {
+            "from": "4:out",
+            "to": "6:freq"
+          },
+          {
+            "from": "5:out",
+            "to": "7:freq"
+          },
+          {
+            "from": "6:out",
+            "to": "8:in_0"
+          },
+          {
+            "from": "7:out",
+            "to": "8:in_1"
+          },
+          {
+            "from": "8:out",
+            "to": "9:in"
+          },
+          {
+            "from": "9:out",
+            "to": "a:a"
+          },
+          {
+            "from": "1:gate",
+            "to": "c:gate"
+          },
+          {
+            "from": "c:out",
+            "to": "d:a"
+          },
+          {
+            "from": "d:out",
+            "to": "e:b"
+          },
+          {
+            "from": "e:out",
+            "to": "f:b"
+          },
+          {
+            "from": "f:out",
+            "to": "9:cutoff"
+          },
+          {
+            "from": "c:out",
+            "to": "10:a"
+          },
+          {
+            "from": "1:velocity",
+            "to": "10:b"
+          },
+          {
+            "from": "10:out",
+            "to": "a:b"
+          },
+          {
+            "from": "a:out",
+            "to": "b:in"
+          }
+        ],
+        "frames": [
+          {
+            "label": "Two detuned saws",
+            "rect": [
+              226.0,
+              -40.0,
+              994.0,
+              680.0
+            ]
+          },
+          {
+            "label": "Filter and VCA",
+            "rect": [
+              1226.0,
+              -40.0,
+              744.0,
+              228.0
+            ]
+          },
+          {
+            "label": "Envelope: filter sweep and volume",
+            "rect": [
+              226.0,
+              640.0,
+              1244.0,
+              344.0
+            ]
+          }
+        ]
+      }
+    },
+    "track": {
+      "name": "Track",
+      "description": "One channel of a mixer: a volume fader, a pan knob, and mute and solo switches for whatever you wire into `in`. Put one Track after each sound and add them up with a Mix.\n\n- `in` (audio): the track's sound, mono or stereo. Usually a Clip playing your file: wire the Clip into `in`. The Clip stays outside because every instance of a block shares the same inside, so a Clip inside would make every Track play the same file.\n- `volume` (dB): the track's level.\n- `pan`: −1 is left, 0 center, 1 right. A mono track keeps the same loudness as it moves (−3 dB per side at the center); a stereo track is balanced.\n- `mute`: silences the track (with a 5 ms fade, so it doesn't click).\n- `solo` and `soloed`: solo comes back out of `soloed` for the rest of the mix to see; on its own it doesn't change this track's sound. To make solo work across a mix, combine the `soloed` outputs of every track with Logic `or` nodes and wire the result into every track's `any_solo`.\n- `any_solo`: on while any track in the mix is soloed. A track that isn't soloed itself goes silent while it's on, so only the soloed tracks play. Mute wins over solo.\n- `out` (audio): always stereo.\n\nInside: a Gain sets the volume and a Pan places the sound. Three Logic nodes work out whether the track should be silent (muted, or another track soloed and not this one), and a Switch in audio mode fades between the track and silence. A Logic `or` with nothing on its second input passes `solo` to the `soloed` output.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "mixing",
+        "utility",
+        "channel"
+      ],
+      "source": "shipped:track",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "1:gain"
+          ]
+        },
+        {
+          "name": "pan",
+          "type": "float",
+          "default": 0.0,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "targets": [
+            "2:pan"
+          ]
+        },
+        {
+          "name": "mute",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "6:a"
+          ]
+        },
+        {
+          "name": "solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "any_solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "5:a"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "soloed",
+          "type": "bool",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pan",
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Soloed"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "logic",
+            "params": {
+              "op": "not"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not soloed"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "logic",
+            "params": {
+              "op": "and"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Another track soloed"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                160.0
+              ],
+              "label": "Silent"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ],
+              "label": "Mute"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "7:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:a"
+          },
+          {
+            "from": "4:out",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "6:out",
+            "to": "7:select"
+          }
+        ]
+      }
+    }
+  },
+  "panels": [
+    {
+      "name": "Rack",
+      "items": [
+        {
+          "node": "1e"
+        },
+        {
+          "node": "1f"
+        },
+        {
+          "node": "20"
+        },
+        {
+          "node": "22"
+        },
+        {
+          "node": "23"
+        },
+        {
+          "node": "24"
+        },
+        {
+          "node": "26"
+        },
+        {
+          "node": "27"
+        },
+        {
+          "node": "28"
+        },
+        {
+          "node": "2a"
+        },
+        {
+          "node": "2b"
+        },
+        {
+          "node": "2c"
+        },
+        {
+          "node": "2e"
+        },
+        {
+          "node": "2f"
+        },
+        {
+          "node": "30"
+        },
+        {
+          "node": "32"
+        },
+        {
+          "node": "33"
+        },
+        {
+          "node": "34"
+        },
+        {
+          "node": "37"
+        }
+      ]
+    }
+  ],
+  "bindings": [
+    {
+      "source": {
+        "type": "key",
+        "key": "1"
+      },
+      "target": {
+        "type": "input",
+        "node": "20",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "2"
+      },
+      "target": {
+        "type": "input",
+        "node": "24",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "3"
+      },
+      "target": {
+        "type": "input",
+        "node": "28",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "4"
+      },
+      "target": {
+        "type": "input",
+        "node": "2c",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "5"
+      },
+      "target": {
+        "type": "input",
+        "node": "30",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    },
+    {
+      "source": {
+        "type": "key",
+        "key": "6"
+      },
+      "target": {
+        "type": "input",
+        "node": "34",
+        "socket": "value"
+      },
+      "mode": "toggle"
+    }
+  ]
+}
