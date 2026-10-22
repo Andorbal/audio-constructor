@@ -74,7 +74,7 @@ Compressor and Limiter blocks, a fader, a meter, an analyzer, and the
 output; a metronome on a second Audio Out; the chords entering at bar 5
 and leaving at bar 13 and the lead entering at bar 9; a drawn volume ride
 on the lead; a vocal track with input monitoring and a punch-in window
-on bars 5 and 6; a Mixer panel of 36 cards; F5 bound to the punch toggle.
+on bars 5 and 6; a Mixer panel of 39 cards; F5 bound to the punch toggle.
 
 **What one track costs**: 9 nodes and 10 wires (source, Track, 2 knobs,
 2 toggles, meter, send knob and gain, File Out), plus one more Mix input,
@@ -195,7 +195,7 @@ Readout of `playing`. Two scene buttons, each through a Merge per slot.
 A per-track Mix, knob, and gain. A looper: a Button toggling a Latch,
 the same bar-quantized Sample & Hold, Record start and stop, a Trigger
 Delay of 50 ms before the Sampler starts looping the take. A Session
-panel of 22 cards; keys Q W A S Z X bound to slots, 1 and 2 to scenes,
+panel of 23 cards; keys Q W A S Z X bound to slots, 1 and 2 to scenes,
 the gamepad's south button to the looper.
 
 **What one slot costs**: 10 nodes and 13 wires. Six slots are 60 nodes.
@@ -211,7 +211,7 @@ because a trigger input takes one wire.
 | Make slots on a track exclusive | 2 Merges and 4 wires per track | default | A trigger input takes one wire; every extra source is a Merge |
 | Add a scene | 1 Button plus a Merge and 2 wires per slot | 1 | Same |
 | See which slot is playing | a Readout showing 0 or 1 | default | No light; Buttons don't light up |
-| Lay the slots out as a grid of tracks and scenes | drag 22 cards by hand; it flows in pin order | default | Panels have no rows, columns, or labels |
+| Lay the slots out as a grid of tracks and scenes | drag 23 cards by hand; it flows in pin order | default | Panels have no rows, columns, or labels |
 | Record a loop at the next bar | about 35 (12 nodes) | 1 | No looper |
 | Overdub on it | impossible in practice (a second Record and Sampler pair and a buffer swap on every pass) | 1 | Record writes one take at a time; Sampler latches its buffer at start |
 | Set the tempo from the first loop's length | impossible | default | Nothing writes the tempo map from the patch |
