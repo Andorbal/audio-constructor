@@ -13,6 +13,34 @@ fixes and smaller changes.
 
 ## [0.14.1] - 2026-10-22
 
+A measurement, not a feature: how far today's nodes get toward four
+familiar kinds of music software, and what to build next because of it.
+
+### Added
+
+- **Studies** (`studies/`): four projects that build the basics of a
+  multitrack recorder, a pattern-based studio, a sampler and drum
+  machine, and a clip launcher with a looper from the nodes, blocks,
+  panels, and bindings that exist today. Each opens in the editor with
+  notes on its canvas saying what each part does and what the real tool
+  does that it can't, renders with `audioc`, and is kept working by the
+  test suite. They are worth opening to see a mixer, a drum rack, a pad
+  bank, and a session grid built from nodes, and to borrow from: a
+  bar-quantized clip launch, a playlist from two Compares, velocity
+  layers and round robin, a two-zone sampled instrument in a Voices body.
+- **The gap list** (`docs/GAPS.md`): what each study could and couldn't
+  build, how many nodes a track, a channel, a pad, and a clip slot cost,
+  how many gestures the everyday tasks take today against the tool being
+  studied, and from that a prioritized list of new nodes (Sample, Note
+  Split, Route, Zones, Slicer, Looper, Light, Pad, Fader, Waveform, and
+  more), panel features (pinning blocks as strips, layout, lights, the
+  drawn editors on panels), transport and engine changes (song-locked
+  generators, seeking, markers, swing, monitor outputs, MIDI recording),
+  and editor templates.
+- **A draft Phase 4** in `docs/ROADMAP.md` turning that list into five
+  milestones, each ending with a study rebuilt the new way, for a human
+  to confirm, reorder, or cut before it starts.
+
 ## [0.14.0] - 2026-10-21
 
 The last part of Phase 3 makes Audio Constructor something to install and
