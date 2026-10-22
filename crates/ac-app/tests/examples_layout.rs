@@ -1,7 +1,9 @@
 //! The shipped examples are lessons as much as patches (docs/UX.md,
 //! "Onboarding and examples"), so they have to read well on the canvas: no
 //! card covers another, and a frame holds whole cards, never half of one.
-//! The cards are laid out the way the editor draws them.
+//! The cards are laid out the way the editor draws them. The gap studies in
+//! `studies/` (docs/GAPS.md) are read the same way, so they get the same
+//! check.
 
 use std::path::{Path, PathBuf};
 
@@ -13,13 +15,24 @@ fn examples_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples")
 }
 
-fn examples() -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = std::fs::read_dir(examples_dir())
-        .expect("examples/ exists")
+fn studies_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../studies")
+}
+
+fn projects_in(dir: &Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("{} exists: {e}", dir.display()))
         .filter_map(|e| e.ok().map(|e| e.path()))
         .filter(|p| p.extension().is_some_and(|x| x == "acproj"))
         .collect();
     v.sort();
+    v
+}
+
+/// The examples, then the studies.
+fn examples() -> Vec<PathBuf> {
+    let mut v = projects_in(&examples_dir());
+    v.extend(projects_in(&studies_dir()));
     v
 }
 
@@ -34,7 +47,8 @@ fn example_cards_do_not_overlap_and_frames_hold_whole_cards() {
         let name = name.unwrap_or_default();
         let project = ac_io::load_project(&path).expect("example loads");
         let frames = project.graph.frames.clone();
-        let doc = Document::new(project, Some(path.clone()), examples_dir(), 1);
+        let dir = path.parent().expect("dir").to_path_buf();
+        let doc = Document::new(project, Some(path.clone()), dir, 1);
         let scene = scene::build(&doc, &registry, None);
         // Cards may touch; a pixel of shared edge isn't covering.
         let cards: Vec<(String, Rect)> = scene
