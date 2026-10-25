@@ -1100,14 +1100,13 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
         && let Some(def) = io.doc.project.group_defs.get(d).cloned()
     {
         section(ui, &tr("section-group-definition"));
-        let mut name = def.name.clone();
         ui.horizontal(|ui| {
             let label = ui.label(tr("node-tab-name"));
-            if ui
-                .text_edit_singleline(&mut name)
-                .labelled_by(label.id)
-                .lost_focus()
-                && name.trim() != def.name
+            let field = egui::Id::unique(("group-name", d));
+            if let Some(name) = draft_field(ui, field, &def.name, |ui, text| {
+                ui.add(egui::TextEdit::singleline(text).id(field))
+                    .labelled_by(label.id)
+            }) && name.trim() != def.name
                 && !name.trim().is_empty()
             {
                 let (d, name) = (d.clone(), name.trim().to_string());
@@ -1558,6 +1557,33 @@ fn draft_text(
     multiline: bool,
     label: egui::Id,
 ) -> Option<String> {
+    draft_field(ui, field_id, stored, |ui, text| {
+        if multiline {
+            ui.add(
+                egui::TextEdit::multiline(text)
+                    .id(field_id)
+                    .desired_rows(4)
+                    .desired_width(f32::INFINITY),
+            )
+        } else {
+            ui.add(
+                egui::TextEdit::singleline(text)
+                    .id(field_id)
+                    .desired_width(f32::INFINITY),
+            )
+        }
+        .labelled_by(label)
+    })
+}
+
+/// [`draft_text`] for any text field: `add` shows it, with `field_id` as
+/// its id, editing the draft it's given.
+fn draft_field(
+    ui: &mut egui::Ui,
+    field_id: egui::Id,
+    stored: &str,
+    add: impl FnOnce(&mut egui::Ui, &mut String) -> egui::Response,
+) -> Option<String> {
     let focused = ui.memory(|m| m.has_focus(field_id));
     let mut text = if focused {
         ui.data(|d| d.get_temp::<String>(field_id))
@@ -1565,21 +1591,7 @@ fn draft_text(
     } else {
         stored.to_string()
     };
-    let r = if multiline {
-        ui.add(
-            egui::TextEdit::multiline(&mut text)
-                .id(field_id)
-                .desired_rows(4)
-                .desired_width(f32::INFINITY),
-        )
-    } else {
-        ui.add(
-            egui::TextEdit::singleline(&mut text)
-                .id(field_id)
-                .desired_width(f32::INFINITY),
-        )
-    }
-    .labelled_by(label);
+    let r = add(ui, &mut text);
     if r.lost_focus() {
         ui.data_mut(|d| d.remove_temp::<String>(field_id));
         return (text != stored).then_some(text);
@@ -1966,7 +1978,10 @@ fn osc_problem(io: &PanelIo, id: NodeId, node: &ac_core::NodeInstance) -> Option
 
 /// Selected interface card: list and rename its sockets.
 fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
-    let Some(def) = io.doc.current_group().cloned() else {
+    let (Some(group), Some(def)) = (
+        io.doc.current_def().cloned(),
+        io.doc.current_group().cloned(),
+    ) else {
         return;
     };
     ui.label(
@@ -2006,13 +2021,15 @@ fn interface(ui: &mut egui::Ui, io: &mut PanelIo, input_side: bool) {
             let (r, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
             ui.painter()
                 .circle_filled(r.center(), 3.5, theme::type_color(ty));
-            let mut text = name.clone();
-            if ui
-                .add(egui::TextEdit::singleline(&mut text).desired_width(140.0))
+            let field = egui::Id::unique(("interface-socket", &group, input_side, &name));
+            if let Some(text) = draft_field(ui, field, &name, |ui, text| {
+                ui.add(
+                    egui::TextEdit::singleline(text)
+                        .id(field)
+                        .desired_width(140.0),
+                )
                 .accessible_name(tr_args("node-tab-socket-name", &[("name", (&name).into())]))
-                .lost_focus()
-                && text != name
-            {
+            }) {
                 io.doc
                     .rename_interface_socket(io.registry, input_side, &name, &text);
             }

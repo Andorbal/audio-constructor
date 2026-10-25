@@ -734,6 +734,103 @@ fn the_node_tab_edits_osc_addresses_and_flags_a_bad_one() {
     let _ = h.get_by_label_contains("The OSC address must start with");
 }
 
+/// The text field showing `value`.
+fn text_field<'a>(h: &'a Harness<'static, EditorApp>, value: &'a str) -> egui_kittest::Node<'a> {
+    h.get_all_by_value(value)
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::TextInput)
+        .unwrap_or_else(|| panic!("a field showing {value:?}"))
+}
+
+#[test]
+fn the_node_tab_renames_a_group_and_its_sockets() {
+    // Typing spans frames, and each frame redraws the fields from the
+    // document: the draft has to survive that until focus leaves.
+    let mut p = two_nodes();
+    p.graph.connect(
+        Endpoint::new(NodeId(1), "out"),
+        Endpoint::new(NodeId(2), "in"),
+    );
+    let mut h = harness(Some(p));
+    h.hover_at(Pos2::new(600.0, 600.0));
+    steps(&mut h, 2);
+    // Group the gain alone, so the constant's wire crosses into it.
+    h.state_mut().doc.selection = [NodeId(2)].into();
+    press(&mut h, Modifiers::COMMAND, Key::G);
+    let group = h
+        .state()
+        .document()
+        .graph()
+        .nodes
+        .iter()
+        .find(|n| n.kind == GROUP_KIND)
+        .unwrap()
+        .id;
+    let old = h
+        .state()
+        .document()
+        .project
+        .group_defs
+        .values()
+        .next()
+        .unwrap()
+        .name
+        .clone();
+    {
+        let app = h.state_mut();
+        app.doc.selection = [group].into();
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Node;
+    }
+    steps(&mut h, 3);
+    text_field(&h, &old).click();
+    steps(&mut h, 1);
+    for c in [" t", "w", "o"] {
+        h.event(Event::Text(c.into()));
+        steps(&mut h, 2);
+    }
+    let _ = text_field(&h, &format!("{old} two"));
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    let def = h
+        .state()
+        .document()
+        .project
+        .group_defs
+        .values()
+        .next()
+        .unwrap();
+    assert_eq!(def.name, format!("{old} two"));
+
+    // Inside, the group input card lists the interface's inputs.
+    press(&mut h, Modifiers::COMMAND, Key::Enter);
+    let socket = {
+        let def = h.state().document().current_group().unwrap();
+        assert!(!def.inputs.is_empty(), "the wire into the gain crosses in");
+        def.inputs[0].name.clone()
+    };
+    h.state_mut().doc.selection = [ac_app::edit::GROUP_IN].into();
+    steps(&mut h, 3);
+    text_field(&h, &socket).click();
+    steps(&mut h, 1);
+    for c in ["_", "l", "e", "v", "e", "l"] {
+        h.event(Event::Text(c.into()));
+        steps(&mut h, 2);
+    }
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    let renamed = format!("{socket}_level");
+    let doc = h.state().document();
+    let def = doc.current_group().unwrap();
+    assert_eq!(def.inputs[0].name, renamed);
+    assert!(!def.inputs[0].targets.is_empty(), "still feeds the gain");
+    // The wire into the group outside follows the new name.
+    assert!(
+        doc.project
+            .graph
+            .wires
+            .iter()
+            .any(|w| w.to.node == group && w.to.socket == renamed)
+    );
+}
+
 #[test]
 fn play_keys_leave_text_fields_their_typing() {
     let mut p = Project::default();

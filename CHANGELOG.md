@@ -13,6 +13,17 @@ fixes and smaller changes.
 
 ## [0.14.2] - 2026-10-25
 
+Fixes for the six issues people reported after 0.14.0.
+
+### Fixed
+
+- **Renaming a group and its sockets in the Node tab works.** Typing into
+  the name of a group's input or output (with the group input or output
+  card selected inside the group), or into the group's own name, put the
+  old name back after every keystroke, so nothing could be renamed there.
+  The fields now keep what you type until you press Enter or click away
+  (#13).
+
 ## [0.14.1] - 2026-10-22
 
 A measurement, not a feature: how far today's nodes get toward four
