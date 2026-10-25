@@ -78,16 +78,18 @@ impl PluginHost {
     }
 
     /// Where the plugin a description names is installed: the catalog's
-    /// entry for its id, or the path it was described at if that's still
-    /// there.
+    /// entry for its id (the catalog holds only what a scan of the plugin
+    /// folders found), or the path it was described at if that's in a
+    /// plugin folder too (installed since the last scan). A path anywhere
+    /// else is never loaded, whatever the project says (DECISIONS D197).
     pub fn locate(&self, desc: &PluginDesc) -> Option<PathBuf> {
         let from_catalog = self.catalog.read().ok().and_then(|c| {
             c.find(desc.format, &desc.id)
                 .map(|d| PathBuf::from(&d.path))
         });
-        from_catalog.filter(|p| p.exists()).or_else(|| {
-            Some(PathBuf::from(&desc.path)).filter(|p| !desc.path.is_empty() && p.exists())
-        })
+        from_catalog
+            .filter(|p| p.exists())
+            .or_else(|| scan::in_plugin_folders(Path::new(&desc.path), desc.format))
     }
 
     /// Keep the state of the plugin running for `node_key` (on this
@@ -135,6 +137,20 @@ impl PluginHost {
     }
 }
 
+/// Why a plugin that [`PluginHost::locate`] can't find doesn't run, with
+/// where the project last saw it, if anywhere: only a hint for the person,
+/// never a place to load from.
+fn not_installed(desc: &PluginDesc) -> String {
+    if desc.path.is_empty() {
+        "isn't installed on this computer".into()
+    } else {
+        format!(
+            "isn't installed on this computer (in its plugin folders; last seen at {})",
+            desc.path
+        )
+    }
+}
+
 /// The saved state of the plugin running for `node_key` on this thread,
 /// as the project stores it (base64).
 pub fn save_state(node_key: &str) -> Option<String> {
@@ -144,7 +160,7 @@ pub fn save_state(node_key: &str) -> Option<String> {
 impl PluginLoader for PluginHost {
     fn load(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {
         let Some(path) = self.locate(req.desc) else {
-            return Err("isn't installed on this computer".into());
+            return Err(not_installed(req.desc));
         };
         let restart = self
             .restarts

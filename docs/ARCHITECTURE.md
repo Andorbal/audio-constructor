@@ -848,7 +848,11 @@ All hosts call the same `Engine`.
     child process (`audioc scan-bundle`, `audio-constructor
     --scan-plugin`), caching the catalog by each bundle's size and time.
     Running plugins stay in process; out-of-process hosting was weighed
-    and deferred (D135).
+    and deferred (D135). `PluginHost::locate` finds a node's plugin by its
+    id in the catalog, or at the path its description records only if
+    that path, links resolved, is inside one of those folders; anywhere
+    else the path is just where the plugin was last seen, for the
+    report (D197).
 - **Web** (`ac-web`, D150–D155): the engine runs inside an `AudioWorklet`;
   the editor is eframe's web target. They are two wasm instances that share
   no memory, joined by `SharedArrayBuffer` rings, the same abstraction as

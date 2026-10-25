@@ -266,6 +266,40 @@ fn a_missing_plugin_is_a_silent_placeholder_with_a_warning() {
     assert!(out.report.to_string().contains("don't run here"));
 }
 
+#[test]
+fn a_project_cant_load_a_library_from_outside_the_plugin_folders() {
+    // A real plugin library copied where no plugin folder reaches, and a
+    // project naming it by path with an id no scan found (#22): a silent
+    // placeholder that says where the plugin was last seen, and the
+    // library never loads.
+    let dir = std::env::temp_dir().join(format!("ac-host-outside-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let stranger = dir.join("Stranger.clap");
+    std::fs::copy(common::plugin_library(), &stranger).unwrap();
+    let mut d = desc(INSTRUMENT);
+    d.id = "org.example.stranger".into();
+    d.name = "Stranger".into();
+    d.path = stranger.to_string_lossy().into_owned();
+    let host = Arc::new(PluginHost::new(Catalog::default()));
+    assert_eq!(host.locate(&d), None);
+    let out = render(
+        &synth_project(&d),
+        Arc::new(ac_nodes::registry()),
+        Arc::new(Plugins(host)),
+        &opts(69, 256),
+    );
+    assert!(out.channels.iter().flatten().all(|v| *v == 0.0));
+    let report = out.report.to_string();
+    assert!(
+        report.contains("Stranger (")
+            && report.contains("isn't installed on this computer")
+            && report.contains(&format!("last seen at {}", stranger.display())),
+        "{report}"
+    );
+    assert!(!ac_host::is_resident(&stranger), "the library was loaded");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 fn block(engine: &mut Engine, frames: usize, midi: &[ac_core::MidiEvent]) -> Vec<f32> {
     let mut out = vec![0.0f32; frames * 2];
     engine.process(&mut HostIo {

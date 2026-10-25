@@ -36,6 +36,17 @@ Fixes for the six issues people reported after 0.14.0.
   seemed to do nothing: the editor removed the wire as soon as it was made,
   and any later edit removed such wires already in a project (#21).
 
+### Security
+
+- **Plugins load only from your plugin folders.** A project, pack, or
+  block records where each of its plugins was found. When the plugin
+  wasn't among the ones found on your computer, the editor and `audioc`
+  used to load whatever file sat at that recorded spot, so a project from
+  someone else could choose a library to run. Now plugins load only from
+  the standard plugin folders and the ones in `CLAP_PATH` and
+  `VST3_PATH`; a plugin anywhere else is reported missing, with where the
+  project last saw it (#22).
+
 ## [0.14.1] - 2026-10-22
 
 A measurement, not a feature: how far today's nodes get toward four
