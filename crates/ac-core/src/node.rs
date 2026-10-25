@@ -443,9 +443,9 @@ pub struct ProcessCtx<'a> {
 /// A node: one primitive processing step. Every built-in node implements
 /// this in its own file (DECISIONS D10).
 ///
-/// `process` and `reset` run on the audio thread: no allocation, locks, I/O,
-/// syscalls, or panics (ARCHITECTURE §8).
-pub trait Node: Send + 'static {
+/// `process`, `reset`, and `take_over` run on the audio thread: no
+/// allocation, locks, I/O, syscalls, or panics (ARCHITECTURE §8).
+pub trait Node: std::any::Any + Send {
     /// Static metadata: name, category, docs, keywords for search.
     fn meta() -> NodeMeta
     where
@@ -510,6 +510,19 @@ pub trait Node: Send + 'static {
 
     /// Return to the initial state (transport restart from zero). No allocation.
     fn reset(&mut self);
+
+    /// Continue where `previous` left off: it's the node this one replaces
+    /// at the same place in the graph, of the same kind, rebuilt because
+    /// its config changed (a cell switched on a step grid while playing).
+    /// Keep what should outlive the edit, such as whether a sequencer plays
+    /// and which step it's on, and return `true`; the new node then isn't
+    /// treated as just created (no *On load* start). The default keeps
+    /// nothing (DECISIONS D196). Downcast `previous` with
+    /// `(previous as &dyn Any).downcast_ref::<Self>()`.
+    fn take_over(&mut self, previous: &dyn Node) -> bool {
+        let _ = previous;
+        false
+    }
 }
 
 /// Declares a node struct and captures its doc comment for the generated

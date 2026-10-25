@@ -495,6 +495,9 @@ pub struct CompiledGraph {
     pub(crate) nodes: Vec<NodeBox>,
     /// (new node index, old node index) pairs whose state moves over on install.
     pub(crate) carry: Vec<(u32, u32)>,
+    /// (new node index, old node index) pairs of nodes rebuilt for a config
+    /// change, which take over from the old node on install if they can.
+    pub(crate) handover: Vec<(u32, u32)>,
     pub(crate) steps: Vec<Step>,
     pub(crate) waves: Vec<Wave>,
     /// Step ranges of the chains that run in parallel, wave by wave.

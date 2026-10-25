@@ -23,6 +23,13 @@ Fixes for the six issues people reported after 0.14.0.
   old name back after every keystroke, so nothing could be renamed there.
   The fields now keep what you type until you press Enter or click away
   (#13).
+- **Editing a pattern while it plays keeps it playing, in time.** Switching
+  a cell of a Pattern (such as the one inside the Drum Machine block) while
+  the transport ran silenced it until you stopped and started again. Now
+  the pattern plays on from the step it was on with the new grid. The same
+  goes for editing a Step Sequencer's values, which no longer start over
+  from the first step, and a MIDI Pattern's piano roll, which no longer
+  goes quiet or leaves notes hanging (#14).
 
 ## [0.14.1] - 2026-10-22
 

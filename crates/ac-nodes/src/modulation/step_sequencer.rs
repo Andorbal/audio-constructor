@@ -200,6 +200,26 @@ impl Node for StepSequencer {
         self.glide_left = 0;
         self.fired.clear();
     }
+
+    /// Edited values keep the sequence where it was: the same step, and
+    /// that step's new value right away (after a glide in progress ends).
+    fn take_over(&mut self, previous: &dyn Node) -> bool {
+        let Some(old) = (previous as &dyn std::any::Any).downcast_ref::<StepSequencer>() else {
+            return false;
+        };
+        self.rng = old.rng.clone();
+        self.step = old.step.min(self.values.len() - 1);
+        self.armed = old.armed;
+        self.up = old.up;
+        self.current = old.current;
+        self.target = f64::from(self.values.get(self.step).copied().unwrap_or(0.0));
+        self.glide_step = old.glide_step;
+        self.glide_left = old.glide_left;
+        if self.glide_left == 0 {
+            self.current = self.target;
+        }
+        true
+    }
 }
 
 impl StepSequencer {
@@ -289,6 +309,22 @@ mod tests {
 
     fn clocks(n: u64, every: u64) -> Vec<u64> {
         (0..n).map(|k| 10 + k * every).collect()
+    }
+
+    #[test]
+    fn edited_values_keep_the_step_and_sound_at_once() {
+        let mut h = Harness::new::<StepSequencer>(seq(&[1.0, 2.0, 3.0, 4.0]));
+        h.triggers("clock", &[10, 30, 50, 110, 130]);
+        let out = h.run(64);
+        assert_eq!(out.float("value")[63], 3.0, "on step 2");
+        // Step 2 now holds 30: it sounds at once, and the next clock plays
+        // step 3 rather than starting over.
+        h.reconfigure::<StepSequencer>(seq(&[1.0, 2.0, 30.0, 4.0]));
+        let out = h.run(100);
+        let o = out.float("value");
+        assert_eq!(o[0], 30.0);
+        assert_eq!(o[110 - 64], 4.0);
+        assert_eq!(o[130 - 64], 1.0);
     }
 
     #[test]

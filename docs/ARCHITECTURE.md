@@ -340,8 +340,12 @@ Steps:
    baked.
 6. **Prepare nodes**: call `new()` for new nodes, **carry over state** for
    nodes whose id and config are unchanged, so recompiling while playing
-   doesn't reset a ringing delay line. Nodes are created before steps are
-   built because their latency is needed next.
+   doesn't reset a ringing delay line. A node rebuilt in place because its
+   config changed (same path and kind) may **take over** from the one it
+   replaces when the new graph is installed (`Node::take_over`, DECISIONS
+   D196): a step grid edited while playing keeps its step and keeps
+   playing. Nodes are created before steps are built because their latency
+   is needed next.
 7. **Latency compensation**: sum `latency()` along every path and insert
    delays on the shorter inputs of any node that merges paths, so an
    FFT-processed branch lines up with a dry branch. Audio, sample-rate

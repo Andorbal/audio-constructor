@@ -41,6 +41,10 @@ losing performance or clarity, it should be a *block* (a saved group) in
   `retrigger`, `reset`) and don't take the full contract (DECISIONS D64).
 - **Stateful nodes implement `reset()`** and are reset when the transport
   restarts from zero.
+- **Nodes whose config is edited while they play implement `take_over()`**
+  when an edit shouldn't start them over: a step grid, step values, or a
+  piano roll drawn in the editor keeps its place and keeps playing
+  (DECISIONS D196).
 - **Sample-rate independent.** Never hard-code 44.1/48 kHz.
 - **Tests**: every node has unit tests next to it, and every category has at
   least one golden project under `tests/golden/`.

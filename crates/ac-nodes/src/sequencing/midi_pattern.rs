@@ -80,6 +80,10 @@ node! {
         position: f64,
         /// A reset happened: release sounding notes at the next block.
         flush: bool,
+        /// Taken over from the clip before an edit while playing: carry on
+        /// this many beats into the clip from the next block, which has the
+        /// tempo map to anchor there.
+        resume: Option<f64>,
         ends: Vec<u32>,
     }
 }
@@ -388,6 +392,7 @@ impl Node for MidiPattern {
             next_sample: 0,
             position: 0.0,
             flush: false,
+            resume: None,
             ends: Vec::with_capacity(ctx.max_block.max(1) + 1),
         }
     }
@@ -414,6 +419,15 @@ impl Node for MidiPattern {
         let mut tx = Sender::new(io.outputs.midi(MIDI));
         if std::mem::take(&mut self.flush) {
             self.release_all(&mut tx, 0);
+        }
+        if let Some(at) = self.resume.take()
+            && self.playing
+        {
+            self.anchor_beat = tempo.beat_at(first);
+            self.anchor_pos = at;
+            self.passes = 0;
+            // Notes from here on play; a note starting exactly here hasn't.
+            self.cursor = self.notes.partition_point(|n| n.start < at);
         }
 
         for run in Runs::new(events, frames) {
@@ -491,6 +505,37 @@ impl Node for MidiPattern {
         self.cursor = 0;
         self.next_sample = 0;
         self.position = 0.0;
+        self.resume = None;
+    }
+
+    /// An edited clip plays on from the same place: notes already sounding
+    /// end where they would have, and the new notes play from the next
+    /// block. A clip now shorter than that place wraps (or ends) at once.
+    fn take_over(&mut self, previous: &dyn Node) -> bool {
+        let Some(old) = (previous as &dyn std::any::Any).downcast_ref::<MidiPattern>() else {
+            return false;
+        };
+        if old.channel != self.channel {
+            // Its notes would need note-offs on the old channel.
+            return false;
+        }
+        self.playing = old.playing;
+        self.rate = old.rate;
+        self.next_sample = old.next_sample;
+        self.flush = old.flush;
+        self.position = old.position.min(self.length);
+        self.sounding = old.sounding;
+        self.mask = old.mask;
+        if old.playing {
+            // Sounding notes end as far ahead as they did, counted from
+            // where the new clip resumes.
+            let reached = old.pass_start() + old.position;
+            for s in &mut self.sounding {
+                s.end = old.position + (s.end - reached).max(0.0);
+            }
+            self.resume = Some(old.position);
+        }
+        true
     }
 }
 
@@ -566,6 +611,36 @@ mod tests {
         );
         assert!(out.triggers("end").is_empty());
         assert_eq!(out.float("playing")[0], 1.0);
+    }
+
+    #[test]
+    fn an_edited_clip_plays_on_from_where_it_was() {
+        let mut h = harness(riff(), 64);
+        let first = h.run((BEAT * 5 / 4) as usize);
+        assert_eq!(
+            notes(first.midi("midi")),
+            vec![(0, 60), (BEAT, -60), (BEAT, 64)]
+        );
+        // 64 is deleted and 67 moved to beat 2: the 64 already sounding
+        // still ends on time, and the clip carries on in step.
+        h.reconfigure::<MidiPattern>(json!({
+            "length": 4,
+            "notes": [[0, 1, 60, 100], [2, 1, 67, 80]]
+        }));
+        let out = h.run((BEAT * 4) as usize);
+        assert_eq!(
+            notes(out.midi("midi")),
+            vec![
+                (BEAT * 3 / 2, -64),
+                (2 * BEAT, 67),
+                (3 * BEAT, -67),
+                (4 * BEAT, 60),
+                (5 * BEAT, -60),
+            ]
+        );
+        let mut all = first.midi("midi").to_vec();
+        all.extend_from_slice(out.midi("midi"));
+        assert!(balanced(&all));
     }
 
     #[test]
