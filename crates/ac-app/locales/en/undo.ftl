@@ -69,3 +69,4 @@ undo-distribute-vertically = Distribute vertically
 undo-save-block = Save block
 undo-update-block = Update block
 undo-update-blocks = Update blocks
+undo-show-knobs = Show or hide knobs

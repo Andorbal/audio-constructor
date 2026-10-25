@@ -35,6 +35,14 @@ Fixes for the six issues people reported after 0.14.0.
   Karplus-Strong String block (or any block or group played as voices)
   seemed to do nothing: the editor removed the wire as soon as it was made,
   and any later edit removed such wires already in a project (#21).
+- **Plugins with many knobs get a card that fits.** A Plugin node put
+  every knob on its card, so a synth with dozens of parameters made a
+  card taller than the window. The card now shows the plugin's audio and
+  MIDI sockets, its first 8 knobs, and any knob you've wired, and counts
+  the rest in a last row; every knob is still in the Node tab.
+  **Show All Knobs** in the card's menu, or the checkbox above the Node
+  tab's inputs, puts them all on the card, to wire one that isn't shown
+  (#20).
 
 ### Security
 

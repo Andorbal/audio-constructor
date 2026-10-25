@@ -334,6 +334,31 @@ impl Canvas {
                     io.events.push(CanvasEvent::ShowPluginWindow(*node));
                     return true;
                 }
+                if let Some(all) = io
+                    .doc
+                    .graph()
+                    .node(*node)
+                    .filter(|p| {
+                        p.kind == ac_core::PLUGIN_KIND
+                            && edit::knob_count(p) > edit::PLUGIN_KNOBS_SHOWN
+                    })
+                    .map(edit::shows_all_knobs)
+                {
+                    let label = if all {
+                        tr("canvas-fewer-knobs")
+                    } else {
+                        tr("canvas-all-knobs")
+                    };
+                    if item(ui, icons::SLIDERS, &label, None) {
+                        let id = *node;
+                        io.doc.edit(io.registry, &tr("undo-show-knobs"), |g, _| {
+                            if let Some(p) = g.node_mut(id) {
+                                edit::set_show_all_knobs(p, !all);
+                            }
+                        });
+                        return true;
+                    }
+                }
                 // A control binds its main value (an XY Pad either axis).
                 let main = crate::bindings::control_inputs(&n.kind);
                 for socket in main {

@@ -187,6 +187,47 @@ fn a_missing_plugin_keeps_its_sockets_and_says_so() {
 }
 
 #[test]
+fn a_plugin_with_many_knobs_shows_a_few_until_asked() {
+    // Thirty knobs would make a card taller than the window (#20).
+    let mut big = absent();
+    big.params = (0..30)
+        .map(|i| PluginParam {
+            id: i,
+            name: format!("Knob {i}"),
+            socket: format!("knob_{i}"),
+            min: 0.0,
+            max: 1.0,
+            default: 0.5,
+            stepped: false,
+        })
+        .collect();
+    let mut h = harness(vec![big]);
+    let id = add(&mut h, "Absent Synth");
+    {
+        let app = h.state_mut();
+        app.doc.selection = [id].into();
+        app.side.open = true;
+        app.side.tab = ac_app::panels::Tab::Node;
+    }
+    h.run_steps(4);
+    let card = |h: &Harness<'static, EditorApp>| {
+        let scene = h.state().canvas.last_scene.as_ref().unwrap();
+        let n = scene.node(id).unwrap();
+        (n.inputs.len(), n.more.map(|m| m.0))
+    };
+    // `midi` and the first eight knobs; the other 22 are counted.
+    assert_eq!(card(&h), (9, Some(22)));
+    // The Node tab still lists every knob, and shows them all on the card.
+    assert!(h.query_all_by_label("knob 29").count() >= 1);
+    h.get_by_label("Show every knob on the card").click();
+    h.run_steps(4);
+    assert_eq!(card(&h), (31, None));
+    h.get_by_label("Show every knob on the card").click();
+    h.run_steps(4);
+    assert_eq!(card(&h), (9, Some(22)));
+}
+
+#[test]
 fn a_running_plugin_saves_its_state_into_its_node() {
     let Some(inst) = our_instrument() else {
         eprintln!(

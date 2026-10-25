@@ -88,6 +88,31 @@ pub(super) fn node_section(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node
     ui.label(RichText::new(note).small().color(theme::text_muted()));
 }
 
+/// Above a Plugin node's inputs in the Node tab, when it has more knobs
+/// than its card shows: whether the card shows them all.
+pub(super) fn knobs_toggle(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &NodeInstance) {
+    if node.kind != ac_core::PLUGIN_KIND
+        || crate::edit::knob_count(node) <= crate::edit::PLUGIN_KNOBS_SHOWN
+    {
+        return;
+    }
+    let mut all = crate::edit::shows_all_knobs(node);
+    if ui
+        .checkbox(&mut all, tr("plugin-show-all-knobs"))
+        .on_hover_text(tr_args(
+            "plugin-show-all-knobs-tip",
+            &[("count", crate::edit::PLUGIN_KNOBS_SHOWN.into())],
+        ))
+        .changed()
+    {
+        io.doc.edit(io.registry, &tr("undo-show-knobs"), |g, _| {
+            if let Some(p) = g.node_mut(id) {
+                crate::edit::set_show_all_knobs(p, all);
+            }
+        });
+    }
+}
+
 /// The Devices tab's Plugins section.
 pub(super) fn devices_section(ui: &mut egui::Ui, io: &mut PanelIo) {
     let Some(p) = io.plugins else {

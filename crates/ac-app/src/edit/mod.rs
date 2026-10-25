@@ -39,6 +39,35 @@ pub const NEW_SOCKET: &str = "";
 /// Key in a node's preserved extra fields that hides its unwired sockets.
 pub const HIDE_UNWIRED: &str = "hide_unwired";
 
+/// Key in a Plugin node's preserved extra fields that shows every knob on
+/// its card, rather than the first [`PLUGIN_KNOBS_SHOWN`] and the wired
+/// ones (DECISIONS D198).
+pub const SHOW_ALL_KNOBS: &str = "show_all_knobs";
+
+/// How many of a Plugin's knobs its card shows (with any wired ones)
+/// before it counts the rest in a last row.
+pub const PLUGIN_KNOBS_SHOWN: usize = 8;
+
+/// How many knobs (parameter inputs) a Plugin node has.
+pub fn knob_count(node: &NodeInstance) -> usize {
+    ac_core::PluginDesc::from_config(&node.config).map_or(0, |d| d.params.len())
+}
+
+/// Whether a Plugin node's card shows every knob.
+pub fn shows_all_knobs(node: &NodeInstance) -> bool {
+    node.extra.get(SHOW_ALL_KNOBS).and_then(|v| v.as_bool()) == Some(true)
+}
+
+/// Show every knob on a Plugin node's card, or the first few and the
+/// wired ones.
+pub fn set_show_all_knobs(node: &mut NodeInstance, all: bool) {
+    if all {
+        node.extra.insert(SHOW_ALL_KNOBS.into(), true.into());
+    } else {
+        node.extra.remove(SHOW_ALL_KNOBS);
+    }
+}
+
 pub fn is_virtual(id: NodeId) -> bool {
     id == GROUP_IN || id == GROUP_OUT
 }

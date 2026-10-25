@@ -985,6 +985,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     );
     if !sockets.inputs.is_empty() {
         section(ui, &tr("section-inputs"));
+        super::plugins_ui::knobs_toggle(ui, io, id, &node);
         let graph = io.doc.display_graph();
         egui::Grid::new(("node-params", id))
             .num_columns(2)

@@ -59,6 +59,13 @@ the plugin's sockets:
   that answers the mod wheel, pitch bend, or other MIDI controllers gets
   them from `midi` as the plugin asks.
 
+A synth can have a hundred knobs, so the card shows only its first 8
+and any you've wired, and its last row says how many more there are.
+Every knob is in the Node tab, where you can set it. To wire one that
+isn't on the card, right-click the card ▸ **Show All Knobs** (or tick
+**Show every knob on the card** in the Node tab), wire it, and switch it
+back: a wired knob stays on the card.
+
 > **Try this:** add a synth plugin, wire a **Keyboard** node into its
 > `midi` and its `out` into **Audio Out**, and play. Then wire an
 > **LFO** into one of its knobs and watch the knob follow.
