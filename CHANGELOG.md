@@ -30,6 +30,11 @@ Fixes for the six issues people reported after 0.14.0.
   goes for editing a Step Sequencer's values, which no longer start over
   from the first step, and a MIDI Pattern's piano roll, which no longer
   goes quiet or leaves notes hanging (#14).
+- **MIDI wires into polyphonic blocks and Voices nodes stay.** Wiring a
+  Keyboard or any other MIDI source into the `midi` input of the
+  Karplus-Strong String block (or any block or group played as voices)
+  seemed to do nothing: the editor removed the wire as soon as it was made,
+  and any later edit removed such wires already in a project (#21).
 
 ## [0.14.1] - 2026-10-22
 

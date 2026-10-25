@@ -487,3 +487,43 @@ fn hidden_sockets_are_not_shown() {
         assert!(s.input("bend_range").is_some());
     });
 }
+
+#[test]
+fn midi_wires_into_a_polyphonic_block_stay() {
+    // The Karplus-Strong String block as the palette inserts it: a Voices
+    // instance. MIDI from a Keyboard wires into its `midi` input, which
+    // isn't part of the block's interface, and the wire outlives the
+    // clean-up after every edit (#21).
+    let text = include_str!("../../../../blocks/karplus-strong-string.acblock");
+    let block = ac_core::Block::from_json(text).unwrap();
+    let source = ac_core::BlockSource::new(ac_core::Origin::Shipped, "karplus-strong-string");
+    let id = GroupId(ac_core::slug(&block.def.name));
+    let clip = block.instance(&id, &source, true).to_json();
+    let r = reg();
+    let mut doc =
+        crate::document::Document::new(Project::default(), None, std::path::PathBuf::from("."), 1);
+    let (v, k) = doc.edit(&r, "add", |g, ctx| {
+        let v = paste(g, ctx, &clip, [0.0, 0.0]).unwrap()[0];
+        let k = add_node(g, ctx, "keyboard", ac_core::empty_config(), [-300.0, 0.0]);
+        let s = ctx.sockets(g, v);
+        assert_eq!(s.inputs[0].name, "midi");
+        assert_eq!(s.inputs[0].ty, SignalType::Midi);
+        (v, k)
+    });
+    let made = doc.edit(&r, "wire", |g, ctx| {
+        connect(g, ctx, ep(k, "midi"), ep(v, "midi"))
+    });
+    assert_eq!(made, Ok(()));
+    assert!(has_wire(doc.graph(), ep(k, "midi"), ep(v, "midi")));
+    // A later edit elsewhere keeps it.
+    doc.edit(&r, "add", |g, ctx| {
+        add_node(g, ctx, "gain", ac_core::empty_config(), [300.0, 0.0])
+    });
+    assert!(has_wire(doc.graph(), ep(k, "midi"), ep(v, "midi")));
+    // Played once instead, the group has no `midi` input, and the wire goes.
+    doc.edit(&r, "mono", |g, _| group::set_polyphonic(g, v, false));
+    doc.edit(&r, "wire", |g, ctx| {
+        let _ = connect(g, ctx, ep(k, "midi"), ep(v, "midi"));
+    });
+    assert!(!has_wire(doc.graph(), ep(k, "midi"), ep(v, "midi")));
+}

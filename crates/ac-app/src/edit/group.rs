@@ -77,7 +77,9 @@ pub fn def_in_use(
 }
 
 /// Remove wires to or from sockets that a group instance no longer has
-/// (after its definition's interface lost a socket), in every graph.
+/// (after its definition's interface lost a socket), in every graph. A
+/// `Voices` instance also has the `midi` input that picks its voices,
+/// which isn't part of the interface.
 pub fn prune_instance_wires(project: &mut Project) {
     let iface: BTreeMap<GroupId, (BTreeSet<String>, BTreeSet<String>)> = project
         .group_defs
@@ -93,19 +95,25 @@ pub fn prune_instance_wires(project: &mut Project) {
         })
         .collect();
     let prune = |g: &mut Graph| {
-        let defs: BTreeMap<NodeId, GroupId> = g
+        // Each instance's definition, and whether it's a Voices node.
+        let defs: BTreeMap<NodeId, (GroupId, bool)> = g
             .nodes
             .iter()
-            .filter_map(|n| n.group_def().map(|d| (n.id, d)))
+            .filter_map(|n| {
+                n.group_def()
+                    .map(|d| (n.id, (d, n.kind == ac_core::VOICES_KIND)))
+            })
             .collect();
         g.wires.retain(|w| {
-            let bad_to = defs
-                .get(&w.to.node)
-                .and_then(|d| iface.get(d))
-                .is_some_and(|(ins, _)| !ins.contains(&w.to.socket));
+            let bad_to = defs.get(&w.to.node).is_some_and(|(d, voices)| {
+                let picks_voices = *voices && w.to.socket == "midi";
+                iface
+                    .get(d)
+                    .is_some_and(|(ins, _)| !ins.contains(&w.to.socket) && !picks_voices)
+            });
             let bad_from = defs
                 .get(&w.from.node)
-                .and_then(|d| iface.get(d))
+                .and_then(|(d, _)| iface.get(d))
                 .is_some_and(|(_, outs)| !outs.contains(&w.from.socket));
             !bad_to && !bad_from
         });
