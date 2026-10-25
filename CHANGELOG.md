@@ -43,6 +43,10 @@ Fixes for the six issues people reported after 0.14.0.
   **Show All Knobs** in the card's menu, or the checkbox above the Node
   tab's inputs, puts them all on the card, to wire one that isn't shown
   (#20).
+- **The plugin's window keeps drawing on macOS.** In a music program on
+  a Mac, the Audio Constructor plugin's window stopped updating (meters,
+  scopes, the playhead) unless the pointer was moving over it. It now
+  redraws on its own, as on Linux and Windows (#19).
 
 ### Security
 
