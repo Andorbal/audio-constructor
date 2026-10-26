@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-142 nodes in 13 categories.
+143 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ together, read the [user guide](../guide/README.md).
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 16 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 11 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
-| [Display](#display) | 9 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
+| [Display](#display) | 10 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
 
 <a id="io"></a>
@@ -247,6 +247,7 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 | Node | What it does |
 | --- | --- |
 | [Analyzer](display.md#analyzer) | A spectrum analyzer: shows how loud each part of the frequency range is, and passes the signal through unchanged so it can sit inline. |
+| [Arrangement](display.md#arrangement) | The song laid out in time: a lane for every Clip, MIDI Pattern, Pattern, and Graph placed in the song. |
 | [Light](display.md#light) | A lamp that shows a state: on when its input is, dimmed by a level. |
 | [MIDI Monitor](display.md#midi-monitor) | Shows the last MIDI messages on a wire, newest first: notes with their names and velocities, controllers, pitch bend, pressure, and program changes, each with its channel. |
 | [Meter](display.md#meter) | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |

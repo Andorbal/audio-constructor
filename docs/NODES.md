@@ -268,6 +268,7 @@ Panels (UX.md) to make a performance surface.
 | `Spectrogram` | P3 | Scrolling spectrogram on the card: 128 columns of the Analyzer's 64 bands across `window` seconds, each column the loudest moment of its slice; `size` config; passes `in` through unchanged. |
 | `Waveform` | P4 | Draws a `Buffer` with a playhead (`position`, seconds) and four handles dragged on the card (start, end, loop start, loop end) that come out as outputs for a Sampler's points. |
 | `MidiMonitor` | P4 | The last eight MIDI messages on a wire, named (notes, controllers, bend, pressure, programs) with their channels; passes `midi` through. |
+| `Arrangement` | P4 | A view, no sockets: a lane per Clip, MIDI Pattern, Pattern, and Graph placed in the song, drawn from their `at`, `until`, and lengths, with the markers, the loop, and the playhead. Drag a block to move it, its end to trim it; pinned, it's the song's timeline. |
 | `Tuner` | P4 | The note a sound plays and how many cents off, as a needle (YIN, from 47 Hz), with `freq`, `note`, `cents` outputs and a `reference` pitch for A4; passes `in` through. |
 
 ## Utility

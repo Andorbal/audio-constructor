@@ -2,8 +2,10 @@
 //! adding, renaming, ordering, and removing panels and their items.
 //!
 //! Panels only ever refer to nodes in the root graph that have a widget
-//! body (controls, displays, Clip, Record, Audio Out) or that are group
-//! instances (shown as a card of their sockets, D203). Nodes inside groups
+//! body (controls, displays, Clip, Record, Audio Out), a drawn editor
+//! (Pattern, MIDI Pattern, Step Sequencer, Graph, D217), or the
+//! Arrangement view (D221), or that are group instances (shown as a card
+//! of their sockets, D203). Nodes inside groups
 //! can't be pinned: a definition is shared by every instance, so a pin
 //! there wouldn't say which instance it shows (DECISIONS D96).
 
@@ -12,10 +14,13 @@ use ac_core::{Graph, NodeId, NodeInstance, Panel, PanelItem, Strip};
 use crate::canvas::scene::Body;
 use crate::perform::grid;
 
-/// Whether a node can be pinned: it has a widget body, or it's a group or
-/// block instance.
+/// Whether a node can be pinned: it has a widget body or a drawn editor,
+/// it's the Arrangement, or it's a group or block instance.
 pub fn pinnable(node: &NodeInstance) -> bool {
-    Body::of(&node.kind).is_some() || crate::perform::group_card::is_group(node)
+    Body::of(&node.kind).is_some()
+        || crate::editors::editor_for(&node.kind, &node.config).is_some()
+        || node.kind == "arrangement"
+        || crate::perform::group_card::is_group(node)
 }
 
 /// Cards that pin compact by default (half a cell): a toggle, a button, a
@@ -256,6 +261,22 @@ mod tests {
     use super::*;
     use crate::document::Document;
     use crate::edit;
+
+    #[test]
+    fn editors_and_the_arrangement_pin() {
+        use ac_core::NodeInstance;
+        for kind in [
+            "pattern",
+            "midi_pattern",
+            "step_sequencer",
+            "graph",
+            "arrangement",
+            "knob",
+        ] {
+            assert!(pinnable(&NodeInstance::new(NodeId(1), kind)), "{kind}");
+        }
+        assert!(!pinnable(&NodeInstance::new(NodeId(1), "gain")));
+    }
 
     /// A slider and a knob feeding a gain, and a meter after it.
     fn doc() -> (Document, Registry, [NodeId; 4]) {

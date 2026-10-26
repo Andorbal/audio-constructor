@@ -130,3 +130,79 @@ fn editors_open_in_several_windows_and_one_docks_under_the_canvas() {
     h.run_steps(2);
     assert!(h.state().editor_windows.docked.is_none());
 }
+
+#[test]
+fn the_arrangement_card_moves_and_trims_placed_generators() {
+    use ac_app::editors::arrange;
+    use ac_core::Value;
+    let mut p = Project::default();
+    // 120 BPM, 20 s: 40 beats.
+    p.settings.length = 20.0;
+    let mut riff = NodeInstance::new(NodeId(1), "midi_pattern")
+        .with_config(json!({ "length": 4 }))
+        .at(0.0, 0.0);
+    riff.params.insert("start".into(), Value::Text("at".into()));
+    riff.params.insert("at".into(), Value::Float(0.0));
+    riff.params.insert("loop".into(), Value::Bool(false));
+    p.graph.nodes.push(riff);
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(2), "arrangement").at(0.0, 300.0));
+    let mut panel = Panel::new("Song");
+    panel.items.push(PanelItem::new(NodeId(2)));
+    p.panels.push(panel);
+    let mut h = harness(p);
+    h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+    h.run_steps(3);
+    let rect = h.state().perform.cells[0].arrange.expect("the lanes");
+    let geo = |h: &Harness<'static, EditorApp>| {
+        let doc = h.state().document();
+        let lanes = arrange::lanes(&doc.project, &h.state().registry, |_| None);
+        let g = arrange::Geometry::new(
+            rect,
+            lanes.len(),
+            arrange::span(&lanes, &doc.project.settings),
+        );
+        (g, lanes)
+    };
+    let (g, lanes) = geo(&h);
+    assert_eq!(lanes.len(), 1);
+    let block = g.block(0, &lanes[0]);
+    // Drag the block four beats later.
+    let from = block.center();
+    let to = from + vec2(g.x(4.0) - g.x(0.0), 0.0);
+    h.hover_at(from);
+    h.run_steps(2);
+    h.drag_at(from);
+    h.run_steps(1);
+    for i in 1..=6 {
+        h.hover_at(from + (to - from) * (i as f32 / 6.0));
+        h.run_steps(1);
+    }
+    h.drop_at(to);
+    h.run_steps(3);
+    let at = |h: &Harness<'static, EditorApp>, k: &str| {
+        h.state().document().project.graph.nodes[0]
+            .params
+            .get(k)
+            .and_then(Value::as_f64)
+    };
+    assert_eq!(at(&h, "at"), Some(4.0));
+    // Trim its right edge back two beats.
+    let (g, lanes) = geo(&h);
+    let block = g.block(0, &lanes[0]);
+    let from = Pos2::new(block.right() - 2.0, block.center().y);
+    let to = Pos2::new(g.x(6.0), block.center().y);
+    h.hover_at(from);
+    h.run_steps(2);
+    h.drag_at(from);
+    h.run_steps(1);
+    for i in 1..=6 {
+        h.hover_at(from + (to - from) * (i as f32 / 6.0));
+        h.run_steps(1);
+    }
+    h.drop_at(to);
+    h.run_steps(3);
+    assert_eq!(at(&h, "until"), Some(6.0));
+    assert_eq!(at(&h, "at"), Some(4.0), "trimming keeps the start");
+}

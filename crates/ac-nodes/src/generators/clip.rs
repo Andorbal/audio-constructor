@@ -83,6 +83,9 @@ const END: usize = 3;
 
 /// Telemetry slot: 1.0 when the file couldn't be loaded.
 pub const TELEMETRY_MISSING: usize = 0;
+/// Telemetry slot: the sound's length in seconds (0 without one), for the
+/// Arrangement's blocks.
+pub const TELEMETRY_SECONDS: usize = 1;
 
 const MAX_CHANNELS: u64 = 64;
 /// Fastest playback, either way.
@@ -146,7 +149,7 @@ impl Clip {
 
 impl Node for Clip {
     fn meta() -> NodeMeta {
-        Self::base_meta().assets(&["file"]).telemetry(1)
+        Self::base_meta().assets(&["file"]).telemetry(2)
     }
 
     fn describe(config: &Config) -> Signature {
@@ -196,6 +199,12 @@ impl Node for Clip {
     fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         io.telemetry
             .set(TELEMETRY_MISSING, if self.missing { 1.0 } else { 0.0 });
+        let seconds = if self.rate > 0.0 {
+            self.len as f64 / self.rate
+        } else {
+            0.0
+        };
+        io.telemetry.set(TELEMETRY_SECONDS, seconds as f32);
         let frames = io.frames();
         let len = self.len as f64;
         let looping = io.inputs.boolean(LOOP);
@@ -396,7 +405,7 @@ mod tests {
     fn declares_its_asset_and_telemetry() {
         let meta = Clip::meta();
         assert_eq!(meta.asset_keys, &["file"]);
-        assert_eq!(meta.telemetry, 1);
+        assert_eq!(meta.telemetry, 2);
         let sig = Clip::describe(&json!({ "channels": 3 }));
         assert_eq!(sig.outputs[OUT].channels, Channels::Fixed(3));
         let names: Vec<_> = sig.inputs.iter().map(|s| s.name.as_ref()).collect();

@@ -51,6 +51,28 @@ the energy in a mix sits.
 | --- | --- | --- |
 | `out` | Audio | The same signal, unchanged. |
 
+<a id="arrangement"></a>
+## Arrangement
+
+Kind: `arrangement` · Also found by: timeline, song, lanes, playlist, arranger, tracks, clips, sequence
+
+The song laid out in time: a lane for every Clip, MIDI Pattern,
+Pattern, and Graph placed in the song.
+
+The Arrangement holds nothing of its own. Each generator whose
+`start` is *At beat…* is a block on its lane, from its `at` beat for
+as long as it plays (to its `until` beat, or its own length; one
+that loops with no `until` runs to the end of the song). Drag a
+block to move it (its `at`, and its `until` with it), drag its right
+edge to trim it (its `until`), and double-click it to play its whole
+length again; moves snap to the beat (hold `Shift` for sixteenths).
+The markers, the loop, and the playhead are drawn across the top.
+Pin it to a panel to see the song; its Node tab shows it too.
+
+**Try this:** set two Clips' `start` to *At beat…*, pin an
+Arrangement, and drag the second clip's block to bar 5: press play
+from bar 1 and hear it come in there.
+
 <a id="light"></a>
 ## Light
 

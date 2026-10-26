@@ -10,6 +10,7 @@
 //! drag lasts). The editing rules live in plain functions next to each
 //! editor so they can be tested without a window.
 
+pub mod arrange;
 pub mod bands;
 pub mod banks;
 pub mod curve;

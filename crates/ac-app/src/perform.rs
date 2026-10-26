@@ -117,6 +117,8 @@ pub struct Cell {
     /// A node's drawn editor (step grid, piano roll, steps, curve), live
     /// and editable on the card (D217).
     pub editor: Option<(crate::editors::Editor, Rect)>,
+    /// The Arrangement's lanes (D221).
+    pub arrange: Option<Rect>,
 }
 
 /// A strip drawn last frame: its header and everything it holds.
@@ -602,7 +604,31 @@ impl PerformView {
     /// The drawn editors on the cards, live and editable: each in a child
     /// of the grid's `ui` at its place, so it takes its own pointer input.
     fn editors(&self, ui: &mut egui::Ui, io: &mut CanvasIo, live: &Live, now: f64) {
+        use crate::editors::arrange;
         for c in &self.cells {
+            if let Some(rect) = c.arrange {
+                let lanes = arrange::lanes_of(io.doc, io.registry, live.tele);
+                let view = arrange::View {
+                    lanes: &lanes,
+                    settings: &io.doc.project.settings,
+                    playhead: Some(arrange::playhead(&io.doc.project.settings, io.engine)),
+                };
+                let edit = ui
+                    .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                        arrange::ui(
+                            ui,
+                            egui::Id::unique(("arrange-card", c.node)),
+                            &view,
+                            rect.width(),
+                            rect.height(),
+                        )
+                    })
+                    .inner;
+                if let Some(e) = edit {
+                    arrange::apply(io.doc, io.engine, &e, now);
+                }
+                continue;
+            }
             let Some((editor, rect)) = c.editor else {
                 continue;
             };
@@ -1762,7 +1788,7 @@ impl PerformView {
             {
                 return PanelHit::Body(i);
             }
-            if let Some((_, e)) = c.editor
+            if let Some(e) = c.editor.map(|e| e.1).or(c.arrange)
                 && e.contains(p)
             {
                 return PanelHit::Editor(i);
@@ -1900,6 +1926,9 @@ impl PerformView {
                         .flatten()
                         .and_then(|n| crate::editors::editor_for(&n.kind, &n.config))
                         .map(|e| (e, content));
+                    let arrange = (!compact
+                        && graph.node(it.node).is_some_and(|n| n.kind == "arrangement"))
+                    .then_some(content);
                     let buttons = (!self.fullscreen && !compact).then(|| header_buttons(header));
                     cells.push(Cell {
                         node: it.node,
@@ -1914,6 +1943,7 @@ impl PerformView {
                         accent,
                         group,
                         editor,
+                        arrange,
                     });
                 }
             }
@@ -2051,6 +2081,7 @@ pub fn natural_span(registry: &Registry, node: &ac_core::NodeInstance) -> [u32; 
         Some(Body::Tuner) => [2, 1],
         Some(Body::Slider | Body::Meter | Body::Clip | Body::Record | Body::AudioOut) => [2, 1],
         Some(Body::Fader) => [1, 2],
+        None if node.kind == "arrangement" => [6, 3],
         None if crate::editors::editor_for(&node.kind, &node.config).is_some() => {
             match node.kind.as_str() {
                 "pattern" | "midi_pattern" => [4, 2],

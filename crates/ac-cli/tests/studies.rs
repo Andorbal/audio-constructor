@@ -153,6 +153,7 @@ const PINNABLE: &[&str] = &[
     "midi_pattern",
     "step_sequencer",
     "graph",
+    "arrangement",
     "waveform",
     "midi_monitor",
     "tuner",

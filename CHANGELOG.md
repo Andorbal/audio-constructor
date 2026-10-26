@@ -120,6 +120,12 @@ Phase 4: the tools the gap studies found missing.
   only while you hold the control; **Write** keeps going until you stop.
 - **Tempo** node: tap the tempo, or turn `bpm`, and the song's tempo
   changes where the playhead is.
+- **Arrangement.** Pin the new Arrangement node to a panel for the song
+  laid out in time: a lane for every clip, pattern, and curve placed in
+  the song, with the markers, the loop, and the playhead. Drag a block to
+  move it, or its end to trim it.
+- **Pin editors with `P`.** Patterns, MIDI Patterns, Step Sequencers, and
+  Graphs pin to panels like controls, as their editors.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs

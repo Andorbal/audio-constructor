@@ -1101,6 +1101,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
     // A node drawn rather than typed shows its editor first.
     node_editor(ui, io, id, &node);
     sound_editor(ui, io, id, &node);
+    arrangement_view(ui, io, &node);
 
     // Parameters.
     let sockets = edit::sockets_of(
@@ -1655,6 +1656,36 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
                 .color(theme::text_faint()),
         )
         .wrap(),
+    );
+}
+
+/// The Arrangement's lanes (D221), when the node is one.
+fn arrangement_view(ui: &mut egui::Ui, io: &mut PanelIo, node: &ac_core::NodeInstance) {
+    use crate::editors::arrange;
+    if node.kind != "arrangement" {
+        return;
+    }
+    section(ui, &tr("section-arrangement"));
+    let tele = io.engine.handle.telemetry();
+    let lanes = arrange::lanes_of(io.doc, io.registry, &tele);
+    let view = arrange::View {
+        lanes: &lanes,
+        settings: &io.doc.project.settings,
+        playhead: Some(arrange::playhead(
+            &io.doc.project.settings,
+            &io.engine.handle,
+        )),
+    };
+    let width = ui.available_width().max(160.0);
+    let height = (36.0 + 26.0 * lanes.len() as f32).clamp(90.0, 420.0);
+    let id = egui::Id::unique(("arrange-tab", node.id));
+    if let Some(e) = arrange::ui(ui, id, &view, width, height) {
+        arrange::apply(io.doc, &mut io.engine.handle, &e, io.now);
+    }
+    ui.label(
+        RichText::new(tr("arrangement-hint"))
+            .small()
+            .color(theme::text_faint()),
     );
 }
 

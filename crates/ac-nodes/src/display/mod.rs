@@ -4,6 +4,7 @@
 use ac_core::{AudioIn, AudioOut, Registry};
 
 pub mod analyzer;
+pub mod arrangement;
 pub mod light;
 pub mod meter;
 pub mod midi_monitor;
@@ -24,6 +25,7 @@ pub fn register(r: &mut Registry) {
     r.register::<waveform::Waveform>();
     r.register::<midi_monitor::MidiMonitor>();
     r.register::<tuner::Tuner>();
+    r.register::<arrangement::Arrangement>();
 }
 
 /// Copy every channel of `input` to `out` bit for bit, so a display node can

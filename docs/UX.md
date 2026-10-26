@@ -435,7 +435,10 @@ pedalboard without the app providing one.
   displays (Meter, Light, Scope, Analyzer, Readout), Clip, Record, and Audio
   Out, the **drawn editors** (Pattern, MIDI Pattern, Step Sequencer,
   Graph: the card is the editor, live and editable, with the step or beat
-  playing marked; a Waveform card drags its handles), and **group and
+  playing marked; a Waveform card drags its handles), the
+  **Arrangement** (the song as lanes of placed Clips, MIDI Patterns,
+  Patterns, and Graphs, moved and trimmed by dragging, with the markers,
+  the loop, and the playhead; D221), and **group and
   block instances**: a pinned instance is one card with
   a widget for each input (a fader for a level in dB, with the meter of its
   audio output beside it; a knob, a toggle, a dropdown, or a fire button by
