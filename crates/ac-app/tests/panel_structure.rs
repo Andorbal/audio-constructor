@@ -46,7 +46,13 @@ fn press(h: &mut Harness<'static, EditorApp>, modifiers: Modifiers, key: Key) {
     steps(h, 3);
 }
 
-fn button(h: &Harness<'static, EditorApp>, pos: Pos2, b: PointerButton, pressed: bool, modifiers: Modifiers) {
+fn button(
+    h: &Harness<'static, EditorApp>,
+    pos: Pos2,
+    b: PointerButton,
+    pressed: bool,
+    modifiers: Modifiers,
+) {
     h.event(Event::PointerButton {
         pos,
         button: b,
@@ -125,10 +131,14 @@ fn with_panel(mut p: Project, ids: &[u64]) -> Project {
 
 /// A Track block instance (id 50, "Drums") with a clip into it.
 fn with_track(mut p: Project) -> Project {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../blocks/track.acblock"))
-        .expect("the Track block");
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../blocks/track.acblock"
+    ))
+    .expect("the Track block");
     let block = Block::from_json(&text).expect("reads");
-    p.group_defs.insert(GroupId("track".into()), block.def.clone());
+    p.group_defs
+        .insert(GroupId("track".into()), block.def.clone());
     let mut inst = NodeInstance::new(NodeId(50), ac_core::GROUP_KIND).at(0.0, 400.0);
     inst.config = json!({"def": "track"});
     inst.ui.label = Some("Drums".into());
@@ -193,12 +203,18 @@ fn a_track_block_pins_as_a_channel_strip_and_plays() {
     h.state_mut().doc.selection = [NodeId(50)].into();
     steps(&mut h, 2);
     press(&mut h, Modifiers::NONE, Key::P);
-    assert_eq!(h.state().document().project.panels[0].items[0].node, NodeId(50));
+    assert_eq!(
+        h.state().document().project.panels[0].items[0].node,
+        NodeId(50)
+    );
     press(&mut h, Modifiers::CTRL, Key::Tab);
     let c = cell(&h, 50);
     let (widgets, rects) = c.group.clone().expect("a group card");
     let names: Vec<&str> = widgets.iter().map(|w| w.socket.as_str()).collect();
-    assert_eq!(names, ["volume", "pan", "mute", "solo", "any_solo", "soloed"]);
+    assert_eq!(
+        names,
+        ["volume", "pan", "mute", "solo", "any_solo", "soloed"]
+    );
     // Click Mute: one undo step that sets the block's own input.
     click(&mut h, rects[2].center());
     assert_eq!(param(&h, 50, "mute"), Some(Value::Bool(true)));
@@ -207,12 +223,23 @@ fn a_track_block_pins_as_a_channel_strip_and_plays() {
     let c = cell(&h, 50);
     let (_, rects) = c.group.clone().unwrap();
     let fader = rects[0];
-    drag(&mut h, fader.center(), fader.center() + egui::vec2(0.0, fader.height() / 3.0));
-    let v = param(&h, 50, "volume").and_then(|v| v.as_f64()).expect("set");
+    drag(
+        &mut h,
+        fader.center(),
+        fader.center() + egui::vec2(0.0, fader.height() / 3.0),
+    );
+    let v = param(&h, 50, "volume")
+        .and_then(|v| v.as_f64())
+        .expect("set");
     assert!(v < -5.0, "the fader moved the volume down ({v})");
     // The engine got it.
     let path = NodePath::root(NodeId(50));
-    assert!(h.state_mut().engine.handle.set_param(&path, "volume", Value::Float(v)));
+    assert!(
+        h.state_mut()
+            .engine
+            .handle
+            .set_param(&path, "volume", Value::Float(v))
+    );
 }
 
 #[test]
@@ -230,7 +257,13 @@ fn a_strip_from_the_canvas_menu_stacks_compact_cards_under_one_header() {
             n.ui.label = Some("Vocal".into());
         }
     }
-    let p = h.state().canvas.node_screen_rect(NodeId(1)).unwrap().center_top() + egui::vec2(0.0, 10.0);
+    let p = h
+        .state()
+        .canvas
+        .node_screen_rect(NodeId(1))
+        .unwrap()
+        .center_top()
+        + egui::vec2(0.0, 10.0);
     right_click(&mut h, p);
     h.get_by_label_contains("Pin as Strip").click();
     steps(&mut h, 3);
@@ -238,7 +271,11 @@ fn a_strip_from_the_canvas_menu_stacks_compact_cards_under_one_header() {
     assert_eq!(panel.strips.len(), 1);
     assert_eq!(panel.strips[0].name, "Vocal");
     let compact: Vec<bool> = panel.items.iter().map(|i| i.compact).collect();
-    assert_eq!(compact, vec![false, true, true], "the toggle and button are compact");
+    assert_eq!(
+        compact,
+        vec![false, true, true],
+        "the toggle and button are compact"
+    );
     press(&mut h, Modifiers::CTRL, Key::Tab);
     let s = h.state().perform.strips[0].clone();
     let (f, t, b) = (cell(&h, 1), cell(&h, 2), cell(&h, 3));
@@ -271,7 +308,11 @@ fn a_strip_from_the_canvas_menu_stacks_compact_cards_under_one_header() {
 #[test]
 fn several_cards_move_together_and_labels_name_sections() {
     let mut h = harness(with_panel(
-        nodes(&[("knob", json!({})), ("knob", json!({})), ("knob", json!({}))]),
+        nodes(&[
+            ("knob", json!({})),
+            ("knob", json!({})),
+            ("knob", json!({})),
+        ]),
         &[1, 2, 3],
     ));
     press(&mut h, Modifiers::CTRL, Key::Tab);
@@ -282,9 +323,17 @@ fn several_cards_move_together_and_labels_name_sections() {
     // Drag both down a cell.
     let g = h.state().perform.geometry;
     let down = a.rect.height() + 12.0;
-    drag(&mut h, a.header.center(), a.header.center() + egui::vec2(0.0, down));
+    drag(
+        &mut h,
+        a.header.center(),
+        a.header.center() + egui::vec2(0.0, down),
+    );
     let items = &h.state().document().project.panels[0].items;
-    let (ya, yb, yc) = (items[0].at.unwrap()[1], items[1].at.unwrap()[1], items[2].at.unwrap()[1]);
+    let (ya, yb, yc) = (
+        items[0].at.unwrap()[1],
+        items[1].at.unwrap()[1],
+        items[2].at.unwrap()[1],
+    );
     assert_eq!((ya, yb), (2, 2), "both moved a cell (two lines) down");
     assert_eq!(yc, 0, "the third stayed");
     let _ = g;
@@ -314,13 +363,18 @@ fn a_card_takes_a_color_and_goes_compact_from_its_menu() {
     let tall = c.rect.height();
     assert!(cell(&h, 1).rect.height() < tall * 0.6);
     let c = cell(&h, 1);
-    right_click(&mut h, c.rect.center() - egui::vec2(c.rect.width() * 0.3, 0.0));
+    right_click(
+        &mut h,
+        c.rect.center() - egui::vec2(c.rect.width() * 0.3, 0.0),
+    );
     h.get_by_label_contains("Color").hover();
     steps(&mut h, 3);
     h.get_by_label("Green").click();
     steps(&mut h, 3);
     assert_eq!(
-        h.state().document().project.panels[0].items[0].color.as_deref(),
+        h.state().document().project.panels[0].items[0]
+            .color
+            .as_deref(),
         Some("green")
     );
 }
@@ -328,13 +382,21 @@ fn a_card_takes_a_color_and_goes_compact_from_its_menu() {
 #[test]
 fn a_fader_drags_in_db_and_a_pad_feels_where_it_is_hit() {
     let mut h = harness(with_panel(
-        nodes(&[("fader", json!({})), ("pad", json!({})), ("pads", json!({"rows": 2, "columns": 2}))]),
+        nodes(&[
+            ("fader", json!({})),
+            ("pad", json!({})),
+            ("pads", json!({"rows": 2, "columns": 2})),
+        ]),
         &[1, 2, 3],
     ));
     press(&mut h, Modifiers::CTRL, Key::Tab);
     let f = cell(&h, 1).body.unwrap().1;
     // Grabbed near the bottom: the fader jumps low, in dB.
-    drag(&mut h, pos2(f.center().x, f.max.y - 4.0), pos2(f.center().x, f.max.y - 24.0));
+    drag(
+        &mut h,
+        pos2(f.center().x, f.max.y - 4.0),
+        pos2(f.center().x, f.max.y - 24.0),
+    );
     let v = param(&h, 1, "value").and_then(|v| v.as_f64()).unwrap();
     assert!(v < -40.0, "{v}");
     // A pad hit near its top is loud, near its bottom soft.
@@ -391,7 +453,11 @@ fn a_fader_drags_in_db_and_a_pad_feels_where_it_is_hit() {
 #[test]
 fn lit_buttons_and_lights_show_a_clip_playing() {
     let mut p = with_panel(
-        nodes(&[("clip", json!({})), ("button", json!({})), ("light", json!({"color": "green"}))]),
+        nodes(&[
+            ("clip", json!({})),
+            ("button", json!({})),
+            ("light", json!({"color": "green"})),
+        ]),
         &[2, 3],
     );
     // An empty clip still "plays" until its end; use an oscillator's
@@ -425,7 +491,13 @@ fn pads_from_samplers_make_a_panel_in_one_step() {
     let mut h = harness(nodes(&[("sampler", json!({})), ("sampler", json!({}))]));
     h.state_mut().doc.selection = [NodeId(1), NodeId(2)].into();
     steps(&mut h, 2);
-    let p = h.state().canvas.node_screen_rect(NodeId(1)).unwrap().center_top() + egui::vec2(0.0, 10.0);
+    let p = h
+        .state()
+        .canvas
+        .node_screen_rect(NodeId(1))
+        .unwrap()
+        .center_top()
+        + egui::vec2(0.0, 10.0);
     right_click(&mut h, p);
     h.get_by_label_contains("Pads from Selection").click();
     steps(&mut h, 3);

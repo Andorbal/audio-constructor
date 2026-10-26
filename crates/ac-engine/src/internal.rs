@@ -7,13 +7,15 @@
 //!   silence while disabled or baking (ARCHITECTURE §9).
 //! - [`Capture`] stands in for the node being baked and records its inputs.
 //! - [`VoicesSum`] adds up one output of every voice of a `Voices` node.
+//! - [`LateRead`] hands a late input last block's value (DECISIONS D205).
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    Category, Channels, Config, ConfigExt, Io, MidiEvent, MidiMsg, Node, NodeMeta, PrepareCtx,
-    ProcessCtx, Rate, SignalType, Signature, SocketSpec, WholeInputs, WholeOutputs, WholeValue,
+    Category, Channels, Config, ConfigExt, Io, MidiEvent, MidiMsg, Node, NodeMeta, Phase,
+    PrepareCtx, ProcessCtx, Rate, SignalType, Signature, SocketSpec, WholeInputs, WholeOutputs,
+    WholeValue,
 };
 
 /// Registry-style constructor for internal nodes.
@@ -455,4 +457,267 @@ impl Node for VoicesSum {
     }
 
     fn reset(&mut self) {}
+}
+
+// --- LateRead ------------------------------------------------------------------
+
+pub(crate) const LATE_READ_KIND: &str = "late_read";
+
+/// Most events a late trigger or MIDI input carries over from one block to
+/// the next; more are dropped (a light needs the last few, not thousands).
+const LATE_EVENTS: usize = 256;
+
+/// One block of delay in front of a late input (`type`: `audio`, `float`,
+/// `bool`, `trigger` or `midi`; `channels` for audio). It's a Feedback node
+/// for any of those types: the compiler splits it into a read step with no
+/// dependencies and a write step after its source, which is what lets a
+/// display input be wired from downstream without making a cycle. Unlike
+/// Feedback, a value holds past the end of what was stored, so a light
+/// doesn't flicker when blocks change size.
+pub(crate) struct LateRead {
+    ty: SignalType,
+    /// One buffer per channel (audio), or one (float, bool).
+    values: Vec<Vec<f32>>,
+    stored: usize,
+    triggers: Vec<u32>,
+    midi: Vec<MidiEvent>,
+}
+
+impl LateRead {
+    fn parse(config: &Config) -> (SignalType, u32) {
+        let ty = match config.get_str_or("type", "float") {
+            "audio" => SignalType::Audio,
+            "bool" => SignalType::Bool,
+            "trigger" => SignalType::Trigger,
+            "midi" => SignalType::Midi,
+            _ => SignalType::Float,
+        };
+        (ty, config.get_u64_or("channels", 1).clamp(1, 64) as u32)
+    }
+
+    /// The config for a late read in front of `spec`, if it can be late.
+    pub fn config_for(spec: &SocketSpec) -> Option<Config> {
+        let ty = match spec.ty {
+            SignalType::Audio => "audio",
+            SignalType::Float => "float",
+            SignalType::Bool => "bool",
+            SignalType::Trigger => "trigger",
+            SignalType::Midi => "midi",
+            _ => return None,
+        };
+        // The read side has no input to follow, so its channels are fixed:
+        // as many as the input takes.
+        let channels = match spec.channels {
+            Channels::Fixed(n) | Channels::UpTo(n) => n,
+            _ => 2,
+        };
+        Some(serde_json::json!({ "type": ty, "channels": channels }))
+    }
+
+    fn read(&self, io: &mut Io) {
+        let last = io.frames().saturating_sub(1) as u32;
+        match self.ty {
+            SignalType::Trigger => {
+                let mut out = io.outputs.trigger(0);
+                for &t in &self.triggers {
+                    out.push(t.min(last));
+                }
+            }
+            SignalType::Midi => {
+                let mut out = io.outputs.midi(0);
+                for e in &self.midi {
+                    out.push(MidiEvent::new(e.offset.min(last), e.msg));
+                }
+            }
+            SignalType::Audio => {
+                let mut out = io.outputs.audio(0);
+                for (c, dst) in out.iter_mut().enumerate() {
+                    let src = self
+                        .values
+                        .get(c)
+                        .and_then(|v| v.get(..self.stored))
+                        .unwrap_or(&[]);
+                    let n = src.len().min(dst.len());
+                    dst[..n].copy_from_slice(&src[..n]);
+                    dst[n..].fill(0.0);
+                }
+            }
+            _ => {
+                let stored = self
+                    .values
+                    .first()
+                    .and_then(|v| v.get(..self.stored))
+                    .unwrap_or(&[]);
+                let held = stored.last().copied().unwrap_or(0.0);
+                io.outputs
+                    .float(0)
+                    .fill_with(|i| stored.get(i).copied().unwrap_or(held));
+            }
+        }
+    }
+
+    fn write(&mut self, io: &mut Io) {
+        let capacity = self.values.first().map_or(0, Vec::len);
+        let frames = io.frames().min(capacity);
+        match self.ty {
+            SignalType::Trigger => {
+                self.triggers.clear();
+                for &t in io.inputs.triggers(0).iter().take(LATE_EVENTS) {
+                    self.triggers.push(t);
+                }
+            }
+            SignalType::Midi => {
+                self.midi.clear();
+                for e in io.inputs.midi(0).iter().take(LATE_EVENTS) {
+                    self.midi.push(*e);
+                }
+            }
+            SignalType::Audio => {
+                let input = io.inputs.audio(0);
+                for (c, buf) in self.values.iter_mut().enumerate() {
+                    let src = input.channel(c);
+                    for (i, v) in buf[..frames].iter_mut().enumerate() {
+                        let x = src.get(i).copied().unwrap_or(0.0);
+                        *v = if x.is_finite() { x } else { 0.0 };
+                    }
+                }
+                self.stored = frames;
+            }
+            _ => {
+                let input = io.inputs.float(0);
+                if let Some(buf) = self.values.first_mut() {
+                    for (i, v) in buf[..frames].iter_mut().enumerate() {
+                        let x = input.at(i);
+                        *v = if x.is_finite() { x } else { 0.0 };
+                    }
+                }
+                self.stored = frames;
+            }
+        }
+    }
+}
+
+impl Node for LateRead {
+    fn meta() -> NodeMeta {
+        NodeMeta::new(LATE_READ_KIND, "Late read", Category::Utility).feedback()
+    }
+
+    fn describe(config: &Config) -> Signature {
+        let (ty, channels) = Self::parse(config);
+        let (i, o) = match ty {
+            SignalType::Audio => (
+                SocketSpec::audio("in").channels(Channels::Fixed(channels)),
+                SocketSpec::audio("out").channels(Channels::Fixed(channels)),
+            ),
+            SignalType::Bool => (
+                SocketSpec::boolean("in", false),
+                SocketSpec::boolean("out", false),
+            ),
+            SignalType::Trigger => (SocketSpec::trigger("in"), SocketSpec::trigger("out")),
+            SignalType::Midi => (SocketSpec::midi("in"), SocketSpec::midi("out")),
+            _ => (
+                SocketSpec::float("in", ac_core::Unit::Generic, 0.0).no_smooth(),
+                SocketSpec::float("out", ac_core::Unit::Generic, 0.0).rate(Rate::Sample),
+            ),
+        };
+        Signature::new().input(i).output(o)
+    }
+
+    fn new(config: &Config, ctx: &PrepareCtx) -> Self {
+        let (ty, channels) = Self::parse(config);
+        let buffers = match ty {
+            SignalType::Audio => channels as usize,
+            SignalType::Float | SignalType::Bool => 1,
+            _ => 0,
+        };
+        LateRead {
+            ty,
+            values: vec![vec![0.0; ctx.max_block.max(1)]; buffers],
+            stored: 0,
+            triggers: Vec::with_capacity(if ty == SignalType::Trigger {
+                LATE_EVENTS
+            } else {
+                0
+            }),
+            midi: Vec::with_capacity(if ty == SignalType::Midi {
+                LATE_EVENTS
+            } else {
+                0
+            }),
+        }
+    }
+
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
+        match ctx.phase {
+            Phase::FeedbackRead => self.read(io),
+            Phase::FeedbackWrite => self.write(io),
+            Phase::Main => {
+                self.read(io);
+                self.write(io);
+            }
+        }
+    }
+
+    fn reset(&mut self) {
+        for v in &mut self.values {
+            v.fill(0.0);
+        }
+        self.stored = 0;
+        self.triggers.clear();
+        self.midi.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_core::testing::Harness;
+    use serde_json::json;
+
+    const SPLIT: &[Phase] = &[Phase::FeedbackRead, Phase::FeedbackWrite];
+
+    #[test]
+    fn a_late_value_arrives_one_block_later_and_holds() {
+        let mut h = Harness::new::<LateRead>(json!({ "type": "bool" }));
+        h.phases(SPLIT);
+        let mut x = vec![0.0; 128];
+        x[100] = 1.0;
+        x[127] = 1.0;
+        h.set_samples("in", x);
+        let out = h.run(192);
+        let y = out.float("out");
+        assert_eq!(y[64 + 100], 1.0);
+        assert_eq!(y[64 + 99], 0.0);
+        // Past what was stored, the last value holds rather than dropping.
+        assert_eq!(y[191], 1.0);
+    }
+
+    #[test]
+    fn late_audio_arrives_one_block_later() {
+        let mut h = Harness::new::<LateRead>(json!({ "type": "audio", "channels": 2 }));
+        h.phases(SPLIT);
+        let x: Vec<f32> = (1..=128).map(|i| i as f32).collect();
+        h.set_audio("in", vec![x.clone(), x.clone()]);
+        let out = h.run(128);
+        let y = &out.audio("out")[1];
+        assert_eq!(&y[..64], &[0.0; 64]);
+        assert_eq!(&y[64..], &x[..64]);
+    }
+
+    #[test]
+    fn late_events_come_out_in_the_next_block() {
+        // Main phase: read then write in one call, as when unsplit (the
+        // harness clears event outputs between split phases).
+        let mut h = Harness::new::<LateRead>(json!({ "type": "midi" }));
+        let on = MidiMsg::NoteOn {
+            channel: 0,
+            note: 60,
+            velocity: 100,
+        };
+        h.midi("in", &[(10, on)]);
+        let out = h.run(128);
+        let events = out.midi("out");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, 64 + 10);
+    }
 }

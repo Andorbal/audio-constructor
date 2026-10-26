@@ -56,7 +56,9 @@ impl Node for Toggle {
             .input(SocketSpec::boolean("value", false).doc("Sets the switch."))
             .input(SocketSpec::trigger("flip").doc("Turns the switch over."))
             .input(
-                SocketSpec::boolean("lit", false).doc("Lights the switch, whichever way it's set."),
+                SocketSpec::boolean("lit", false)
+                    .late()
+                    .doc("Lights the switch, whichever way it's set."),
             )
             .output(
                 SocketSpec::boolean("out", false)

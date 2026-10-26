@@ -25,6 +25,30 @@ Phase 4: the tools the gap studies found missing.
 - **The status line says what's sounding.** While any Audio Out plays
   something, the status line names it ("Sounding: Main · Click"); click it
   to find the node.
+- **Panels have structure.** Cards keep their places: pinning something
+  new no longer moves anything already on a panel. Make a **strip** of
+  cards (a named column under one header, moved and unpinned as one), add
+  **labels** for sections, rows, and columns, or a separator, make a toggle
+  or button **compact** so two share a cell, give a card a **color**, and
+  `Shift`-click several cards to drag them together. Panels from earlier
+  versions open as they were.
+- **Pin a group or block to a panel.** It becomes one card with a widget
+  for each of its inputs and a meter or light for each output, so a Track
+  block pins as a channel strip: fader with meter, pan, mute, solo.
+- **Panels from a selection.** Select Track blocks and choose **Mixer from
+  Selection**, Samplers for **Pads from Selection**, or Clips for **Launch
+  Grid from Selection** (a button per clip, lit while it plays, a column
+  per track and a row per scene), and the panel is made in one step.
+- **New controls and displays:** **Fader** (a level in dB with a meter
+  beside it), **Pad** (a drum pad that feels where it's hit, with pressure
+  on a pen or touch screen), **Pads** (a grid of up to 8 × 8 pads playing
+  MIDI notes, each with its own trigger), and **Light** (a lamp for a
+  state: playing, armed, soloed, in a color you choose).
+- **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
+  button's new `lit` input and the button shows its clip playing; Pads
+  light the pads whose notes are on in their `lit` input. These inputs
+  read their wire a moment late, so the clip a button starts can light it
+  without making a loop the patch refuses.
 
 ### Changed
 
@@ -35,6 +59,12 @@ Phase 4: the tools the gap studies found missing.
   set it to **Never** to leave the generator to its wire, as before.
 - **Play and Stop are separate buttons** in the transport bar, so Stop is
   there while the transport is stopped. `Space` still plays and stops.
+- **The multitrack recorder and scenes studies are rebuilt with pinned
+  blocks.** The recorder's Mixer panel is a channel strip per track (its
+  Track block with the reverb send under it), the bus returns, a master
+  Fader, and the recording controls, each under a label: 66 nodes instead
+  of 92. The scenes study's Session panel is a grid of tracks by scenes
+  with its slot buttons lit by their clips and a Track block per track.
 
 ## [0.14.2] - 2026-10-25
 

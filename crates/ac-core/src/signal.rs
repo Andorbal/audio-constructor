@@ -222,6 +222,10 @@ pub struct SocketSpec {
     pub doc: &'static str,
     /// Wired by the compiler, never by people: the editor doesn't show it.
     pub hidden: bool,
+    /// Inputs: read one block late. Only for inputs that change what a
+    /// node shows, never what it outputs (a button's light), so a wire
+    /// from downstream doesn't make a cycle (DECISIONS D205).
+    pub late: bool,
     /// `Spectrum` outputs: the FFT size and hop (samples between frames)
     /// the node produces. `None` follows the node's first wired Spectrum
     /// input, the way `Channels::Follow` does for audio.
@@ -277,6 +281,7 @@ impl SocketSpec {
             auto: AutoTrigger::None,
             doc: "",
             hidden: false,
+            late: false,
             spectrum: None,
         }
     }
@@ -375,6 +380,12 @@ impl SocketSpec {
 
     pub fn no_smooth(mut self) -> Self {
         self.smooth = false;
+        self
+    }
+
+    /// Read this input one block late: see [`SocketSpec::late`].
+    pub fn late(mut self) -> Self {
+        self.late = true;
         self
     }
 

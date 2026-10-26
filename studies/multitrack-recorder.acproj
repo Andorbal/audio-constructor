@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each with a fader, pan, mute, solo, a reverb send, and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. Chords enter at bar 5 and lead at bar 9, a volume ride on the lead, and a punch-in window for the vocal on bars 5 and 6. The Mixer panel is the mixer window.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, start playing from bar 9 (every clip restarts from its own top), record MIDI, comp takes, trim or fade a clip, drop markers, or keep the click out of the export. Read docs/GAPS.md for the full list."
+          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each a Track block (fader, pan, mute, solo) with a reverb send and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. Chords enter at bar 5 and lead at bar 9, a volume ride on the lead, and a punch-in window for the vocal on bars 5 and 6. The Mixer panel is the mixer window: each Track block pinned as a channel strip with its send under it, the bus returns, the master fader with its meter, and the recording controls, each section under a label.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, start playing from bar 9 (every clip restarts from its own top), record MIDI, comp takes, trim or fade a clip, drop markers, or keep the click out of the export. Read docs/GAPS.md for the full list."
         },
         "ui": {
           "pos": [
@@ -347,69 +347,14 @@
         }
       },
       {
-        "id": "17",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -6.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            0.0
-          ],
-          "label": "Drums volume"
-        }
-      },
-      {
-        "id": "18",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            150.0
-          ],
-          "label": "Drums pan"
-        }
-      },
-      {
-        "id": "19",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            150.0
-          ],
-          "label": "Drums mute"
-        }
-      },
-      {
-        "id": "1a",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            300.0
-          ],
-          "label": "Drums solo"
-        }
-      },
-      {
         "id": "1b",
         "kind": "group",
         "config": {
           "def": "track"
+        },
+        "params": {
+          "pan": 0.0,
+          "volume": -6.0
         },
         "ui": {
           "pos": [
@@ -417,17 +362,6 @@
             0.0
           ],
           "label": "Drums track"
-        }
-      },
-      {
-        "id": "1c",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            1800.0,
-            0.0
-          ],
-          "label": "Drums meter"
         }
       },
       {
@@ -476,69 +410,14 @@
         }
       },
       {
-        "id": "20",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -8.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            680.0
-          ],
-          "label": "Bass volume"
-        }
-      },
-      {
-        "id": "21",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": -0.1
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            830.0
-          ],
-          "label": "Bass pan"
-        }
-      },
-      {
-        "id": "22",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            830.0
-          ],
-          "label": "Bass mute"
-        }
-      },
-      {
-        "id": "23",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            980.0
-          ],
-          "label": "Bass solo"
-        }
-      },
-      {
         "id": "24",
         "kind": "group",
         "config": {
           "def": "track"
+        },
+        "params": {
+          "pan": -0.1,
+          "volume": -8.0
         },
         "ui": {
           "pos": [
@@ -546,17 +425,6 @@
             680.0
           ],
           "label": "Bass track"
-        }
-      },
-      {
-        "id": "25",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            1800.0,
-            680.0
-          ],
-          "label": "Bass meter"
         }
       },
       {
@@ -605,69 +473,14 @@
         }
       },
       {
-        "id": "29",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -12.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            1360.0
-          ],
-          "label": "Chords volume"
-        }
-      },
-      {
-        "id": "2a",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": -0.4
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            1510.0
-          ],
-          "label": "Chords pan"
-        }
-      },
-      {
-        "id": "2b",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            1510.0
-          ],
-          "label": "Chords mute"
-        }
-      },
-      {
-        "id": "2c",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            1660.0
-          ],
-          "label": "Chords solo"
-        }
-      },
-      {
         "id": "2d",
         "kind": "group",
         "config": {
           "def": "track"
+        },
+        "params": {
+          "pan": -0.4,
+          "volume": -12.0
         },
         "ui": {
           "pos": [
@@ -675,17 +488,6 @@
             1360.0
           ],
           "label": "Chords track"
-        }
-      },
-      {
-        "id": "2e",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            1800.0,
-            1360.0
-          ],
-          "label": "Chords meter"
         }
       },
       {
@@ -734,69 +536,13 @@
         }
       },
       {
-        "id": "32",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -12.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2040.0
-          ],
-          "label": "Lead volume"
-        }
-      },
-      {
-        "id": "33",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.4
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2190.0
-          ],
-          "label": "Lead pan"
-        }
-      },
-      {
-        "id": "34",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            2190.0
-          ],
-          "label": "Lead mute"
-        }
-      },
-      {
-        "id": "35",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            2340.0
-          ],
-          "label": "Lead solo"
-        }
-      },
-      {
         "id": "36",
         "kind": "group",
         "config": {
           "def": "track"
+        },
+        "params": {
+          "pan": 0.4
         },
         "ui": {
           "pos": [
@@ -804,17 +550,6 @@
             2040.0
           ],
           "label": "Lead track"
-        }
-      },
-      {
-        "id": "37",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            1800.0,
-            2040.0
-          ],
-          "label": "Lead meter"
         }
       },
       {
@@ -863,69 +598,14 @@
         }
       },
       {
-        "id": "3b",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -6.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2720.0
-          ],
-          "label": "Vocal volume"
-        }
-      },
-      {
-        "id": "3c",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2870.0
-          ],
-          "label": "Vocal pan"
-        }
-      },
-      {
-        "id": "3d",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            2870.0
-          ],
-          "label": "Vocal mute"
-        }
-      },
-      {
-        "id": "3e",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1200.0,
-            3020.0
-          ],
-          "label": "Vocal solo"
-        }
-      },
-      {
         "id": "3f",
         "kind": "group",
         "config": {
           "def": "track"
+        },
+        "params": {
+          "pan": 0.0,
+          "volume": -6.0
         },
         "ui": {
           "pos": [
@@ -933,17 +613,6 @@
             2720.0
           ],
           "label": "Vocal track"
-        }
-      },
-      {
-        "id": "40",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            1800.0,
-            2720.0
-          ],
-          "label": "Vocal meter"
         }
       },
       {
@@ -1034,6 +703,7 @@
         "id": "45",
         "kind": "math",
         "params": {
+          "a": -12.0,
           "op": "add"
         },
         "ui": {
@@ -1041,14 +711,14 @@
             1200.0,
             2040.0
           ],
-          "label": "Fader + ride"
+          "label": "Level + ride"
         }
       },
       {
         "id": "46",
         "kind": "comment",
         "config": {
-          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song and is added to the fader. The fader and the curve both live on; there's no automation lane under the track, no write/touch/latch, and the curve has no idea where bar 9 is."
+          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song and is added to a fixed −12 dB, so the Lead strip's fader shows the ride as it plays rather than taking a hand; there's no automation lane under the track, no write/touch/latch, and the curve has no idea where bar 9 is."
         },
         "ui": {
           "pos": [
@@ -1268,17 +938,6 @@
         }
       },
       {
-        "id": "54",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            4200.0,
-            0.0
-          ],
-          "label": "Master meter"
-        }
-      },
-      {
         "id": "55",
         "kind": "analyzer",
         "ui": {
@@ -1302,19 +961,14 @@
       },
       {
         "id": "57",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 6.0,
-          "unit": "db"
-        },
+        "kind": "fader",
         "params": {
           "value": 0.0
         },
         "ui": {
           "pos": [
             3300.0,
-            500.0
+            430.0
           ],
           "label": "Master fader"
         }
@@ -1376,7 +1030,7 @@
         "id": "5c",
         "kind": "comment",
         "config": {
-          "text": "The master: a Mix of five tracks and two returns, the Compressor and Limiter blocks, a fader, meters, and the output. The click goes to a second Audio Out, which a render still sums into the file: a cue path that stays out of the export doesn't exist yet."
+          "text": "The master: a Mix of five tracks and two returns, the Compressor and Limiter blocks, a Fader with the master's meter beside it, an analyzer, and the output. The click goes to a second Audio Out, which a render still sums into the file: a cue path that stays out of the export doesn't exist yet."
         },
         "ui": {
           "pos": [
@@ -1472,31 +1126,11 @@
         "to": "1b:in"
       },
       {
-        "from": "17:out",
-        "to": "1b:volume"
-      },
-      {
-        "from": "18:out",
-        "to": "1b:pan"
-      },
-      {
-        "from": "19:out",
-        "to": "1b:mute"
-      },
-      {
-        "from": "1a:out",
-        "to": "1b:solo"
-      },
-      {
         "from": "1b:out",
-        "to": "1c:in"
-      },
-      {
-        "from": "1c:out",
         "to": "1f:in"
       },
       {
-        "from": "1c:out",
+        "from": "1b:out",
         "to": "1e:in"
       },
       {
@@ -1508,31 +1142,11 @@
         "to": "24:in"
       },
       {
-        "from": "20:out",
-        "to": "24:volume"
-      },
-      {
-        "from": "21:out",
-        "to": "24:pan"
-      },
-      {
-        "from": "22:out",
-        "to": "24:mute"
-      },
-      {
-        "from": "23:out",
-        "to": "24:solo"
-      },
-      {
         "from": "24:out",
-        "to": "25:in"
-      },
-      {
-        "from": "25:out",
         "to": "28:in"
       },
       {
-        "from": "25:out",
+        "from": "24:out",
         "to": "27:in"
       },
       {
@@ -1544,31 +1158,11 @@
         "to": "2d:in"
       },
       {
-        "from": "29:out",
-        "to": "2d:volume"
-      },
-      {
-        "from": "2a:out",
-        "to": "2d:pan"
-      },
-      {
-        "from": "2b:out",
-        "to": "2d:mute"
-      },
-      {
-        "from": "2c:out",
-        "to": "2d:solo"
-      },
-      {
         "from": "2d:out",
-        "to": "2e:in"
-      },
-      {
-        "from": "2e:out",
         "to": "31:in"
       },
       {
-        "from": "2e:out",
+        "from": "2d:out",
         "to": "30:in"
       },
       {
@@ -1580,27 +1174,11 @@
         "to": "36:in"
       },
       {
-        "from": "33:out",
-        "to": "36:pan"
-      },
-      {
-        "from": "34:out",
-        "to": "36:mute"
-      },
-      {
-        "from": "35:out",
-        "to": "36:solo"
-      },
-      {
         "from": "36:out",
-        "to": "37:in"
-      },
-      {
-        "from": "37:out",
         "to": "3a:in"
       },
       {
-        "from": "37:out",
+        "from": "36:out",
         "to": "39:in"
       },
       {
@@ -1612,40 +1190,16 @@
         "to": "3f:in"
       },
       {
-        "from": "3b:out",
-        "to": "3f:volume"
-      },
-      {
-        "from": "3c:out",
-        "to": "3f:pan"
-      },
-      {
-        "from": "3d:out",
-        "to": "3f:mute"
-      },
-      {
-        "from": "3e:out",
-        "to": "3f:solo"
-      },
-      {
         "from": "3f:out",
-        "to": "40:in"
-      },
-      {
-        "from": "40:out",
         "to": "43:in"
       },
       {
-        "from": "40:out",
+        "from": "3f:out",
         "to": "42:in"
       },
       {
         "from": "41:out",
         "to": "42:gain"
-      },
-      {
-        "from": "32:out",
-        "to": "45:a"
       },
       {
         "from": "44:out",
@@ -1732,7 +1286,7 @@
         "to": "4c:in"
       },
       {
-        "from": "37:out",
+        "from": "36:out",
         "to": "4e:in"
       },
       {
@@ -1740,23 +1294,23 @@
         "to": "4f:in"
       },
       {
-        "from": "1c:out",
+        "from": "1b:out",
         "to": "51:in_0"
       },
       {
-        "from": "25:out",
+        "from": "24:out",
         "to": "51:in_1"
       },
       {
-        "from": "2e:out",
+        "from": "2d:out",
         "to": "51:in_2"
       },
       {
-        "from": "37:out",
+        "from": "36:out",
         "to": "51:in_3"
       },
       {
-        "from": "40:out",
+        "from": "3f:out",
         "to": "51:in_4"
       },
       {
@@ -1793,10 +1347,6 @@
       },
       {
         "from": "53:out",
-        "to": "54:in"
-      },
-      {
-        "from": "54:out",
         "to": "55:in"
       },
       {
@@ -1810,6 +1360,10 @@
       {
         "from": "5a:out",
         "to": "5b:in"
+      },
+      {
+        "from": "53:out",
+        "to": "57:meter"
       }
     ],
     "frames": [
@@ -3314,121 +2868,182 @@
       "name": "Mixer",
       "items": [
         {
-          "node": "17"
+          "node": "1b",
+          "strip": 1
         },
         {
-          "node": "18"
+          "node": "1d",
+          "strip": 1
         },
         {
-          "node": "19"
+          "node": "24",
+          "strip": 2
         },
         {
-          "node": "1a"
+          "node": "26",
+          "strip": 2
         },
         {
-          "node": "1c"
+          "node": "2d",
+          "strip": 3
         },
         {
-          "node": "1d"
+          "node": "2f",
+          "strip": 3
         },
         {
-          "node": "20"
+          "node": "36",
+          "strip": 4
         },
         {
-          "node": "21"
+          "node": "38",
+          "strip": 4
         },
         {
-          "node": "22"
+          "node": "3f",
+          "strip": 5
         },
         {
-          "node": "23"
+          "node": "41",
+          "strip": 5
         },
         {
-          "node": "25"
+          "node": "4d",
+          "at": [
+            5,
+            1
+          ]
         },
         {
-          "node": "26"
+          "node": "50",
+          "at": [
+            5,
+            3
+          ]
         },
         {
-          "node": "29"
+          "node": "57",
+          "at": [
+            6,
+            1
+          ]
         },
         {
-          "node": "2a"
+          "node": "55",
+          "size": [
+            2,
+            2
+          ],
+          "at": [
+            7,
+            1
+          ]
         },
         {
-          "node": "2b"
+          "node": "15",
+          "at": [
+            5,
+            7
+          ]
         },
         {
-          "node": "2c"
+          "node": "e",
+          "at": [
+            7,
+            7
+          ],
+          "compact": true
         },
         {
-          "node": "2e"
+          "node": "10",
+          "at": [
+            7,
+            8
+          ],
+          "compact": true
         },
         {
-          "node": "2f"
+          "node": "59",
+          "at": [
+            8,
+            7
+          ],
+          "compact": true
+        }
+      ],
+      "strips": [
+        {
+          "id": 1,
+          "name": "Drums",
+          "at": [
+            0,
+            1
+          ]
         },
         {
-          "node": "32"
+          "id": 2,
+          "name": "Bass",
+          "at": [
+            1,
+            1
+          ]
         },
         {
-          "node": "33"
+          "id": 3,
+          "name": "Chords",
+          "at": [
+            2,
+            1
+          ]
         },
         {
-          "node": "34"
+          "id": 4,
+          "name": "Lead",
+          "at": [
+            3,
+            1
+          ]
         },
         {
-          "node": "35"
+          "id": 5,
+          "name": "Vocal",
+          "at": [
+            4,
+            1
+          ]
+        }
+      ],
+      "labels": [
+        {
+          "text": "Tracks",
+          "at": [
+            0,
+            0
+          ],
+          "span": 5
         },
         {
-          "node": "37"
+          "text": "Buses",
+          "at": [
+            5,
+            0
+          ]
         },
         {
-          "node": "38"
+          "text": "Master",
+          "at": [
+            6,
+            0
+          ],
+          "span": 3
         },
         {
-          "node": "3b"
-        },
-        {
-          "node": "3c"
-        },
-        {
-          "node": "3d"
-        },
-        {
-          "node": "3e"
-        },
-        {
-          "node": "40"
-        },
-        {
-          "node": "41"
-        },
-        {
-          "node": "57"
-        },
-        {
-          "node": "54"
-        },
-        {
-          "node": "55"
-        },
-        {
-          "node": "4d"
-        },
-        {
-          "node": "50"
-        },
-        {
-          "node": "59"
-        },
-        {
-          "node": "e"
-        },
-        {
-          "node": "10"
-        },
-        {
-          "node": "15"
+          "text": "Recording",
+          "at": [
+            5,
+            6
+          ],
+          "span": 4
         }
       ]
     }

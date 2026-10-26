@@ -256,6 +256,33 @@ impl Node for TFb {
 }
 
 node! {
+    kind: "t_lamp",
+    name: "Lamp",
+    category: Controls,
+    keywords: [],
+    /// `out` = `lit` + 1, with `lit` read one block late. Try this: nothing.
+    pub struct TLamp {}
+}
+impl Node for TLamp {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new()
+            .input(SocketSpec::float("lit", Unit::Generic, 0.0).late())
+            .output(SocketSpec::float("out", Unit::Generic, 0.0).rate(Rate::Sample))
+    }
+    fn new(_: &Config, _: &PrepareCtx) -> Self {
+        TLamp {}
+    }
+    fn process(&mut self, _: &ProcessCtx, io: &mut Io) {
+        let lit = io.inputs.float(0);
+        io.outputs.float(0).fill_with(|i| lit.at(i) + 1.0);
+    }
+    fn reset(&mut self) {}
+}
+
+node! {
     kind: "t_counter",
     name: "Counter",
     category: Math,
@@ -504,6 +531,7 @@ pub fn registry() -> Registry {
         .register::<TOut>()
         .register::<TQuad>()
         .register::<TFb>()
+        .register::<TLamp>()
         .register::<TCounter>()
         .register::<TFollower>()
         .register::<TStarts>()

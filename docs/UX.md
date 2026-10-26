@@ -387,8 +387,14 @@ pedalboard without the app providing one.
 - **Pinning.** `P` pins the selected nodes that have a widget to the
   current panel, making "Panel 1" if there is none; on nodes already
   pinned there, `P` unpins them. Widgets are the controls (Button, Toggle,
-  Slider, Knob, XY Pad, Keyboard, Number, Dropdown), the displays (Meter,
-  Scope, Analyzer, Readout), and Clip, Record, and Audio Out. A node's
+  Slider, Knob, Fader, Pad, Pads, XY Pad, Keyboard, Number, Dropdown), the
+  displays (Meter, Light, Scope, Analyzer, Readout), Clip, Record, and Audio
+  Out, and **group and block instances**: a pinned instance is one card with
+  a widget for each input (a fader for a level in dB, with the meter of its
+  audio output beside it; a knob, a toggle, a dropdown, or a fire button by
+  type and unit) and a meter, light, or readout for each output, so a Track
+  block pins as a channel strip (D203). Its widgets set the instance's own
+  inputs; a wired input shows the value arriving on its wire. A node's
   right-click menu pins it to any panel or a new one, and unpins it. Pinned
   nodes carry a pin badge in their header. Only top-level nodes can be
   pinned (the menu says so inside a group): a group's insides are shared by
@@ -404,11 +410,41 @@ pedalboard without the app providing one.
 - **The grid.** Each card has the node's label and its live widget, played
   exactly as on the canvas: dragging a slider is one undo step, a held
   button or key is momentary and never touches the project, and meters,
-  scopes, analyzers, and readouts move with the audio. Cards flow left to
-  right in pin order; the Keyboard, Scope, Analyzer, and XY Pad get bigger
-  cells. Drag a card by its edge (anywhere but its widget) to move it;
-  `−` and `+` in its corner make it smaller or bigger, and `×` unpins it.
-  Each is one undo step. A panel taller than the window scrolls.
+  scopes, analyzers, and readouts move with the audio. The grid is cells
+  across and *lines* down, two lines to a cell (D202). A card has a place
+  of its own and keeps it: pinning something new puts it after everything
+  placed, so nothing already there moves. A panel from before places
+  flows its cards left to right in pin order until the first change to
+  its layout, which gives every card the place it was drawn at. The
+  Keyboard, Scope, Analyzer, XY Pad, Fader, and Pads get bigger cells.
+  Drag a card by its edge (anywhere but its widget) to move it, onto
+  another card of its size to swap them, or into a strip to join it;
+  `Shift`- or `Ctrl`-click selects several cards, strips, and labels, and
+  dragging one of them moves them all. `−` and `+` in a card's corner make
+  it smaller or bigger, and `×` unpins it. Each is one undo step. A panel
+  taller than the window scrolls.
+- **Structure.** A card's right-click menu makes it **compact** (half
+  height: a toggle or button takes one line, so two share a cell), gives it
+  a **color** (amber, green, red, blue, purple, grey, or its category's),
+  makes a **strip** of the selected cards, or takes it out of one. A strip
+  is a named column of cards stacked under one header: drag the header to
+  move it, `−` and `+` on it to make it narrower or wider, `×` to unpin it
+  and its cards; its menu renames it or ungroups it (the cards stay where
+  they were). Right-click an empty place to add a **label** there (a
+  section heading, or a row or column name) or a **separator** (a label
+  with no text); a label's menu edits, widens, narrows, or removes it. On
+  the canvas, **Pin as Strip** pins the selection as one strip, compact
+  where a card can be.
+- **Panels from a selection** (D204). The canvas menu over a selection
+  makes a whole panel in one undo step: **Mixer from Selection** puts each
+  selected group or block instance (a Track's channel strip) side by side
+  under a *Tracks* label, then the other selected controls and displays;
+  **Pads from Selection** adds a Pads node whose pads start the selected
+  Samplers and Clips (in reading order from the bottom-left pad) and pins
+  it; **Launch Grid from Selection** adds a Button for each selected Clip,
+  wired to start it and lit while it plays (its `lit` input), laid out a
+  column per track (clips stacked on the canvas) and a row per scene, with
+  their names along the top and the left.
 - **Performance mode.** `F11`, View ▸ Performance Mode, or the Perform
   button shows the current panel full screen with bigger cells. The menu
   bar, side panel, status bar, and transport bar go; play/stop, the

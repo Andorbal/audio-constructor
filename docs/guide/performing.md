@@ -21,6 +21,17 @@ They're in the **Controls** category:
 | **Keyboard** | A piano you click; it sends MIDI |
 | **Number** | A number you type, optionally kept within limits |
 | **Dropdown** | A menu of named choices; outputs the number of the one picked |
+| **Fader** | A mixer fader in dB, with a meter beside it for whatever you wire into `meter` |
+| **Pad** | A drum pad: hit it higher up for more `velocity`; a gate while held, and pressure on a pen or touch screen |
+| **Pads** | A grid of pads (4 × 4 unless you change it) that plays MIDI notes and fires a trigger per pad |
+
+Button, Toggle, Pad, and Pads also take a `lit` input that lights them
+without pressing them. Wire a Clip's `playing` into the Button that
+starts it and the button shows its clip playing; wire the MIDI that
+plays your drums into a Pads' `lit` and the pads light as they're hit.
+`lit` reads its wire a moment late, so wiring it back from the clip a
+button starts is fine. The **Light** display is a lamp for a state on its
+own: on while its input is, in the color you choose.
 
 Playing a control is part of the patch, like turning a knob on a
 hardware synth: a drag is one undo step, and holding a Button or a
@@ -44,10 +55,29 @@ yet. `P` on nodes already there takes them off again. A node's right-click
 menu can also pin it to any panel, or to a new one, and unpin it. Pinned
 nodes carry a pin badge.
 
-What can be pinned: the controls (Button, Toggle, Slider, Knob, XY Pad,
-Keyboard, Number, Dropdown), the displays (Meter, Scope, Analyzer,
-Readout), and Clip, Record, and Audio Out. Only nodes on the top level of
-the patch can be pinned, not nodes inside a group.
+What can be pinned: the controls (Button, Toggle, Slider, Knob, Fader,
+Pad, Pads, XY Pad, Keyboard, Number, Dropdown), the displays (Meter,
+Light, Scope, Analyzer, Readout), Clip, Record, and Audio Out, and groups
+and blocks. Only nodes on the top level of the patch can be pinned, not
+nodes inside a group.
+
+A pinned **group or block** is one card with a control for each of its
+inputs and a meter or light for each output, so a **Track** block pins as
+a channel strip: a fader with the track's meter beside it, pan, mute, and
+solo. Its controls set that instance, as its Node tab does; an input with
+a wire into it shows the value arriving instead.
+
+**Pin as Strip** in the canvas menu pins the selection as one strip (see
+below). Three more entries there make a whole panel from a selection in
+one step:
+
+- **Mixer from Selection**: the selected Track blocks (or any groups) side
+  by side under a *Tracks* label, then the other selected controls.
+- **Pads from Selection**: a Pads node whose pads start the selected
+  Samplers and Clips, pinned to a new panel.
+- **Launch Grid from Selection**: a Button for each selected Clip, wired
+  to start it and lit while it plays, laid out a column per track (clips
+  stacked on the canvas are a track) and a row per scene.
 
 ### Showing panels
 
@@ -59,8 +89,22 @@ the right of the transport bar shows the panels instead of the canvas.
   and click `+` to add a panel.
 - Each card has the node's label and its live widget, played exactly as
   on the canvas. Meters and scopes move with the sound.
-- Drag a card by its edge (anywhere but the widget) to move it. The `−`
-  and `+` in its corner make it smaller or bigger, and `×` unpins it.
+- Cards keep their places: pinning something new puts it after what's
+  there, and nothing moves.
+- Drag a card by its edge (anywhere but the widget) to move it; drop it
+  on a card of its size to swap them, or on a strip to add it there.
+  `Shift`- or `Ctrl`-click selects several cards, and dragging one moves
+  them all. The `−` and `+` in a card's corner make it smaller or bigger,
+  and `×` unpins it.
+- Right-click a card to make it **compact** (a toggle or button at half
+  height, so two share a cell), give it a **color**, or **Make Strip** from
+  the selected cards. A **strip** is a named column of cards under one
+  header: drag the header to move it, `−` and `+` on it to change its
+  width, and `×` to unpin it with its cards; right-click it to rename or
+  ungroup it.
+- Right-click an empty place to **Add Label Here** (a section name, or the
+  name of a row or a column) or **Add Separator Here**. Right-click a label
+  to edit, widen, narrow, or remove it.
 - A panel taller than the window scrolls.
 
 While the panels show, shortcuts that change the patch are off;

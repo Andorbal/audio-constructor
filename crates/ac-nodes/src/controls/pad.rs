@@ -60,7 +60,11 @@ impl Node for Pad {
     fn describe(_: &Config) -> Signature {
         Signature::new()
             .input(SocketSpec::boolean("pressed", false).doc("True while the pad is held."))
-            .input(SocketSpec::boolean("lit", false).doc("Lights the pad without playing it."))
+            .input(
+                SocketSpec::boolean("lit", false)
+                    .late()
+                    .doc("Lights the pad without playing it."),
+            )
             .input(
                 SocketSpec::float("hit", Unit::Generic, 1.0)
                     .range(0.0, 1.0)

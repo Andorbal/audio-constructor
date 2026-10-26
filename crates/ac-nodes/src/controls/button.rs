@@ -17,7 +17,8 @@ node! {
     ///
     /// `lit` lights the button, on the canvas and on a panel, without
     /// pressing it: wire a pattern's gate or a clip's `playing` into it so
-    /// the button shows what's playing.
+    /// the button shows what's playing. It reads its wire one block late,
+    /// so the clip the button starts can light it without making a cycle.
     ///
     /// **Try this:** wire `gate` into an `ADSR` to sound a note for as long
     /// as the button is held, or wire `trigger` into a `Clip`'s `start` to
@@ -70,7 +71,11 @@ impl Node for Button {
     fn describe(_: &Config) -> Signature {
         Signature::new()
             .input(SocketSpec::boolean("pressed", false).doc("True while the button is held."))
-            .input(SocketSpec::boolean("lit", false).doc("Lights the button without pressing it."))
+            .input(
+                SocketSpec::boolean("lit", false)
+                    .late()
+                    .doc("Lights the button without pressing it."),
+            )
             .output(SocketSpec::trigger("trigger").doc("Fires when the button goes down."))
             .output(SocketSpec::boolean("gate", false).doc("High while the button is held."))
             .output(SocketSpec::trigger("release").doc("Fires when the button comes up."))

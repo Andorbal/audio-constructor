@@ -10,10 +10,10 @@ features, and editor changes they argue for, are in
 
 | Study | Stands in for | Nodes | What it builds |
 | --- | --- | --- | --- |
-| `multitrack-recorder.acproj` | A linear multitrack recorder | 92 | Five tracks with fader, pan, mute, solo, a reverb send, and a stem file; reverb and delay buses; a master with a compressor and limiter; clips that enter at bar 5 and bar 9; a volume ride; a punch-in window for recording; a Mixer panel |
+| `multitrack-recorder.acproj` | A linear multitrack recorder | 66 | Five tracks, each a Track block pinned as a channel strip with a reverb send and a stem file; reverb and delay buses; a master with a compressor, a limiter, and a Fader; clips that enter at bar 5 and bar 9; a volume ride; a punch-in window for recording; a Mixer panel of strips under labels |
 | `pattern-studio.acproj` | A pattern-based studio | 56 | Four drum channels from a 16-step grid, a chord channel and a bass channel from piano rolls, two patterns and a four-node playlist that alternates them, a velocity row for the hats, channel strips, sends, a Rack panel |
 | `pads-and-keys.acproj` | A sampler and drum machine | 83 | Eight pads from MIDI, the computer keys, and buttons, with velocity; a snare with two velocity layers and round robin; a choke; a two-zone keymapped instrument in a Voices body; resampling into a pad; a Pads panel |
-| `scenes.acproj` | A clip launcher and loop pedal | 99 | Three tracks with two clip slots each, launched on the bar, with exclusive slots, stop buttons, and two scenes; a bar-quantized looper; a Session panel |
+| `scenes.acproj` | A clip launcher and loop pedal | 89 | Three tracks with two clip slots each, launched on the bar and lit while they play, with exclusive slots, stop buttons, and two scenes; a bar-quantized looper; a Track block per track; a Session panel laid out as tracks by scenes |
 
 Open one in the editor (`cargo run --release -p ac-app -- studies/scenes.acproj`)
 and read the notes on its canvas; the frames mark each part. Render one

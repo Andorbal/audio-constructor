@@ -31,9 +31,10 @@ node! {
     /// shows what's playing. Each pad is a hidden `pad_k` input the editor
     /// holds down; restarting the transport releases them.
     ///
-    /// **Try this:** wire `midi` and a `MIDI In` from a drum pad through a
-    /// `Merge` into a `Slicer` of a drum loop, and the same Merge's `out`
-    /// into `lit`; pin the Pads to a panel and play.
+    /// **Try this:** wire `trigger_0` to `trigger_3` into four `Sampler`s'
+    /// `start`, pin the Pads to a panel, and play them; then wire a `MIDI
+    /// Pattern` playing notes 36 to 39 into `lit`, and the pads light with
+    /// the pattern.
     pub struct Pads {
         pads: usize,
         low: u8,
@@ -128,7 +129,11 @@ impl Node for Pads {
         let (rows, cols) = shape(config);
         let pads = rows * cols;
         let mut sig = Signature::new()
-            .input(SocketSpec::midi("lit").doc("Pads light while their note is on here."))
+            .input(
+                SocketSpec::midi("lit")
+                    .late()
+                    .doc("Pads light while their note is on here."),
+            )
             .input(
                 SocketSpec::float("hit", Unit::Generic, 1.0)
                     .range(0.0, 1.0)

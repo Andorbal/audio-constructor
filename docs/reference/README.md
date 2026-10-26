@@ -10,7 +10,7 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-125 nodes in 13 categories.
+129 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
@@ -24,8 +24,8 @@ together, read the [user guide](../guide/README.md).
 | [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
 | [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
-| [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
-| [Display](#display) | 5 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
+| [Controls](#controls) | 11 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
+| [Display](#display) | 6 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
 
 <a id="io"></a>
@@ -219,9 +219,12 @@ Widgets you play by hand, on the canvas or on a performance panel: knobs, slider
 | --- | --- |
 | [Button](controls.md#button) | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |
 | [Dropdown](controls.md#dropdown) | A menu of named choices; outputs the index of the one picked. |
+| [Fader](controls.md#fader) | A mixer fader: a vertical level in decibels, with a meter beside it. |
 | [Keyboard](controls.md#keyboard) | A piano keyboard you play with the mouse, on the canvas or on a panel; it sends the notes out as MIDI. |
 | [Knob](controls.md#knob) | A round dial for a value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Number](controls.md#number) | A number you type in: a `Float` or an `Int`, optionally kept within a range. |
+| [Pad](controls.md#pad) | A drum pad: a button that feels how hard it's hit, and lights up. |
+| [Pads](controls.md#pads) | A grid of drum pads in one node: rows × columns of pads that play notes with velocity, fire triggers, and light up. |
 | [Slider](controls.md#slider) | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | An on/off switch. |
 | [XY Pad](controls.md#xy-pad) | A square pad you drag a point around on: two values at once, plus a gate while you touch it. |
@@ -234,6 +237,7 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 | Node | What it does |
 | --- | --- |
 | [Analyzer](display.md#analyzer) | A spectrum analyzer: shows how loud each part of the frequency range is, and passes the signal through unchanged so it can sit inline. |
+| [Light](display.md#light) | A lamp that shows a state: on when its input is, dimmed by a level. |
 | [Meter](display.md#meter) | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |

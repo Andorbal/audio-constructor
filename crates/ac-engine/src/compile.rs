@@ -37,7 +37,9 @@ use crate::flatten::{Flat, FlatNode, flatten, voice_copies};
 use crate::graph::{
     At, Bypass, CompiledGraph, NodeBox, Pool, Range, SocketTele, Step, StepKind, Vacant, Wave, Work,
 };
-use crate::internal::{self, Baked, COMP_DELAY_KIND, Capture, CompDelay, CompType};
+use crate::internal::{
+    self, Baked, COMP_DELAY_KIND, Capture, CompDelay, CompType, LATE_READ_KIND, LateRead,
+};
 use crate::loops::{
     self, BoundaryIn, BoundaryOut, Inner, InnerStep, LoopRunner, MemberTele, SocketAcc,
 };
@@ -51,6 +53,8 @@ const MAX_CHANNELS: usize = 64;
 /// Node ids of compensation delays, under the node whose input they feed;
 /// the input index is added. High enough not to meet hand-written ids.
 const COMP_ID_BASE: u64 = 0xC0FF_EE00_0000_0000;
+/// Node ids of late reads under the node whose input they feed.
+const LATE_ID_BASE: u64 = 0x1A7E_0000_0000_0000;
 
 /// Settings that shape a compile.
 #[derive(Clone, Debug)]
@@ -320,7 +324,6 @@ pub(crate) fn compile_with(
     let max_block = opts.max_block.clamp(1, 16_384);
 
     let mut flat = flatten(project, registry, &mut report);
-    let n = flat.nodes.len();
 
     // --- 2. wires: one per input, compatible types ---
     let mut src_of: Vec<Vec<Option<(usize, usize)>>> = flat
@@ -358,6 +361,8 @@ pub(crate) fn compile_with(
         }
         src_of[dn][di] = Some(w.from);
     }
+    late_reads(&mut flat, &mut src_of);
+    let n = flat.nodes.len();
 
     // --- 3. schedule ---
     let mut order = schedule(&flat, &mut src_of, &mut report);
@@ -2739,6 +2744,42 @@ fn bypass_for(f: &FlatNode) -> Bypass {
             }
         }
         _ => Bypass::None,
+    }
+}
+
+/// Put a [`LateRead`] in front of every wired late input, so it reads one
+/// block late and its wire never closes a cycle (DECISIONS D205).
+fn late_reads(flat: &mut Flat, src_of: &mut Vec<Vec<Option<(usize, usize)>>>) {
+    for node in 0..flat.nodes.len() {
+        for input in 0..flat.nodes[node].sig.inputs.len() {
+            let spec = &flat.nodes[node].sig.inputs[input];
+            let (true, Some(from), Some(config)) =
+                (spec.late, src_of[node][input], LateRead::config_for(spec))
+            else {
+                continue;
+            };
+            let path = flat.nodes[node]
+                .path
+                .child(ac_core::NodeId(LATE_ID_BASE + input as u64));
+            let li = flat.nodes.len();
+            flat.nodes.push(FlatNode {
+                path,
+                kind: LATE_READ_KIND.to_string(),
+                sig: LateRead::describe(&config),
+                config,
+                params: Default::default(),
+                muted: false,
+                name: format!(
+                    "{} {}",
+                    flat.nodes[node].name, flat.nodes[node].sig.inputs[input].name
+                ),
+                meta: LateRead::meta(),
+                create: internal::create::<LateRead>,
+                render_whole: LateRead::render_whole,
+            });
+            src_of.push(vec![Some(from)]);
+            src_of[node][input] = Some((li, 0));
+        }
     }
 }
 

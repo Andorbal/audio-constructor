@@ -149,6 +149,28 @@ fn type_mismatch_is_reported_and_the_rest_runs() {
 }
 
 #[test]
+fn a_late_input_wired_from_downstream_is_no_cycle() {
+    // lamp.out → lamp.lit would be a cycle; `lit` is late, so it reads
+    // last block's value instead and the count climbs one per block.
+    let p = P::new()
+        .node(1, "t_lamp")
+        .node(2, "t_sum")
+        .node(3, "t_out")
+        .wire(1, "out", 1, "lit")
+        .wire(1, "out", 2, "in")
+        .wire(2, "out", 3, "in")
+        .build();
+    for block in [32, 64] {
+        let r = offline(&p, block, 0.004);
+        assert!(!r.report.has_errors(), "{}", r.report);
+        for k in 0..3 {
+            assert_eq!(r.channels[0][k * block], (k + 1) as f32);
+            assert_eq!(r.channels[0][k * block + block - 1], (k + 1) as f32);
+        }
+    }
+}
+
+#[test]
 fn cycles_without_feedback_are_rejected_and_named() {
     let p = P::new()
         .node(1, "t_add")

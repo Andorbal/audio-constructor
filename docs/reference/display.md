@@ -51,6 +51,30 @@ the energy in a mix sits.
 | --- | --- | --- |
 | `out` | Audio | The same signal, unchanged. |
 
+<a id="light"></a>
+## Light
+
+Kind: `light` · Also found by: lamp, led, indicator, status, lit, on, playing, state
+
+A lamp that shows a state: on when its input is, dimmed by a level.
+
+Wire a `Bool` into `in` (a clip's `playing`, a toggle, a gate) and
+the light is on while it's true; a level from 0 to 1 sets its
+brightness, so a slow envelope glows. A gate shorter than the screen
+refreshes still flashes: the light shows the brightest moment of each
+block. The `color` config picks the lamp's color: `amber` (the
+default), `green`, `red`, `blue`, `white`, or a `#RRGGBB` code.
+
+**Try this:** wire each clip's `playing` into a Light, pin them all to
+a panel, and the panel shows which clips are running; or wire a
+`Pattern`'s `gate_0` into one to see the beat.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Float | 0 | 0 … 1 | On while true; a level 0–1 sets the brightness. |
+
 <a id="meter"></a>
 ## Meter
 

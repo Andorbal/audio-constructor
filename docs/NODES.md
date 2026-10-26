@@ -42,6 +42,11 @@ losing performance or clarity, it should be a *block* (a saved group) in
   Modulators that follow a gate or a clock instead (ADSR, Envelope, LFO,
   StepSequencer) restart from their own inputs (`gate`/`trigger`,
   `retrigger`, `reset`) and don't take the full contract (DECISIONS D64).
+- **Display inputs are late.** An input that changes only what a node
+  shows, never what it outputs (a button's `lit`, a fader's `meter`), is
+  marked `late` (`SocketSpec::late`): it reads its wire one block late, so
+  it can be wired from downstream (a clip's `playing` back to the button
+  that starts it) without making a cycle (DECISIONS D205).
 - **Stateful nodes implement `reset()`** and are reset when the transport
   restarts from zero.
 - **Nodes whose config is edited while they play implement `take_over()`**
@@ -55,7 +60,7 @@ losing performance or clarity, it should be a *block* (a saved group) in
 Socket colors and shapes are in [UX.md](UX.md). Categories below map to
 header colors.
 
-Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3. **WI** = `WholeInput`
+Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3, **P4** Phase 4. **WI** = `WholeInput`
 (see ARCHITECTURE §9). **Live** = a live source for causality analysis.
 
 ---
@@ -221,14 +226,17 @@ Panels (UX.md) to make a performance surface.
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `Button` | P1 | Momentary: `trigger` on press, `gate: Bool` while held, `release: Trigger`. Bindable to a key or MIDI note. |
-| `Toggle` | P1 | `Bool` on/off. Bindable. |
+| `Button` | P1 | Momentary: `trigger` on press, `gate: Bool` while held, `release: Trigger`. Bindable to a key or MIDI note. A late `lit: Bool` input lights it without pressing it (P4): wire a Clip's `playing` into it and a launch button shows its clip playing. |
+| `Toggle` | P1 | `Bool` on/off. Bindable. A late `lit: Bool` input lights it, whichever way it's set (P4). |
 | `Slider` | P1 | `Float` with range, unit, and log/linear scale. Bindable to a MIDI CC or a gamepad axis via the node's menu. |
 | `Knob` | P2 | Same as Slider, round. |
 | `XYPad` | P2 | Two `Float` outputs plus `gate` while touched and `touch: Trigger` on press. |
 | `Keyboard` | P2 | Virtual piano → `midi` (config: lowest note, keys, channel; `velocity`, `octave`). Computer-keyboard play comes with `KeyboardIn` (M2.4). |
 | `Number` | P2 | A typed `Float`/`Int` field with optional limits. |
 | `Dropdown` | P2 | Labeled choices (config) → `Int`, and `changed: Trigger`. |
+| `Fader` | P4 | A mixer fader: a vertical level in dB (`min`/`max` config, default −60 to +6) → `out` (dB) and `gain` (a factor, 0 at the bottom). A late `meter` audio input shows that audio's level beside the handle, so a channel's level and its reading are one card. |
+| `Pad` | P4 | One drum pad: `trigger` and `gate` while held, `velocity` from where it's hit (harder towards the top), and `pressure` while held where a pen or touch screen reports it; a late `lit` input. Bindable to a MIDI note. |
+| `Pads` | P4 | A grid of pads (`rows` × `columns` config, up to 64) → `midi` notes from `low` up (default 36), from the bottom-left pad, and a `trigger_k` output per pad; velocity from where each pad is hit; a late `lit` MIDI input lights the pads whose notes are on there. |
 
 ## Display nodes
 
@@ -237,6 +245,7 @@ Panels (UX.md) to make a performance surface.
 | `Meter` | P1 | Peak/RMS with hold; also passes `in` through to `out` so it can sit inline. |
 | `Scope` | P1 | Oscilloscope on `Audio`/`Float`, with `trigger` input for stable display; passes through. |
 | `Readout` | P1 | Shows the current value of any `Float`/`Int`/`Bool` input. |
+| `Light` | P4 | A lamp: lit by a `Bool` or brightened by a level (`in`, 0 to 1), in the `color` config's color (amber, green, red, blue, white, or `#RRGGBB`). For a state on a panel: playing, armed, soloed. |
 | `Analyzer` | P2 | Spectrum analyzer display: 64 log-spaced bands from 20 Hz to Nyquist in dB, falling by 20 dB every `decay`; passes `in` through unchanged. |
 | `Spectrogram` | P3 | Scrolling spectrogram on the card: 128 columns of the Analyzer's 64 bands across `window` seconds, each column the loudest moment of its slice; `size` config; passes `in` through unchanged. |
 

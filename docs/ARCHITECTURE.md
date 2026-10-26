@@ -313,7 +313,9 @@ Steps:
    per wire/socket, never panic.
 3. **Break feedback.** Cycles are legal only through a `Feedback` node, which
    introduces exactly one block of delay and is the cut point for the
-   topological sort. A Feedback node whose `delay` config is `sample`
+   topological sort. A wired input marked `late` (a display input such as
+   a button's `lit`) gets a hidden one-block Feedback of its type in front
+   of it first, so a wire into one never closes a cycle (DECISIONS D205). A Feedback node whose `delay` config is `sample`
    closes its loop with one sample instead (DECISIONS D140): the compiler
    finds the strongly connected component of the wire graph that holds it
    (edges out of block-mode Feedback nodes don't count, since those loops

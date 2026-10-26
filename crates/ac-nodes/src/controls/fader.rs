@@ -18,7 +18,9 @@ node! {
     /// of the range, so the fader's lowest point is silence. Wire the audio
     /// it controls (or anything else) into `meter` and the fader shows its
     /// level beside the handle, so a channel's level and its reading are
-    /// one card. Right-click `value` to bind it to a MIDI fader.
+    /// one card. `meter` reads its wire one block late, so it can come from
+    /// after the gain the fader sets without making a cycle. Right-click
+    /// `value` to bind it to a MIDI fader.
     ///
     /// **Try this:** wire `out` into a `Gain`'s `gain` (both in dB) on a
     /// channel, and the `Gain`'s output into `meter`; pin the fader to a
@@ -54,6 +56,7 @@ impl Node for Fader {
             .input(
                 SocketSpec::audio("meter")
                     .channels(Channels::UpTo(2))
+                    .late()
                     .doc("Audio to show beside the fader."),
             )
             .output(
