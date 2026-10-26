@@ -33,6 +33,12 @@ nodes that exist, then read back for three things:
   estimate of feel, not a benchmark; it is accurate to within a few
   gestures and the comparison holds at any reasonable counting.
 
+The gesture tables keep the first count (*Today*, as of 0.14) and add a
+*Phase 4* column, filled in as each Phase 4 milestone lands (ROADMAP);
+a dash is a task Phase 4 hasn't reached yet. Each study is rebuilt the
+new way as its gaps close, and its node count in `studies/README.md`
+moves with it.
+
 What the studies stand in for:
 
 | Study | Kind of tool | Everyday tasks measured |
@@ -100,6 +106,21 @@ and leaving at bar 13 and the lead entering at bar 9; a drawn volume ride
 on the lead; a vocal track with input monitoring and a punch-in window
 on bars 5 and 6; a Mixer panel of 39 cards; F5 bound to the punch toggle.
 
+**Rebuilt** in 0.15 (49 nodes, 59 wires): each Track block pinned as a
+channel strip replaces its two knobs, two toggles, and meter, and the
+master is a Fader with the master's meter beside it. The Mixer panel is
+a strip per track (the Track card with its send knob under it) under a
+*Tracks* label, then *Buses*, *Master*, and *Recording*. The clips are
+placed in the song (`start` *At beat…*), so the song plays from bar 9
+and the Song Position, Compare, and Gate to Trigger nodes are gone; the
+punch window is the transport's punch range, the click is the
+transport's metronome (never in the export), and the sections are
+markers on the ruler. The solo chain is one Logic with five inputs. The
+lead's volume ride is automation: a Graph written by moving the fader
+while recording, wired into the Track's `volume`, so the Map and the
+Math are gone. A Song panel holds the Arrangement: a lane per placed
+clip and the automation, dragged and trimmed in time.
+
 **What one track costs**: 9 nodes and 10 wires (source, Track, 2 knobs,
 2 toggles, meter, send knob and gain, File Out), plus one more Mix input,
 one more input on the reverb bus, and one more OR gate in the solo chain.
@@ -107,22 +128,22 @@ Five tracks need four Logic nodes just so solo works.
 
 **Gestures**
 
-| Task | Today | In a recorder | Why |
-| --- | --- | --- | --- |
-| Add a track that shows up on the mixer with fader, pan, mute, solo, and a meter | about 50 (9 nodes from the palette, 10 wires, 5 renames, a Mix input, 5 pins, the solo OR) | 1 or 2 | No strip; a block's inputs can't go on a panel, so every control is its own node |
-| Record a take on a new track and hear it in the mix | about 25 (Audio In, Record, save the project first, `R`, `R`, Create Clip from take, a Track, wires, a Mix input) | 4 (new track, arm, record, stop) | Record has no place in a track; the take has to be wired in by hand |
-| Hear yourself while recording | 8 (Switch, Toggle, 3 wires) | 1 (monitor button) | No monitor path |
-| Tell which controls belong to which track on the mixer | read the label prefixes; 39 cards flow in pin order and each meter breaks the line | default: one strip per track | Panels have no strips, rows, or labels; every card takes the same cell |
-| Make the room quiet | Stop, then find the Monitor toggle among 39 cards | Stop | Stop reaches generators and nothing else; a live input through a Switch plays on, and nothing shows what is sounding |
-| Punch in on bars 5–6 | about 30 (2 Compares with typed beats, 2 Logics, a Toggle, 6 wires) | 2 drags on the ruler | No punch range in the transport |
-| Place a clip at bar 5 | 11 (Compare with a typed beat, Gate to Trigger, `start` set to Never, 3 wires) | 1 drag | Generators start when the transport starts; nothing is placed in time |
-| Start playing from bar 9 | impossible | 1 click on the ruler | The transport only seeks to 0 (`Rewind`); a seek restarts every generator from its own top (`Command::Seek` sets `start_flag`) |
-| Loop bars 5–8 | 6 (menu, two typed beats) | 1 drag | Fine; no ruler to drag on |
-| Ride the lead's volume | about 20 plus drawing (Graph in beats with a typed duration, Map, Math add, 3 wires) | 2 plus drawing, or just move the fader in write mode | No automation lane; no write/touch; the curve doesn't know where bars are |
-| Export stems | 7 per track (File Out, a typed path, a wire) then `Ctrl+E` | 4 in one dialog | Acceptable; a "stem per track" option would make it 1 |
-| Keep the click out of the export | impossible | default | Every Audio Out is summed into a render |
-| Record MIDI | impossible | 2 | No MIDI recording of any kind |
-| Comp takes, trim a clip, fade a clip, drop a marker | impossible | a few each | No take lanes, no clip editing, no markers |
+| Task | Today | Phase 4 | In a recorder | Why |
+| --- | --- | --- | --- | --- |
+| Add a track that shows up on the mixer with fader, pan, mute, solo, and a meter | about 50 (9 nodes from the palette, 10 wires, 5 renames, a Mix input, 5 pins, the solo OR) | about 3 (Add ▸ Track with the source selected, which wires it into the master Mix and pins its strip; a Logic input and a wire for solo) | 1 or 2 | No strip; a block's inputs can't go on a panel, so every control is its own node |
+| Record a take on a new track and hear it in the mix | about 25 (Audio In, Record, save the project first, `R`, `R`, Create Clip from take, a Track, wires, a Mix input) | 4 (Add ▸ Track with nothing selected, which brings an Audio In and an armed Record; `R`; `Space`; Create Clip from take, which places the clip on that track) | 4 (new track, arm, record, stop) | Record has no place in a track; the take has to be wired in by hand |
+| Hear yourself while recording | 8 (Switch, Toggle, 3 wires) | 3 (an Audio Out set to *monitor* and a wire, or the Switch and Toggle as before) | 1 (monitor button) | No monitor path |
+| Tell which controls belong to which track on the mixer | read the label prefixes; 39 cards flow in pin order and each meter breaks the line | default: a strip per track under a *Tracks* label | default: one strip per track | Panels have no strips, rows, or labels; every card takes the same cell |
+| Make the room quiet | Stop, then find the Monitor toggle among 39 cards | 1 (Stop, or Panic for anything else; the status line names what's sounding) | Stop | Stop reaches generators and nothing else; a live input through a Switch plays on, and nothing shows what is sounding |
+| Punch in on bars 5–6 | about 30 (2 Compares with typed beats, 2 Logics, a Toggle, 6 wires) | 1 (`Shift`-drag on the ruler) | 2 drags on the ruler | No punch range in the transport |
+| Place a clip at bar 5 | 11 (Compare with a typed beat, Gate to Trigger, `start` set to Never, 3 wires) | 2 (`start` *At beat…*, type the beat) | 1 drag | Generators start when the transport starts; nothing is placed in time |
+| Start playing from bar 9 | impossible | 1 click on the ruler | 1 click on the ruler | The transport only seeks to 0 (`Rewind`); a seek restarts every generator from its own top (`Command::Seek` sets `start_flag`) |
+| Loop bars 5–8 | 6 (menu, two typed beats) | 1 drag on the ruler | 1 drag | Fine; no ruler to drag on |
+| Ride the lead's volume | about 20 plus drawing (Graph in beats with a typed duration, Map, Math add, 3 wires) | 3 (automation *Write* on the transport, `R`, move the fader; the pass becomes a Graph wired into it) | 2 plus drawing, or just move the fader in write mode | No automation lane; no write/touch; the curve doesn't know where bars are |
+| Export stems | 7 per track (File Out, a typed path, a wire) then `Ctrl+E` | 7 per track, as before | 4 in one dialog | Acceptable; a "stem per track" option would make it 1 |
+| Keep the click out of the export | impossible | default (the transport's click; any Audio Out set to *monitor*) | default | Every Audio Out is summed into a render |
+| Record MIDI | impossible | 3 (a MIDI Record from the keys, `R`, `Space`); the take becomes a MIDI Pattern | 2 | No MIDI recording of any kind |
+| Comp takes, trim a clip, fade a clip, drop a marker | impossible | a marker is 1 (`Alt+M`, or right-click the ruler); the rest still impossible | a few each | No take lanes, no clip editing, no markers |
 
 **Verdict.** A mixer can be built and sounds right, but every track is a
 page of nodes, and the arrangement half of a recorder isn't there:
@@ -142,6 +163,18 @@ bass for the whole song into an FM pair; a Track block with knobs and a
 mute per channel; a reverb bus and a tempo-synced delay; a limiter and a
 meter; a Rack panel; keys 1–6 bound to the mutes.
 
+**Rebuilt** in 0.15 (20 nodes, 24 wires): one Pattern with two banks
+replaces the two Patterns and the four trigger Switches; its hat row has
+accents painted into the cells and wired from `velocity_2` into the hat
+Sampler's `velocity`, replacing the Step Sequencer and the Map; the
+Sixteenths clock swings; one MIDI Pattern with two banks replaces the two
+chord rolls and the MIDI Switch; the playlist is one Clock whose gate
+drives both `bank` inputs (B in bars 5–8 of every eight, from any bar).
+The four drums share a Mix into one Track, so the Rack panel is three
+channel strips (drums, chords, bass) under their names, with keys 1–3 on
+their mutes, and a Beat panel holds the grid and the piano roll, edited
+while they play. A drum channel is now a Sampler, a row, and a Mix input.
+
 **What one drum channel costs**: 6 nodes (Switch for the pattern, Sampler,
 Track, 2 knobs, Toggle) and 8 wires, plus a row in each Pattern and a Mix
 input. A velocity row adds 2 nodes. A second pattern adds one Switch per
@@ -150,17 +183,17 @@ Switches and two Compares before any music is written.
 
 **Gestures**
 
-| Task | Today | In a pattern studio | Why |
-| --- | --- | --- | --- |
-| Put a sample on a new channel in the rack | about 25 (Sampler, Choose file, start and end points typed, Switch, Track, knobs, mute, wires, a Pattern row, a Mix input) | 1 drag | No channel strip; Sampler has no waveform to set points on |
-| Program a beat | 16 clicks on the grid, after the Pattern and Clock exist (7) | 16 clicks | Same, once set up; but the grid lives in the Node tab, not on a panel |
-| Accent some steps | 7 plus 16 typed values (Step Sequencer, Map, 2 wires) | 16 drags under the grid | Pattern steps are on or off; no velocity per step |
-| Swing the beat | impossible | 1 drag | No swing anywhere: not on Clock, Pattern, or MIDI Pattern |
-| Make pattern B | 3 plus painting, then one Switch and 3 wires per channel | 1 (new pattern) | A Pattern holds one grid; switching needs a node per channel |
-| Arrange A and B into a song | 8 for an alternation; a real song needs a Compare and a Select per section | drag patterns onto the playlist | No playlist; no view of patterns in time |
-| See the piano roll next to the drum grid | impossible | default | Editors are one at a time in the Node tab, and never on a panel |
-| Route a channel to a send effect | 4 (Gain, 2 wires, a Mix input) | 2 (pick a mixer track, turn a send) | Acceptable |
-| Mute a channel from the keyboard | 2 (Bind…, press) | 1 | Fine |
+| Task | Today | Phase 4 | In a pattern studio | Why |
+| --- | --- | --- | --- | --- |
+| Put a sample on a new channel in the rack | about 25 (Sampler, Choose file, start and end points typed, Switch, Track, knobs, mute, wires, a Pattern row, a Mix input) | about 4 (Add ▸ Drum Pad, choose the file, a wire from a Pattern row into `hit`) | 1 drag | No channel strip; Sampler has no waveform to set points on |
+| Program a beat | 16 clicks on the grid, after the Pattern and Clock exist (7) | 16 clicks on the grid, on the Pattern's card on a panel if you like | 16 clicks | Same, once set up; but the grid lives in the Node tab, not on a panel |
+| Accent some steps | 7 plus 16 typed values (Step Sequencer, Map, 2 wires) | 1 drag up or down per step, and 1 wire from the row's `velocity` | 16 drags under the grid | Pattern steps are on or off; no velocity per step |
+| Swing the beat | impossible | 1 drag (the Clock's `swing`) | 1 drag | No swing anywhere: not on Clock, Pattern, or MIDI Pattern |
+| Make pattern B | 3 plus painting, then one Switch and 3 wires per channel | 1 click (the `+` bank tab) plus painting; a wire into `bank` picks it | 1 (new pattern) | A Pattern holds one grid; switching needs a node per channel |
+| Arrange A and B into a song | 8 for an alternation; a real song needs a Compare and a Select per section | 2 for an alternation (a Clock, its gate into `bank`); a real song still needs logic per section | drag patterns onto the playlist | No playlist; no view of patterns in time |
+| See the piano roll next to the drum grid | impossible | pin both to a panel, or open both in windows | default | Editors are one at a time in the Node tab, and never on a panel |
+| Route a channel to a send effect | 4 (Gain, 2 wires, a Mix input) | 1 (Add ▸ Send with the track selected), then the effect dropped on its wire | 2 (pick a mixer track, turn a send) | Acceptable |
+| Mute a channel from the keyboard | 2 (Bind…, press) | 2, as before (on the Track's `mute`) | 1 | Fine |
 
 **Verdict.** The beat-making core is close: Pattern and Clock are the
 right primitives and feel right once wired. What's missing is above and
@@ -182,6 +215,17 @@ Samplers, a Compare, an audio Switch, an ADSR, a Map, a Gain); a Record
 fed by the pads whose buffer a ninth pad plays; a Pads panel; keys 1–8
 bound to the pads.
 
+**Rebuilt** in 0.15 (35 nodes, 51 wires): a 4 × 4 Pads grid merged with
+MIDI, the computer keys, and the demo beat (and lit by all of them);
+notes 36–47 are twelve slices of the loop from one Sample and one Slicer
+cut at its hits, with velocity from the note; one Note Split gives the
+snare, the two hats (in a choke group), and the resampled pad (notes
+48–51) a trigger and a velocity each; Zones splits the snare by velocity
+and a Counter steps two Routes for round robin; the keys, from note 52 up,
+are a Voices body that finds its zone with Zones. The sixteen pads, from
+the players to the pads' Mix, are 20 nodes. A pad from MIDI with velocity
+is two nodes (Note Split and a Sampler); a slice of the loop is none.
+
 **What one pad costs**: 6 nodes and 7 wires from MIDI with velocity and a
 button. Eight pads are 48 nodes; a 16-pad kit would be 96 before layers,
 envelopes, or per-pad effects. The snare's two layers times two round
@@ -191,18 +235,18 @@ shared pad block can't hold a different sample per instance.
 
 **Gestures**
 
-| Task | Today | In a sampler | Why |
-| --- | --- | --- | --- |
-| Put a sound on a pad and play it from note 36 | about 30 (6 nodes, a file chosen, low and high typed, 7 wires) | 1 drag | No note-to-trigger node; Sampler needs a chain to listen to one note |
-| Set a slice's start and end | 2 typed fractions, by ear | 2 drags on the waveform | No waveform anywhere in the editor |
-| Slice a loop onto eight pads | 8 Samplers with 16 typed points | 1 (slice at transients) and 1 drag | No slicer; Onset can't cut a buffer |
-| Two velocity layers | about 15 (Compare, 2 Switches, a second Sampler, wires) | 1 drag to split a zone | No zone map; no trigger routing node, so Switch is misused twice |
-| Round robin | about 15 (Counter, Compare, 2 Switches per layer) | 1 click | Same |
-| Choke the open hat | 1 wire | 1 setting | Fine |
-| Keymap two samples with an envelope | about 40 (a Voices body of 8 nodes) | 2 drags | No zone node; a Sample-to-Buffer node would let a shared body take its sound as an input |
-| Resample the pads onto a new pad | 8 (Record, 2 Buttons, Sampler, 4 wires) | 2 | Good |
-| Play a pad with velocity from the mouse | impossible | default | Buttons have no velocity or pressure |
-| See a pad light when the pattern hits it | impossible | default | No light display; Buttons take no `lit` input |
+| Task | Today | Phase 4 | In a sampler | Why |
+| --- | --- | --- | --- | --- |
+| Put a sound on a pad and play it from note 36 | about 30 (6 nodes, a file chosen, low and high typed, 7 wires) | 2 (Note Split and a Sampler, wired); or drop the file on a panel | 1 drag | No note-to-trigger node; Sampler needs a chain to listen to one note |
+| Set a slice's start and end | 2 typed fractions, by ear | 2 drags on the Sampler's waveform in the Node tab | 2 drags on the waveform | No waveform anywhere in the editor |
+| Slice a loop onto eight pads | 8 Samplers with 16 typed points | 2 (a Sample and a Slicer at its transients), and 1 drag per marker | 1 (slice at transients) and 1 drag | No slicer; Onset can't cut a buffer |
+| Two velocity layers | about 15 (Compare, 2 Switches, a second Sampler, wires) | about 5 (Zones, two zones dragged, 2 wires) | 1 drag to split a zone | No zone map; no trigger routing node, so Switch is misused twice |
+| Round robin | about 15 (Counter, Compare, 2 Switches per layer) | about 4 (Counter, Route, 2 wires) | 1 click | Same |
+| Choke the open hat | 1 wire | 1 setting (a Note Split choke group) | 1 setting | Fine |
+| Keymap two samples with an envelope | about 40 (a Voices body of 8 nodes) | about 10 (Zones in the body, two zones dragged) | 2 drags | No zone node; a Sample-to-Buffer node would let a shared body take its sound as an input |
+| Resample the pads onto a new pad | 8 (Record, 2 Buttons, Sampler, 4 wires) | 8, as before | 2 | Good |
+| Play a pad with velocity from the mouse | impossible | default (Pad, Pads) | default | Buttons have no velocity or pressure |
+| See a pad light when the pattern hits it | impossible | 1 wire into `lit` | default | No light display; Buttons take no `lit` input |
 
 **Verdict.** Sample playback itself is complete and sounds right, and
 resampling is better than most tools. Everything around it is missing:
@@ -224,24 +268,38 @@ Delay of 50 ms before the Sampler starts looping the take. A Session
 panel of 23 cards; keys Q W A S Z X bound to slots, 1 and 2 to scenes,
 the gamepad's south button to the looper.
 
-**What one slot costs**: 10 nodes and 13 wires. Six slots are 60 nodes.
+**Rebuilt** in 0.15 (40 nodes, 58 wires): each slot is a Clip Slot
+block (Add ▸ Clip Slot with its clip selected), whose card is the slot's
+button and light and which waits for the bar, so the six slots' 54 nodes
+are six; the two slots on a track release each other (2 wires), and each
+scene's button reaches its row through one wire per slot. Each track's
+knob and gain is a Track block pinned as a channel strip, and the Session
+panel is a grid: a column per track with its name on top, a row per
+scene with its button on the left, the stop buttons in a compact row, and
+the strips under a *Mixer* label. The grid is eleven nodes besides the
+clips (six slots, two scene and three stop buttons). The looper is one
+Looper node with Record, Overdub, and Undo buttons, waiting for the
+bar.
+
+**What one slot costs**: 10 nodes and 13 wires (1 node and 2 wires since
+0.15). Six slots are 60 nodes.
 Exclusive slots on a track and scenes each add a Merge input per slot,
 because a trigger input takes one wire.
 
 **Gestures**
 
-| Task | Today | In a launcher | Why |
-| --- | --- | --- | --- |
-| Add a clip slot that launches on the bar | about 50 (10 nodes, 13 wires, `start` Never, `edge` falling, a typed Compare) | 1 drag | No launch quantization anywhere; it's built from Latch, Sample & Hold, and edges |
-| Launch and stop it | 1 and 1 | 1 and 1 | Fine, once built |
-| Stop everything | impossible once the transport is stopped: the clips keep looping and the stop buttons wait for a bar that never comes | 1 (Stop) | Transport Stop fires only an unwired `stop`, and only while playing; the Clock is quiet while stopped; no panic |
-| Make slots on a track exclusive | 2 Merges and 4 wires per track | default | A trigger input takes one wire; every extra source is a Merge |
-| Add a scene | 1 Button plus a Merge and 2 wires per slot | 1 | Same |
-| See which slot is playing | a Readout showing 0 or 1 | default | No light; Buttons don't light up |
-| Lay the slots out as a grid of tracks and scenes | drag 23 cards by hand; it flows in pin order | default | Panels have no rows, columns, or labels |
-| Record a loop at the next bar | about 35 (12 nodes) | 1 | No looper |
-| Overdub on it | impossible in practice (a second Record and Sampler pair and a buffer swap on every pass) | 1 | Record writes one take at a time; Sampler latches its buffer at start |
-| Set the tempo from the first loop's length | impossible | default | Nothing writes the tempo map from the patch |
+| Task | Today | Phase 4 | In a launcher | Why |
+| --- | --- | --- | --- | --- |
+| Add a clip slot that launches on the bar | about 50 (10 nodes, 13 wires, `start` Never, `edge` falling, a typed Compare) | 1 (Add ▸ Clip Slot with the clip selected) | 1 drag | No launch quantization anywhere; it's built from Latch, Sample & Hold, and edges |
+| Launch and stop it | 1 and 1 | 1 and 1 | 1 and 1 | Fine, once built |
+| Stop everything | impossible once the transport is stopped: the clips keep looping and the stop buttons wait for a bar that never comes | 1 (Stop), playing or not | 1 (Stop) | Transport Stop fires only an unwired `stop`, and only while playing; the Clock is quiet while stopped; no panic |
+| Make slots on a track exclusive | 2 Merges and 4 wires per track | 2 wires for two slots (each slot's `launched` into the other's `release`); a third slot's wire offers the Merge | default | A trigger input takes one wire; every extra source is a Merge |
+| Add a scene | 1 Button plus a Merge and 2 wires per slot | 1 Button and a wire into each slot's `scene` | 1 | Same |
+| See which slot is playing | a Readout showing 0 or 1 | default: `playing` wired into the slot button's `lit` | default | No light; Buttons don't light up |
+| Lay the slots out as a grid of tracks and scenes | drag 23 cards by hand; it flows in pin order | 1 (Launch Grid from Selection), or places and labels | default | Panels have no rows, columns, or labels |
+| Record a loop at the next bar | about 35 (12 nodes) | 4 (a Looper, a Button, 2 wires) | 1 | No looper |
+| Overdub on it | impossible in practice (a second Record and Sampler pair and a buffer swap on every pass) | 2 (a Button into the Looper's `overdub`); `undo` takes a layer off | 1 | Record writes one take at a time; Sampler latches its buffer at start |
+| Set the tempo from the first loop's length | impossible | still impossible; a Tempo node can be tapped along with it | default | Nothing writes the tempo map from the patch |
 
 **Verdict.** The launch logic works, and bar-quantized launching built
 from primitives is a nice demonstration of the model, but no one should

@@ -9,11 +9,14 @@
 //! converts the virtual wires back into the definition's interface after.
 
 pub mod align;
+pub mod automation;
 pub mod connect;
+pub mod generate;
 pub mod group;
 pub mod layout;
 pub mod pins;
 pub mod portal;
+pub mod take;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -300,6 +303,17 @@ impl Ctx<'_> {
     }
 }
 
+/// Whether a generator's `start` is *At beat…*: it's placed in the song.
+pub fn song_locked(node: &NodeInstance, sockets: &Sockets) -> bool {
+    sockets
+        .input("start")
+        .and_then(|s| s.spec.as_ref())
+        .is_some_and(|spec| {
+            spec.choices == ac_core::START_AT_CHOICES
+                && ac_core::param_value(spec, node.params.get("start")) == ac_core::START_AT as f32
+        })
+}
+
 /// See [`Ctx::sockets`].
 pub fn sockets_of(
     graph: &Graph,
@@ -333,10 +347,21 @@ pub fn sockets_of(
             }
             s
         }
-        NodeClass::Known | NodeClass::Group(_) => registry
-            .signature_of(node, defs)
-            .map(from_signature)
-            .unwrap_or_default(),
+        NodeClass::Known | NodeClass::Group(_) => {
+            let mut s = registry
+                .signature_of(node, defs)
+                .map(from_signature)
+                .unwrap_or_default();
+            // `at` and its kind show while the node is placed in the song,
+            // or while wired (DECISIONS D206).
+            if !song_locked(node, &s) {
+                s.inputs.retain(|i| {
+                    !i.spec.as_ref().is_some_and(|sp| sp.song)
+                        || graph.wires_to(id).any(|w| w.to.socket == i.name)
+                });
+            }
+            s
+        }
         NodeClass::Missing(_) => {
             let mut s = Sockets::default();
             let mut ins: Vec<String> = Vec::new();
@@ -691,6 +716,56 @@ pub fn rename_interface_socket(
         }
     }
     Some(name)
+}
+
+/// Mix and Merge keep a free input: wiring their last one adds another (up
+/// to their limit), so the next wire has somewhere to go. Returns whether
+/// it grew.
+pub fn grow_inputs(graph: &mut Graph, to: &Endpoint) -> bool {
+    let Some(n) = graph.node_mut(to.node) else {
+        return false;
+    };
+    let (default, max) = match n.kind.as_str() {
+        "mix" => (4, 64),
+        "merge" => (2, 16),
+        _ => return false,
+    };
+    let count = ac_core::ConfigExt::get_u64_or(&n.config, "inputs", default).clamp(1, max);
+    if count >= max || to.socket != format!("in_{}", count - 1) {
+        return false;
+    }
+    match n.config.as_object_mut() {
+        Some(o) => {
+            o.insert("inputs".into(), (count + 1).into());
+        }
+        None => n.config = serde_json::json!({ "inputs": count + 1 }),
+    }
+    true
+}
+
+/// Put a Merge in front of `to`, fed by the wire already into it (from
+/// `existing`) and by `from`, with a third input free. `ty` is what flows:
+/// MIDI or triggers. Returns the Merge.
+pub fn merge_into(
+    graph: &mut Graph,
+    ctx: &mut Ctx,
+    existing: Endpoint,
+    from: Endpoint,
+    to: Endpoint,
+    ty: ac_core::SignalType,
+    pos: [f32; 2],
+) -> Result<NodeId, ConnectError> {
+    let kind = if ty == ac_core::SignalType::Midi {
+        "midi"
+    } else {
+        "trigger"
+    };
+    let config = serde_json::json!({ "type": kind, "inputs": 3 });
+    let id = add_node(graph, ctx, "merge", config, pos);
+    connect(graph, ctx, existing, Endpoint::new(id, "in_0"))?;
+    connect(graph, ctx, from, Endpoint::new(id, "in_1"))?;
+    connect(graph, ctx, Endpoint::new(id, "out"), to)?;
+    Ok(id)
 }
 
 // ---------------------------------------------------------------- nodes

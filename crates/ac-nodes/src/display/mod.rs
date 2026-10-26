@@ -4,10 +4,15 @@
 use ac_core::{AudioIn, AudioOut, Registry};
 
 pub mod analyzer;
+pub mod arrangement;
+pub mod light;
 pub mod meter;
+pub mod midi_monitor;
 pub mod readout;
 pub mod scope;
 pub mod spectrogram;
+pub mod tuner;
+pub mod waveform;
 
 /// Register every node in this category.
 pub fn register(r: &mut Registry) {
@@ -16,6 +21,11 @@ pub fn register(r: &mut Registry) {
     r.register::<readout::Readout>();
     r.register::<analyzer::Analyzer>();
     r.register::<spectrogram::Spectrogram>();
+    r.register::<light::Light>();
+    r.register::<waveform::Waveform>();
+    r.register::<midi_monitor::MidiMonitor>();
+    r.register::<tuner::Tuner>();
+    r.register::<arrangement::Arrangement>();
 }
 
 /// Copy every channel of `input` to `out` bit for bit, so a display node can

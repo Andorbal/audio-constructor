@@ -3,15 +3,19 @@
 //! Click or drag in empty space to draw a note, drag a note to move it,
 //! drag its right edge to change its length, and right-click (or
 //! double-click) it to delete it. Positions snap to a sixteenth note; hold
-//! Shift to place freely.
+//! Shift to place freely. The tabs above are the clip's banks, as on the
+//! Pattern grid.
 //!
 //! The node stores `"notes": [[start_beat, length_beats, note, velocity],
-//! ...]` and the clip's `length` in beats.
+//! ...]` (a list of such lists for several banks) and the clip's `length`
+//! in beats.
 
 use ac_core::{Config, ConfigExt};
+use ac_nodes::sequencing::midi_pattern::{MAX_BANKS, note_banks};
 use egui::{Align2, CursorIcon, Pos2, Rect, Stroke, pos2, vec2};
 
-use super::{Edit, area, grid, load, snap, store};
+use super::banks::{self, Tabs};
+use super::{Edit, LiveView, area, grid, load, snap, store};
 use crate::theme;
 
 /// Snap grid in beats (a sixteenth note).
@@ -32,13 +36,18 @@ pub struct Note {
     pub vel: u8,
 }
 
-/// The clip length and notes in `config`. Entries that aren't four numbers
-/// are skipped; values are repaired into range.
+/// The clip length and the notes of its first bank in `config`.
 pub fn parse(config: &Config) -> (f64, Vec<Note>) {
+    let (length, mut banks) = parse_banks(config);
+    (length, banks.swap_remove(0))
+}
+
+/// The clip length and every bank's notes in `config`. Entries that aren't
+/// four numbers are skipped; values are repaired into range.
+pub fn parse_banks(config: &Config) -> (f64, Vec<Vec<Note>>) {
     let length = config.get_f64_or("length", 4.0).clamp(0.25, 1024.0);
-    let notes = config
-        .get("notes")
-        .and_then(|v| v.as_array())
+    let banks = note_banks(config)
+        .into_iter()
         .map(|list| {
             list.iter()
                 .filter_map(|n| {
@@ -55,8 +64,17 @@ pub fn parse(config: &Config) -> (f64, Vec<Note>) {
                 })
                 .collect()
         })
-        .unwrap_or_default();
-    (length, notes)
+        .collect();
+    (length, banks)
+}
+
+/// The config value for every bank: one bank's notes alone, several as a
+/// list of lists.
+pub fn banks_value(banks: &[Vec<Note>]) -> serde_json::Value {
+    match banks {
+        [one] => to_value(one),
+        _ => serde_json::Value::Array(banks.iter().map(|b| to_value(b)).collect()),
+    }
 }
 
 /// The config value for `notes`, sorted by start then pitch.
@@ -138,11 +156,45 @@ pub(super) fn ui(
     ui: &mut egui::Ui,
     id: egui::Id,
     config: &Config,
+    live: &LiveView,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
-    let (length, mut notes) = parse(config);
+    let (length, mut all) = parse_banks(config);
+    let bank_id = id.with("bank");
+    let mut bank = load::<usize>(ui, bank_id).unwrap_or(0).min(all.len() - 1);
     let (resp, rect) = area(ui, width, height);
+    let tabs = Tabs::new(
+        Rect::from_min_size(
+            rect.min + vec2(KEYS_W, 4.0),
+            vec2(rect.width() - KEYS_W - 6.0, banks::HEIGHT),
+        ),
+        all.len(),
+        MAX_BANKS,
+    );
+    let mut edit = None;
+    if let Some(action) = tabs.action(&resp) {
+        let (shown, changed) = banks::apply(&mut all, bank, action, MAX_BANKS);
+        bank = shown;
+        if changed {
+            edit = Some(Edit {
+                value: banks_value(&all),
+                done: true,
+            });
+        }
+    }
+    store(ui, bank_id, Some(bank));
+    let mut notes = all[bank].clone();
+    // Every bank, with this one's notes as edited.
+    let value = |notes: &[Note]| {
+        let mut all = all.clone();
+        all[bank] = notes.to_vec();
+        banks_value(&all)
+    };
+    let body = Rect::from_min_max(
+        pos2(rect.left(), rect.top() + 4.0 + banks::HEIGHT + banks::GAP),
+        rect.max,
+    );
     let drag_id = id.with("drag");
     // Keep the view still while a drag moves notes past its edge.
     let range_id = id.with("range");
@@ -151,7 +203,7 @@ pub(super) fn ui(
         _ => pitch_range(&notes),
     };
     store(ui, range_id, Some((lo, hi)));
-    let roll = Rect::from_min_max(rect.min + vec2(KEYS_W, 0.0), rect.max);
+    let roll = Rect::from_min_max(body.min + vec2(KEYS_W, 0.0), body.max);
     let rows = (hi - lo + 1).max(1);
     let row_h = roll.height() / rows as f32;
     let beat_w = roll.width() / length as f32;
@@ -173,7 +225,6 @@ pub(super) fn ui(
         r.y_range().contains(p.y) && (p.x - r.right()).abs() <= EDGE
     };
 
-    let mut edit = None;
     let pointer = resp.interact_pointer_pos().or(resp.hover_pos());
     if let Some(p) = resp.hover_pos()
         && notes.iter().any(|n| on_edge(n, p))
@@ -221,14 +272,14 @@ pub(super) fn ui(
             }
         }
         edit = Some(Edit {
-            value: to_value(&notes),
+            value: value(&notes),
             done: false,
         });
     }
     if resp.drag_stopped() && load::<Drag>(ui, drag_id).is_some() {
         store::<Drag>(ui, drag_id, None);
         edit = Some(Edit {
-            value: to_value(&notes),
+            value: value(&notes),
             done: true,
         });
     }
@@ -241,7 +292,7 @@ pub(super) fn ui(
             Some(i) if resp.secondary_clicked() || resp.double_clicked() => {
                 notes.remove(i);
                 edit = Some(Edit {
-                    value: to_value(&notes),
+                    value: value(&notes),
                     done: true,
                 });
             }
@@ -258,7 +309,7 @@ pub(super) fn ui(
                     pitch,
                 );
                 edit = Some(Edit {
-                    value: to_value(&notes),
+                    value: value(&notes),
                     done: true,
                 });
             }
@@ -274,7 +325,7 @@ pub(super) fn ui(
         let y = roll.top() + k as f32 * row_h;
         let black = matches!(pitch.rem_euclid(12), 1 | 3 | 6 | 8 | 10);
         painter.rect_filled(
-            Rect::from_min_size(pos2(rect.left(), y), vec2(KEYS_W - 2.0, row_h)),
+            Rect::from_min_size(pos2(body.left(), y), vec2(KEYS_W - 2.0, row_h)),
             0.0,
             if black {
                 theme::meter_bg()
@@ -296,7 +347,7 @@ pub(super) fn ui(
             );
             if row_h >= 7.0 {
                 painter.text(
-                    pos2(rect.left() + 2.0, y + row_h / 2.0),
+                    pos2(body.left() + 2.0, y + row_h / 2.0),
                     Align2::LEFT_CENTER,
                     format!("C{}", pitch / 12 - 1),
                     small.clone(),
@@ -326,6 +377,7 @@ pub(super) fn ui(
             ),
         );
     }
+    tabs.paint(&painter, bank, live.bank, resp.hover_pos());
     let color = theme::category_color(ac_core::Category::Sequencing);
     for n in &notes {
         let r = note_rect(n);
@@ -341,6 +393,12 @@ pub(super) fn ui(
             Stroke::new(1.0, theme::fade(theme::text_strong(), 0.4)),
             egui::StrokeKind::Inside,
         );
+    }
+    if let Some(beat) = live.position.filter(|b| *b >= 0.0 && *b <= length)
+        && live.bank.is_none_or(|b| b == bank)
+    {
+        let x = roll.left() + beat as f32 * beat_w;
+        super::playhead(&painter, x, roll.top(), roll.bottom());
     }
     edit
 }
@@ -365,6 +423,16 @@ mod tests {
             json!([[0.0, 1.0, 60, 100], [1.0, 0.5, 64, 90]])
         );
         assert_eq!(parse(&json!({})), (4.0, Vec::new()));
+    }
+
+    #[test]
+    fn banks_read_and_write_as_lists_of_lists() {
+        let c = json!({ "notes": [[[0, 1, 60, 100]], []] });
+        let (_, b) = parse_banks(&c);
+        assert_eq!((b.len(), b[0].len(), b[1].len()), (2, 1, 0));
+        assert_eq!(banks_value(&b), json!([[[0.0, 1.0, 60, 100]], []]));
+        assert_eq!(banks_value(&b[..1]), json!([[0.0, 1.0, 60, 100]]));
+        assert_eq!(parse(&c).1.len(), 1, "the first bank");
     }
 
     #[test]

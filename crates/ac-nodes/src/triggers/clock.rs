@@ -18,14 +18,21 @@ node! {
     /// already in step after a seek, a loop, or a restart. A new `interval`
     /// or `offset` takes effect from the next tick.
     ///
-    /// `gate` goes high at each tick for `duty` × `interval` (at 1 it stays
-    /// high). `count` is the number of ticks since the start of the song on
+    /// `swing` (0 to 1) delays every other tick, the odd ones, by up to
+    /// half an interval: at 0 the ticks are straight, at about 0.67 they
+    /// shuffle in triplets, and at 1 the pairs split three to one. Anything
+    /// clocked from it, a `Pattern`, a `Euclidean`, a `Step Sequencer`, an
+    /// `Arpeggiator`, swings with it.
+    ///
+    /// `gate` goes high at each tick for `duty` of the time to the next
+    /// tick (at 1 it stays high). `count` is the number of ticks since the start of the song on
     /// the current grid, so it jumps when `interval` changes. The clock is
     /// quiet while the transport is stopped.
     ///
     /// **Try this:** set `interval` to 0.25 for sixteenth notes and wire
     /// `trigger` into an `ADSR` for a hi-hat pulse, or wire `gate` into an
-    /// envelope and use `duty` as the note length.
+    /// envelope and use `duty` as the note length. Turn `swing` up to 0.5
+    /// and hear the hats shuffle.
     pub struct Clock {
         seconds: bool,
     }
@@ -34,6 +41,7 @@ node! {
 const INTERVAL: usize = 0;
 const DUTY: usize = 1;
 const OFFSET: usize = 2;
+const SWING: usize = 3;
 
 const TRIGGER: usize = 0;
 const GATE: usize = 1;
@@ -53,6 +61,15 @@ struct Grid {
     interval: f64,
     offset: f64,
     duty: f64,
+    swing: f64,
+}
+
+impl Grid {
+    /// Where tick `k` falls in grid steps: odd ticks `swing / 2` late.
+    fn place(&self, k: u64) -> f64 {
+        let late = if k % 2 == 1 { self.swing / 2.0 } else { 0.0 };
+        k as f64 + late
+    }
 }
 
 /// Maps between sample positions and the clock's unit.
@@ -91,27 +108,31 @@ impl Timeline<'_> {
 
     /// Sanitized inputs read at `sample`. The interval is at least one
     /// sample so every tick gets its own sample.
-    fn grid(&self, sample: u64, interval: f32, duty: f32, offset: f32) -> Grid {
+    fn grid(&self, sample: u64, [interval, duty, offset, swing]: [f32; 4]) -> Grid {
         let finite = |v: f32, d: f64| if v.is_finite() { f64::from(v) } else { d };
         Grid {
             interval: finite(interval, 1.0).clamp(self.one_sample(sample), MAX_SPAN),
             offset: finite(offset, 0.0).clamp(0.0, MAX_SPAN),
             duty: finite(duty, 0.5).clamp(0.0, 1.0),
+            swing: finite(swing, 0.0).clamp(0.0, 1.0),
         }
     }
 
     fn tick(&self, g: &Grid, k: u64) -> u64 {
-        self.sample_at(g.offset + k as f64 * g.interval)
+        self.sample_at(g.offset + g.place(k) * g.interval)
     }
 
-    /// Where tick `k`'s gate falls (exclusive).
+    /// Where tick `k`'s gate falls (exclusive): `duty` of the way to the
+    /// next tick.
     fn gate_end(&self, g: &Grid, k: u64) -> u64 {
-        self.sample_at(g.offset + (k as f64 + g.duty) * g.interval)
+        let (a, b) = (g.place(k), g.place(k + 1));
+        self.sample_at(g.offset + (a + g.duty * (b - a)) * g.interval)
     }
 
     /// The grid index at `sample`, rounded down (0 before the first tick).
     /// Rounding of tick samples means the exact tick may be one index on
-    /// either side, which the callers check.
+    /// either side, which the callers check; a swung tick is late, never
+    /// early, so it is never before the index found.
     fn index_at(&self, g: &Grid, sample: u64) -> Option<u64> {
         let x = ((self.unit_at(sample) - g.offset) / g.interval).floor();
         x.is_finite().then(|| x.max(0.0) as u64)
@@ -174,6 +195,12 @@ impl Node for Clock {
                     .no_smooth()
                     .doc("Shifts the grid later."),
             )
+            .input(
+                SocketSpec::float("swing", Unit::Generic, 0.0)
+                    .range(0.0, 1.0)
+                    .no_smooth()
+                    .doc("Delays every other tick, up to half an interval."),
+            )
             .output(SocketSpec::trigger("trigger").doc("Fires on each tick."))
             .output(SocketSpec::boolean("gate", false).doc("High for `duty` of each interval."))
             .output(SocketSpec::int("count", 0).doc("Ticks since the start of the song."))
@@ -199,11 +226,15 @@ impl Node for Clock {
         let interval = io.inputs.float(INTERVAL);
         let duty = io.inputs.float(DUTY);
         let offset = io.inputs.float(OFFSET);
+        let swing = io.inputs.float(SWING);
         let start = t.position;
         let end = start.saturating_add(ctx.frames as u64);
         let grid_at = |sample: u64| {
             let i = sample.saturating_sub(start) as usize;
-            line.grid(sample, interval.at(i), duty.at(i), offset.at(i))
+            line.grid(
+                sample,
+                [interval.at(i), duty.at(i), offset.at(i), swing.at(i)],
+            )
         };
 
         let g0 = grid_at(start);
@@ -275,6 +306,35 @@ mod tests {
             Unit::Seconds
         );
         assert_eq!(Clock::describe(&json!({})).inputs[OFFSET].unit, Unit::Beats);
+    }
+
+    #[test]
+    fn swing_delays_odd_ticks_and_their_gates_follow() {
+        // 120 BPM: a beat is 24 000 samples; half-beat ticks.
+        let mut h = harness(json!({}), 48_000.0, 37);
+        h.set("interval", 0.5).set("swing", 0.5).set("duty", 1.0);
+        let out = h.run(48_000);
+        // Odd ticks a quarter of an interval (3 000 samples) late.
+        assert_eq!(out.triggers("trigger"), &[0, 15_000, 24_000, 39_000]);
+        assert!(
+            out.float("gate").iter().all(|&g| g == 1.0),
+            "duty 1 still ties"
+        );
+        let mut h = harness(json!({}), 48_000.0, 64);
+        h.set("interval", 0.5).set("swing", 0.5).set("duty", 0.5);
+        let gate = h.run(24_000).float("gate").to_vec();
+        // Half of 15 000 after tick 0, half of 9 000 after tick 1.
+        assert!(gate[..7_500].iter().all(|&g| g == 1.0));
+        assert!(gate[7_500..15_000].iter().all(|&g| g == 0.0));
+        assert!(gate[15_000..19_500].iter().all(|&g| g == 1.0));
+        assert!(gate[19_500..].iter().all(|&g| g == 0.0));
+        // In step after a seek between a straight tick and its swung pair.
+        let mut h = harness(json!({}), 48_000.0, 64);
+        h.set("interval", 0.5).set("swing", 1.0);
+        h.seek(13_000);
+        let out = h.run(10_000);
+        assert_eq!(out.triggers("trigger"), &[18_000 - 13_000]);
+        assert_eq!(out.int("count")[0], 1);
     }
 
     #[test]

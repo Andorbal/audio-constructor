@@ -65,7 +65,7 @@ fn channel_count(config: &Config) -> u32 {
 
 /// The manual on/off state after this block's `start` and `stop` triggers:
 /// the later one wins, and `stop` wins a tie.
-fn manual_after(on: bool, starts: &[u32], stops: &[u32]) -> bool {
+pub(crate) fn manual_after(on: bool, starts: &[u32], stops: &[u32]) -> bool {
     match (starts.last(), stops.last()) {
         (None, None) => on,
         (Some(_), None) => true,
@@ -135,7 +135,8 @@ impl Node for Record {
             (false, true, sink) => {
                 self.take_frames = 0;
                 if let Some(sink) = sink {
-                    sink.start();
+                    let t = ctx.transport;
+                    sink.start_at(t.playing.then_some(t.position));
                 }
             }
             (true, false, Some(sink)) => sink.stop(),

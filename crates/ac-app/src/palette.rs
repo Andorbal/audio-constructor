@@ -1,11 +1,13 @@
 //! The add-node palette (`Shift+A`, double-click, or dropping a wire on
 //! empty canvas): fuzzy search with synonyms, keyboard driven, filtered to
 //! nodes that can complete a dragged wire. It offers nodes, the groups in
-//! the project, and the blocks in the library.
+//! the project, and the blocks in the library. A wire dropped on a trigger
+//! or MIDI input that's already wired opens it offering to merge the two
+//! wires or replace the old one first (DECISIONS D214).
 
 use ac_core::{
-    Block, BlockSource, Category, Config, GROUP_KIND, GroupId, PLUGIN_KIND, PluginDesc, Registry,
-    SignalType, VOICES_KIND,
+    Block, BlockSource, Category, Config, Endpoint, GROUP_KIND, GroupId, PLUGIN_KIND, PluginDesc,
+    Registry, SignalType, VOICES_KIND,
 };
 use ac_io::{Library, LibraryBlock};
 use egui::{Align2, Key, Pos2, RichText, Sense, vec2};
@@ -87,6 +89,41 @@ fn tier(name: &str, q: &str) -> u8 {
     }
 }
 
+/// A wire dropped on an input another wire already feeds: the source of
+/// that wire, and the input.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MergeOffer {
+    pub existing: Endpoint,
+    pub to: Endpoint,
+}
+
+/// The palette's first entries for a [`MergeOffer`]: keep both wires
+/// through a new Merge, or replace the old wire.
+pub const MERGE_BOTH: &str = "@merge-both";
+pub const REPLACE_WIRE: &str = "@replace-wire";
+
+/// The two entries a merge offer puts first, kept while they match `query`.
+pub fn merge_candidates(query: &str) -> Vec<Candidate> {
+    let q = query.trim().to_lowercase();
+    [
+        Candidate::node(
+            &tr("palette-merge-both"),
+            MERGE_BOTH,
+            Some(Category::Math),
+            tr("palette-merge-both-summary"),
+        ),
+        Candidate::node(
+            &tr("palette-replace-wire"),
+            REPLACE_WIRE,
+            None,
+            tr("palette-replace-wire-summary"),
+        ),
+    ]
+    .into_iter()
+    .filter(|c| q.is_empty() || c.name.to_lowercase().contains(&q))
+    .collect()
+}
+
 /// What the user picked, with the wire it completes and where it goes.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Picked {
@@ -94,6 +131,8 @@ pub struct Picked {
     pub pending: Option<PendingWire>,
     /// Canvas position for the new node.
     pub at: Pos2,
+    /// The input the wire was dropped on, when it was already wired.
+    pub merge: Option<MergeOffer>,
 }
 
 #[derive(Default)]
@@ -105,6 +144,8 @@ pub struct Palette {
     pub screen: Pos2,
     pub canvas: Pos2,
     pub pending: Option<PendingWire>,
+    /// The wired input the pending wire was dropped on.
+    pub merge: Option<MergeOffer>,
     /// A line above the search saying what happens to the node added
     /// (the selected nodes it will be wired from).
     pub note: Option<String>,
@@ -252,14 +293,29 @@ impl Palette {
         self.screen = screen;
         self.canvas = canvas;
         self.pending = pending;
+        self.merge = None;
         self.note = None;
         self.focus = true;
         self.age = 0;
     }
 
+    /// Open for a wire dropped on an input that's already wired.
+    pub fn open_merge(
+        &mut self,
+        screen: Pos2,
+        canvas: Pos2,
+        pending: PendingWire,
+        offer: MergeOffer,
+    ) {
+        self.open_at(screen, canvas, Some(pending));
+        self.merge = Some(offer);
+        self.note = Some(tr("palette-merge-note"));
+    }
+
     pub fn close(&mut self) {
         self.open = false;
         self.pending = None;
+        self.merge = None;
         self.note = None;
     }
 
@@ -274,7 +330,7 @@ impl Palette {
         if !self.open {
             return None;
         }
-        let list = candidates(
+        let mut list = candidates(
             registry,
             library,
             doc,
@@ -282,6 +338,11 @@ impl Palette {
             self.pending.as_ref(),
             &self.plugins,
         );
+        if self.merge.is_some() {
+            let mut first = merge_candidates(&self.query);
+            first.append(&mut list);
+            list = first;
+        }
         if self.selected >= list.len() {
             self.selected = list.len().saturating_sub(1);
         }
@@ -400,6 +461,7 @@ impl Palette {
             candidate: c,
             pending: self.pending.take(),
             at: self.canvas,
+            merge: self.merge.take(),
         });
         if picked.is_some() || clicked_outside {
             self.close();

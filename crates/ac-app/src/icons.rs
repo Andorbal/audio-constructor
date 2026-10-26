@@ -8,7 +8,14 @@ pub const STOP: &str = "\u{E46C}";
 pub const RECORD: &str = "\u{E3EE}";
 pub const REPEAT: &str = "\u{E3F6}";
 pub const SKIP_BACK: &str = "\u{E5A4}";
+pub const SKIP_FORWARD: &str = "\u{E5A6}";
 pub const METRONOME: &str = "\u{EC8E}";
+/// An octagon with an exclamation mark: Panic.
+pub const WARNING_OCTAGON: &str = "\u{E4E4}";
+pub const FLAG: &str = "\u{E244}";
+pub const RULER: &str = "\u{E6B8}";
+pub const FADERS: &str = "\u{E432}";
+pub const PALETTE: &str = "\u{E6C8}";
 
 pub const FILE_PLUS: &str = "\u{E236}";
 pub const FOLDER_OPEN: &str = "\u{E256}";

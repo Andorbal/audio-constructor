@@ -80,10 +80,25 @@ pub enum Action {
     PerformanceMode,
 
     PlayStop,
+    /// Stop, even with the transport already stopped: every generator's
+    /// `stop` fires (D200).
+    Stop,
+    /// Stop everything, reset every node, and mute the outputs for a block
+    /// (D201). `Escape` twice.
+    Panic,
     PlayFromStart,
     Record,
     ToggleLoop,
     Rewind,
+    /// The playhead to the song's end.
+    GoToEnd,
+    /// A marker at the playhead.
+    AddMarker,
+    /// The playhead to the marker before or after it.
+    PreviousMarker,
+    NextMarker,
+    /// The transport's click on or off (D207).
+    Metronome,
     /// Computer keys go to the patch instead of running shortcuts.
     PlayKeys,
 
@@ -181,10 +196,17 @@ impl Action {
         Action::TogglePanels,
         Action::PerformanceMode,
         Action::PlayStop,
+        Action::Stop,
+        Action::Panic,
         Action::PlayFromStart,
         Action::Record,
         Action::ToggleLoop,
         Action::Rewind,
+        Action::GoToEnd,
+        Action::AddMarker,
+        Action::PreviousMarker,
+        Action::NextMarker,
+        Action::Metronome,
         Action::PlayKeys,
         Action::Shortcuts,
         Action::About,
@@ -251,10 +273,17 @@ impl Action {
             Action::TogglePanels => tr("action-toggle-panels"),
             Action::PerformanceMode => tr("action-performance-mode"),
             Action::PlayStop => tr("action-play-stop"),
+            Action::Stop => tr("action-stop"),
+            Action::Panic => tr("action-panic"),
             Action::PlayFromStart => tr("action-play-from-start"),
             Action::Record => tr("action-record"),
             Action::ToggleLoop => tr("action-toggle-loop"),
             Action::Rewind => tr("action-rewind"),
+            Action::GoToEnd => tr("action-go-to-end"),
+            Action::AddMarker => tr("action-add-marker"),
+            Action::PreviousMarker => tr("action-previous-marker"),
+            Action::NextMarker => tr("action-next-marker"),
+            Action::Metronome => tr("action-metronome"),
             Action::PlayKeys => tr("action-play-keys"),
             Action::Shortcuts => tr("action-shortcuts"),
             Action::About => tr("action-about"),
@@ -324,10 +353,19 @@ impl Action {
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
             Action::PlayStop => sc(NONE, Key::Space),
+            Action::Stop => None,
+            // `Escape` twice, which the editor counts itself: one Escape
+            // cancels whatever is under way.
+            Action::Panic => None,
             Action::PlayFromStart => sc(SHIFT, Key::Space),
             Action::Record => sc(NONE, Key::R),
             Action::ToggleLoop => None,
             Action::Rewind => None,
+            Action::GoToEnd => sc(NONE, Key::End),
+            Action::AddMarker => sc(ALT, Key::M),
+            Action::PreviousMarker => sc(ALT, Key::ArrowLeft),
+            Action::NextMarker => sc(ALT, Key::ArrowRight),
+            Action::Metronome => sc(SHIFT, Key::C),
             Action::PlayKeys => sc(CMD, Key::K),
             Action::Shortcuts => sc(CMD, Key::Slash),
             Action::About => None,
@@ -369,10 +407,17 @@ impl Action {
                 | Action::TogglePanels
                 | Action::PerformanceMode
                 | Action::PlayStop
+                | Action::Stop
+                | Action::Panic
                 | Action::PlayFromStart
                 | Action::Record
                 | Action::ToggleLoop
                 | Action::Rewind
+                | Action::GoToEnd
+                | Action::AddMarker
+                | Action::PreviousMarker
+                | Action::NextMarker
+                | Action::Metronome
                 | Action::PlayKeys
                 | Action::UiScaleUp
                 | Action::UiScaleDown

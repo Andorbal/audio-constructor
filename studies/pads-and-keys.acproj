@@ -23,16 +23,84 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a sampler and drum machine (pads from MIDI, the computer keys, and the mouse; velocity layers; round robin; choke; a keymapped instrument; resampling), built from today's nodes.\n\nEight pads play slices of one drum loop. Each pad is a chain: a MIDI Filter for its note, a MIDI Note for the trigger and velocity, a Map from velocity to gain, a Merge joining the MIDI trigger, the pad button, and a demo Pattern, and the Sampler. The snare has a soft and a hard layer and two round-robin samples. The closed hat chokes the open hat. The Keys section is a two-zone sampled instrument inside a Voices node, and the Resample section records the pads into a buffer a ninth pad plays.\n\nWhat a sampler has that this can't: a waveform to drag start and end points on, pads that light up and feel velocity, a note-to-pad map in one node, slicing a loop at its transients, and a pad block that carries its own sample. Read docs/GAPS.md."
+          "text": "Study: a sampler and drum machine (pads from MIDI, the computer keys, and the mouse; velocity layers; round robin; choke; slices of a loop; a keymapped instrument; resampling), rebuilt with Phase 4's tools.\n\nA 4 × 4 Pads grid plays everything: notes 36 to 47 are twelve slices of one drum loop, cut at its hits by a Slicer; 48 is a snare with a soft and a hard layer and two round-robin samples; 49 and 50 are a closed and an open hat, the closed one choking the open one; 51 plays what the Resample section recorded. Each pad lights when its note plays, the demo pattern's included, and plays as hard as it's hit. The bank is twenty nodes, from the players to the pads' Mix. The Keys section (notes 52 and up) is a two-zone sampled instrument inside a Voices node.\n\nWhat a sampler has that this can't: a library of kits. Read docs/GAPS.md."
         },
         "ui": {
           "pos": [
             0.0,
-            -620.0
+            -700.0
           ],
           "size": [
             760.0,
-            270.0
+            300.0
+          ]
+        }
+      },
+      {
+        "id": "7",
+        "kind": "comment",
+        "config": {
+          "text": "Players: a MIDI keyboard, the computer keys (Z S X D C V G B are notes 36 to 43 with Play keys on), the Pads grid, and a demo MIDI Pattern that plays the kit in a render, merged into one MIDI stream that also lights the pads."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            -320.0
+          ],
+          "size": [
+            560.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "c0",
+        "kind": "comment",
+        "config": {
+          "text": "Slices: a Sample of the drum loop into a Slicer that cuts it at its hits. Notes 36 to 47 play the twelve slices in order, at the note's velocity; the Slicer's Node tab shows where it cut."
+        },
+        "ui": {
+          "pos": [
+            660.0,
+            -320.0
+          ],
+          "size": [
+            560.0,
+            96.0
+          ]
+        }
+      },
+      {
+        "id": "21",
+        "kind": "comment",
+        "config": {
+          "text": "Velocity layers and round robin: Note Split gives the snare's note (48) a trigger and a velocity, Zones splits it into a soft and a hard layer by velocity, and a Counter steps two Routes so each layer alternates between two samples. The hats share a choke group, so the closed one ends the open one."
+        },
+        "ui": {
+          "pos": [
+            990.0,
+            300.0
+          ],
+          "size": [
+            620.0,
+            110.0
+          ]
+        }
+      },
+      {
+        "id": "4a",
+        "kind": "comment",
+        "config": {
+          "text": "The Keys body: a Voice feeds Zones (notes below C4, and C4 and up), whose triggers start one of two Samplers; an ADSR shapes the level. Drag the zones in the Zones node's Node tab to move the split."
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            1380.0
+          ],
+          "size": [
+            600.0,
+            110.0
           ]
         }
       },
@@ -42,7 +110,7 @@
         "ui": {
           "pos": [
             0.0,
-            -320.0
+            -160.0
           ],
           "label": "MIDI keyboard"
         }
@@ -58,9 +126,161 @@
         "ui": {
           "pos": [
             0.0,
-            -160.0
+            -60.0
           ],
           "label": "Computer keys"
+        }
+      },
+      {
+        "id": "60",
+        "kind": "pads",
+        "config": {
+          "rows": 4,
+          "columns": 4,
+          "low": 36
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            40.0
+          ],
+          "label": "Pads"
+        }
+      },
+      {
+        "id": "6",
+        "kind": "midi_pattern",
+        "config": {
+          "length": 4.0,
+          "notes": [
+            [
+              0.0,
+              0.25,
+              36,
+              90
+            ],
+            [
+              0.0,
+              0.25,
+              49,
+              95
+            ],
+            [
+              0.5,
+              0.25,
+              38,
+              90
+            ],
+            [
+              0.5,
+              0.25,
+              49,
+              70
+            ],
+            [
+              1.0,
+              0.25,
+              48,
+              90
+            ],
+            [
+              1.0,
+              0.25,
+              49,
+              95
+            ],
+            [
+              1.5,
+              0.25,
+              49,
+              70
+            ],
+            [
+              1.5,
+              0.25,
+              50,
+              90
+            ],
+            [
+              1.75,
+              0.25,
+              39,
+              90
+            ],
+            [
+              2.0,
+              0.25,
+              36,
+              90
+            ],
+            [
+              2.0,
+              0.25,
+              49,
+              95
+            ],
+            [
+              2.5,
+              0.25,
+              36,
+              90
+            ],
+            [
+              2.5,
+              0.25,
+              38,
+              90
+            ],
+            [
+              2.5,
+              0.25,
+              49,
+              70
+            ],
+            [
+              3.0,
+              0.25,
+              37,
+              90
+            ],
+            [
+              3.0,
+              0.25,
+              48,
+              120
+            ],
+            [
+              3.0,
+              0.25,
+              49,
+              95
+            ],
+            [
+              3.5,
+              0.25,
+              49,
+              70
+            ],
+            [
+              3.5,
+              0.25,
+              50,
+              90
+            ],
+            [
+              3.75,
+              0.25,
+              40,
+              90
+            ]
+          ]
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            700.0
+          ],
+          "label": "Demo beat"
         }
       },
       {
@@ -68,275 +288,100 @@
         "kind": "merge",
         "config": {
           "type": "midi",
-          "inputs": 2
+          "inputs": 4
         },
         "ui": {
           "pos": [
-            300.0,
-            -320.0
+            330.0,
+            -160.0
           ],
           "label": "Players"
         }
       },
       {
-        "id": "5",
-        "kind": "clock",
-        "params": {
-          "interval": 0.25
+        "id": "61",
+        "kind": "sample",
+        "config": {
+          "file": "../examples/assets/drums.wav"
         },
         "ui": {
           "pos": [
-            300.0,
-            -200.0
+            660.0,
+            -160.0
           ],
-          "label": "Sixteenths"
+          "label": "Drum loop"
         }
       },
       {
-        "id": "6",
-        "kind": "pattern",
+        "id": "62",
+        "kind": "slicer",
         "config": {
-          "steps": 16,
-          "rows": 8,
-          "cells": [
-            "x.......x.x.....",
-            "....x.......x...",
-            "x.x.x.x.x.x.x.x.",
-            "......x.......x.",
-            "............x...",
-            "..x.......x.....",
-            ".......x........",
-            "...............x"
+          "mode": "transients",
+          "low": 36,
+          "channels": 1
+        },
+        "params": {
+          "count": 12,
+          "sensitivity": 0.6
+        },
+        "ui": {
+          "pos": [
+            990.0,
+            -160.0
+          ],
+          "label": "Loop slices"
+        }
+      },
+      {
+        "id": "63",
+        "kind": "note_split",
+        "config": {
+          "notes": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "chokes": [
+            0,
+            1,
+            1,
+            0
           ]
         },
         "ui": {
           "pos": [
-            600.0,
-            -320.0
+            660.0,
+            300.0
           ],
-          "label": "Demo beat"
-        },
-        "hide_unwired": true
+          "label": "Kit notes"
+        }
       },
       {
-        "id": "7",
-        "kind": "comment",
+        "id": "64",
+        "kind": "zones",
         "config": {
-          "text": "Players: a MIDI keyboard and the computer keys (Z S X D C V G B are notes 36 to 43 with Play keys on), merged. The demo Pattern plays the pads in a render and before any keyboard is connected."
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            -320.0
-          ],
-          "size": [
-            466.0,
-            80.0
+          "zones": [
+            [
+              0,
+              127,
+              0,
+              0.6
+            ],
+            [
+              0,
+              127,
+              0.6,
+              1
+            ]
           ]
-        }
-      },
-      {
-        "id": "8",
-        "kind": "midi_filter",
-        "params": {
-          "high": 36,
-          "low": 36
         },
         "ui": {
           "pos": [
-            0.0,
-            0.0
+            990.0,
+            440.0
           ],
-          "label": "Kick note (36)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "9",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            0.0
-          ],
-          "label": "Kick hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "a",
-        "kind": "map",
-        "params": {
-          "out_max": -2.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            0.0
-          ],
-          "label": "Kick velocity"
-        }
-      },
-      {
-        "id": "b",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            220.0
-          ],
-          "label": "Kick pad"
-        }
-      },
-      {
-        "id": "c",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            0.0
-          ],
-          "label": "Kick triggers"
-        }
-      },
-      {
-        "id": "d",
-        "kind": "sampler",
-        "config": {
-          "file": "../examples/assets/drums.wav",
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "end_point": 0.125,
-          "note": 60.0,
-          "start": "never",
-          "start_point": 0.0
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            0.0
-          ],
-          "label": "Kick"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "e",
-        "kind": "midi_filter",
-        "params": {
-          "high": 37,
-          "low": 37
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            580.0
-          ],
-          "label": "Snare note (37)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "f",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            580.0
-          ],
-          "label": "Snare hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "10",
-        "kind": "map",
-        "params": {
-          "out_max": 0.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            580.0
-          ],
-          "label": "Snare velocity"
-        }
-      },
-      {
-        "id": "11",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            800.0
-          ],
-          "label": "Snare pad"
-        }
-      },
-      {
-        "id": "12",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            580.0
-          ],
-          "label": "Snare triggers"
-        }
-      },
-      {
-        "id": "13",
-        "kind": "compare",
-        "params": {
-          "b": 0.6,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            730.0
-          ],
-          "label": "Hard hit?"
-        }
-      },
-      {
-        "id": "14",
-        "kind": "switch",
-        "config": {
-          "type": "trigger"
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            580.0
-          ],
-          "label": "Layer"
-        }
-      },
-      {
-        "id": "15",
-        "kind": "switch",
-        "config": {
-          "type": "trigger"
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            730.0
-          ],
-          "label": "Layer (hard side)"
+          "label": "Velocity layers"
         }
       },
       {
@@ -347,53 +392,38 @@
         },
         "ui": {
           "pos": [
-            1500.0,
-            880.0
+            990.0,
+            580.0
           ],
           "label": "Round robin"
         }
       },
       {
-        "id": "17",
-        "kind": "compare",
-        "params": {
-          "b": 1.0,
-          "op": "equal"
+        "id": "65",
+        "kind": "route",
+        "config": {
+          "outputs": 2
         },
         "ui": {
           "pos": [
-            1800.0,
-            880.0
+            1320.0,
+            440.0
           ],
-          "label": "Second sample?"
+          "label": "Soft round robin"
         }
       },
       {
-        "id": "18",
-        "kind": "switch",
+        "id": "66",
+        "kind": "route",
         "config": {
-          "type": "trigger"
+          "outputs": 2
         },
         "ui": {
           "pos": [
-            1500.0,
+            1320.0,
             580.0
           ],
-          "label": "Soft RR 1"
-        }
-      },
-      {
-        "id": "19",
-        "kind": "switch",
-        "config": {
-          "type": "trigger"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            580.0
-          ],
-          "label": "Soft RR 2"
+          "label": "Hard round robin"
         }
       },
       {
@@ -413,8 +443,8 @@
         },
         "ui": {
           "pos": [
-            2100.0,
-            580.0
+            1650.0,
+            440.0
           ],
           "label": "Soft snare 1"
         },
@@ -437,40 +467,12 @@
         },
         "ui": {
           "pos": [
-            2400.0,
-            580.0
+            1650.0,
+            560.0
           ],
           "label": "Soft snare 2"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "1c",
-        "kind": "switch",
-        "config": {
-          "type": "trigger"
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            730.0
-          ],
-          "label": "Hard RR 1"
-        }
-      },
-      {
-        "id": "1d",
-        "kind": "switch",
-        "config": {
-          "type": "trigger"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            730.0
-          ],
-          "label": "Hard RR 2"
-        }
       },
       {
         "id": "1e",
@@ -489,8 +491,8 @@
         },
         "ui": {
           "pos": [
-            2100.0,
-            730.0
+            1650.0,
+            680.0
           ],
           "label": "Hard snare 1"
         },
@@ -513,112 +515,12 @@
         },
         "ui": {
           "pos": [
-            2400.0,
-            730.0
+            1650.0,
+            800.0
           ],
           "label": "Hard snare 2"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "20",
-        "kind": "mix",
-        "config": {
-          "inputs": 4
-        },
-        "ui": {
-          "pos": [
-            2700.0,
-            580.0
-          ],
-          "label": "Snare layers"
-        }
-      },
-      {
-        "id": "21",
-        "kind": "comment",
-        "config": {
-          "text": "Velocity layers and round robin: two Switches split the trigger by velocity, a Counter and Compare alternate samples, and four more Switches route the trigger to one of four Samplers. Eleven nodes to do what a sampler's zone list does with two numbers per zone."
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            880.0
-          ],
-          "size": [
-            560.0,
-            96.0
-          ]
-        }
-      },
-      {
-        "id": "22",
-        "kind": "midi_filter",
-        "params": {
-          "high": 38,
-          "low": 38
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            1160.0
-          ],
-          "label": "Closed hat note (38)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "23",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            1160.0
-          ],
-          "label": "Closed hat hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "24",
-        "kind": "map",
-        "params": {
-          "out_max": -10.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            1160.0
-          ],
-          "label": "Closed hat velocity"
-        }
-      },
-      {
-        "id": "25",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            1380.0
-          ],
-          "label": "Closed hat pad"
-        }
-      },
-      {
-        "id": "26",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            1160.0
-          ],
-          "label": "Closed hat triggers"
-        }
       },
       {
         "id": "27",
@@ -636,81 +538,12 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            1160.0
+            660.0,
+            760.0
           ],
           "label": "Closed hat"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "28",
-        "kind": "midi_filter",
-        "params": {
-          "high": 39,
-          "low": 39
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            1740.0
-          ],
-          "label": "Open hat note (39)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "29",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            1740.0
-          ],
-          "label": "Open hat hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "2a",
-        "kind": "map",
-        "params": {
-          "out_max": -8.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            1740.0
-          ],
-          "label": "Open hat velocity"
-        }
-      },
-      {
-        "id": "2b",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            1960.0
-          ],
-          "label": "Open hat pad"
-        }
-      },
-      {
-        "id": "2c",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            1740.0
-          ],
-          "label": "Open hat triggers"
-        }
       },
       {
         "id": "2d",
@@ -728,378 +561,10 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            1740.0
+            660.0,
+            880.0
           ],
           "label": "Open hat"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "2e",
-        "kind": "midi_filter",
-        "params": {
-          "high": 40,
-          "low": 40
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            2320.0
-          ],
-          "label": "Clap note (40)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "2f",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            2320.0
-          ],
-          "label": "Clap hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "30",
-        "kind": "map",
-        "params": {
-          "out_max": -6.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            2320.0
-          ],
-          "label": "Clap velocity"
-        }
-      },
-      {
-        "id": "31",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            2540.0
-          ],
-          "label": "Clap pad"
-        }
-      },
-      {
-        "id": "32",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2320.0
-          ],
-          "label": "Clap triggers"
-        }
-      },
-      {
-        "id": "33",
-        "kind": "sampler",
-        "config": {
-          "file": "../examples/assets/drums.wav",
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "end_point": 0.225,
-          "note": 55.0,
-          "start": "never",
-          "start_point": 0.185
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            2320.0
-          ],
-          "label": "Clap"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "34",
-        "kind": "midi_filter",
-        "params": {
-          "high": 41,
-          "low": 41
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            2900.0
-          ],
-          "label": "Rim note (41)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "35",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            2900.0
-          ],
-          "label": "Rim hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "36",
-        "kind": "map",
-        "params": {
-          "out_max": -8.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            2900.0
-          ],
-          "label": "Rim velocity"
-        }
-      },
-      {
-        "id": "37",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            3120.0
-          ],
-          "label": "Rim pad"
-        }
-      },
-      {
-        "id": "38",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2900.0
-          ],
-          "label": "Rim triggers"
-        }
-      },
-      {
-        "id": "39",
-        "kind": "sampler",
-        "config": {
-          "file": "../examples/assets/drums.wav",
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "end_point": 0.185,
-          "note": 67.0,
-          "start": "never",
-          "start_point": 0.125
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            2900.0
-          ],
-          "label": "Rim"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "3a",
-        "kind": "midi_filter",
-        "params": {
-          "high": 42,
-          "low": 42
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            3480.0
-          ],
-          "label": "Tom note (42)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "3b",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            3480.0
-          ],
-          "label": "Tom hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "3c",
-        "kind": "map",
-        "params": {
-          "out_max": -4.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            3480.0
-          ],
-          "label": "Tom velocity"
-        }
-      },
-      {
-        "id": "3d",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            3700.0
-          ],
-          "label": "Tom pad"
-        }
-      },
-      {
-        "id": "3e",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            3480.0
-          ],
-          "label": "Tom triggers"
-        }
-      },
-      {
-        "id": "3f",
-        "kind": "sampler",
-        "config": {
-          "file": "../examples/assets/drums.wav",
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "end_point": 0.125,
-          "note": 50.0,
-          "start": "never",
-          "start_point": 0.0
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            3480.0
-          ],
-          "label": "Tom"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "40",
-        "kind": "midi_filter",
-        "params": {
-          "high": 43,
-          "low": 43
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            4060.0
-          ],
-          "label": "Perc note (43)"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "41",
-        "kind": "midi_note",
-        "ui": {
-          "pos": [
-            300.0,
-            4060.0
-          ],
-          "label": "Perc hit"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "42",
-        "kind": "map",
-        "params": {
-          "out_max": -10.0,
-          "out_min": -24.0
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            4060.0
-          ],
-          "label": "Perc velocity"
-        }
-      },
-      {
-        "id": "43",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            4280.0
-          ],
-          "label": "Perc pad"
-        }
-      },
-      {
-        "id": "44",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 3
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            4060.0
-          ],
-          "label": "Perc triggers"
-        }
-      },
-      {
-        "id": "45",
-        "kind": "sampler",
-        "config": {
-          "file": "../examples/assets/drums.wav",
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "end_point": 0.185,
-          "note": 72.0,
-          "start": "never",
-          "start_point": 0.125
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            4060.0
-          ],
-          "label": "Perc"
         },
         "hide_unwired": true
       },
@@ -1108,14 +573,14 @@
         "kind": "midi_filter",
         "params": {
           "high": 127,
-          "low": 48
+          "low": 52
         },
         "ui": {
           "pos": [
             0.0,
-            4640.0
+            1520.0
           ],
-          "label": "Keys (notes 48 and up)"
+          "label": "Keys (notes 52 and up)"
         },
         "hide_unwired": true
       },
@@ -1128,13 +593,13 @@
             [
               0,
               1.5,
-              48,
+              55,
               90
             ],
             [
               2,
               1.5,
-              55,
+              60,
               90
             ],
             [
@@ -1154,7 +619,7 @@
         "ui": {
           "pos": [
             0.0,
-            4790.0
+            1620.0
           ],
           "label": "Demo riff"
         },
@@ -1169,8 +634,8 @@
         },
         "ui": {
           "pos": [
-            300.0,
-            4640.0
+            330.0,
+            1520.0
           ],
           "label": "Keys players"
         }
@@ -1185,43 +650,12 @@
         },
         "ui": {
           "pos": [
-            600.0,
-            4640.0
+            660.0,
+            1520.0
           ],
           "label": "Sampled keys"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "4a",
-        "kind": "comment",
-        "config": {
-          "text": "The Keys body: a Voice feeds two Samplers (a low and a high zone), a Compare on the note picks one through a Switch, and an ADSR shapes the level. Zones are a Compare each; the samples are files set inside the body, since a Buffer can't be wired in from a file."
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            4640.0
-          ],
-          "size": [
-            560.0,
-            110.0
-          ]
-        }
-      },
-      {
-        "id": "4b",
-        "kind": "mix",
-        "config": {
-          "inputs": 8
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            -500.0
-          ],
-          "label": "Pads"
-        }
       },
       {
         "id": "4c",
@@ -1229,7 +663,7 @@
         "ui": {
           "pos": [
             0.0,
-            5060.0
+            1100.0
           ],
           "label": "Hold to resample"
         }
@@ -1245,21 +679,10 @@
         },
         "ui": {
           "pos": [
-            300.0,
-            5060.0
+            330.0,
+            1100.0
           ],
           "label": "Resample"
-        }
-      },
-      {
-        "id": "4e",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            600.0,
-            5060.0
-          ],
-          "label": "Resampled pad"
         }
       },
       {
@@ -1274,12 +697,26 @@
         },
         "ui": {
           "pos": [
-            900.0,
-            5060.0
+            660.0,
+            1100.0
           ],
           "label": "Resampled"
         },
         "hide_unwired": true
+      },
+      {
+        "id": "4b",
+        "kind": "mix",
+        "config": {
+          "inputs": 8
+        },
+        "ui": {
+          "pos": [
+            2310.0,
+            -160.0
+          ],
+          "label": "Pads"
+        }
       },
       {
         "id": "50",
@@ -1292,8 +729,8 @@
         },
         "ui": {
           "pos": [
-            1800.0,
-            0.0
+            2640.0,
+            -160.0
           ],
           "label": "Master"
         }
@@ -1310,8 +747,8 @@
         },
         "ui": {
           "pos": [
-            2100.0,
-            0.0
+            2970.0,
+            -160.0
           ],
           "label": "Room"
         }
@@ -1321,8 +758,8 @@
         "kind": "meter",
         "ui": {
           "pos": [
-            2400.0,
-            0.0
+            3300.0,
+            -160.0
           ],
           "label": "Master meter"
         }
@@ -1332,8 +769,8 @@
         "kind": "audio_out",
         "ui": {
           "pos": [
-            2700.0,
-            0.0
+            3630.0,
+            -160.0
           ],
           "label": "Main out"
         }
@@ -1349,351 +786,107 @@
         "to": "4:in_1"
       },
       {
-        "from": "5:trigger",
-        "to": "6:clock"
+        "from": "60:midi",
+        "to": "4:in_2"
+      },
+      {
+        "from": "6:midi",
+        "to": "4:in_3"
       },
       {
         "from": "4:out",
-        "to": "8:midi"
+        "to": "60:lit"
       },
       {
-        "from": "8:midi",
-        "to": "9:midi"
-      },
-      {
-        "from": "9:velocity",
-        "to": "a:in"
-      },
-      {
-        "from": "9:trigger",
-        "to": "c:in_0"
-      },
-      {
-        "from": "b:trigger",
-        "to": "c:in_1"
-      },
-      {
-        "from": "6:trigger_0",
-        "to": "c:in_2"
-      },
-      {
-        "from": "c:out",
-        "to": "d:start"
-      },
-      {
-        "from": "a:out",
-        "to": "d:gain"
+        "from": "61:buffer",
+        "to": "62:buffer"
       },
       {
         "from": "4:out",
-        "to": "e:midi"
+        "to": "62:midi"
       },
       {
-        "from": "e:midi",
-        "to": "f:midi"
+        "from": "4:out",
+        "to": "63:midi"
       },
       {
-        "from": "f:velocity",
-        "to": "10:in"
+        "from": "63:trigger_0",
+        "to": "64:trigger"
       },
       {
-        "from": "f:trigger",
-        "to": "12:in_0"
+        "from": "63:velocity_0",
+        "to": "64:velocity"
       },
       {
-        "from": "11:trigger",
-        "to": "12:in_1"
-      },
-      {
-        "from": "6:trigger_1",
-        "to": "12:in_2"
-      },
-      {
-        "from": "f:velocity",
-        "to": "13:a"
-      },
-      {
-        "from": "13:out",
-        "to": "14:select"
-      },
-      {
-        "from": "12:out",
-        "to": "14:a"
-      },
-      {
-        "from": "13:out",
-        "to": "15:select"
-      },
-      {
-        "from": "12:out",
-        "to": "15:b"
-      },
-      {
-        "from": "12:out",
+        "from": "63:trigger_0",
         "to": "16:trigger"
       },
       {
+        "from": "64:trigger_0",
+        "to": "65:in"
+      },
+      {
+        "from": "64:trigger_1",
+        "to": "66:in"
+      },
+      {
         "from": "16:count",
-        "to": "17:a"
+        "to": "65:index"
       },
       {
-        "from": "14:out",
-        "to": "18:a"
+        "from": "16:count",
+        "to": "66:index"
       },
       {
-        "from": "17:out",
-        "to": "18:select"
-      },
-      {
-        "from": "14:out",
-        "to": "19:b"
-      },
-      {
-        "from": "17:out",
-        "to": "19:select"
-      },
-      {
-        "from": "18:out",
+        "from": "65:out_0",
         "to": "1a:start"
       },
       {
-        "from": "19:out",
+        "from": "63:velocity_0",
+        "to": "1a:velocity"
+      },
+      {
+        "from": "65:out_1",
         "to": "1b:start"
       },
       {
-        "from": "15:out",
-        "to": "1c:a"
+        "from": "63:velocity_0",
+        "to": "1b:velocity"
       },
       {
-        "from": "17:out",
-        "to": "1c:select"
-      },
-      {
-        "from": "15:out",
-        "to": "1d:b"
-      },
-      {
-        "from": "17:out",
-        "to": "1d:select"
-      },
-      {
-        "from": "1c:out",
+        "from": "66:out_0",
         "to": "1e:start"
       },
       {
-        "from": "1d:out",
+        "from": "63:velocity_0",
+        "to": "1e:velocity"
+      },
+      {
+        "from": "66:out_1",
         "to": "1f:start"
       },
       {
-        "from": "1a:out",
-        "to": "20:in_0"
+        "from": "63:velocity_0",
+        "to": "1f:velocity"
       },
       {
-        "from": "1b:out",
-        "to": "20:in_1"
-      },
-      {
-        "from": "1e:out",
-        "to": "20:in_2"
-      },
-      {
-        "from": "1f:out",
-        "to": "20:in_3"
-      },
-      {
-        "from": "4:out",
-        "to": "22:midi"
-      },
-      {
-        "from": "22:midi",
-        "to": "23:midi"
-      },
-      {
-        "from": "23:velocity",
-        "to": "24:in"
-      },
-      {
-        "from": "23:trigger",
-        "to": "26:in_0"
-      },
-      {
-        "from": "25:trigger",
-        "to": "26:in_1"
-      },
-      {
-        "from": "6:trigger_2",
-        "to": "26:in_2"
-      },
-      {
-        "from": "26:out",
+        "from": "63:trigger_1",
         "to": "27:start"
       },
       {
-        "from": "24:out",
-        "to": "27:gain"
+        "from": "63:velocity_1",
+        "to": "27:velocity"
       },
       {
-        "from": "4:out",
-        "to": "28:midi"
-      },
-      {
-        "from": "28:midi",
-        "to": "29:midi"
-      },
-      {
-        "from": "29:velocity",
-        "to": "2a:in"
-      },
-      {
-        "from": "29:trigger",
-        "to": "2c:in_0"
-      },
-      {
-        "from": "2b:trigger",
-        "to": "2c:in_1"
-      },
-      {
-        "from": "6:trigger_3",
-        "to": "2c:in_2"
-      },
-      {
-        "from": "2c:out",
+        "from": "63:trigger_2",
         "to": "2d:start"
       },
       {
-        "from": "2a:out",
-        "to": "2d:gain"
+        "from": "63:velocity_2",
+        "to": "2d:velocity"
       },
       {
-        "from": "4:out",
-        "to": "2e:midi"
-      },
-      {
-        "from": "2e:midi",
-        "to": "2f:midi"
-      },
-      {
-        "from": "2f:velocity",
-        "to": "30:in"
-      },
-      {
-        "from": "2f:trigger",
-        "to": "32:in_0"
-      },
-      {
-        "from": "31:trigger",
-        "to": "32:in_1"
-      },
-      {
-        "from": "6:trigger_4",
-        "to": "32:in_2"
-      },
-      {
-        "from": "32:out",
-        "to": "33:start"
-      },
-      {
-        "from": "30:out",
-        "to": "33:gain"
-      },
-      {
-        "from": "4:out",
-        "to": "34:midi"
-      },
-      {
-        "from": "34:midi",
-        "to": "35:midi"
-      },
-      {
-        "from": "35:velocity",
-        "to": "36:in"
-      },
-      {
-        "from": "35:trigger",
-        "to": "38:in_0"
-      },
-      {
-        "from": "37:trigger",
-        "to": "38:in_1"
-      },
-      {
-        "from": "6:trigger_5",
-        "to": "38:in_2"
-      },
-      {
-        "from": "38:out",
-        "to": "39:start"
-      },
-      {
-        "from": "36:out",
-        "to": "39:gain"
-      },
-      {
-        "from": "4:out",
-        "to": "3a:midi"
-      },
-      {
-        "from": "3a:midi",
-        "to": "3b:midi"
-      },
-      {
-        "from": "3b:velocity",
-        "to": "3c:in"
-      },
-      {
-        "from": "3b:trigger",
-        "to": "3e:in_0"
-      },
-      {
-        "from": "3d:trigger",
-        "to": "3e:in_1"
-      },
-      {
-        "from": "6:trigger_6",
-        "to": "3e:in_2"
-      },
-      {
-        "from": "3e:out",
-        "to": "3f:start"
-      },
-      {
-        "from": "3c:out",
-        "to": "3f:gain"
-      },
-      {
-        "from": "4:out",
-        "to": "40:midi"
-      },
-      {
-        "from": "40:midi",
-        "to": "41:midi"
-      },
-      {
-        "from": "41:velocity",
-        "to": "42:in"
-      },
-      {
-        "from": "41:trigger",
-        "to": "44:in_0"
-      },
-      {
-        "from": "43:trigger",
-        "to": "44:in_1"
-      },
-      {
-        "from": "6:trigger_7",
-        "to": "44:in_2"
-      },
-      {
-        "from": "44:out",
-        "to": "45:start"
-      },
-      {
-        "from": "42:out",
-        "to": "45:gain"
-      },
-      {
-        "from": "26:out",
+        "from": "63:off_2",
         "to": "2d:stop"
       },
       {
@@ -1713,38 +906,6 @@
         "to": "49:midi"
       },
       {
-        "from": "d:out",
-        "to": "4b:in_0"
-      },
-      {
-        "from": "20:out",
-        "to": "4b:in_1"
-      },
-      {
-        "from": "27:out",
-        "to": "4b:in_2"
-      },
-      {
-        "from": "2d:out",
-        "to": "4b:in_3"
-      },
-      {
-        "from": "33:out",
-        "to": "4b:in_4"
-      },
-      {
-        "from": "39:out",
-        "to": "4b:in_5"
-      },
-      {
-        "from": "3f:out",
-        "to": "4b:in_6"
-      },
-      {
-        "from": "45:out",
-        "to": "4b:in_7"
-      },
-      {
         "from": "4c:trigger",
         "to": "4d:start"
       },
@@ -1753,16 +914,20 @@
         "to": "4d:stop"
       },
       {
-        "from": "4b:out",
-        "to": "4d:in"
-      },
-      {
         "from": "4d:buffer",
         "to": "4f:buffer"
       },
       {
-        "from": "4e:trigger",
+        "from": "63:trigger_3",
         "to": "4f:start"
+      },
+      {
+        "from": "63:velocity_3",
+        "to": "4f:velocity"
+      },
+      {
+        "from": "4b:out",
+        "to": "4d:in"
       },
       {
         "from": "4b:out",
@@ -1787,106 +952,98 @@
       {
         "from": "52:out",
         "to": "53:in"
+      },
+      {
+        "from": "62:out",
+        "to": "4b:in_0"
+      },
+      {
+        "from": "1a:out",
+        "to": "4b:in_1"
+      },
+      {
+        "from": "1b:out",
+        "to": "4b:in_2"
+      },
+      {
+        "from": "1e:out",
+        "to": "4b:in_3"
+      },
+      {
+        "from": "1f:out",
+        "to": "4b:in_4"
+      },
+      {
+        "from": "27:out",
+        "to": "4b:in_5"
+      },
+      {
+        "from": "2d:out",
+        "to": "4b:in_6"
       }
     ],
     "frames": [
       {
-        "label": "Kick",
+        "label": "Players",
         "rect": [
           -24.0,
-          -52.0,
-          1444.0,
-          458.0
+          -372.0,
+          608.0,
+          1283.0
         ]
       },
       {
-        "label": "Snare",
+        "label": "Slices of the loop",
         "rect": [
-          -24.0,
-          528.0,
-          2944.0,
-          537.0
+          636.0,
+          -372.0,
+          608.0,
+          469.0
         ]
       },
       {
-        "label": "Closed hat",
+        "label": "Snare: velocity layers and round robin",
         "rect": [
-          -24.0,
-          1108.0,
-          1444.0,
-          458.0
+          966.0,
+          248.0,
+          1234.0,
+          655.0
         ]
       },
       {
-        "label": "Open hat",
+        "label": "Hats: the closed one chokes the open one",
         "rect": [
-          -24.0,
-          1688.0,
-          1444.0,
-          458.0
+          636.0,
+          708.0,
+          244.0,
+          297.0
         ]
       },
       {
-        "label": "Clap",
+        "label": "Resample: hold, play, let go, then hit pad 47",
         "rect": [
           -24.0,
-          2268.0,
-          1444.0,
-          458.0
-        ]
-      },
-      {
-        "label": "Rim",
-        "rect": [
-          -24.0,
-          2848.0,
-          1444.0,
-          458.0
-        ]
-      },
-      {
-        "label": "Tom",
-        "rect": [
-          -24.0,
-          3428.0,
-          1444.0,
-          458.0
-        ]
-      },
-      {
-        "label": "Perc",
-        "rect": [
-          -24.0,
-          4008.0,
-          1444.0,
-          458.0
+          1048.0,
+          904.0,
+          233.0
         ]
       },
       {
         "label": "Keys: two zones, eight voices",
         "rect": [
           -24.0,
-          4588.0,
-          844.0,
-          277.0
-        ]
-      },
-      {
-        "label": "Resample: hold, play, let go, then hit the new pad",
-        "rect": [
-          -24.0,
-          5008.0,
-          1144.0,
-          290.0
+          1328.0,
+          904.0,
+          373.0
         ]
       },
       {
         "label": "Out",
         "rect": [
-          1476.0,
-          -552.0,
-          1444.0,
-          759.0
+          2286.0,
+          -212.0,
+          1564.0,
+          470.0
         ]
       }
     ]
@@ -2600,7 +1757,7 @@
     },
     "sampled-keys": {
       "name": "Sampled Keys",
-      "description": "Two sample zones split at middle C, an ADSR on the level. A body for Voices.",
+      "description": "Two sampled zones for a Voices node: notes below C4 play the low sample and C4 and up the high one, with an ADSR on the level. Zones finds the note's zone and starts that zone's Sampler.\n\n- `attack`, `release`: the level envelope.\n- `out` (audio): one voice.",
       "version": 1,
       "tags": [
         "instrument"
@@ -2695,35 +1852,6 @@
             "hide_unwired": true
           },
           {
-            "id": "4",
-            "kind": "compare",
-            "params": {
-              "b": 60.0,
-              "op": "less"
-            },
-            "ui": {
-              "pos": [
-                300.0,
-                400.0
-              ],
-              "label": "Below middle C?"
-            }
-          },
-          {
-            "id": "5",
-            "kind": "switch",
-            "config": {
-              "type": "audio"
-            },
-            "ui": {
-              "pos": [
-                600.0,
-                0.0
-              ],
-              "label": "Zone"
-            }
-          },
-          {
             "id": "6",
             "kind": "adsr",
             "params": {
@@ -2763,6 +1891,47 @@
               ],
               "label": "Level"
             }
+          },
+          {
+            "id": "4",
+            "kind": "zones",
+            "config": {
+              "zones": [
+                [
+                  0,
+                  59,
+                  0,
+                  1
+                ],
+                [
+                  60,
+                  127,
+                  0,
+                  1
+                ]
+              ]
+            },
+            "ui": {
+              "pos": [
+                260.0,
+                260.0
+              ],
+              "label": "Zones"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "mix",
+            "config": {
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                780.0,
+                120.0
+              ],
+              "label": "Both zones"
+            }
           }
         ],
         "wires": [
@@ -2773,30 +1942,6 @@
           {
             "from": "1:note",
             "to": "3:note"
-          },
-          {
-            "from": "1:trigger",
-            "to": "2:start"
-          },
-          {
-            "from": "1:trigger",
-            "to": "3:start"
-          },
-          {
-            "from": "1:note",
-            "to": "4:a"
-          },
-          {
-            "from": "4:out",
-            "to": "5:select"
-          },
-          {
-            "from": "3:out",
-            "to": "5:a"
-          },
-          {
-            "from": "2:out",
-            "to": "5:b"
           },
           {
             "from": "1:gate",
@@ -2811,6 +1956,34 @@
             "to": "8:gain"
           },
           {
+            "from": "1:note",
+            "to": "4:note"
+          },
+          {
+            "from": "1:velocity",
+            "to": "4:velocity"
+          },
+          {
+            "from": "1:trigger",
+            "to": "4:trigger"
+          },
+          {
+            "from": "4:trigger_0",
+            "to": "2:start"
+          },
+          {
+            "from": "4:trigger_1",
+            "to": "3:start"
+          },
+          {
+            "from": "2:out",
+            "to": "5:in_0"
+          },
+          {
+            "from": "3:out",
+            "to": "5:in_1"
+          },
+          {
             "from": "5:out",
             "to": "8:in"
           }
@@ -2823,37 +1996,46 @@
       "name": "Pads",
       "items": [
         {
-          "node": "b"
+          "node": "60",
+          "size": [
+            4,
+            4
+          ],
+          "at": [
+            0,
+            1
+          ]
         },
         {
-          "node": "11"
+          "node": "4c",
+          "at": [
+            4,
+            1
+          ]
         },
         {
-          "node": "25"
+          "node": "52",
+          "at": [
+            4,
+            3
+          ]
+        }
+      ],
+      "labels": [
+        {
+          "text": "Kit",
+          "at": [
+            0,
+            0
+          ],
+          "span": 4
         },
         {
-          "node": "2b"
-        },
-        {
-          "node": "31"
-        },
-        {
-          "node": "37"
-        },
-        {
-          "node": "3d"
-        },
-        {
-          "node": "43"
-        },
-        {
-          "node": "4e"
-        },
-        {
-          "node": "4c"
-        },
-        {
-          "node": "52"
+          "text": "Resample",
+          "at": [
+            4,
+            0
+          ]
         }
       ]
     }
@@ -2866,8 +2048,8 @@
       },
       "target": {
         "type": "input",
-        "node": "b",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_0"
       }
     },
     {
@@ -2877,8 +2059,8 @@
       },
       "target": {
         "type": "input",
-        "node": "11",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_1"
       }
     },
     {
@@ -2888,8 +2070,8 @@
       },
       "target": {
         "type": "input",
-        "node": "25",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_2"
       }
     },
     {
@@ -2899,8 +2081,8 @@
       },
       "target": {
         "type": "input",
-        "node": "2b",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_3"
       }
     },
     {
@@ -2910,8 +2092,8 @@
       },
       "target": {
         "type": "input",
-        "node": "31",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_4"
       }
     },
     {
@@ -2921,8 +2103,8 @@
       },
       "target": {
         "type": "input",
-        "node": "37",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_5"
       }
     },
     {
@@ -2932,8 +2114,8 @@
       },
       "target": {
         "type": "input",
-        "node": "3d",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_6"
       }
     },
     {
@@ -2943,8 +2125,8 @@
       },
       "target": {
         "type": "input",
-        "node": "43",
-        "socket": "pressed"
+        "node": "60",
+        "socket": "pad_7"
       }
     }
   ]

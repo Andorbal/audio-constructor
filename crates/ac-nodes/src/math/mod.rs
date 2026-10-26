@@ -22,7 +22,8 @@ pub mod math;
 pub mod number_to_text;
 pub mod quantize;
 pub mod random;
-mod route;
+pub mod route;
+mod routing;
 pub mod sample_hold;
 pub mod select;
 pub mod smooth;
@@ -50,6 +51,7 @@ pub fn register(r: &mut Registry) {
     r.register::<accumulate::Accumulate>();
     r.register::<select::Select>();
     r.register::<switch::Switch>();
+    r.register::<route::Route>();
     r.register::<merge::Merge>();
     r.register::<number_to_text::NumberToText>();
     r.register::<text_to_number::TextToNumber>();

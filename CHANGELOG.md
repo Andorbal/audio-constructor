@@ -11,6 +11,168 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.15.0] - 2026-10-26
+
+Phase 4: the tools the gap studies found missing.
+
+### Added
+
+- **Panic.** The octagon button in the transport bar (and in performance
+  mode), Transport ▸ Panic, or `Esc` twice: the transport stops, every
+  node resets (voices let go, notes end, delays empty), and the outputs go
+  quiet for a moment. It's a transport action you can bind to a key, a
+  pad, or a gamepad button too.
+- **The status line says what's sounding.** While any Audio Out plays
+  something, the status line names it ("Sounding: Main · Click"); click it
+  to find the node.
+- **Panels have structure.** Cards keep their places: pinning something
+  new no longer moves anything already on a panel. Make a **strip** of
+  cards (a named column under one header, moved and unpinned as one), add
+  **labels** for sections, rows, and columns, or a separator, make a toggle
+  or button **compact** so two share a cell, give a card a **color**, and
+  `Shift`-click several cards to drag them together. Panels from earlier
+  versions open as they were.
+- **Pin a group or block to a panel.** It becomes one card with a widget
+  for each of its inputs and a meter or light for each output, so a Track
+  block pins as a channel strip: fader with meter, pan, mute, solo. A
+  trigger input that's wired has no button there: a Clip Slot's card is
+  its launch button and light.
+- **Panels from a selection.** Select Track blocks and choose **Mixer from
+  Selection**, Samplers for **Pads from Selection**, or Clips for **Launch
+  Grid from Selection** (a button per clip, lit while it plays, a column
+  per track and a row per scene), and the panel is made in one step.
+- **New controls and displays:** **Fader** (a level in dB with a meter
+  beside it), **Pad** (a drum pad that feels where it's hit, with pressure
+  on a pen or touch screen), **Pads** (a grid of up to 8 × 8 pads playing
+  MIDI notes, each with its own trigger), and **Light** (a lamp for a
+  state: playing, armed, soloed, in a color you choose).
+- **Play from anywhere in the song.** Set a Clip's, Graph's, MIDI
+  Pattern's, or Pattern's `start` to **At beat…** and it starts at that
+  beat of the song (and stops at its `until` beat, if you give one).
+  Start the transport anywhere and every placed clip and pattern is
+  already where it belongs: partway through, around again if it loops,
+  or finished. `audioc render --from` and a seek in the editor give the
+  same result.
+- **A ruler under the transport bar.** It shows the song's bars, the
+  playhead, the loop, the punch range, and markers. Click it to play from
+  there, drag across it to set the loop, `Shift`-drag to set the punch
+  range, and right-click it for markers. Drag the position readout to
+  move by beats, or click it to type a bar. `End` goes to the end;
+  `Alt+M` adds a marker and `Alt+←`/`Alt+→` jump between them.
+- **Metronome and count-in.** The transport bar's metronome button
+  (`Shift+C`) clicks on every beat; right-click it for a count-in of up
+  to 8 bars before recording. The click is live only: it's never
+  recorded or exported.
+- **Punch in.** While a punch range is set, recording happens only inside
+  it, starting and ending on its exact samples.
+- **Monitor outputs.** An Audio Out's new `role` setting can be
+  *monitor*: it plays live and is left out of every render, for a cue
+  mix or hearing your input.
+- **Sampler nodes.** **Sample** turns a WAV file into a sound to wire;
+  **Slicer** cuts a sound into equal slices, at its hits, or at markers
+  you click in, and plays them from MIDI notes or by number; **Note
+  Split** gives each note of a list a trigger, a gate, a velocity, and a
+  choke group; **Zones** finds a note's key and velocity zone in a map you
+  draw; **Route** sends a trigger, MIDI, audio, or a sound to one of
+  several outputs (round robin), or passes it while open; **Velocity**
+  reshapes how hard notes play. The Sampler takes a `velocity`, and Select
+  and Switch can pick between sounds.
+- **See the sound.** The Node tab of a Clip, Sampler, or Slicer draws its
+  sound with the playhead; drag a Sampler's start, end, and loop points as
+  handles, and a Slicer's slice markers. The new **Waveform** display does
+  the same on a card or a panel, and **MIDI Monitor** and **Tuner** show
+  what's on a MIDI wire and what note a sound plays.
+- **Drop sound files.** Drop a WAV file on the canvas for a Clip (with
+  `Shift`, a Sampler), on a Clip or Sampler to give it that sound, or on a
+  panel for a pad that plays it.
+- **Pattern banks and accents.** A Pattern can hold up to 16 grids: add
+  them as tabs above the grid and pick one with the new `bank` input, which
+  changes over at the start of the next pass. Drag up or down on a cell to
+  set its level; each row's new `velocity` output holds the level of its
+  last step, for accents. A MIDI Pattern gets banks too, as tabs above the
+  piano roll.
+- **Swing.** The Clock's new `swing` input moves every other tick later,
+  so everything it clocks swings together; a MIDI Pattern's `swing` does
+  the same for its drawn notes, on sixteenths or eighths.
+- **Looper.** One node records a loop, plays it, layers more on top
+  (overdub), and takes the last layer off again (undo, and undo again to
+  put it back), with every press landing on the beat. The loop comes out
+  as a sound too, for a Waveform or a Sampler.
+- **Humanize** loosens a part: each trigger or note comes a little late
+  and a little louder or softer, the same way on every render.
+- **More inputs for Logic and Math.** An `inputs` setting gives them
+  `c`, `d`, and on: `and` or `or` several gates, or add, multiply, or take
+  the smallest or largest of several values, in one node.
+- **Wiring grows and merges.** Wiring a Mix's or Merge's last input adds
+  another. Dropping a trigger or MIDI wire on an input that's already
+  wired offers to merge the two wires through a new Merge, or to replace
+  the old one.
+- **Editors everywhere.** Pin a Pattern, MIDI Pattern, Step Sequencer, or
+  Graph to a panel and its card is its editor: paint steps or draw notes
+  there while it plays. Every editor marks the step or beat playing.
+  Open as many editor windows as you like from the Node tab, and dock one
+  under the canvas.
+- **Record MIDI.** The new **MIDI Record** node records what's played into
+  it; when a take ends, the notes become a MIDI Pattern beside it, placed
+  where you played them and playing into the same instrument as the keys
+  (optionally quantized).
+- **Record automation.** Turn on the transport's automation button and
+  move a knob or fader while recording: when you stop, the moves are a
+  Graph placed in the song and wired into that control. **Touch** writes
+  only while you hold the control; **Write** keeps going until you stop.
+- **Tempo** node: tap the tempo, or turn `bpm`, and the song's tempo
+  changes where the playhead is.
+- **Arrangement.** Pin the new Arrangement node to a panel for the song
+  laid out in time: a lane for every clip, pattern, and curve placed in
+  the song, with the markers, the loop, and the playhead. Drag a block to
+  move it, or its end to trim it.
+- **Pin editors with `P`.** Patterns, MIDI Patterns, Step Sequencers, and
+  Graphs pin to panels like controls, as their editors.
+- **Templates.** The Add menu's **Track**, **Drum Pad**, **Clip Slot**,
+  and **Send** each add a ready-made block in one step: wired from what
+  you selected into the mix, and pinned to the panel. **Save Selection as
+  Template** keeps your own, to add again from the same menu. Drum Pad,
+  Clip Slot, and Send are new blocks in the Library too.
+  A **Track** added with nothing selected is ready to record: it plays
+  your input and arms a Record node, so recording a take on a new track
+  is Add ▸ Track, `R`, `Space`, and Create Clip from take.
+- **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
+  button's new `lit` input and the button shows its clip playing; Pads
+  light the pads whose notes are on in their `lit` input. These inputs
+  read their wire a moment late, so the clip a button starts can light it
+  without making a loop the patch refuses.
+
+### Changed
+
+- **Stop always stops.** The transport's Stop now stops a clip, pattern,
+  sampler, or other generator even when its `stop` is wired (to a button
+  or a clock), and works with the transport already stopped, so a loop a
+  button started can always be ended. A wired `stop` keeps its dropdown:
+  set it to **Never** to leave the generator to its wire, as before.
+- **Play and Stop are separate buttons** in the transport bar, so Stop is
+  there while the transport is stopped. `Space` still plays and stops.
+- **Create Clip from take places the clip in the song** at the beat the
+  take started, and wires it where the recorded input went, so the take
+  plays in time in the mix straight away.
+- **The Four Tracks example is 24 seconds long**, twelve bars, so there's
+  a bar 9 to play from.
+- **A seek starts every node fresh** where it lands, as a render from that
+  point does: effects start empty and notes end. (A plugin host's loop
+  doesn't reset anything.)
+- **The four gap studies are rebuilt with Phase 4's tools**, and
+  `docs/GAPS.md` counts each gesture again. The multitrack recorder is 49
+  nodes instead of 92: a channel strip per track under labels, clips
+  placed in the song so it plays from bar 9, the transport's punch range
+  and click, one Logic for solo, the lead's volume ride as automation, and
+  a Song panel with the arrangement. The pattern studio is 20 instead of
+  56: one Pattern with two banks, accents, and swing, the chords' banks in
+  one piano roll, a one-node playlist, and the grid and piano roll on a
+  panel. The pads study is 35 instead of 83: a 4 × 4 Pads grid lit by what
+  plays it, twelve slices of a loop from one Slicer, Note Split, and Zones
+  and Route for velocity layers and round robin. The scenes study is 40
+  instead of 99: a Clip Slot per slot on a Session grid of tracks by
+  scenes, and a Looper that records, overdubs, and undoes.
+
 ## [0.14.2] - 2026-10-25
 
 Fixes for the six issues people reported after 0.14.0.
@@ -1005,6 +1167,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.15.0]: https://github.com/Andorbal/audio-constructor/compare/v0.14.2...v0.15.0
 [0.14.2]: https://github.com/Andorbal/audio-constructor/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/Andorbal/audio-constructor/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/Andorbal/audio-constructor/compare/v0.13.0...v0.14.0

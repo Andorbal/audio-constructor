@@ -6,9 +6,13 @@ pub mod clip;
 pub mod granular;
 pub mod graph;
 pub mod impulse;
+pub mod looper;
 pub mod noise;
 pub mod oscillator;
+pub mod sample;
 pub mod sampler;
+pub mod slicer;
+pub mod tempo;
 pub mod transport;
 pub mod wavetable;
 
@@ -18,9 +22,13 @@ pub fn register(r: &mut Registry) {
     r.register::<graph::Graph>();
     r.register::<granular::Granular>();
     r.register::<impulse::Impulse>();
+    r.register::<looper::Looper>();
     r.register::<noise::Noise>();
     r.register::<oscillator::Oscillator>();
+    r.register::<sample::Sample>();
     r.register::<sampler::Sampler>();
+    r.register::<slicer::Slicer>();
     r.register::<transport::Transport>();
+    r.register::<tempo::Tempo>();
     r.register::<wavetable::Wavetable>();
 }

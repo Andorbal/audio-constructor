@@ -10,7 +10,7 @@
 use ac_core::{Config, ConfigExt};
 use egui::{Align2, Pos2, Rect, Stroke, pos2, vec2};
 
-use super::{Edit, area, grid, load, snap, store};
+use super::{Edit, LiveView, area, grid, load, snap, store};
 use crate::theme;
 
 pub const MAX_STEPS: usize = 64;
@@ -93,6 +93,7 @@ pub(super) fn ui(
     ui: &mut egui::Ui,
     id: egui::Id,
     config: &Config,
+    live: &LiveView,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
@@ -176,7 +177,15 @@ pub(super) fn ui(
             pos2(x0 + (bw * 0.1).min(2.0), to_y(v).min(base)),
             pos2(x0 + bw - (bw * 0.1).min(2.0), to_y(v).max(base)),
         );
-        let lit = hover == Some(s);
+        let lit = hover == Some(s) || live.step == Some(s);
+        if live.step == Some(s) {
+            painter.rect_stroke(
+                Rect::from_min_max(pos2(x0, plot.top()), pos2(x0 + bw, plot.bottom())),
+                theme::radius(1.5),
+                Stroke::new(1.5, theme::play()),
+                egui::StrokeKind::Inside,
+            );
+        }
         painter.rect_filled(
             bar,
             theme::radius(1.5),

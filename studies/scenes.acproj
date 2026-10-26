@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a clip launcher and looper (clip slots, scenes, quantized launch, a loop pedal), built from today's nodes.\n\nThree tracks with two clip slots each. A slot's button arms it; at the next bar a Clock samples the armed state and the slot's Clip starts or stops, so launches land on the bar. Launching one slot disarms the other on its track, a Stop button clears a track, and a scene button launches a whole row. The Looper records the input between two bar lines into a buffer that a Sampler loops. In a render the demo arms scene 1 at the start and scene 2 at bar 5. The Session panel is the grid.\n\nWhat a launcher has that this can't: slots that show playing, armed, and stopped states; a grid with rows and columns; follow actions; overdubbing; recording a loop whose length sets the tempo. Read docs/GAPS.md."
+          "text": "Study: a clip launcher and looper (clip slots, scenes, quantized launch, a loop pedal), rebuilt with Phase 4's tools.\n\nThree tracks with two clip slots each. A slot is one Clip Slot block: press its button and its clip starts on the next bar line; launching the other slot on its track (wired into `release`) or the track's Stop button ends it on the bar. Its card is the slot's button with a light for armed (waiting for the bar) and one for playing. A scene button launches a row. The Looper is one node: Record starts a loop at the next bar and ends it at the bar after the next press, then plays it round; Overdub layers more on top, and Undo takes the last layer off. In a render the demo launches scene 1 at the start and scene 2 at bar 5. The Session panel is the grid: a column per track, a row per scene, the stop buttons, and a channel strip per track.\n\nWhat a launcher has that this can't: follow actions, and recording a loop whose length sets the tempo. Read docs/GAPS.md."
         },
         "ui": {
           "pos": [
@@ -34,20 +34,6 @@
             760.0,
             270.0
           ]
-        }
-      },
-      {
-        "id": "2",
-        "kind": "clock",
-        "params": {
-          "interval": 4.0
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            -320.0
-          ],
-          "label": "Bar line"
         }
       },
       {
@@ -163,109 +149,6 @@
         }
       },
       {
-        "id": "c",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            900.0,
-            0.0
-          ],
-          "label": "Drums A"
-        }
-      },
-      {
-        "id": "d",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            0.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "e",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            180.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "f",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            1500.0,
-            0.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "10",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            1800.0,
-            0.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "11",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            0.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "12",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            2100.0,
-            180.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "13",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            300.0
-          ],
-          "label": "Stop"
-        }
-      },
-      {
         "id": "14",
         "kind": "clip",
         "config": {
@@ -279,126 +162,12 @@
         },
         "ui": {
           "pos": [
-            2400.0,
+            1300.0,
             0.0
           ],
           "label": "Drums A"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "15",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            2400.0,
-            200.0
-          ],
-          "label": "Drums A playing"
-        }
-      },
-      {
-        "id": "16",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            2700.0,
-            0.0
-          ],
-          "label": "Drums B (half speed)"
-        }
-      },
-      {
-        "id": "17",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            0.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "18",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            180.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "19",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            3300.0,
-            0.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "1a",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            3600.0,
-            0.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "1b",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            0.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "1c",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            3900.0,
-            180.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "1d",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            300.0
-          ],
-          "label": "Stop"
-        }
       },
       {
         "id": "1e",
@@ -414,23 +183,12 @@
         },
         "ui": {
           "pos": [
-            4200.0,
+            3100.0,
             0.0
           ],
           "label": "Drums B (half speed)"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "1f",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            4200.0,
-            200.0
-          ],
-          "label": "Drums B (half speed) playing"
-        }
       },
       {
         "id": "20",
@@ -447,36 +205,6 @@
         }
       },
       {
-        "id": "21",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 6.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -9.0
-        },
-        "ui": {
-          "pos": [
-            4500.0,
-            200.0
-          ],
-          "label": "Drums volume"
-        }
-      },
-      {
-        "id": "22",
-        "kind": "gain",
-        "ui": {
-          "pos": [
-            4800.0,
-            0.0
-          ],
-          "label": "Drums level"
-        }
-      },
-      {
         "id": "23",
         "kind": "button",
         "ui": {
@@ -485,109 +213,6 @@
             980.0
           ],
           "label": "Bass stop"
-        }
-      },
-      {
-        "id": "24",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            900.0,
-            620.0
-          ],
-          "label": "Bass A"
-        }
-      },
-      {
-        "id": "25",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            620.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "26",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            800.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "27",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            1500.0,
-            620.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "28",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            1800.0,
-            620.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "29",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            620.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "2a",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            2100.0,
-            800.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "2b",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            920.0
-          ],
-          "label": "Stop"
         }
       },
       {
@@ -604,126 +229,12 @@
         },
         "ui": {
           "pos": [
-            2400.0,
+            1300.0,
             620.0
           ],
           "label": "Bass A"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "2d",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            2400.0,
-            820.0
-          ],
-          "label": "Bass A playing"
-        }
-      },
-      {
-        "id": "2e",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            2700.0,
-            620.0
-          ],
-          "label": "Bass B (reversed)"
-        }
-      },
-      {
-        "id": "2f",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            620.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "30",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            800.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "31",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            3300.0,
-            620.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "32",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            3600.0,
-            620.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "33",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            620.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "34",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            3900.0,
-            800.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "35",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            920.0
-          ],
-          "label": "Stop"
-        }
       },
       {
         "id": "36",
@@ -739,23 +250,12 @@
         },
         "ui": {
           "pos": [
-            4200.0,
+            3100.0,
             620.0
           ],
           "label": "Bass B (reversed)"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "37",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            4200.0,
-            820.0
-          ],
-          "label": "Bass B (reversed) playing"
-        }
       },
       {
         "id": "38",
@@ -772,36 +272,6 @@
         }
       },
       {
-        "id": "39",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 6.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -11.0
-        },
-        "ui": {
-          "pos": [
-            4500.0,
-            820.0
-          ],
-          "label": "Bass volume"
-        }
-      },
-      {
-        "id": "3a",
-        "kind": "gain",
-        "ui": {
-          "pos": [
-            4800.0,
-            620.0
-          ],
-          "label": "Bass level"
-        }
-      },
-      {
         "id": "3b",
         "kind": "button",
         "ui": {
@@ -810,109 +280,6 @@
             1600.0
           ],
           "label": "Keys stop"
-        }
-      },
-      {
-        "id": "3c",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            900.0,
-            1240.0
-          ],
-          "label": "Chords"
-        }
-      },
-      {
-        "id": "3d",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            1240.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "3e",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            1420.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "3f",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            1500.0,
-            1240.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "40",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            1800.0,
-            1240.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "41",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            1240.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "42",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            2100.0,
-            1420.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "43",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            2100.0,
-            1540.0
-          ],
-          "label": "Stop"
         }
       },
       {
@@ -929,126 +296,12 @@
         },
         "ui": {
           "pos": [
-            2400.0,
+            1300.0,
             1240.0
           ],
           "label": "Chords"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "45",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            2400.0,
-            1440.0
-          ],
-          "label": "Chords playing"
-        }
-      },
-      {
-        "id": "46",
-        "kind": "button",
-        "ui": {
-          "pos": [
-            2700.0,
-            1240.0
-          ],
-          "label": "Lead"
-        }
-      },
-      {
-        "id": "47",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            1240.0
-          ],
-          "label": "Arm"
-        }
-      },
-      {
-        "id": "48",
-        "kind": "merge",
-        "config": {
-          "type": "trigger",
-          "inputs": 2
-        },
-        "ui": {
-          "pos": [
-            3000.0,
-            1420.0
-          ],
-          "label": "Disarm"
-        }
-      },
-      {
-        "id": "49",
-        "kind": "latch",
-        "ui": {
-          "pos": [
-            3300.0,
-            1240.0
-          ],
-          "label": "Armed"
-        }
-      },
-      {
-        "id": "4a",
-        "kind": "sample_hold",
-        "ui": {
-          "pos": [
-            3600.0,
-            1240.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "4b",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            1240.0
-          ],
-          "label": "Playing"
-        }
-      },
-      {
-        "id": "4c",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            3900.0,
-            1420.0
-          ],
-          "label": "Start"
-        }
-      },
-      {
-        "id": "4d",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            3900.0,
-            1540.0
-          ],
-          "label": "Stop"
-        }
       },
       {
         "id": "4e",
@@ -1064,23 +317,12 @@
         },
         "ui": {
           "pos": [
-            4200.0,
+            3100.0,
             1240.0
           ],
           "label": "Lead"
         },
         "hide_unwired": true
-      },
-      {
-        "id": "4f",
-        "kind": "readout",
-        "ui": {
-          "pos": [
-            4200.0,
-            1440.0
-          ],
-          "label": "Lead playing"
-        }
       },
       {
         "id": "50",
@@ -1094,53 +336,6 @@
             1240.0
           ],
           "label": "Keys slots"
-        }
-      },
-      {
-        "id": "51",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 6.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -14.0
-        },
-        "ui": {
-          "pos": [
-            4500.0,
-            1440.0
-          ],
-          "label": "Keys volume"
-        }
-      },
-      {
-        "id": "52",
-        "kind": "gain",
-        "ui": {
-          "pos": [
-            4800.0,
-            1240.0
-          ],
-          "label": "Keys level"
-        }
-      },
-      {
-        "id": "53",
-        "kind": "comment",
-        "config": {
-          "text": "One slot is ten nodes: button, two Merges (arm and disarm have one input each), Latch, Sample & Hold on the bar, Compare, two Gate to Triggers, the Clip, and a Readout standing in for a 'playing' light. Six slots are sixty. A scene is a Merge per slot feeding the arm."
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            -320.0
-          ],
-          "size": [
-            760.0,
-            96.0
-          ]
         }
       },
       {
@@ -1163,160 +358,57 @@
         "kind": "button",
         "ui": {
           "pos": [
-            0.0,
-            2050.0
-          ],
-          "label": "Loop: record / play"
-        }
-      },
-      {
-        "id": "56",
-        "kind": "latch",
-        "ui": {
-          "pos": [
             300.0,
-            2050.0
+            1900.0
           ],
-          "label": "Want recording"
+          "label": "Loop: record"
         }
       },
       {
-        "id": "57",
-        "kind": "sample_hold",
+        "id": "74",
+        "kind": "looper",
+        "config": {
+          "channels": 1,
+          "seconds": 30
+        },
+        "params": {
+          "quantize": 4.0
+        },
         "ui": {
           "pos": [
             600.0,
-            2050.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "58",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2050.0
-          ],
-          "label": "Recording"
-        }
-      },
-      {
-        "id": "59",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            1200.0,
-            2050.0
-          ],
-          "label": "Start take"
-        }
-      },
-      {
-        "id": "5a",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            2200.0
-          ],
-          "label": "End take"
-        }
-      },
-      {
-        "id": "5b",
-        "kind": "record",
-        "config": {
-          "channels": 1
-        },
-        "params": {
-          "arm": false
-        },
-        "ui": {
-          "pos": [
-            1500.0,
             1900.0
           ],
-          "label": "Loop take"
+          "label": "Looper"
         }
       },
       {
-        "id": "5c",
-        "kind": "trigger_delay",
-        "params": {
-          "time": 0.05
-        },
+        "id": "75",
+        "kind": "button",
         "ui": {
           "pos": [
-            1500.0,
-            2200.0
+            300.0,
+            2060.0
           ],
-          "label": "Play when the file is safe"
+          "label": "Loop: overdub"
         }
       },
       {
-        "id": "5d",
-        "kind": "sampler",
-        "config": {
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "loop": true,
-          "start": "never"
-        },
+        "id": "76",
+        "kind": "button",
         "ui": {
           "pos": [
-            1800.0,
-            1900.0
+            300.0,
+            2220.0
           ],
-          "label": "Loop"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "5e",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 6.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -3.0
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            2100.0
-          ],
-          "label": "Loop volume"
-        }
-      },
-      {
-        "id": "5f",
-        "kind": "gain",
-        "ui": {
-          "pos": [
-            2100.0,
-            1900.0
-          ],
-          "label": "Loop level"
+          "label": "Loop: undo"
         }
       },
       {
         "id": "60",
         "kind": "comment",
         "config": {
-          "text": "The looper: press once, recording starts at the next bar; press again, it ends at the next bar and the Sampler starts looping the take 50 ms later, hoping the file is on disk by then. A second press to overdub would need another Record and Sampler pair and a swap: not built."
+          "text": "The looper: Record starts the loop at the next bar, and a second press ends it on a bar line and plays it round; the button lights while it records. Overdub records on top as it plays (press again to stop layering), and Undo takes the last layer off, or puts it back. Every press waits for the bar."
         },
         "ui": {
           "pos": [
@@ -1364,6 +456,158 @@
           ],
           "label": "Main out"
         }
+      },
+      {
+        "id": "70",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": -9.0
+        },
+        "ui": {
+          "pos": [
+            4800.0,
+            0.0
+          ],
+          "label": "Drums track"
+        }
+      },
+      {
+        "id": "71",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": -11.0
+        },
+        "ui": {
+          "pos": [
+            4800.0,
+            620.0
+          ],
+          "label": "Bass track"
+        }
+      },
+      {
+        "id": "72",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": -14.0
+        },
+        "ui": {
+          "pos": [
+            4800.0,
+            1240.0
+          ],
+          "label": "Keys track"
+        }
+      },
+      {
+        "id": "73",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": -3.0
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1900.0
+          ],
+          "label": "Loop track"
+        }
+      },
+      {
+        "id": "80",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            0.0
+          ],
+          "label": "Drums A"
+        }
+      },
+      {
+        "id": "81",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            0.0
+          ],
+          "label": "Drums B (half speed)"
+        }
+      },
+      {
+        "id": "82",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            620.0
+          ],
+          "label": "Bass A"
+        }
+      },
+      {
+        "id": "83",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            620.0
+          ],
+          "label": "Bass B (reversed)"
+        }
+      },
+      {
+        "id": "84",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            900.0,
+            1240.0
+          ],
+          "label": "Chords"
+        }
+      },
+      {
+        "id": "85",
+        "kind": "group",
+        "config": {
+          "def": "clip-slot"
+        },
+        "ui": {
+          "pos": [
+            2700.0,
+            1240.0
+          ],
+          "label": "Lead"
+        }
       }
     ],
     "wires": [
@@ -1396,244 +640,12 @@
         "to": "a:in_1"
       },
       {
-        "from": "c:trigger",
-        "to": "d:in_0"
-      },
-      {
-        "from": "9:out",
-        "to": "d:in_1"
-      },
-      {
-        "from": "d:out",
-        "to": "f:set"
-      },
-      {
-        "from": "e:out",
-        "to": "f:reset"
-      },
-      {
-        "from": "b:trigger",
-        "to": "e:in_0"
-      },
-      {
-        "from": "f:out",
-        "to": "10:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "10:trigger"
-      },
-      {
-        "from": "10:out",
-        "to": "11:a"
-      },
-      {
-        "from": "11:out",
-        "to": "12:in"
-      },
-      {
-        "from": "11:out",
-        "to": "13:in"
-      },
-      {
-        "from": "12:out",
-        "to": "14:start"
-      },
-      {
-        "from": "13:out",
-        "to": "14:stop"
-      },
-      {
-        "from": "14:playing",
-        "to": "15:in"
-      },
-      {
-        "from": "16:trigger",
-        "to": "17:in_0"
-      },
-      {
-        "from": "a:out",
-        "to": "17:in_1"
-      },
-      {
-        "from": "17:out",
-        "to": "19:set"
-      },
-      {
-        "from": "18:out",
-        "to": "19:reset"
-      },
-      {
-        "from": "b:trigger",
-        "to": "18:in_0"
-      },
-      {
-        "from": "19:out",
-        "to": "1a:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "1a:trigger"
-      },
-      {
-        "from": "1a:out",
-        "to": "1b:a"
-      },
-      {
-        "from": "1b:out",
-        "to": "1c:in"
-      },
-      {
-        "from": "1b:out",
-        "to": "1d:in"
-      },
-      {
-        "from": "1c:out",
-        "to": "1e:start"
-      },
-      {
-        "from": "1d:out",
-        "to": "1e:stop"
-      },
-      {
-        "from": "1e:playing",
-        "to": "1f:in"
-      },
-      {
-        "from": "c:trigger",
-        "to": "18:in_1"
-      },
-      {
-        "from": "16:trigger",
-        "to": "e:in_1"
-      },
-      {
         "from": "14:out",
         "to": "20:in_0"
       },
       {
         "from": "1e:out",
         "to": "20:in_1"
-      },
-      {
-        "from": "20:out",
-        "to": "22:in"
-      },
-      {
-        "from": "21:out",
-        "to": "22:gain"
-      },
-      {
-        "from": "24:trigger",
-        "to": "25:in_0"
-      },
-      {
-        "from": "9:out",
-        "to": "25:in_1"
-      },
-      {
-        "from": "25:out",
-        "to": "27:set"
-      },
-      {
-        "from": "26:out",
-        "to": "27:reset"
-      },
-      {
-        "from": "23:trigger",
-        "to": "26:in_0"
-      },
-      {
-        "from": "27:out",
-        "to": "28:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "28:trigger"
-      },
-      {
-        "from": "28:out",
-        "to": "29:a"
-      },
-      {
-        "from": "29:out",
-        "to": "2a:in"
-      },
-      {
-        "from": "29:out",
-        "to": "2b:in"
-      },
-      {
-        "from": "2a:out",
-        "to": "2c:start"
-      },
-      {
-        "from": "2b:out",
-        "to": "2c:stop"
-      },
-      {
-        "from": "2c:playing",
-        "to": "2d:in"
-      },
-      {
-        "from": "2e:trigger",
-        "to": "2f:in_0"
-      },
-      {
-        "from": "a:out",
-        "to": "2f:in_1"
-      },
-      {
-        "from": "2f:out",
-        "to": "31:set"
-      },
-      {
-        "from": "30:out",
-        "to": "31:reset"
-      },
-      {
-        "from": "23:trigger",
-        "to": "30:in_0"
-      },
-      {
-        "from": "31:out",
-        "to": "32:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "32:trigger"
-      },
-      {
-        "from": "32:out",
-        "to": "33:a"
-      },
-      {
-        "from": "33:out",
-        "to": "34:in"
-      },
-      {
-        "from": "33:out",
-        "to": "35:in"
-      },
-      {
-        "from": "34:out",
-        "to": "36:start"
-      },
-      {
-        "from": "35:out",
-        "to": "36:stop"
-      },
-      {
-        "from": "36:playing",
-        "to": "37:in"
-      },
-      {
-        "from": "24:trigger",
-        "to": "30:in_1"
-      },
-      {
-        "from": "2e:trigger",
-        "to": "26:in_1"
       },
       {
         "from": "2c:out",
@@ -1644,126 +656,6 @@
         "to": "38:in_1"
       },
       {
-        "from": "38:out",
-        "to": "3a:in"
-      },
-      {
-        "from": "39:out",
-        "to": "3a:gain"
-      },
-      {
-        "from": "3c:trigger",
-        "to": "3d:in_0"
-      },
-      {
-        "from": "9:out",
-        "to": "3d:in_1"
-      },
-      {
-        "from": "3d:out",
-        "to": "3f:set"
-      },
-      {
-        "from": "3e:out",
-        "to": "3f:reset"
-      },
-      {
-        "from": "3b:trigger",
-        "to": "3e:in_0"
-      },
-      {
-        "from": "3f:out",
-        "to": "40:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "40:trigger"
-      },
-      {
-        "from": "40:out",
-        "to": "41:a"
-      },
-      {
-        "from": "41:out",
-        "to": "42:in"
-      },
-      {
-        "from": "41:out",
-        "to": "43:in"
-      },
-      {
-        "from": "42:out",
-        "to": "44:start"
-      },
-      {
-        "from": "43:out",
-        "to": "44:stop"
-      },
-      {
-        "from": "44:playing",
-        "to": "45:in"
-      },
-      {
-        "from": "46:trigger",
-        "to": "47:in_0"
-      },
-      {
-        "from": "a:out",
-        "to": "47:in_1"
-      },
-      {
-        "from": "47:out",
-        "to": "49:set"
-      },
-      {
-        "from": "48:out",
-        "to": "49:reset"
-      },
-      {
-        "from": "3b:trigger",
-        "to": "48:in_0"
-      },
-      {
-        "from": "49:out",
-        "to": "4a:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "4a:trigger"
-      },
-      {
-        "from": "4a:out",
-        "to": "4b:a"
-      },
-      {
-        "from": "4b:out",
-        "to": "4c:in"
-      },
-      {
-        "from": "4b:out",
-        "to": "4d:in"
-      },
-      {
-        "from": "4c:out",
-        "to": "4e:start"
-      },
-      {
-        "from": "4d:out",
-        "to": "4e:stop"
-      },
-      {
-        "from": "4e:playing",
-        "to": "4f:in"
-      },
-      {
-        "from": "3c:trigger",
-        "to": "48:in_1"
-      },
-      {
-        "from": "46:trigger",
-        "to": "3e:in_1"
-      },
-      {
         "from": "44:out",
         "to": "50:in_0"
       },
@@ -1772,92 +664,184 @@
         "to": "50:in_1"
       },
       {
-        "from": "50:out",
-        "to": "52:in"
-      },
-      {
-        "from": "51:out",
-        "to": "52:gain"
-      },
-      {
-        "from": "55:trigger",
-        "to": "56:toggle"
-      },
-      {
-        "from": "56:out",
-        "to": "57:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "57:trigger"
-      },
-      {
-        "from": "57:out",
-        "to": "58:a"
-      },
-      {
-        "from": "58:out",
-        "to": "59:in"
-      },
-      {
-        "from": "58:out",
-        "to": "5a:in"
-      },
-      {
-        "from": "59:out",
-        "to": "5b:start"
-      },
-      {
-        "from": "5a:out",
-        "to": "5b:stop"
-      },
-      {
-        "from": "54:out",
-        "to": "5b:in"
-      },
-      {
-        "from": "5a:out",
-        "to": "5c:in"
-      },
-      {
-        "from": "5c:out",
-        "to": "5d:start"
-      },
-      {
-        "from": "5b:buffer",
-        "to": "5d:buffer"
-      },
-      {
-        "from": "5d:out",
-        "to": "5f:in"
-      },
-      {
-        "from": "5e:out",
-        "to": "5f:gain"
-      },
-      {
-        "from": "22:out",
-        "to": "61:in_0"
-      },
-      {
-        "from": "3a:out",
-        "to": "61:in_1"
-      },
-      {
-        "from": "52:out",
-        "to": "61:in_2"
-      },
-      {
-        "from": "5f:out",
-        "to": "61:in_3"
-      },
-      {
         "from": "61:out",
         "to": "62:in"
       },
       {
         "from": "62:out",
         "to": "63:in"
+      },
+      {
+        "from": "20:out",
+        "to": "70:in"
+      },
+      {
+        "from": "70:out",
+        "to": "61:in_0"
+      },
+      {
+        "from": "38:out",
+        "to": "71:in"
+      },
+      {
+        "from": "71:out",
+        "to": "61:in_1"
+      },
+      {
+        "from": "50:out",
+        "to": "72:in"
+      },
+      {
+        "from": "72:out",
+        "to": "61:in_2"
+      },
+      {
+        "from": "73:out",
+        "to": "61:in_3"
+      },
+      {
+        "from": "54:out",
+        "to": "74:in"
+      },
+      {
+        "from": "55:trigger",
+        "to": "74:record"
+      },
+      {
+        "from": "75:trigger",
+        "to": "74:overdub"
+      },
+      {
+        "from": "76:trigger",
+        "to": "74:undo"
+      },
+      {
+        "from": "74:out",
+        "to": "73:in"
+      },
+      {
+        "from": "74:recording",
+        "to": "55:lit"
+      },
+      {
+        "from": "80:start",
+        "to": "14:start"
+      },
+      {
+        "from": "80:end",
+        "to": "14:stop"
+      },
+      {
+        "from": "b:trigger",
+        "to": "80:stop"
+      },
+      {
+        "from": "81:start",
+        "to": "1e:start"
+      },
+      {
+        "from": "81:end",
+        "to": "1e:stop"
+      },
+      {
+        "from": "b:trigger",
+        "to": "81:stop"
+      },
+      {
+        "from": "82:start",
+        "to": "2c:start"
+      },
+      {
+        "from": "82:end",
+        "to": "2c:stop"
+      },
+      {
+        "from": "23:trigger",
+        "to": "82:stop"
+      },
+      {
+        "from": "83:start",
+        "to": "36:start"
+      },
+      {
+        "from": "83:end",
+        "to": "36:stop"
+      },
+      {
+        "from": "23:trigger",
+        "to": "83:stop"
+      },
+      {
+        "from": "84:start",
+        "to": "44:start"
+      },
+      {
+        "from": "84:end",
+        "to": "44:stop"
+      },
+      {
+        "from": "3b:trigger",
+        "to": "84:stop"
+      },
+      {
+        "from": "85:start",
+        "to": "4e:start"
+      },
+      {
+        "from": "85:end",
+        "to": "4e:stop"
+      },
+      {
+        "from": "3b:trigger",
+        "to": "85:stop"
+      },
+      {
+        "from": "80:launched",
+        "to": "81:release"
+      },
+      {
+        "from": "81:launched",
+        "to": "80:release"
+      },
+      {
+        "from": "82:launched",
+        "to": "83:release"
+      },
+      {
+        "from": "83:launched",
+        "to": "82:release"
+      },
+      {
+        "from": "84:launched",
+        "to": "85:release"
+      },
+      {
+        "from": "85:launched",
+        "to": "84:release"
+      },
+      {
+        "from": "9:out",
+        "to": "80:scene"
+      },
+      {
+        "from": "9:out",
+        "to": "82:scene"
+      },
+      {
+        "from": "9:out",
+        "to": "84:scene"
+      },
+      {
+        "from": "a:out",
+        "to": "81:scene"
+      },
+      {
+        "from": "a:out",
+        "to": "83:scene"
+      },
+      {
+        "from": "a:out",
+        "to": "85:scene"
       }
     ],
     "frames": [
@@ -1871,24 +855,6 @@
         ]
       },
       {
-        "label": "Drums: slot 1",
-        "rect": [
-          876.0,
-          -52.0,
-          1744.0,
-          471.0
-        ]
-      },
-      {
-        "label": "Drums: slot 2",
-        "rect": [
-          2676.0,
-          -52.0,
-          1744.0,
-          471.0
-        ]
-      },
-      {
         "label": "Drums: stop and level",
         "rect": [
           4476.0,
@@ -1898,48 +864,12 @@
         ]
       },
       {
-        "label": "Bass: slot 1",
-        "rect": [
-          876.0,
-          568.0,
-          1744.0,
-          471.0
-        ]
-      },
-      {
-        "label": "Bass: slot 2",
-        "rect": [
-          2676.0,
-          568.0,
-          1744.0,
-          471.0
-        ]
-      },
-      {
         "label": "Bass: stop and level",
         "rect": [
           4476.0,
           568.0,
           544.0,
           598.0
-        ]
-      },
-      {
-        "label": "Keys: slot 1",
-        "rect": [
-          876.0,
-          1188.0,
-          1744.0,
-          471.0
-        ]
-      },
-      {
-        "label": "Keys: slot 2",
-        "rect": [
-          2676.0,
-          1188.0,
-          1744.0,
-          471.0
         ]
       },
       {
@@ -1956,8 +886,8 @@
         "rect": [
           -24.0,
           1848.0,
-          2344.0,
-          471.0
+          1244.0,
+          650.0
         ]
       },
       {
@@ -1968,81 +898,651 @@
           844.0,
           303.0
         ]
+      },
+      {
+        "label": "Drums: two slots",
+        "rect": [
+          876.0,
+          -52.0,
+          2544.0,
+          471.0
+        ]
+      },
+      {
+        "label": "Bass: two slots",
+        "rect": [
+          876.0,
+          568.0,
+          2544.0,
+          471.0
+        ]
+      },
+      {
+        "label": "Keys: two slots",
+        "rect": [
+          876.0,
+          1188.0,
+          2544.0,
+          471.0
+        ]
       }
     ]
+  },
+  "group_defs": {
+    "clip-slot": {
+      "name": "Clip Slot",
+      "description": "One slot of a clip launcher: press `launch` and its clip starts on the next bar line (every slot waits for the bar: the Grid clock inside, which you can change for all of them); press `stop` (or launch another slot on the track, wired into `release`) and it stops on the next bar. The Add menu's Clip Slot template adds one wired to the selected Clip, with a card on the panel that is the slot's button and light.\n\n- `launch` (trigger): the slot's own button, on its card.\n- `scene` (trigger): a scene button launching a row of slots.\n- `release` (trigger): another slot on the same track launched: wire that slot's `launched` here, and this one's `launched` into its `release`, for one slot playing at a time.\n- `stop` (trigger): the track's stop button.\n- `start` and `end` (triggers): wire them into the clip's `start` and `stop`.\n- `launched` (trigger): fires on every launch. `armed` is on from a launch until a release or stop; `playing` follows it on the grid.\n\nInside: two Merges gather the launches and the releases into a Latch; a Clock on the grid samples it with a Sample & Hold, and two Gate to Triggers turn the changes into `start` and `end`.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "launcher",
+        "clips",
+        "session",
+        "performance"
+      ],
+      "source": "shipped:clip-slot",
+      "inputs": [
+        {
+          "name": "launch",
+          "type": "trigger",
+          "targets": [
+            "1:in_0"
+          ]
+        },
+        {
+          "name": "scene",
+          "type": "trigger",
+          "targets": [
+            "1:in_1"
+          ]
+        },
+        {
+          "name": "release",
+          "type": "trigger",
+          "targets": [
+            "2:in_0"
+          ]
+        },
+        {
+          "name": "stop",
+          "type": "trigger",
+          "targets": [
+            "2:in_1"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "start",
+          "type": "trigger",
+          "source": "7:out"
+        },
+        {
+          "name": "end",
+          "type": "trigger",
+          "source": "8:out"
+        },
+        {
+          "name": "launched",
+          "type": "trigger",
+          "source": "1:out"
+        },
+        {
+          "name": "playing",
+          "type": "bool",
+          "source": "6:out"
+        },
+        {
+          "name": "armed",
+          "type": "bool",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "merge",
+            "config": {
+              "type": "trigger",
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Launches"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "merge",
+            "config": {
+              "type": "trigger",
+              "inputs": 2
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                200.0
+              ],
+              "label": "Releases"
+            }
+          },
+          {
+            "id": "3",
+            "kind": "latch",
+            "ui": {
+              "pos": [
+                280.0,
+                0.0
+              ],
+              "label": "Armed"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "clock",
+            "params": {
+              "interval": 4.0
+            },
+            "ui": {
+              "pos": [
+                280.0,
+                220.0
+              ],
+              "label": "Grid"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "sample_hold",
+            "ui": {
+              "pos": [
+                560.0,
+                0.0
+              ],
+              "label": "On the grid"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "compare",
+            "params": {
+              "b": 0.5,
+              "op": "greater"
+            },
+            "ui": {
+              "pos": [
+                840.0,
+                0.0
+              ],
+              "label": "Playing"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "gate_to_trigger",
+            "ui": {
+              "pos": [
+                1120.0,
+                0.0
+              ],
+              "label": "Start"
+            }
+          },
+          {
+            "id": "8",
+            "kind": "gate_to_trigger",
+            "params": {
+              "edge": "falling"
+            },
+            "ui": {
+              "pos": [
+                1120.0,
+                160.0
+              ],
+              "label": "End"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "3:set"
+          },
+          {
+            "from": "2:out",
+            "to": "3:reset"
+          },
+          {
+            "from": "3:out",
+            "to": "5:in"
+          },
+          {
+            "from": "4:trigger",
+            "to": "5:trigger"
+          },
+          {
+            "from": "5:out",
+            "to": "6:a"
+          },
+          {
+            "from": "6:out",
+            "to": "7:in"
+          },
+          {
+            "from": "6:out",
+            "to": "8:in"
+          }
+        ]
+      }
+    },
+    "track": {
+      "name": "Track",
+      "description": "One channel of a mixer: a volume fader, a pan knob, and mute and solo switches for whatever you wire into `in`. Put one Track after each sound and add them up with a Mix.\n\n- `in` (audio): the track's sound, mono or stereo. Usually a Clip playing your file: wire the Clip into `in`. The Clip stays outside because every instance of a block shares the same inside, so a Clip inside would make every Track play the same file.\n- `volume` (dB): the track's level.\n- `pan`: −1 is left, 0 center, 1 right. A mono track keeps the same loudness as it moves (−3 dB per side at the center); a stereo track is balanced.\n- `mute`: silences the track (with a 5 ms fade, so it doesn't click).\n- `solo` and `soloed`: solo comes back out of `soloed` for the rest of the mix to see; on its own it doesn't change this track's sound. To make solo work across a mix, combine the `soloed` outputs of every track with Logic `or` nodes and wire the result into every track's `any_solo`.\n- `any_solo`: on while any track in the mix is soloed. A track that isn't soloed itself goes silent while it's on, so only the soloed tracks play. Mute wins over solo.\n- `out` (audio): always stereo.\n\nInside: a Gain sets the volume and a Pan places the sound. Three Logic nodes work out whether the track should be silent (muted, or another track soloed and not this one), and a Switch in audio mode fades between the track and silence. A Logic `or` with nothing on its second input passes `solo` to the `soloed` output.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "mixing",
+        "utility",
+        "channel"
+      ],
+      "source": "shipped:track",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "audio",
+          "targets": [
+            "1:in"
+          ]
+        },
+        {
+          "name": "volume",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "1:gain"
+          ]
+        },
+        {
+          "name": "pan",
+          "type": "float",
+          "default": 0.0,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "targets": [
+            "2:pan"
+          ]
+        },
+        {
+          "name": "mute",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "6:a"
+          ]
+        },
+        {
+          "name": "solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "3:a"
+          ]
+        },
+        {
+          "name": "any_solo",
+          "type": "bool",
+          "default": false,
+          "targets": [
+            "5:a"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "7:out"
+        },
+        {
+          "name": "soloed",
+          "type": "bool",
+          "source": "3:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "gain",
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Volume"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pan",
+            "ui": {
+              "pos": [
+                220.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "id": "3",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                320.0
+              ],
+              "label": "Soloed"
+            }
+          },
+          {
+            "id": "4",
+            "kind": "logic",
+            "params": {
+              "op": "not"
+            },
+            "ui": {
+              "pos": [
+                220.0,
+                320.0
+              ],
+              "label": "Not soloed"
+            }
+          },
+          {
+            "id": "5",
+            "kind": "logic",
+            "params": {
+              "op": "and"
+            },
+            "ui": {
+              "pos": [
+                440.0,
+                320.0
+              ],
+              "label": "Another track soloed"
+            }
+          },
+          {
+            "id": "6",
+            "kind": "logic",
+            "params": {
+              "op": "or"
+            },
+            "ui": {
+              "pos": [
+                660.0,
+                160.0
+              ],
+              "label": "Silent"
+            }
+          },
+          {
+            "id": "7",
+            "kind": "switch",
+            "config": {
+              "type": "audio"
+            },
+            "ui": {
+              "pos": [
+                880.0,
+                0.0
+              ],
+              "label": "Mute"
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          },
+          {
+            "from": "2:out",
+            "to": "7:a"
+          },
+          {
+            "from": "3:out",
+            "to": "4:a"
+          },
+          {
+            "from": "4:out",
+            "to": "5:b"
+          },
+          {
+            "from": "5:out",
+            "to": "6:b"
+          },
+          {
+            "from": "6:out",
+            "to": "7:select"
+          }
+        ]
+      }
+    }
   },
   "panels": [
     {
       "name": "Session",
       "items": [
         {
-          "node": "7"
+          "node": "7",
+          "at": [
+            0,
+            1
+          ]
         },
         {
-          "node": "8"
+          "node": "8",
+          "at": [
+            0,
+            5
+          ]
         },
         {
-          "node": "c"
+          "node": "80",
+          "at": [
+            1,
+            1
+          ]
         },
         {
-          "node": "15"
+          "node": "81",
+          "at": [
+            1,
+            5
+          ]
         },
         {
-          "node": "16"
+          "node": "82",
+          "at": [
+            2,
+            1
+          ]
         },
         {
-          "node": "1f"
+          "node": "83",
+          "at": [
+            2,
+            5
+          ]
         },
         {
-          "node": "b"
+          "node": "84",
+          "at": [
+            3,
+            1
+          ]
         },
         {
-          "node": "21"
+          "node": "85",
+          "at": [
+            3,
+            5
+          ]
         },
         {
-          "node": "24"
+          "node": "55",
+          "at": [
+            4,
+            1
+          ]
         },
         {
-          "node": "2d"
+          "node": "75",
+          "at": [
+            4,
+            5
+          ]
         },
         {
-          "node": "2e"
+          "node": "76",
+          "at": [
+            4,
+            9
+          ],
+          "compact": true
         },
         {
-          "node": "37"
+          "node": "b",
+          "at": [
+            1,
+            9
+          ],
+          "compact": true
         },
         {
-          "node": "23"
+          "node": "23",
+          "at": [
+            2,
+            9
+          ],
+          "compact": true
         },
         {
-          "node": "39"
+          "node": "3b",
+          "at": [
+            3,
+            9
+          ],
+          "compact": true
         },
         {
-          "node": "3c"
+          "node": "70",
+          "at": [
+            1,
+            11
+          ]
         },
         {
-          "node": "45"
+          "node": "71",
+          "at": [
+            2,
+            11
+          ]
         },
         {
-          "node": "46"
+          "node": "72",
+          "at": [
+            3,
+            11
+          ]
         },
         {
-          "node": "4f"
+          "node": "73",
+          "at": [
+            4,
+            11
+          ]
         },
         {
-          "node": "3b"
+          "node": "62",
+          "at": [
+            5,
+            1
+          ]
+        }
+      ],
+      "labels": [
+        {
+          "text": "Scenes",
+          "at": [
+            0,
+            0
+          ]
         },
         {
-          "node": "51"
+          "text": "Drums",
+          "at": [
+            1,
+            0
+          ]
         },
         {
-          "node": "55"
+          "text": "Bass",
+          "at": [
+            2,
+            0
+          ]
         },
         {
-          "node": "5e"
+          "text": "Keys",
+          "at": [
+            3,
+            0
+          ]
         },
         {
-          "node": "62"
+          "text": "Looper",
+          "at": [
+            4,
+            0
+          ]
+        },
+        {
+          "text": "Master",
+          "at": [
+            5,
+            0
+          ],
+          "span": 2
+        },
+        {
+          "text": "Stop",
+          "at": [
+            0,
+            9
+          ]
+        },
+        {
+          "text": "Mixer",
+          "at": [
+            0,
+            10
+          ],
+          "span": 5
         }
       ]
     }
@@ -2055,8 +1555,8 @@
       },
       "target": {
         "type": "input",
-        "node": "c",
-        "socket": "pressed"
+        "node": "80",
+        "socket": "launch"
       }
     },
     {
@@ -2066,8 +1566,8 @@
       },
       "target": {
         "type": "input",
-        "node": "16",
-        "socket": "pressed"
+        "node": "81",
+        "socket": "launch"
       }
     },
     {
@@ -2077,8 +1577,8 @@
       },
       "target": {
         "type": "input",
-        "node": "24",
-        "socket": "pressed"
+        "node": "82",
+        "socket": "launch"
       }
     },
     {
@@ -2088,8 +1588,8 @@
       },
       "target": {
         "type": "input",
-        "node": "2e",
-        "socket": "pressed"
+        "node": "83",
+        "socket": "launch"
       }
     },
     {
@@ -2099,8 +1599,8 @@
       },
       "target": {
         "type": "input",
-        "node": "3c",
-        "socket": "pressed"
+        "node": "84",
+        "socket": "launch"
       }
     },
     {
@@ -2110,8 +1610,8 @@
       },
       "target": {
         "type": "input",
-        "node": "46",
-        "socket": "pressed"
+        "node": "85",
+        "socket": "launch"
       }
     },
     {
@@ -2144,6 +1644,28 @@
       "target": {
         "type": "input",
         "node": "55",
+        "socket": "pressed"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "east"
+      },
+      "target": {
+        "type": "input",
+        "node": "75",
+        "socket": "pressed"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "west"
+      },
+      "target": {
+        "type": "input",
+        "node": "76",
         "socket": "pressed"
       }
     }

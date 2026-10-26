@@ -328,6 +328,13 @@ pub struct FileRequest<'a> {
 pub trait RecordSink: Send {
     /// Begin a new take.
     fn start(&mut self);
+    /// Begin a new take that starts at song sample `song` (the transport's
+    /// position, when it plays), so the take can be placed where it was
+    /// recorded.
+    fn start_at(&mut self, song: Option<u64>) {
+        let _ = song;
+        self.start();
+    }
     /// Append one block.
     fn write(&mut self, audio: &AudioIn<'_>);
     /// Finish the take.
@@ -347,6 +354,19 @@ pub trait RecordSink: Send {
     }
 }
 
+/// A real-time-safe sink for recorded MIDI, one per `MIDI Record` node: the
+/// host collects each take and turns it into a MIDI Pattern (DECISIONS
+/// D218). Every method must be wait-free and allocation-free.
+pub trait MidiRecordSink: Send {
+    /// Begin a take that starts at song sample `song` (when the transport
+    /// plays).
+    fn start_at(&mut self, song: Option<u64>);
+    /// One event, `frame` samples after the take began.
+    fn event(&mut self, frame: u64, msg: crate::MidiMsg);
+    /// Finish the take, `frames` samples long.
+    fn stop(&mut self, frames: u64);
+}
+
 /// Host-provided services available while preparing nodes. The engine never
 /// touches files or devices; hosts implement this.
 pub trait Resources: Send + Sync {
@@ -357,6 +377,12 @@ pub trait Resources: Send + Sync {
 
     /// A sink for a `Record` node, or `None` if recording isn't available.
     fn recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
+        None
+    }
+
+    /// A sink for a `MIDI Record` node, or `None` if recording isn't
+    /// available.
+    fn midi_recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn MidiRecordSink>> {
         None
     }
 
@@ -510,6 +536,15 @@ pub trait Node: std::any::Any + Send {
 
     /// Return to the initial state (transport restart from zero). No allocation.
     fn reset(&mut self);
+
+    /// The transport jumped to `sample` (a seek). The default resets, so a
+    /// seek leaves every node as a render starting there would find it
+    /// (`audioc render --from`); generators placed in the song then land
+    /// where they belong when the transport starts (DECISIONS D206).
+    fn seek(&mut self, sample: u64) {
+        let _ = sample;
+        self.reset();
+    }
 
     /// Continue where `previous` left off: it's the node this one replaces
     /// at the same place in the graph, of the same kind, rebuilt because

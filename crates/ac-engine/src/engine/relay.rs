@@ -23,9 +23,14 @@ pub enum Relayed {
     Play,
     Stop,
     Seek(u64),
+    Locate(u64),
     SetRecording(bool),
     SetLoop(Option<(u64, u64)>),
+    SetPunch(Option<(u64, u64)>),
+    SetMetronome(bool),
+    SetCountIn(u32),
     Reset,
+    Panic,
     /// A parameter change for the graph of `generation`, already converted
     /// to the slot's value.
     Param {
@@ -46,9 +51,14 @@ impl From<Command> for Relayed {
             Command::Play => Relayed::Play,
             Command::Stop => Relayed::Stop,
             Command::Seek(p) => Relayed::Seek(p),
+            Command::Locate(p) => Relayed::Locate(p),
             Command::SetRecording(on) => Relayed::SetRecording(on),
             Command::SetLoop(r) => Relayed::SetLoop(r),
+            Command::SetPunch(r) => Relayed::SetPunch(r),
+            Command::SetMetronome(on) => Relayed::SetMetronome(on),
+            Command::SetCountIn(bars) => Relayed::SetCountIn(bars),
             Command::Reset => Relayed::Reset,
+            Command::Panic => Relayed::Panic,
         }
     }
 }
@@ -154,9 +164,14 @@ impl EngineHandle {
             Relayed::Play => return self.queue(Command::Play),
             Relayed::Stop => return self.queue(Command::Stop),
             Relayed::Seek(p) => return self.queue(Command::Seek(p)),
+            Relayed::Locate(p) => return self.queue(Command::Locate(p)),
             Relayed::SetRecording(on) => return self.queue(Command::SetRecording(on)),
             Relayed::SetLoop(r) => return self.queue(Command::SetLoop(r)),
+            Relayed::SetPunch(r) => return self.queue(Command::SetPunch(r)),
+            Relayed::SetMetronome(on) => return self.queue(Command::SetMetronome(on)),
+            Relayed::SetCountIn(bars) => return self.queue(Command::SetCountIn(bars)),
             Relayed::Reset => return self.queue(Command::Reset),
+            Relayed::Panic => return self.queue(Command::Panic),
             Relayed::Param {
                 generation,
                 slot,

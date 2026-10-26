@@ -269,7 +269,7 @@
         "ui": {
           "pos": [
             270.0,
-            180.0
+            200.0
           ],
           "label": "Computer keys"
         }
@@ -285,7 +285,7 @@
         "ui": {
           "pos": [
             270.0,
-            270.0
+            290.0
           ],
           "label": "On-screen keyboard"
         }

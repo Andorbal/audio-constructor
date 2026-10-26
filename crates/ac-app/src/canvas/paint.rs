@@ -788,8 +788,9 @@ impl Canvas {
         let x0 = row.min.x + theme::NODE_PAD_X * z;
         let font = theme::canvas_font(theme::FONT_NODE_LABEL, z, false);
         let controlled = n.body.is_some_and(|(b, _)| b.drives(&s.name));
+        let keeps_field = s.spec.as_ref().is_some_and(widgets::shown_beside_wire);
 
-        if s.wired {
+        if s.wired && !keeps_field {
             let x0 = if s.ty == SignalType::Audio {
                 x0 + 7.0 * z
             } else {
@@ -1025,7 +1026,7 @@ impl Canvas {
                 tip: warnings.join("\n"),
             });
         }
-        if n.kind == "clip"
+        if (n.kind == "clip" || n.kind == "sample")
             && let Some(node) = io.doc.graph().node(n.id)
         {
             let file = node.config.get_str_or("file", "");

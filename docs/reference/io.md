@@ -45,11 +45,18 @@ device doesn't have are skipped. Samples that aren't finite numbers
 (the result of a runaway feedback loop or a division by zero) are
 sent as silence rather than reaching the speakers.
 
+The `role` config is `main` (the default) or `monitor`. A main
+output is what you export: an offline render (`audioc render`,
+Export) writes it to the file. A monitor output plays live only and
+a render leaves it out, so a click track, a cue mix, or the input
+you hear yourself through never ends up in the export.
+
 The node's meter shows the peak level of its first two channels.
 
 **Try this:** add a second Audio Out on outputs 3–4 (`channel` = 2)
-for a headphone cue mix, or wire an `Oscillator` straight in at a low
-`Gain` to check that sound comes out at all.
+with `role` set to `monitor` for a headphone cue mix that stays out
+of the export, or wire an `Oscillator` straight in at a low `Gain`
+to check that sound comes out at all.
 
 **Inputs**
 
@@ -306,6 +313,50 @@ audio back in through an `Audio In` to process it.
 | `midi` | Midi | — |  | Messages to send. |
 | `channel` | Int | 0 | 0 … 16 | Send everything on this channel, 1–16; 0 keeps each message's channel. |
 | `panic` | Trigger | — |  | Ends every note, on every channel. |
+
+<a id="midi-record"></a>
+## MIDI Record
+
+Kind: `midi_record` · Also found by: record midi, capture, take, performance, notes, sequence, overdub
+
+Records the notes played into it, one take at a time; each take
+becomes a MIDI Pattern beside it.
+
+A take runs while `arm` is on and the transport is recording, or from
+a `start` trigger until a `stop` trigger, as for `Record`. When it
+ends, the editor adds a MIDI Pattern of the notes next to the node:
+placed in the song at the beat the take began (when the transport
+was playing), as long as the take rounded up to whole bars, and
+playing into whatever the recorded MIDI went to, through a `Merge`
+so the keys still play there too. The `quantize` config moves each
+note's start to the nearest sixteenth, eighth, or quarter note
+(`off` by default, keeping the timing as played). Notes still held
+at the end of a take end with it.
+
+`recording` is on while a take runs, `notes` counts the take's
+notes, and `length` is how long it has run. Where recording isn't
+available (a render), nothing is kept.
+
+**Try this:** wire a `MIDI In` (or `Keyboard In`) into a MIDI Record
+and into a `Voices` synth, press record on the transport, play a
+phrase, and stop: the phrase is a MIDI Pattern, ready to loop.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | The notes to record. |
+| `arm` | Bool | true |  | Record while the transport is recording. |
+| `start` | Trigger | — |  | Starts a take, whatever the transport does. |
+| `stop` | Trigger | — |  | Ends a take begun by `start`. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `recording` | Bool | True while a take runs. |
+| `notes` | Int | Notes in the current or last take. |
+| `length` | Float (s) | Duration of the current or last take. |
 
 <a id="osc-in"></a>
 ## OSC In

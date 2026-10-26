@@ -335,7 +335,7 @@ pub(crate) fn compile_bindings(
             Target::Input { node, socket } => {
                 let Some(targets) = params
                     .get(&(node.clone(), socket.clone()))
-                    .filter(|t| !t.is_empty())
+                    .filter(|t| !t.is_empty() && t.iter().all(|t| !t.wired))
                 else {
                     let why = unbound_reason(project, registry, node, socket);
                     report.push(

@@ -28,7 +28,7 @@ use crate::i18n::{self, Language, LanguageChoice, tr, tr_args};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::online::Online;
-use crate::palette::{Candidate, Palette};
+use crate::palette::{self, Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
@@ -146,6 +146,15 @@ enum AfterConfirm {
     Quit,
 }
 
+/// What the editor last told the engine about the song's transport.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SongSync {
+    looped: Option<(u64, u64)>,
+    punch: Option<(u64, u64)>,
+    metronome: bool,
+    count_in: u32,
+}
+
 pub struct EditorApp {
     pub registry: Arc<Registry>,
     pub doc: Document,
@@ -155,6 +164,8 @@ pub struct EditorApp {
     pub side: SidePanel,
     /// The performance panels' view (UX.md "Panels").
     pub perform: PerformView,
+    /// Node editors in windows and docked under the canvas.
+    pub editor_windows: crate::editor_windows::EditorWindows,
     pub recent: Recent,
     /// Shipped, saved, and imported blocks.
     pub library: Library,
@@ -162,12 +173,17 @@ pub struct EditorApp {
     missing: BTreeSet<String>,
     loaded_assets: Vec<(String, Option<String>)>,
     transport: TransportState,
+    ruler: crate::ruler::Ruler,
     status: Option<(String, f64, bool)>,
     confirm: Option<AfterConfirm>,
     prompt: Option<PathPrompt>,
     native_dialogs: bool,
     /// Writes Record nodes' takes into the saved project's assets folder.
     recorder: Option<Arc<ac_io::DiskRecorder>>,
+    /// MIDI Record nodes' takes, kept in memory (D218).
+    midi_takes: ac_io::MidiTakes,
+    /// Each Tempo node's request count as last applied (D220).
+    tempo_serials: std::collections::HashMap<ac_core::NodeId, f32>,
     /// Finished takes waiting to be turned into Clip nodes.
     pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
@@ -178,8 +194,14 @@ pub struct EditorApp {
     show_about: bool,
     title: String,
     allow_close: bool,
-    loop_sent: Option<Option<(u64, u64)>>,
+    /// The transport settings last sent to the engine (loop, punch, click).
+    loop_sent: Option<SongSync>,
     space_shift: bool,
+    /// When Escape was last pressed: a second press soon after is Panic.
+    escape_at: Option<f64>,
+    /// Which Audio Out nodes are sounding (the status bar).
+    sounding: crate::sounding::Sounding,
+    heard: Vec<crate::sounding::Output>,
     close_now: bool,
     /// The last subgraph copied (for pastes that don't carry text).
     clipboard: Option<String>,
@@ -267,6 +289,9 @@ impl Clock {
         self.last
     }
 }
+
+/// Two Escapes at most this far apart (seconds) are Panic (D201).
+const DOUBLE_ESCAPE: f64 = 0.5;
 
 // The embedding host shares the editor between its own thread and the
 // window's (egui-baseview runs a window on its own thread on X11), so the
@@ -377,11 +402,13 @@ impl EditorApp {
             .and_then(|p| ac_io::DiskRecorder::new(&files::project_dir(p)).ok())
             .map(Arc::new);
         let plugins = opts.plugins.clone().map(crate::plugins::Plugins::new);
+        let midi_takes = ac_io::MidiTakes::new();
         let resources = Arc::new(FileResources {
             assets: assets.clone(),
-            recorder: recorder
-                .clone()
-                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            recorder: Some(Arc::new(ac_io::Recorders {
+                disk: recorder.clone(),
+                midi: midi_takes.clone(),
+            })),
             plugins: plugins.as_ref().map(crate::plugins::Plugins::loader),
         });
         let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
@@ -418,11 +445,15 @@ impl EditorApp {
             missing: missing_of(&assets),
             assets,
             transport: TransportState::default(),
+            ruler: crate::ruler::Ruler::default(),
+            editor_windows: Default::default(),
             status,
             confirm: None,
             prompt: None,
             native_dialogs: opts.native_dialogs,
             recorder,
+            midi_takes,
+            tempo_serials: Default::default(),
             takes: Vec::new(),
             export_job: None,
             show_timing: false,
@@ -435,6 +466,9 @@ impl EditorApp {
             allow_close: false,
             loop_sent: None,
             space_shift: false,
+            escape_at: None,
+            sounding: Default::default(),
+            heard: Vec::new(),
             close_now: false,
             clipboard: None,
             pack_after_save: false,
@@ -789,6 +823,11 @@ impl EditorApp {
     }
 
     /// The status bar's message, if one is showing (tests read this).
+    /// The Audio Out nodes the status bar says are sounding.
+    pub fn sounding(&self) -> &[crate::sounding::Output] {
+        &self.heard
+    }
+
     pub fn status(&self) -> Option<&str> {
         self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
@@ -1007,6 +1046,15 @@ impl EditorApp {
         self.status = Some((text.into(), now, false));
     }
 
+    /// Panic (D201): let go of everything the editor holds down in the
+    /// patch, then stop, reset every node, and mute the outputs for a block.
+    fn panic(&mut self, now: f64) {
+        self.play_keys.release_all(&mut self.engine);
+        self.perform.let_go(&mut self.doc, &mut self.engine.handle);
+        self.engine.handle.panic();
+        self.say(tr("status-panic"), now);
+    }
+
     fn warn(&mut self, text: impl Into<String>, now: f64) {
         self.status = Some((text.into(), now, true));
     }
@@ -1040,6 +1088,7 @@ impl EditorApp {
         }
         self.track_selection();
         self.handle_keys(&ctx, now);
+        self.dropped_files(&ctx, now);
         self.update_bindings(now);
         if self.show_timing {
             let tele = self.engine.handle.telemetry();
@@ -1057,6 +1106,16 @@ impl EditorApp {
             self.performance_frame(ui, &ctx, now);
         } else {
             self.chrome(ui, &ctx, now);
+            let tele = self.engine.handle.telemetry();
+            let live = crate::canvas::live::Live::new(&tele, &self.doc);
+            self.editor_windows
+                .dock_panel(ui, &mut self.doc, &self.registry, &live, now);
+        }
+        {
+            let tele = self.engine.handle.telemetry();
+            let live = crate::canvas::live::Live::new(&tele, &self.doc);
+            self.editor_windows
+                .windows(&ctx, &mut self.doc, &self.registry, &live, now);
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::canvas_bg()))
@@ -1095,7 +1154,14 @@ impl EditorApp {
             .show(&ctx, &self.registry, &self.library, &self.doc)
         {
             let feed = std::mem::take(&mut self.palette_feed);
-            self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+            match (p.merge, p.candidate.kind.as_str()) {
+                (Some(offer), palette::MERGE_BOTH | palette::REPLACE_WIRE) => {
+                    self.merge_or_replace(offer, p.pending, &p.candidate.kind, p.at, now);
+                }
+                _ => {
+                    self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+                }
+            }
         }
         if !self.palette.open {
             self.palette_feed.clear();
@@ -1137,6 +1203,7 @@ impl EditorApp {
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
+                    metronome: self.doc.project.settings.metronome,
                     play_keys: self.play_keys.is_on(),
                     theme: &self.settings.prefs.theme,
                     themes: &self.themes,
@@ -1148,6 +1215,7 @@ impl EditorApp {
                     can_quit: self.engine.hosted().is_none(),
                     updates,
                     show_recent: !self.host_files,
+                    templates: &self.settings.prefs.templates,
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -1171,7 +1239,24 @@ impl EditorApp {
                 for a in actions {
                     self.run(&ctx, a, now);
                 }
+                if let Some(beat) = self.transport.take_seek() {
+                    self.seek_beat(beat);
+                }
             });
+        // A host that keeps the project runs the transport: no ruler to
+        // fight it.
+        if !self.in_host() {
+            egui::Panel::top("ruler")
+                .frame(egui::Frame::new().fill(theme::panel_bg()))
+                .exact_size(22.0)
+                .show(ui, |ui| {
+                    let rate = f64::from(self.engine.info.sample_rate);
+                    let position = self.engine.handle.position();
+                    if let Some(beat) = self.ruler.show(ui, &mut self.doc, rate, position, now) {
+                        self.seek_beat(beat);
+                    }
+                });
+        }
         egui::Panel::bottom("status-bar")
             .frame(
                 egui::Frame::new()
@@ -1297,7 +1382,7 @@ impl EditorApp {
                     .color(theme::text()),
                 );
                 if ui.small_button(tr("status-clip-from-take")).clicked() {
-                    self.clip_from_take(&take, now);
+                    self.clip_from_take(&take);
                 }
                 if icons::spoken(ui.small_button(icons::X))
                     .on_hover_text(tr("status-dismiss"))
@@ -1418,8 +1503,46 @@ impl EditorApp {
                         self.side.tab = Tab::Problems;
                     }
                 }
+                self.sounding_readout(ui, now);
             });
         });
+    }
+
+    /// The outputs that are sounding (D201), named, in the status bar;
+    /// clicking shows the first on the canvas.
+    fn sounding_readout(&mut self, ui: &mut egui::Ui, now: f64) {
+        let tele = self.engine.handle.telemetry();
+        let heard = self
+            .sounding
+            .update(&self.doc.project, &self.registry, &tele, now);
+        self.heard = heard.clone();
+        let Some(first) = heard.first().cloned() else {
+            return;
+        };
+        // Keep looking while something sounds, so it goes when it stops.
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
+        let names: Vec<&str> = heard.iter().map(|o| o.name.as_str()).collect();
+        let list = names.join(" · ");
+        let text = tr_args("status-sounding", &[("outputs", (&list).into())]);
+        let r = icons::spoken(
+            ui.add(
+                egui::Button::new(
+                    RichText::new(format!("{}  {text}", icons::SPEAKER_HIGH))
+                        .small()
+                        .color(theme::text_muted()),
+                )
+                .frame(false)
+                .truncate(),
+            ),
+        )
+        .on_hover_text(tr("status-sounding-tip"));
+        if r.clicked() {
+            self.set_view(false);
+            if let Some(id) = self.doc.navigate_to(&first.path) {
+                self.canvas.jump_to(&self.doc, &self.registry, id);
+            }
+        }
     }
 
     /// The engine runs what the document says, and its upkeep is done.
@@ -1435,6 +1558,15 @@ impl EditorApp {
         self.engine.tick();
         self.serve_plugins(now);
         self.poll_takes(now);
+        self.poll_midi_takes(now);
+        self.follow_tempo_nodes(now);
+        let written = crate::automation::poll(&mut self.doc, &self.engine.handle, &self.registry);
+        if written > 0 {
+            self.say(
+                tr_args("status-automation-written", &[("count", written.into())]),
+                now,
+            );
+        }
         self.sync_loop();
     }
 
@@ -1511,22 +1643,56 @@ impl EditorApp {
         }
     }
 
-    /// Keep the engine's loop region in step with the project.
+    /// Keep the engine's loop region, punch range, click, and count-in in
+    /// step with the project.
     fn sync_loop(&mut self) {
         // A host that keeps the project runs the transport (and its loop).
         if self.in_host() {
             return;
         }
         let rate = f64::from(self.engine.info.sample_rate);
-        let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
-        let want = self.doc.project.settings.loop_region.and_then(|[a, b]| {
-            let (s, e) = (tempo.sample_at(a), tempo.sample_at(b));
-            (e > s).then_some((s, e))
-        });
-        if self.loop_sent != Some(want) {
-            self.engine.handle.set_loop(want);
-            self.loop_sent = Some(want);
+        let s = &self.doc.project.settings;
+        let tempo = TempoMap::new(rate, &s.tempo);
+        let span = |r: Option<[f64; 2]>| {
+            r.and_then(|[a, b]| {
+                let (s, e) = (tempo.sample_at(a), tempo.sample_at(b));
+                (e > s).then_some((s, e))
+            })
+        };
+        let want = SongSync {
+            looped: span(s.loop_region),
+            punch: span(s.punch),
+            metronome: s.metronome,
+            count_in: s.count_in.min(ac_core::MAX_COUNT_IN),
+        };
+        let sent = self.loop_sent;
+        let h = &mut self.engine.handle;
+        if sent.is_none_or(|x| x.looped != want.looped) {
+            h.set_loop(want.looped);
         }
+        if sent.is_none_or(|x| x.punch != want.punch) {
+            h.set_punch(want.punch);
+        }
+        if sent.is_none_or(|x| x.metronome != want.metronome) {
+            h.set_metronome(want.metronome);
+        }
+        if sent.is_none_or(|x| x.count_in != want.count_in) {
+            h.set_count_in(want.count_in);
+        }
+        self.loop_sent = Some(want);
+    }
+
+    /// Move the playhead to song beat `beat`.
+    fn seek_beat(&mut self, beat: f64) {
+        let rate = f64::from(self.engine.info.sample_rate);
+        let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
+        self.engine.handle.seek(tempo.sample_at(beat.max(0.0)));
+    }
+
+    /// The playhead's song beat.
+    fn playhead_beat(&self) -> f64 {
+        let rate = f64::from(self.engine.info.sample_rate);
+        TempoMap::new(rate, &self.doc.project.settings.tempo).beat_at(self.engine.handle.position())
     }
 
     fn reload_assets(&mut self) {
@@ -1575,10 +1741,10 @@ impl EditorApp {
         }
         Arc::new(FileResources {
             assets: self.assets.clone(),
-            recorder: self
-                .recorder
-                .clone()
-                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            recorder: Some(Arc::new(ac_io::Recorders {
+                disk: self.recorder.clone(),
+                midi: self.midi_takes.clone(),
+            })),
             plugins: self.plugins.as_ref().map(crate::plugins::Plugins::loader),
         })
     }
@@ -1673,36 +1839,169 @@ impl EditorApp {
         }
     }
 
+    /// Tempo nodes asking for a tempo: set it where the playhead is, and
+    /// show a tapped tempo on the node's `bpm` (D220).
+    fn follow_tempo_nodes(&mut self, now: f64) {
+        use ac_nodes::generators::tempo as t;
+        let tele = self.engine.handle.telemetry();
+        let asks: Vec<(ac_core::NodeId, f32, f32)> = self
+            .doc
+            .project
+            .graph
+            .nodes
+            .iter()
+            .filter(|n| n.kind == "tempo")
+            .filter_map(|n| {
+                let path = ac_core::NodePath(vec![n.id]);
+                Some((
+                    n.id,
+                    tele.node_value(&path, t::TELEMETRY_BPM)?,
+                    tele.node_value(&path, t::TELEMETRY_SERIAL)?,
+                ))
+            })
+            .collect();
+        self.tempo_serials
+            .retain(|id, _| asks.iter().any(|a| a.0 == *id));
+        for (id, bpm, serial) in asks {
+            // The first reading is where it stands, not a request.
+            let Some(last) = self.tempo_serials.insert(id, serial) else {
+                continue;
+            };
+            if last == serial || bpm.is_nan() || bpm <= 0.0 {
+                continue;
+            }
+            let bpm = (f64::from(bpm) * 100.0).round() / 100.0;
+            let rate = f64::from(self.engine.info.sample_rate);
+            let tempo = &self.doc.project.settings.tempo;
+            let beat = TempoMap::new(rate, tempo).beat_at(self.engine.handle.position());
+            let i = tempo.iter().rposition(|s| s.beat <= beat).unwrap_or(0);
+            if tempo.get(i).is_some_and(|s| (s.bpm - bpm).abs() > 1e-6) {
+                self.doc.edit_settings("tempo", now, |p| {
+                    if let Some(s) = p.settings.tempo.get_mut(i) {
+                        s.bpm = bpm;
+                    }
+                });
+                self.doc.end_coalescing();
+                self.say(
+                    tr_args("status-tempo-set", &[("bpm", format!("{bpm}").into())]),
+                    now,
+                );
+            }
+            let wired = self
+                .doc
+                .project
+                .graph
+                .wire_into(&ac_core::Endpoint::new(id, "bpm"))
+                .is_some();
+            let shown = self
+                .doc
+                .project
+                .graph
+                .node(id)
+                .and_then(|n| n.params.get("bpm"))
+                .and_then(ac_core::Value::as_f64);
+            if !wired && shown.is_none_or(|v| (v - bpm).abs() > 1e-3) && self.doc.scope.is_empty() {
+                crate::params::set(
+                    &mut self.doc,
+                    &mut self.engine.handle,
+                    id,
+                    "bpm",
+                    ac_core::Value::Float(bpm),
+                    now,
+                );
+                self.doc.end_coalescing();
+            }
+        }
+    }
+
+    /// MIDI takes that finished: each becomes a MIDI Pattern beside its MIDI
+    /// Record node, placed and merged where the notes went (D218).
+    fn poll_midi_takes(&mut self, now: f64) {
+        for take in self.midi_takes.finished() {
+            if take.events.is_empty() {
+                continue;
+            }
+            let prefix = self.doc.scope_prefix();
+            let record = take
+                .node_key
+                .parse::<ac_core::NodePath>()
+                .ok()
+                .filter(|p| p.0.len() == prefix.len() + 1 && p.0[..prefix.len()] == prefix[..])
+                .and_then(|p| p.leaf())
+                .filter(|id| self.doc.graph().node(*id).is_some());
+            let grid = record
+                .and_then(|id| self.doc.graph().node(id))
+                .map_or(0.0, |n| ac_nodes::io::midi_record::quantize_grid(&n.config));
+            let pos = record
+                .and_then(|id| self.doc.graph().node(id))
+                .map(|n| [n.ui.pos[0], n.ui.pos[1] + 260.0])
+                .unwrap_or([self.canvas.view.center.x, self.canvas.view.center.y]);
+            let tempo = TempoMap::new(
+                f64::from(take.sample_rate),
+                &self.doc.project.settings.tempo,
+            );
+            let notes =
+                edit::take::take_notes(&take.events, take.frames, take.song_start, &tempo, grid);
+            let count = notes.notes.len();
+            let registry = self.registry.clone();
+            let pattern = self.doc.edit(&registry, &tr("undo-midi-take"), |g, ctx| {
+                edit::take::pattern_from_take(g, ctx, notes, record, pos)
+            });
+            self.doc.selection = [pattern].into();
+            self.say(
+                tr_args(
+                    "status-midi-take",
+                    &[("count", count.into()), ("name", (&take.name).into())],
+                ),
+                now,
+            );
+        }
+    }
+
     /// Add a Clip node playing a recorded take, next to its Record node when
-    /// that's in the current graph.
-    pub fn clip_from_take(&mut self, take: &ac_io::Take, now: f64) {
+    /// that's in the current graph: placed in the song at the beat the take
+    /// started, and wired where the Record's source went (D208).
+    pub fn clip_from_take(&mut self, take: &ac_io::Take) {
         let hash = std::fs::read(&take.path)
             .map(|b| ac_core::util::content_hash(&b))
             .unwrap_or_default();
         let prefix = self.doc.scope_prefix();
-        let near = take
+        let record = take
             .node_key
             .parse::<ac_core::NodePath>()
             .ok()
             .filter(|p| p.0.len() == prefix.len() + 1 && p.0[..prefix.len()] == prefix[..])
             .and_then(|p| p.leaf())
+            .filter(|id| self.doc.graph().node(*id).is_some());
+        let pos = record
             .and_then(|id| self.doc.graph().node(id))
-            .map(|n| egui::pos2(n.ui.pos[0] + theme::NODE_WIDTH + 60.0, n.ui.pos[1]));
-        let at = near.unwrap_or(self.canvas.view.center);
-        let c = Candidate {
-            name: "Clip".into(),
-            kind: "clip".into(),
-            category: None,
-            summary: String::new(),
-            config: serde_json::json!({
-                "file": take.relative_path,
-                "channels": take.channels,
-                "hash": hash,
-            }),
-            socket: None,
-            block: None,
-        };
-        self.add_candidate(&c, at + vec2(theme::NODE_WIDTH / 2.0, 14.0), None, now);
+            .map(|n| [n.ui.pos[0] + theme::NODE_WIDTH + 60.0, n.ui.pos[1]])
+            .unwrap_or([self.canvas.view.center.x, self.canvas.view.center.y]);
+        let tempo = TempoMap::new(
+            f64::from(take.sample_rate),
+            &self.doc.project.settings.tempo,
+        );
+        let beat = take.song_start.map(|s| tempo.beat_at(s));
+        let registry = self.registry.clone();
+        let clip = self
+            .doc
+            .edit(&registry, &tr("status-clip-from-take"), |g, ctx| {
+                edit::take::clip_from_take(
+                    g,
+                    ctx,
+                    edit::take::TakeClip {
+                        config: serde_json::json!({
+                            "file": take.relative_path,
+                            "channels": take.channels,
+                            "hash": hash,
+                        }),
+                        beat,
+                        record,
+                        pos,
+                    },
+                )
+            });
+        self.doc.selection = [clip].into();
         self.takes.retain(|t| t.path != take.path);
     }
 
@@ -1809,6 +2108,16 @@ impl EditorApp {
                     if key == Key::Escape && pressed {
                         if self.palette.open || self.find.open {
                             continue; // they handle it
+                        }
+                        // Escape twice in quick succession is Panic; the
+                        // first one still cancels what it would.
+                        if !repeat {
+                            if self.escape_at.is_some_and(|t| now - t <= DOUBLE_ESCAPE) {
+                                self.escape_at = None;
+                                self.run(ctx, Action::Panic, now);
+                                continue;
+                            }
+                            self.escape_at = Some(now);
                         }
                         if self.perform.shown {
                             // A field takes its own Escape; then popups and
@@ -1918,6 +2227,15 @@ impl EditorApp {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
             CanvasEvent::ShowPluginWindow(node) => self.show_plugin_window(node, now),
+            CanvasEvent::OfferMerge {
+                screen,
+                canvas,
+                pending,
+                offer,
+            } => {
+                self.find.close();
+                self.palette.open_merge(screen, canvas, pending, offer);
+            }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
                 let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
@@ -2040,6 +2358,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::EditorWindow(node) => self.editor_windows.toggle(&self.doc, node),
+            PanelRequest::DockEditor(node) => self.editor_windows.dock(&self.doc, node),
             PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
             PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::Preview(key) => self.toggle_preview(key, now),
@@ -2114,6 +2434,12 @@ impl EditorApp {
                 let feed = self.feed_order();
                 self.add_node_from(&c, at, None, &feed, now);
             }
+            MenuCommand::Template(t) => {
+                self.add_template(t, now);
+            }
+            MenuCommand::SavedTemplate(k) => self.paste_template(k, now),
+            MenuCommand::SaveTemplate => self.save_selection_as_template(now),
+            MenuCommand::RemoveTemplate(k) => self.settings.remove_template(k),
         }
     }
 
@@ -2143,6 +2469,190 @@ impl EditorApp {
     }
 
     // ------------------------------------------------------------ commands
+
+    /// Add ▸ Track, Drum Pad, Clip Slot, or Send: its block's instance,
+    /// wired from the selection and into the master mix, and pinned to the
+    /// panel showing (or a new one), in one undo step (D222). Returns the
+    /// instance.
+    pub fn add_template(
+        &mut self,
+        t: crate::templates::Template,
+        now: f64,
+    ) -> Option<ac_core::NodeId> {
+        let source = ac_core::BlockSource::new(ac_core::Origin::Shipped, t.block());
+        let Some(text) = self.block_instance(&source) else {
+            self.warn(
+                tr_args("status-block-gone", &[("name", t.name().into())]),
+                now,
+            );
+            return None;
+        };
+        self.track_selection();
+        let selection: Vec<ac_core::NodeId> = self.selection_order.get().to_vec();
+        let at = match selection
+            .iter()
+            .filter_map(|id| self.doc.graph().node(*id))
+            .next_back()
+        {
+            Some(n) => egui::pos2(n.ui.pos[0] + theme::NODE_WIDTH + 80.0, n.ui.pos[1]),
+            None => self.canvas.view.center,
+        };
+        let root = self.doc.scope.is_empty();
+        let panel = self.perform.current;
+        let registry = self.registry.clone();
+        let made = self.doc.edit_with_panels(
+            &registry,
+            &tr_args("undo-add-named", &[("name", t.name().into())]),
+            |g, ctx, panels| {
+                let id = *edit::paste(g, ctx, &text, [at.x, at.y]).ok()?.first()?;
+                if let Some(n) = g.node_mut(id) {
+                    n.ui.label = Some(t.name());
+                }
+                let added = crate::templates::wire(t, g, ctx, id, &selection);
+                if root {
+                    if panels.is_empty() {
+                        edit::pins::add_panel(panels, "");
+                    }
+                    let index = panel.min(panels.len() - 1);
+                    edit::pins::pin(panels, g, index, &[id]);
+                }
+                Some((id, added))
+            },
+        );
+        let (id, added) = made?;
+        self.doc.selection = [id].into();
+        self.say(
+            tr_args("status-template-added", &[("name", t.name().into())]),
+            now,
+        );
+        // A Drum Pad's new Sample asks for its sound.
+        if t == crate::templates::Template::DrumPad
+            && let Some(sample) = added.first()
+        {
+            self.file_dialog(FilePurpose::ChooseClip(*sample), now);
+        }
+        Some(id)
+    }
+
+    /// The selections saved as templates.
+    pub fn saved_templates(&self) -> &[crate::templates::Saved] {
+        &self.settings.prefs.templates
+    }
+
+    /// Keep the selection as a template, named after its first labelled
+    /// node (D222).
+    pub fn save_selection_as_template(&mut self, now: f64) {
+        let ids = self.doc.selection.clone();
+        if ids.is_empty() {
+            return;
+        }
+        let text = edit::copy(self.doc.graph(), &self.doc.project.group_defs, &ids);
+        let name = ids
+            .iter()
+            .filter_map(|id| self.doc.graph().node(*id))
+            .find_map(|n| n.ui.label.clone())
+            .unwrap_or_else(|| {
+                tr_args(
+                    "template-numbered",
+                    &[("n", (self.settings.prefs.templates.len() + 1).into())],
+                )
+            });
+        self.settings.add_template(crate::templates::Saved {
+            name: name.clone(),
+            text,
+        });
+        self.say(
+            tr_args("status-template-saved", &[("name", name.into())]),
+            now,
+        );
+    }
+
+    /// Paste saved template `k` at the view's center and pin what can be
+    /// pinned to the panel showing.
+    pub fn paste_template(&mut self, k: usize, now: f64) {
+        let Some(t) = self.settings.prefs.templates.get(k).cloned() else {
+            return;
+        };
+        let at = self.canvas.view.center;
+        let root = self.doc.scope.is_empty();
+        let panel = self.perform.current;
+        let registry = self.registry.clone();
+        let ids = self.doc.edit_with_panels(
+            &registry,
+            &tr_args("undo-add-named", &[("name", (&t.name).into())]),
+            |g, ctx, panels| {
+                let ids = edit::paste(g, ctx, &t.text, [at.x, at.y]).ok()?;
+                let pin: Vec<ac_core::NodeId> = ids
+                    .iter()
+                    .copied()
+                    .filter(|id| g.node(*id).is_some_and(edit::pins::pinnable))
+                    .collect();
+                if root && !pin.is_empty() {
+                    if panels.is_empty() {
+                        edit::pins::add_panel(panels, "");
+                    }
+                    let index = panel.min(panels.len() - 1);
+                    edit::pins::pin(panels, g, index, &pin);
+                }
+                Some(ids)
+            },
+        );
+        match ids {
+            Some(ids) => {
+                self.doc.selection = ids.into_iter().collect();
+                self.say(
+                    tr_args("status-template-added", &[("name", t.name.into())]),
+                    now,
+                );
+            }
+            None => self.warn(tr("status-template-broken"), now),
+        }
+    }
+
+    /// A wire dropped on a wired trigger or MIDI input, finished from the
+    /// palette: through a new Merge with the wire already there, or in its
+    /// place (D214).
+    fn merge_or_replace(
+        &mut self,
+        offer: palette::MergeOffer,
+        pending: Option<PendingWire>,
+        kind: &str,
+        at: egui::Pos2,
+        now: f64,
+    ) {
+        let Some(p) = pending else { return };
+        let Some(from) = p.from else { return };
+        let mut error = None;
+        if kind == palette::MERGE_BOTH {
+            let pos = at - vec2(theme::NODE_WIDTH + 40.0, 30.0);
+            self.doc
+                .edit(&self.registry, &tr("undo-merge-wires"), |g, ctx| {
+                    if let Err(e) = edit::merge_into(
+                        g,
+                        ctx,
+                        offer.existing,
+                        from,
+                        offer.to,
+                        p.ty,
+                        [pos.x, pos.y],
+                    ) {
+                        error = Some(e.to_string());
+                    }
+                });
+        } else {
+            self.doc
+                .edit(&self.registry, &tr("undo-connect"), |g, ctx| {
+                    if let Err(e) = edit::connect(g, ctx, from, offer.to.clone()) {
+                        error = Some(e.to_string());
+                    } else {
+                        edit::grow_inputs(g, &offer.to);
+                    }
+                });
+        }
+        if let Some(e) = error {
+            self.warn(e, now);
+        }
+    }
 
     /// Add a node or a library block from the palette or library at canvas
     /// position `at`, completing a pending wire if there is one.
@@ -2414,7 +2924,11 @@ impl EditorApp {
         // host as well); the editor's would fight it.
         let host_transport = matches!(
             a,
-            Action::PlayStop | Action::PlayFromStart | Action::Record | Action::Rewind
+            Action::PlayStop
+                | Action::Stop
+                | Action::PlayFromStart
+                | Action::Record
+                | Action::Rewind
         );
         if host_transport && self.in_host() {
             return;
@@ -2675,6 +3189,14 @@ impl EditorApp {
                 }
                 ctx.request_repaint();
             }
+            Action::Stop => {
+                self.engine.handle.stop();
+                ctx.request_repaint();
+            }
+            Action::Panic => {
+                self.panic(now);
+                ctx.request_repaint();
+            }
             Action::PlayFromStart => {
                 self.engine.handle.play_from_start();
                 ctx.request_repaint();
@@ -2706,6 +3228,30 @@ impl EditorApp {
                     .edit_project(&tr("undo-loop"), |p| p.settings.loop_region = region);
             }
             Action::Rewind => self.engine.handle.seek(0),
+            Action::GoToEnd => {
+                let rate = f64::from(self.engine.info.sample_rate);
+                let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
+                let end = crate::ruler::song_end(&self.doc.project, &tempo);
+                self.seek_beat(end);
+            }
+            Action::AddMarker => {
+                let beat = self.playhead_beat();
+                crate::ruler::add_marker(&mut self.doc, beat);
+            }
+            Action::PreviousMarker | Action::NextMarker => {
+                let d = if a == Action::NextMarker { 1 } else { -1 };
+                let from = self.playhead_beat();
+                match crate::ruler::next_marker(&self.doc.project, from, d) {
+                    Some(beat) => self.seek_beat(beat),
+                    None if d < 0 => self.engine.handle.seek(0),
+                    None => {}
+                }
+            }
+            Action::Metronome => {
+                let on = !self.doc.project.settings.metronome;
+                self.doc
+                    .edit_project(&tr("undo-metronome"), |p| p.settings.metronome = on);
+            }
             Action::PlayKeys => {
                 let on = !self.play_keys.is_on();
                 self.set_play_keys(on);
@@ -2809,13 +3355,19 @@ impl EditorApp {
                     self.say(tr("status-only-controls-pin"), now);
                     return;
                 }
+                let registry = self.registry.clone();
+                let defs = self.doc.project.group_defs.clone();
+                let columns = self.perform.place_columns();
                 let (index, added, name) =
                     self.doc.edit_panels(&tr("undo-pin-to-panel"), |panels, g| {
                         let index = match panel {
                             Some(i) if i < panels.len() => i,
                             _ => pins::add_panel(panels, ""),
                         };
-                        let added = pins::pin(panels, g, index, &nodes);
+                        let size = |it: &ac_core::PanelItem| {
+                            crate::perform::item_size(&registry, g, &defs, it)
+                        };
+                        let added = pins::pin_placed(panels, g, index, &nodes, &size, columns);
                         let name = panels.get(index).map_or(String::new(), |p| p.name.clone());
                         (index, added, name)
                     });
@@ -2833,6 +3385,79 @@ impl EditorApp {
                         tr_args("status-already-pinned", &[("panel", name.into())]),
                         now,
                     );
+                }
+            }
+            PinRequest::Strip { nodes, panel } => {
+                let registry = self.registry.clone();
+                let defs = self.doc.project.group_defs.clone();
+                let columns = self.perform.place_columns();
+                let name = nodes
+                    .first()
+                    .and_then(|id| self.doc.project.graph.node(*id))
+                    .and_then(|n| n.ui.label.clone())
+                    .unwrap_or_else(|| tr("perform-new-strip"));
+                // No panel named: the one the panel view shows, or a new one.
+                let current = self.perform.current;
+                let made = self.doc.edit_panels(&tr("undo-make-strip"), |panels, g| {
+                    let index = match panel.or(Some(current)) {
+                        Some(i) if i < panels.len() => i,
+                        _ => pins::add_panel(panels, ""),
+                    };
+                    let size = |it: &ac_core::PanelItem| {
+                        crate::perform::item_size(&registry, g, &defs, it)
+                    };
+                    pins::pin_strip(panels, g, index, &nodes, &name, &size, columns).map(|_| index)
+                });
+                match made {
+                    Some(index) => {
+                        self.perform.current = index;
+                        self.say(
+                            tr_args("status-pinned-strip", &[("name", name.into())]),
+                            now,
+                        );
+                    }
+                    None => self.say(tr("status-only-controls-pin"), now),
+                }
+            }
+            PinRequest::FromSelection { nodes, kind } => {
+                let words = crate::edit::generate::Words {
+                    mixer: tr("perform-mixer"),
+                    pads: tr("perform-pads"),
+                    grid: tr("perform-grid"),
+                    tracks: tr("perform-tracks"),
+                    track: |n| tr_args("perform-track-n", &[("n", n.into())]),
+                    scene: |n| tr_args("perform-scene-n", &[("n", n.into())]),
+                };
+                use crate::edit::generate;
+                use crate::perform::Generated;
+                let label = match kind {
+                    Generated::Mixer => tr("undo-mixer-from-selection"),
+                    Generated::Pads => tr("undo-pads-from-selection"),
+                    Generated::Grid => tr("undo-grid-from-selection"),
+                };
+                let registry = self.registry.clone();
+                let made =
+                    self.doc
+                        .edit_with_panels(&registry, &label, |g, ctx, panels| match kind {
+                            Generated::Mixer => generate::mixer(g, panels, &nodes, &words),
+                            Generated::Pads => generate::pads(g, ctx, panels, &nodes, &words),
+                            Generated::Grid => {
+                                generate::launch_grid(g, ctx, panels, &nodes, &words)
+                            }
+                        });
+                match made {
+                    Some(m) => {
+                        self.perform.current = m.panel;
+                        self.set_view(true);
+                        let name = self
+                            .doc
+                            .project
+                            .panels
+                            .get(m.panel)
+                            .map_or(String::new(), |p| p.name.clone());
+                        self.say(tr_args("status-panel-made", &[("panel", name.into())]), now);
+                    }
+                    None => self.say(tr("status-nothing-for-panel"), now),
                 }
             }
             PinRequest::Unpin { nodes, panel } => {
@@ -3356,6 +3981,135 @@ impl EditorApp {
             Ok(a) => self.assign_clip_asset(node, a, now),
             Err(e) => self.warn(
                 tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                now,
+            ),
+        }
+    }
+
+    /// Audio files dropped on the window: on a panel, a pad playing each;
+    /// on a Clip, Sampler, or Sample card, its new file; elsewhere on the
+    /// canvas, a Clip playing it (a Sampler with `Shift` held) (D209).
+    fn dropped_files(&mut self, ctx: &egui::Context, now: f64) {
+        let (files, at, shift) = ctx.input(|i| {
+            (
+                i.raw.dropped_files.clone(),
+                i.pointer.latest_pos(),
+                i.modifiers.shift,
+            )
+        });
+        for (k, f) in files.into_iter().enumerate() {
+            let path = f.path().to_path_buf();
+            if path.as_os_str().is_empty() {
+                continue;
+            }
+            let wav = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("wav") || e.eq_ignore_ascii_case("wave"));
+            if !wav {
+                self.warn(
+                    tr_args(
+                        "status-drop-not-wav",
+                        &[("file", path.display().to_string().into())],
+                    ),
+                    now,
+                );
+                continue;
+            }
+            let offset = vec2(0.0, 90.0 * k as f32);
+            self.drop_audio(&path, at.map(|p| p + offset), shift, now);
+        }
+    }
+
+    /// One dropped audio file, at screen point `at`.
+    pub fn drop_audio(&mut self, path: &Path, at: Option<egui::Pos2>, sampler: bool, now: f64) {
+        let asset = match self.import_audio(path) {
+            Ok(a) => a,
+            Err(e) => {
+                self.warn(
+                    tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                    now,
+                );
+                return;
+            }
+        };
+        let label = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let config = serde_json::json!({
+            "file": asset.file,
+            "channels": asset.channels,
+            "hash": asset.hash,
+        });
+        let registry = self.registry.clone();
+        if self.perform.shown {
+            // A pad on the panel showing, playing the file.
+            let panel = self.perform.current;
+            let pos = self
+                .doc
+                .project
+                .graph
+                .nodes
+                .iter()
+                .map(|n| n.ui.pos[1])
+                .fold(0.0f32, f32::max)
+                + 240.0;
+            let made = self.doc.at_root(|doc| {
+                doc.edit_with_panels(&registry, &tr("undo-pad-from-file"), |g, ctx, panels| {
+                    if panels.is_empty() {
+                        crate::edit::pins::add_panel(panels, &tr("perform-pads"));
+                    }
+                    let panel = panel.min(panels.len().saturating_sub(1));
+                    crate::edit::generate::pad_from_file(
+                        g,
+                        ctx,
+                        panels,
+                        panel,
+                        config.clone(),
+                        &label,
+                        [0.0, pos],
+                    )
+                })
+            });
+            self.reload_assets();
+            if made.added.is_empty() {
+                return;
+            }
+            self.say(
+                tr_args("status-pad-from-file", &[("file", (&label).into())]),
+                now,
+            );
+            return;
+        }
+        let screen =
+            at.unwrap_or_else(|| self.canvas.transform().to_screen(self.canvas.view.center));
+        let target = self.canvas.node_under(screen).filter(|id| {
+            self.doc
+                .graph()
+                .node(*id)
+                .is_some_and(|n| matches!(n.kind.as_str(), "clip" | "sampler" | "sample"))
+        });
+        if let Some(node) = target {
+            self.assign_clip_asset(node, asset, now);
+            return;
+        }
+        let kind = if sampler { "sampler" } else { "clip" };
+        let p = self.canvas.transform().to_canvas(screen);
+        let pos = [p.x - theme::NODE_WIDTH / 2.0, p.y - 14.0];
+        let node = self.doc.edit(&registry, &tr("undo-add-file"), |g, ctx| {
+            let id = crate::edit::add_node(g, ctx, kind, config.clone(), pos);
+            if let Some(n) = g.node_mut(id) {
+                n.ui.label = Some(label.clone());
+            }
+            id
+        });
+        self.doc.selection = [node].into();
+        self.reload_assets();
+        match asset.note {
+            Some(n) => self.say(n, now),
+            None => self.say(
+                tr_args("status-clip-plays", &[("file", asset.file.into())]),
                 now,
             ),
         }

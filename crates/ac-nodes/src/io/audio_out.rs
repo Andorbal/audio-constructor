@@ -20,11 +20,18 @@ node! {
     /// (the result of a runaway feedback loop or a division by zero) are
     /// sent as silence rather than reaching the speakers.
     ///
+    /// The `role` config is `main` (the default) or `monitor`. A main
+    /// output is what you export: an offline render (`audioc render`,
+    /// Export) writes it to the file. A monitor output plays live only and
+    /// a render leaves it out, so a click track, a cue mix, or the input
+    /// you hear yourself through never ends up in the export.
+    ///
     /// The node's meter shows the peak level of its first two channels.
     ///
     /// **Try this:** add a second Audio Out on outputs 3–4 (`channel` = 2)
-    /// for a headphone cue mix, or wire an `Oscillator` straight in at a low
-    /// `Gain` to check that sound comes out at all.
+    /// with `role` set to `monitor` for a headphone cue mix that stays out
+    /// of the export, or wire an `Oscillator` straight in at a low `Gain`
+    /// to check that sound comes out at all.
     pub struct AudioOut {
         first: usize,
     }

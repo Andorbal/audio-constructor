@@ -203,3 +203,18 @@ canvas-more-knobs = { $count ->
 canvas-more-knobs-tip = Every knob is in the Node tab. Wire one and it shows here; Show All Knobs in the node's menu puts them all on the card.
 canvas-all-knobs = Show All Knobs
 canvas-fewer-knobs = Show Fewer Knobs
+canvas-light-on = on
+canvas-light-off = off
+canvas-pin-as-strip = Pin as Strip
+canvas-mixer-from-selection = Mixer from Selection
+canvas-pads-from-selection = Pads from Selection
+canvas-grid-from-selection = Launch Grid from Selection
+
+## What a MIDI Monitor card shows, one line per message.
+
+canvas-midi-note-on = { $note } on · vel { $velocity } · ch { $channel }
+canvas-midi-note-off = { $note } off · ch { $channel }
+canvas-midi-cc = CC { $controller } = { $value } · ch { $channel }
+canvas-midi-bend = Bend { $value } · ch { $channel }
+canvas-midi-pressure = Pressure { $value } · ch { $channel }
+canvas-midi-program = Program { $program } · ch { $channel }

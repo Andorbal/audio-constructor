@@ -58,10 +58,11 @@ pub use io::{
     TelemetryAccess, TextSrc, TriggerOut, TriggerSrc,
 };
 pub use node::{
-    AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
-    NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
+    AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, MidiRecordSink,
+    NoResources, Node, NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink,
+    Resources,
 };
-pub use panel::{Panel, PanelItem};
+pub use panel::{Panel, PanelItem, PanelLabel, Strip};
 pub use param::{param_text, param_value};
 pub use plugin::{
     MidiSink, NO_PLUGIN_HOST, PLUGIN_KIND, PluginBlock, PluginDesc, PluginEvent, PluginFormat,
@@ -69,17 +70,18 @@ pub use plugin::{
     project_plugins,
 };
 pub use project::{
-    LoadError, Project, SCHEMA_VERSION, Settings, TempoSegment, View, referenced_assets,
+    AutomationMode, LoadError, MAX_COUNT_IN, MAX_MARKERS, Marker, Project, SCHEMA_VERSION,
+    Settings, TempoSegment, View, referenced_assets,
 };
 pub use registry::{
     NodeEntry, Registry, RenderWholeFn, fuzzy_score, group_signature, voices_signature,
 };
 pub use signal::{
-    AutoTrigger, Channels, Conversion, OutRate, Rate, Scale, SignalType, Signature, SocketSpec,
-    SpectrumShape, Unit, conversion,
+    AutoTrigger, Channels, Conversion, OutRate, Rate, START_AT, START_AT_CHOICES, START_CHOICES,
+    STOP_CHOICES, Scale, SignalType, Signature, SocketSpec, SpectrumShape, Unit, conversion,
 };
 pub use spectrum::SpectrumBuf;
 pub use text::{TEXT_MAX, TextBuf};
-pub use time::{TempoMap, TransportView};
+pub use time::{SongLock, TempoMap, TransportView};
 pub use value::{Config, ConfigExt, Value, empty_config};
 pub use whole::{WholeCtx, WholeInputs, WholeOutputs, WholeValue};

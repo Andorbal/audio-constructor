@@ -10,22 +10,22 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-125 nodes in 13 categories.
+143 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
-| [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
-| [Generators](#generators) | 9 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
+| [Input / Output](#io) | 11 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
+| [Generators](#generators) | 13 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 7 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
 | [Spectral](#spectral) | 7 | Work in frequencies instead of samples: transforms to and from spectra, band splitting, spectral gating and shifting, and pitch detection. |
-| [Math & Logic](#math) | 21 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
+| [Math & Logic](#math) | 22 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
-| [Sequencing & Notes](#sequencing) | 12 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
-| [Controls](#controls) | 8 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
-| [Display](#display) | 5 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
+| [Sequencing & Notes](#sequencing) | 16 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
+| [Controls](#controls) | 11 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
+| [Display](#display) | 10 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
 
 <a id="io"></a>
@@ -42,6 +42,7 @@ Sound, MIDI, and controls coming into and going out of the patch: audio devices,
 | [Keyboard In](io.md#keyboard-in) | Brings the computer keyboard into the patch: chosen keys as gates and press triggers, and a row of letter keys played like a piano. *Live source.* |
 | [MIDI In](io.md#midi-in) | Brings MIDI from the connected devices into the patch. *Live source.* |
 | [MIDI Out](io.md#midi-out) | Sends MIDI to the connected devices. |
+| [MIDI Record](io.md#midi-record) | Records the notes played into it, one take at a time; each take becomes a MIDI Pattern beside it. |
 | [OSC In](io.md#osc-in) | Receives Open Sound Control messages, such as the faders and buttons of a phone or tablet control surface, as numbers and a trigger. *Live source.* |
 | [OSC Out](io.md#osc-out) | Sends numbers from the patch as Open Sound Control messages, to move the faders of a phone or tablet control surface or to drive anything else on the network that speaks OSC. |
 | [Record](io.md#record) | Writes audio to a file, one take at a time. |
@@ -57,9 +58,13 @@ Sources of signal over time: oscillators, noise, audio files, samplers, drawn cu
 | [Granular](generators.md#granular) | A cloud of grains: tiny, overlapping slices of a recorded sound, each a few milliseconds to a second long, played over and over from around one spot. A plain recording turns into a texture, a pad, or a shimmer, and it can stand still in time. |
 | [Graph](generators.md#graph) | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
 | [Impulse](generators.md#impulse) | A single-sample click on each `trigger`, as a sample-rate `Float`. |
+| [Looper](generators.md#looper) | A loop pedal: records what comes into `in`, plays it round and round, and layers more on top. |
 | [Noise](generators.md#noise) | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |
 | [Oscillator](generators.md#oscillator) | A periodic waveform (sine, triangle, saw, square, or pulse) at `freq` + `fm` Hz, as a sample-rate `Float` that wires into audio or into any parameter. |
+| [Sample](generators.md#sample) | An audio file as a sound to wire: its `buffer` output holds the whole file, for a `Sampler`, a `Slicer`, or anything else that plays a Buffer. |
 | [Sampler](generators.md#sampler) | Plays a recorded sound at any pitch, with start and end points, a sustain loop, and the generator contract: the building block for drum machines and sampled instruments. |
+| [Slicer](generators.md#slicer) | Cuts a sound into slices and plays them one at a time: a drum loop becomes a kit on a pad grid. |
+| [Tempo](generators.md#tempo) | Sets the song's tempo: turn `bpm`, or tap the tempo on `tap`. |
 | [Transport](generators.md#transport) | Song time as signals: seconds, beats, bars, tempo, and play state. |
 | [Wavetable](generators.md#wavetable) | An oscillator that plays single-cycle waveforms from a table and morphs between them with `position`, as a sample-rate `Float`. |
 
@@ -140,13 +145,14 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Counter](math.md#counter) | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
 | [Differentiate](math.md#differentiate) | How fast `in` is changing, in units per second. |
 | [Integrate](math.md#integrate) | Adds up `in` over time: the running integral, per second. |
-| [Logic](math.md#logic) | Combines two gates, `a` and `b`, with a logic operation. |
+| [Logic](math.md#logic) | Combines gates, `a`, `b`, and more, with a logic operation. |
 | [Map](math.md#map) | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Combines two values, `a` and `b`, with an arithmetic operation. |
 | [Merge](math.md#merge) | Combines several MIDI or trigger streams into one, so two sources can play one instrument at once. |
 | [Number to Text](math.md#number-to-text) | Writes numbers into a text template: `/fader/{}` with `value` 3 gives `/fader/3`. |
 | [Quantize](math.md#quantize) | Rounds `in` to the nearest step of a grid: multiples of `step`, shifted by `offset`. |
 | [Random](math.md#random) | A new random value on every `trigger`, held until the next. |
+| [Route](math.md#route) | Sends its input to one of several outputs, picked by `index`: the mirror of Select. Or, in gate mode, passes it while `open` is on. |
 | [Sample & Hold](math.md#sample-hold) | Samples `in` at each `trigger` and holds that value until the next. |
 | [Select](math.md#select) | Passes on one of several inputs, picked by `index`. |
 | [Smooth](math.md#smooth) | Smooths a changing value: a slew limiter or a one-pole smoother, with separate times for rising and falling. |
@@ -199,16 +205,20 @@ Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeg
 | --- | --- |
 | [Arpeggiator](sequencing.md#arpeggiator) | Plays the notes you hold one at a time, stepping on each clock tick. |
 | [Chord](sequencing.md#chord) | Plays a whole chord for every incoming note. |
+| [Humanize](sequencing.md#humanize) | Loosens a part the way a player would: each trigger or note comes a little late and a little louder or softer, differently every time. |
 | [MIDI CC](sequencing.md#midi-cc) | Turns one MIDI controller into a `Float` in a range you choose. |
 | [MIDI Filter](sequencing.md#midi-filter) | Passes only the MIDI you want: one channel, a range of notes, and chosen kinds of message. |
 | [MIDI Note](sequencing.md#midi-note) | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |
 | [MIDI Pattern](sequencing.md#midi-pattern) | A piano-roll clip of notes in beats that plays as MIDI, from a one-bar riff to a whole song. |
 | [MIDI Transpose](sequencing.md#midi-transpose) | Shifts MIDI notes up or down by semitones, optionally snapping them into a scale. |
+| [Note Split](sequencing.md#note-split) | Splits MIDI into a trigger, a gate, and a velocity for each of a list of notes: one node turns a drum pad's or a pattern's notes into what each sound needs. |
 | [Note To MIDI](sequencing.md#note-to-midi) | Builds MIDI notes from signals: a gate or a trigger, a note number, and a velocity. |
 | [Pattern](sequencing.md#pattern) | A grid of step buttons that plays one step per clock tick, like a drum machine's pattern. |
 | [Scale Quantize](sequencing.md#scale-quantize) | Snaps notes to a scale: a `Float` note number, or the notes of a MIDI stream. |
+| [Velocity](sequencing.md#velocity) | Reshapes how hard MIDI notes are played: scale, curve, range, or one fixed velocity for every note. |
 | [Voice](sequencing.md#voice) | One voice's note, inside the body of a `Voices` node. |
 | [Voices](sequencing.md#voices) | Makes any patch polyphonic: its body (a group) runs once per voice, each voice plays one note at a time, and the voices' outputs are added together. |
+| [Zones](sequencing.md#zones) | Finds which zone of a key and velocity map a note falls in: the heart of a keymapped or velocity-layered instrument. |
 
 <a id="controls"></a>
 ## Controls
@@ -219,9 +229,12 @@ Widgets you play by hand, on the canvas or on a performance panel: knobs, slider
 | --- | --- |
 | [Button](controls.md#button) | A momentary push button: a trigger on press, a gate while held, and a trigger on release. |
 | [Dropdown](controls.md#dropdown) | A menu of named choices; outputs the index of the one picked. |
+| [Fader](controls.md#fader) | A mixer fader: a vertical level in decibels, with a meter beside it. |
 | [Keyboard](controls.md#keyboard) | A piano keyboard you play with the mouse, on the canvas or on a panel; it sends the notes out as MIDI. |
 | [Knob](controls.md#knob) | A round dial for a value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Number](controls.md#number) | A number you type in: a `Float` or an `Int`, optionally kept within a range. |
+| [Pad](controls.md#pad) | A drum pad: a button that feels how hard it's hit, and lights up. |
+| [Pads](controls.md#pads) | A grid of drum pads in one node: rows × columns of pads that play notes with velocity, fire triggers, and light up. |
 | [Slider](controls.md#slider) | A value you set by hand, with a range, a unit, and a linear or log scale. |
 | [Toggle](controls.md#toggle) | An on/off switch. |
 | [XY Pad](controls.md#xy-pad) | A square pad you drag a point around on: two values at once, plus a gate while you touch it. |
@@ -234,10 +247,15 @@ Meters, scopes, readouts, and analyzers that show what a signal is doing. All on
 | Node | What it does |
 | --- | --- |
 | [Analyzer](display.md#analyzer) | A spectrum analyzer: shows how loud each part of the frequency range is, and passes the signal through unchanged so it can sit inline. |
+| [Arrangement](display.md#arrangement) | The song laid out in time: a lane for every Clip, MIDI Pattern, Pattern, and Graph placed in the song. |
+| [Light](display.md#light) | A lamp that shows a state: on when its input is, dimmed by a level. |
+| [MIDI Monitor](display.md#midi-monitor) | Shows the last MIDI messages on a wire, newest first: notes with their names and velocities, controllers, pitch bend, pressure, and program changes, each with its channel. |
 | [Meter](display.md#meter) | Shows the peak and RMS level of a signal, and passes it through unchanged so it can sit inline anywhere in a chain. |
 | [Readout](display.md#readout) | Shows the current value of whatever is wired into it, as a number. |
 | [Scope](display.md#scope) | An oscilloscope: draws the waveform of a signal over a time `window`, and passes the signal through unchanged. |
 | [Spectrogram](display.md#spectrogram) | A scrolling spectrogram: a picture of a sound over time, with frequency going up, time running left to right (the newest moment at the right edge), and loudness as brightness. It passes the signal through unchanged, so it can sit inline. |
+| [Tuner](display.md#tuner) | A tuner: the note a sound is playing and how many cents sharp or flat, as a needle on the card. |
+| [Waveform](display.md#waveform) | Draws a sound, with where it's playing and handles for the points that pick which part plays. |
 
 <a id="utility"></a>
 ## Utility

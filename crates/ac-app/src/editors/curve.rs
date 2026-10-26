@@ -10,7 +10,7 @@ use ac_core::Config;
 use ac_dsp::curve::{Curve, Point, Shape};
 use egui::{Align2, Pos2, Shape as Paint, Stroke, pos2};
 
-use super::{Edit, area, grid, load, store};
+use super::{Edit, LiveView, area, grid, load, store};
 use crate::i18n::tr;
 use crate::theme;
 
@@ -160,6 +160,7 @@ pub(super) fn ui(
     id: egui::Id,
     space: Space,
     config: &Config,
+    live: &LiveView,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
@@ -315,6 +316,11 @@ pub(super) fn ui(
         })
         .collect();
     painter.add(Paint::line(line, Stroke::new(2.0, theme::accent())));
+    if let Some(x) = live.position.filter(|x| (xlo..=xhi).contains(x)) {
+        let at = to_screen(x, curve.eval(x).clamp(ylo, yhi));
+        super::playhead(&painter, at.x, plot.top(), plot.bottom());
+        painter.circle_filled(at, 3.5, theme::play());
+    }
     if let Some(p) = space
         .sustain
         .and_then(|i| points.get(i.min(points.len() - 1)))

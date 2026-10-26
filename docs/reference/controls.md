@@ -17,6 +17,11 @@ Right-click `pressed` to bind it to a key or a MIDI note. `pressed`
 can also be wired, which turns any gate into press and release
 triggers. Both triggers land on the exact sample `pressed` changes.
 
+`lit` lights the button, on the canvas and on a panel, without
+pressing it: wire a pattern's gate or a clip's `playing` into it so
+the button shows what's playing. It reads its wire one block late,
+so the clip the button starts can light it without making a cycle.
+
 **Try this:** wire `gate` into an `ADSR` to sound a note for as long
 as the button is held, or wire `trigger` into a `Clip`'s `start` to
 fire a sample.
@@ -26,6 +31,7 @@ fire a sample.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `pressed` | Bool | false |  | True while the button is held. |
+| `lit` | Bool | false |  | Lights the button without pressing it. |
 
 **Outputs**
 
@@ -70,6 +76,42 @@ panel, or wire `changed` into an `ADSR` to hear each switch.
 | --- | --- | --- |
 | `out` | Int | Index of the chosen label, from 0. |
 | `changed` | Trigger | Fires when the choice changes. |
+
+<a id="fader"></a>
+## Fader
+
+Kind: `fader` · Also found by: level, channel, mixer, slider, db, strip, console
+
+A mixer fader: a vertical level in decibels, with a meter beside it.
+
+Drag the fader up and down in the node (or on a panel); double-click
+it to go back to 0 dB. The `min` and `max` config set its range in
+dB (default −60 to +6). `out` is `value` kept within the range, and
+`gain` is the same level as a factor to multiply by, 0 at the bottom
+of the range, so the fader's lowest point is silence. Wire the audio
+it controls (or anything else) into `meter` and the fader shows its
+level beside the handle, so a channel's level and its reading are
+one card. `meter` reads its wire one block late, so it can come from
+after the gain the fader sets without making a cycle. Right-click
+`value` to bind it to a MIDI fader.
+
+**Try this:** wire `out` into a `Gain`'s `gain` (both in dB) on a
+channel, and the `Gain`'s output into `meter`; pin the fader to a
+panel, and the channel's level and its reading are one card.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `value` | Float (dB) | 0 | -60 … 6 | The fader's position, in dB. |
+| `meter` | Audio | — |  | Audio to show beside the fader. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Float (dB) | `value`, kept within the range. |
+| `gain` | Float | The level as a factor: 0 at the bottom of the range. |
 
 <a id="keyboard"></a>
 ## Keyboard
@@ -190,6 +232,102 @@ hertz you type.
 | --- | --- | --- |
 | `out` | Float | `value`, kept within the range. |
 
+<a id="pad"></a>
+## Pad
+
+Kind: `pad` · Also found by: drum pad, button, velocity, pressure, hit, trigger, mpc, finger drum
+
+A drum pad: a button that feels how hard it's hit, and lights up.
+
+Press the pad in the node (or on a panel): where you hit it sets
+the velocity, harder towards the top, and `trigger` fires with
+`velocity` at that level (0–1) until the next hit. `gate` stays
+high while it's held and `release` fires when it comes up. On a
+pen or touch screen that reports pressure, `pressure` follows it
+while the pad is held (aftertouch); otherwise it holds the velocity.
+
+`lit` lights the pad without playing it: wire a pattern's gate or a
+clip's `playing` into it so the pad shows what plays. Right-click
+`pressed` to bind the pad to a key or a MIDI note.
+
+**Try this:** wire `trigger` into a `Sampler`'s `start` and
+`velocity` into its `gain` through a `Map` (0–1 to −24–0 dB), pin
+the pad to a panel, and play it soft and hard.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `pressed` | Bool | false |  | True while the pad is held. |
+| `lit` | Bool | false |  | Lights the pad without playing it. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger` | Trigger | Fires when the pad is hit. |
+| `gate` | Bool | High while the pad is held. |
+| `release` | Trigger | Fires when the pad comes up. |
+| `velocity` | Float | How hard the last hit was, 0–1. |
+| `pressure` | Float | Pressure while held (aftertouch); the velocity otherwise. |
+
+<a id="pads"></a>
+## Pads
+
+Kind: `pads` · Also found by: drum pads, pad bank, grid, 4x4, mpc, launchpad, velocity, finger drum, clip launcher, buttons
+
+A grid of drum pads in one node: rows × columns of pads that play
+notes with velocity, fire triggers, and light up.
+
+The `rows` and `columns` config (1–8 each, default 4 × 4) shape the
+grid. Pads count from the bottom-left, left to right and then
+upwards, as on a drum machine: pad *k* plays MIDI note `low` + *k*
+(config `low`, default 36, the usual kick) on channel `channel`
+(config, 1–16), so a 4 × 4 grid plays notes 36 to 51. Where you hit
+a pad sets the velocity, harder towards its top. Each pad also fires
+its own `trigger_k` when hit, `pad` says which was hit last (from 0)
+and `velocity` how hard (0–1).
+
+Pads light while their note is on in `lit`: wire the MIDI that plays
+your sounds (a pattern, a keyboard, a drum pad) into it and the grid
+shows what's playing. Each pad is a hidden `pad_k` input the editor
+holds down; restarting the transport releases them.
+
+**Try this:** wire `trigger_0` to `trigger_3` into four `Sampler`s'
+`start`, pin the Pads to a panel, and play them; then wire a `MIDI
+Pattern` playing notes 36 to 39 into `lit`, and the pads light with
+the pattern.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `lit` | Midi | — |  | Pads light while their note is on here. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | A note per pad, with velocity. |
+| `velocity` | Float | How hard the last hit was, 0–1. |
+| `pad` | Int | The last pad hit, from 0 (−1 before any). |
+| `trigger_0` | Trigger | Fires when this pad is hit. |
+| `trigger_1` | Trigger | Fires when this pad is hit. |
+| `trigger_2` | Trigger | Fires when this pad is hit. |
+| `trigger_3` | Trigger | Fires when this pad is hit. |
+| `trigger_4` | Trigger | Fires when this pad is hit. |
+| `trigger_5` | Trigger | Fires when this pad is hit. |
+| `trigger_6` | Trigger | Fires when this pad is hit. |
+| `trigger_7` | Trigger | Fires when this pad is hit. |
+| `trigger_8` | Trigger | Fires when this pad is hit. |
+| `trigger_9` | Trigger | Fires when this pad is hit. |
+| `trigger_10` | Trigger | Fires when this pad is hit. |
+| `trigger_11` | Trigger | Fires when this pad is hit. |
+| `trigger_12` | Trigger | Fires when this pad is hit. |
+| `trigger_13` | Trigger | Fires when this pad is hit. |
+| `trigger_14` | Trigger | Fires when this pad is hit. |
+| `trigger_15` | Trigger | Fires when this pad is hit. |
+
 <a id="slider"></a>
 ## Slider
 
@@ -234,6 +372,9 @@ Clicking the switch in the node (or on a panel) sets `value`, and
 switch follows it again, whatever `flip` did before. Right-click
 `value` to bind it to a key or a MIDI control.
 
+`lit` lights the switch, whichever way it's set: wire a clip's
+`playing` into it so a mute switch also shows its track is sounding.
+
 **Try this:** wire a `Button`'s `trigger` into `flip` for a latching
 footswitch, or multiply a signal by `out` with a `Math` node to
 switch it on and off.
@@ -244,6 +385,7 @@ switch it on and off.
 | --- | --- | --- | --- | --- |
 | `value` | Bool | false |  | Sets the switch. |
 | `flip` | Trigger | — |  | Turns the switch over. |
+| `lit` | Bool | false |  | Lights the switch, whichever way it's set. |
 
 **Outputs**
 

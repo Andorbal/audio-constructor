@@ -27,7 +27,27 @@ Each take lands in the project's `assets/` folder as a 32-bit float WAV
 named after the Record node's label, numbered `-001`, `-002`, and so on
 (`assets/Lead-Vox-001.wav`). When a take is done, the status line says
 "Recorded …" with a **Create Clip from take** button, which adds a Clip
-playing it next to the Record node.
+playing it next to the Record node. The clip is placed in the song where
+the take started (its `start` is *At beat…*), so it plays in time from
+any bar, and it's wired into whatever the Record node's source also fed
+(a Mix input, a Track), so the take plays where you heard yourself; the
+source stays wired to the Record node for the next take.
+
+**Punch in.** `Shift`-drag across the ruler under the transport bar to set
+a punch range (a red band). While it's set, recording only happens inside
+it: press `R` before the range and the Record nodes start on its first
+sample and stop on its last. Right-click the ruler to clear it.
+
+**Count-in.** Right-click the metronome button in the transport bar and
+pick a number of bars: recording from a stop then clicks that many bars
+first and starts on the next downbeat. The metronome itself (the button,
+or `Shift+C`) clicks along while you play. Neither the click nor the
+count-in is ever recorded or rendered.
+
+**Monitor outputs.** Set an Audio Out's `role` to *monitor* (in the Node
+tab) and it plays live only: a render leaves it out. Use it to hear your
+input, or for a headphone cue mix, without either ending up in the
+export.
 
 More ways to drive it:
 
@@ -43,9 +63,9 @@ More ways to drive it:
 - The `channels` setting is how many channels are written (two by
   default; a mono signal goes to both).
 
-Takes start and end on buffer boundaries, a few milliseconds apart. If
-the disk can't keep up, the node's display shows how many samples were
-dropped.
+Takes start and end on buffer boundaries, a few milliseconds apart (on
+the exact sample at a punch range's edges). If the disk can't keep up,
+the node's display shows how many samples were dropped.
 
 From the command line, `audioc run --record` plays a project live with
 recording on, and the takes land in the same `assets/` folder.
@@ -107,6 +127,11 @@ A render has no sound card, keyboard, or network, so:
   baked from the render's own input; see
   [Live and baked](live-and-baked.md).
 - Record nodes don't record.
+- Audio Outs set to the *monitor* role are left out, and so is the
+  transport's click.
+- `--from` starts the render partway through: every node starts fresh
+  there, clips and patterns placed in the song (*At beat…*) start where
+  they'd be, and the result is the same as seeking there live.
 
 ### Several files at once: File Out
 

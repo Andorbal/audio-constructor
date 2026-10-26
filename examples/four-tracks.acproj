@@ -3,7 +3,7 @@
   "name": "Four Tracks",
   "settings": {
     "sample_rate": 48000,
-    "length": 8.0,
+    "length": 24.0,
     "seed": 0,
     "block_size": 256,
     "tempo": [

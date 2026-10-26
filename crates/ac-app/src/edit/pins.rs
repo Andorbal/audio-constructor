@@ -2,17 +2,119 @@
 //! adding, renaming, ordering, and removing panels and their items.
 //!
 //! Panels only ever refer to nodes in the root graph that have a widget
-//! body (controls, displays, Clip, Record, Audio Out). Nodes inside groups
+//! body (controls, displays, Clip, Record, Audio Out), a drawn editor
+//! (Pattern, MIDI Pattern, Step Sequencer, Graph, D217), or the
+//! Arrangement view (D221), or that are group instances (shown as a card
+//! of their sockets, D203). Nodes inside groups
 //! can't be pinned: a definition is shared by every instance, so a pin
 //! there wouldn't say which instance it shows (DECISIONS D96).
 
-use ac_core::{Graph, NodeId, NodeInstance, Panel, PanelItem};
+use ac_core::{Graph, NodeId, NodeInstance, Panel, PanelItem, Strip};
 
 use crate::canvas::scene::Body;
+use crate::perform::grid;
 
-/// Whether a node can be pinned: it has a widget body.
+/// Whether a node can be pinned: it has a widget body or a drawn editor,
+/// it's the Arrangement, or it's a group or block instance.
 pub fn pinnable(node: &NodeInstance) -> bool {
     Body::of(&node.kind).is_some()
+        || crate::editors::editor_for(&node.kind, &node.config).is_some()
+        || node.kind == "arrangement"
+        || crate::perform::group_card::is_group(node)
+}
+
+/// Cards that pin compact by default (half a cell): a toggle, a button, a
+/// light.
+pub fn compact_by_default(node: &NodeInstance) -> bool {
+    matches!(node.kind.as_str(), "toggle" | "button" | "light")
+}
+
+/// Pin as [`pin`] does; on a panel whose cards have places, each new card
+/// gets the first free place for its `size` (cells across, lines down)
+/// within `columns`, so nothing already there moves (D202).
+pub fn pin_placed(
+    panels: &mut [Panel],
+    graph: &Graph,
+    panel: usize,
+    ids: &[NodeId],
+    size: &dyn Fn(&PanelItem) -> Option<[u32; 2]>,
+    columns: u32,
+) -> usize {
+    let added = pin(panels, graph, panel, ids);
+    let Some(p) = panels.get_mut(panel) else {
+        return added;
+    };
+    if !p.is_placed() {
+        return added;
+    }
+    let n = p.items.len();
+    for k in n - added..n {
+        let Some(span) = size(&p.items[k]) else {
+            continue;
+        };
+        let layout = grid::layout(
+            p,
+            |i| if i >= k { None } else { size(&p.items[i]) },
+            columns,
+        );
+        let at = layout.free_spot(span, columns);
+        p.items[k].at = Some(at);
+    }
+    added
+}
+
+/// Pin the pinnable `ids` (in that order) to `panel` as one new strip named
+/// `name`, at the first free place; nodes already on the panel move into
+/// it. Toggles, buttons, and lights go in compact. A flowing panel gets
+/// places first, so its cards stay where they were. Returns the strip's id.
+pub fn pin_strip(
+    panels: &mut [Panel],
+    graph: &Graph,
+    panel: usize,
+    ids: &[NodeId],
+    name: &str,
+    size: &dyn Fn(&PanelItem) -> Option<[u32; 2]>,
+    columns: u32,
+) -> Option<u32> {
+    let p = panels.get_mut(panel)?;
+    let nodes: Vec<&NodeInstance> = ids
+        .iter()
+        .filter_map(|id| graph.node(*id))
+        .filter(|n| pinnable(n))
+        .collect();
+    if nodes.is_empty() {
+        return None;
+    }
+    let before = grid::layout(p, |i| size(&p.items[i]), columns);
+    if !p.is_placed() && !p.items.is_empty() {
+        grid::freeze(p, &before);
+    }
+    let id = p.fresh_strip_id();
+    p.items.retain(|it| !nodes.iter().any(|n| n.id == it.node));
+    for n in &nodes {
+        let mut it = PanelItem::new(n.id);
+        it.strip = Some(id);
+        it.compact = compact_by_default(n);
+        p.items.push(it);
+    }
+    let mut strip = Strip::new(id, name);
+    let lines = 1 + p
+        .items
+        .iter()
+        .filter(|it| it.strip == Some(id))
+        .filter_map(|it| size(it).map(|s| s[1]))
+        .sum::<u32>();
+    let others = grid::layout(
+        p,
+        |i| {
+            let it = &p.items[i];
+            if it.strip == Some(id) { None } else { size(it) }
+        },
+        columns,
+    );
+    strip.at = Some(others.free_spot([1, lines], columns));
+    p.strips.push(strip);
+    Some(id)
 }
 
 /// A name for a new panel that no panel has yet, counting from its place:
@@ -159,6 +261,22 @@ mod tests {
     use super::*;
     use crate::document::Document;
     use crate::edit;
+
+    #[test]
+    fn editors_and_the_arrangement_pin() {
+        use ac_core::NodeInstance;
+        for kind in [
+            "pattern",
+            "midi_pattern",
+            "step_sequencer",
+            "graph",
+            "arrangement",
+            "knob",
+        ] {
+            assert!(pinnable(&NodeInstance::new(NodeId(1), kind)), "{kind}");
+        }
+        assert!(!pinnable(&NodeInstance::new(NodeId(1), "gain")));
+    }
 
     /// A slider and a knob feeding a gain, and a meter after it.
     fn doc() -> (Document, Registry, [NodeId; 4]) {

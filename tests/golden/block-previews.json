@@ -29,6 +29,9 @@
       "in ← the preview phrase (drums, chords, arpeggio)"
     ]
   },
+  "clip-slot": {
+    "none": "Clip Slot has no audio output, so a preview would be silent"
+  },
   "compressor": {
     "sha256": "1c27f5ebaa32fa3b1a1b29191c3bfd75d3eb842fb8cf7fa27f585867571ff29f",
     "frames": 240000,
@@ -52,6 +55,9 @@
       }
     ],
     "feeds": []
+  },
+  "drum-pad": {
+    "none": "Drum Pad is silent when the preview plays it (hit ← the phrase's snare)"
   },
   "euclidean-drummer": {
     "sha256": "41c2d161528d3da3e3cd93511dd9835ac6cc0bbdfbda3d6c66aaff42909d384a",
@@ -194,6 +200,19 @@
       {
         "peak": 0.507445,
         "rms": 0.046797
+      }
+    ],
+    "feeds": [
+      "in ← the preview phrase (drums, chords, arpeggio)"
+    ]
+  },
+  "send": {
+    "sha256": "34e95353b3cf4f1ada14c85c4b88c87d718a7e1b6ee0e3e9b86ed023703f5814",
+    "frames": 240000,
+    "channels": [
+      {
+        "peak": 0.139351,
+        "rms": 0.012213
       }
     ],
     "feeds": [

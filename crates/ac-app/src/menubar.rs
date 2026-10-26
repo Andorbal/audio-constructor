@@ -26,6 +26,14 @@ pub enum MenuCommand {
     /// File ▸ Examples: open a shipped example as an untitled copy.
     OpenExample(PathBuf),
     Add(Candidate),
+    /// Add ▸ Templates: a template that comes with the editor.
+    Template(crate::templates::Template),
+    /// Add ▸ Templates: a saved one, by index.
+    SavedTemplate(usize),
+    /// Add ▸ Templates ▸ Save Selection as Template.
+    SaveTemplate,
+    /// Add ▸ Templates ▸ forget a saved one.
+    RemoveTemplate(usize),
     /// View ▸ Theme.
     SetTheme(ThemeChoice),
     /// View ▸ Theme ▸ Reload Themes: read the themes folder again.
@@ -58,6 +66,8 @@ pub struct MenuState<'a> {
     pub panels: bool,
     pub playing: bool,
     pub looping: bool,
+    /// The transport's click is on.
+    pub metronome: bool,
     pub play_keys: bool,
     pub theme: &'a ThemeChoice,
     /// The person's own themes, listed after the built-in ones.
@@ -75,6 +85,8 @@ pub struct MenuState<'a> {
     pub updates: Option<bool>,
     /// File ▸ Open Recent is offered (not where the host keeps the files).
     pub show_recent: bool,
+    /// Selections saved as templates, by name.
+    pub templates: &'a [crate::templates::Saved],
 }
 
 fn entry(
@@ -500,6 +512,45 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
         submenu(ui, tr("menu-add"), |ui| {
             entry(ui, &mut out, Action::AddNode, icons::MAGNIFYING_GLASS, true);
             ui.separator();
+            for t in crate::templates::Template::ALL {
+                if ui.button(t.name()).on_hover_text(t.tip()).clicked() {
+                    out.push(MenuCommand::Template(t));
+                    ui.close();
+                }
+            }
+            submenu(ui, tr("menu-templates"), |ui| {
+                for (k, t) in s.templates.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        if ui.button(&t.name).clicked() {
+                            out.push(MenuCommand::SavedTemplate(k));
+                            ui.close();
+                        }
+                        if icons::spoken(ui.small_button(icons::X))
+                            .on_hover_text(tr("menu-forget-template"))
+                            .accessible_name(tr("menu-forget-template"))
+                            .clicked()
+                        {
+                            out.push(MenuCommand::RemoveTemplate(k));
+                        }
+                    });
+                }
+                if s.templates.is_empty() {
+                    ui.label(
+                        RichText::new(tr("menu-no-templates"))
+                            .small()
+                            .color(theme::text_faint()),
+                    );
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(s.has_selection, egui::Button::new(tr("menu-save-template")))
+                    .clicked()
+                {
+                    out.push(MenuCommand::SaveTemplate);
+                    ui.close();
+                }
+            });
+            ui.separator();
             for cat in Category::ALL {
                 let entries: Vec<_> = s
                     .registry
@@ -550,10 +601,19 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 tr("menu-play")
             };
             entry_labeled(ui, &mut out, Action::PlayStop, icons::PLAY, &play, true);
+            entry(ui, &mut out, Action::Stop, icons::STOP, true);
             entry(ui, &mut out, Action::PlayFromStart, icons::PLAY, true);
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
+            entry(ui, &mut out, Action::GoToEnd, icons::SKIP_FORWARD, true);
             toggle(ui, &mut out, Action::ToggleLoop, s.looping);
+            toggle(ui, &mut out, Action::Metronome, s.metronome);
+            ui.separator();
+            entry(ui, &mut out, Action::AddMarker, icons::FLAG, true);
+            entry(ui, &mut out, Action::PreviousMarker, icons::FLAG, true);
+            entry(ui, &mut out, Action::NextMarker, icons::FLAG, true);
+            ui.separator();
+            entry(ui, &mut out, Action::Panic, icons::WARNING_OCTAGON, true);
             ui.separator();
             toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });

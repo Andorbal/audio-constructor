@@ -17,6 +17,7 @@ pub fn set(
     value: Value,
     now: f64,
 ) {
+    crate::automation::capture(doc, engine, id, socket, &value);
     doc.set_param(id, socket, value.clone(), now);
     for path in doc.all_node_paths(id) {
         engine.set_param(&path, socket, value.clone());

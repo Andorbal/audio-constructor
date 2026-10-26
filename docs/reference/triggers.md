@@ -59,14 +59,21 @@ song position rather than counted up, the clock never drifts and is
 already in step after a seek, a loop, or a restart. A new `interval`
 or `offset` takes effect from the next tick.
 
-`gate` goes high at each tick for `duty` × `interval` (at 1 it stays
-high). `count` is the number of ticks since the start of the song on
+`swing` (0 to 1) delays every other tick, the odd ones, by up to
+half an interval: at 0 the ticks are straight, at about 0.67 they
+shuffle in triplets, and at 1 the pairs split three to one. Anything
+clocked from it, a `Pattern`, a `Euclidean`, a `Step Sequencer`, an
+`Arpeggiator`, swings with it.
+
+`gate` goes high at each tick for `duty` of the time to the next
+tick (at 1 it stays high). `count` is the number of ticks since the start of the song on
 the current grid, so it jumps when `interval` changes. The clock is
 quiet while the transport is stopped.
 
 **Try this:** set `interval` to 0.25 for sixteenth notes and wire
 `trigger` into an `ADSR` for a hi-hat pulse, or wire `gate` into an
-envelope and use `duty` as the note length.
+envelope and use `duty` as the note length. Turn `swing` up to 0.5
+and hear the hats shuffle.
 
 **Inputs**
 
@@ -75,6 +82,7 @@ envelope and use `duty` as the note length.
 | `interval` | Float (beats) | 1 | 0.0625 … 16 | Time between ticks. |
 | `duty` | Float | 0.5 | 0 … 1 | Gate length as a fraction of the interval. |
 | `offset` | Float (beats) | 0 | 0 … 16 | Shifts the grid later. |
+| `swing` | Float | 0 | 0 … 1 | Delays every other tick, up to half an interval. |
 
 **Outputs**
 

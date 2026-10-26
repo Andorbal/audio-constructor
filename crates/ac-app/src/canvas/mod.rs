@@ -76,6 +76,14 @@ pub enum CanvasEvent {
     Bind { node: NodeId, socket: String },
     /// Open a Plugin node's own window.
     ShowPluginWindow(NodeId),
+    /// A wire was dropped on a trigger or MIDI input that's already wired:
+    /// open the palette offering a Merge of both, or a replacement.
+    OfferMerge {
+        screen: Pos2,
+        canvas: Pos2,
+        pending: PendingWire,
+        offer: crate::palette::MergeOffer,
+    },
 }
 
 /// What the canvas needs from the app each frame.
@@ -526,6 +534,17 @@ impl Canvas {
         let s = self.last_scene.as_ref()?;
         let p = s.node(node)?.socket(socket, input)?.pos;
         Some(self.transform().to_screen(p))
+    }
+
+    /// The card under screen point `p` in the last drawn frame, topmost.
+    pub fn node_under(&self, p: Pos2) -> Option<NodeId> {
+        let s = self.last_scene.as_ref()?;
+        let t = self.transform();
+        s.nodes
+            .iter()
+            .rev()
+            .find(|n| t.rect_to_screen(n.rect).contains(p))
+            .map(|n| n.id)
     }
 
     /// Screen rectangle of a node's card in the last drawn frame (tests).
@@ -1029,10 +1048,13 @@ impl Canvas {
                 && let Some(node) = doc.graph().node(n.id)
             {
                 for s in &n.inputs {
-                    if s.wired || !t.rect_to_screen(s.row).contains(p) {
+                    if !t.rect_to_screen(s.row).contains(p) {
                         continue;
                     }
                     let Some(spec) = &s.spec else { continue };
+                    if s.wired && !widgets::shown_beside_wire(spec) {
+                        continue;
+                    }
                     if n.body.is_some_and(|(b, _)| b.drives(&s.name)) {
                         continue;
                     }

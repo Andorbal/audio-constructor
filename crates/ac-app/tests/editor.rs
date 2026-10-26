@@ -272,6 +272,100 @@ fn dropping_a_wire_on_empty_canvas_adds_a_wired_node() {
     );
 }
 
+/// Two buttons and a sampler, the first button wired into `start`.
+fn two_buttons() -> Project {
+    let mut p = Project::default();
+    for (id, y) in [(1, 0.0), (2, 220.0)] {
+        p.graph
+            .nodes
+            .push(NodeInstance::new(NodeId(id), "button").at(0.0, y));
+    }
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(3), "sampler").at(420.0, 0.0));
+    p.graph.connect(
+        Endpoint::new(NodeId(1), "trigger"),
+        Endpoint::new(NodeId(3), "start"),
+    );
+    p
+}
+
+#[test]
+fn a_second_trigger_wire_on_a_wired_input_offers_a_merge() {
+    let ep = |id: u64, s: &str| Endpoint::new(NodeId(id), s);
+    let mut h = harness(Some(two_buttons()));
+    let socket = |h: &Harness<'static, EditorApp>, id, s, input| {
+        h.state()
+            .canvas
+            .socket_screen_pos(NodeId(id), s, input)
+            .expect("drawn")
+    };
+    let (from, to) = (
+        socket(&h, 2, "trigger", false),
+        socket(&h, 3, "start", true),
+    );
+    drag(&mut h, from, to);
+    assert!(h.state().palette.open, "the palette offers a merge");
+    assert_eq!(h.state().document().graph().wires.len(), 1, "nothing yet");
+    // The first entry: merge both.
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    let g = h.state().document().graph().clone();
+    let merge = g.nodes.iter().find(|n| n.kind == "merge").expect("a merge");
+    assert_eq!(merge.config["type"], "trigger");
+    assert!(
+        g.wires
+            .contains(&Wire::new(ep(1, "trigger"), ep(merge.id.0, "in_0")))
+    );
+    assert!(
+        g.wires
+            .contains(&Wire::new(ep(2, "trigger"), ep(merge.id.0, "in_1")))
+    );
+    assert!(
+        g.wires
+            .contains(&Wire::new(ep(merge.id.0, "out"), ep(3, "start")))
+    );
+    assert_eq!(h.state().document().undo_label(), Some("Merge wires"));
+    // Or, the second entry: the old wire replaced.
+    let mut h = harness(Some(two_buttons()));
+    drag(&mut h, from, to);
+    press(&mut h, Modifiers::NONE, Key::ArrowDown);
+    press(&mut h, Modifiers::NONE, Key::Enter);
+    assert_eq!(
+        h.state().document().graph().wires,
+        vec![Wire::new(ep(2, "trigger"), ep(3, "start"))]
+    );
+}
+
+#[test]
+fn wiring_a_mixs_last_input_adds_another() {
+    let mut p = two_nodes();
+    p.graph.nodes.push(
+        NodeInstance::new(NodeId(3), "mix")
+            .with_config(json!({ "inputs": 2 }))
+            .at(320.0, 260.0),
+    );
+    let mut h = harness(Some(p));
+    let from = h
+        .state()
+        .canvas
+        .socket_screen_pos(NodeId(1), "out", false)
+        .unwrap();
+    let to = h
+        .state()
+        .canvas
+        .socket_screen_pos(NodeId(3), "in_1", true)
+        .unwrap();
+    drag(&mut h, from, to);
+    let mix = h
+        .state()
+        .document()
+        .graph()
+        .node(NodeId(3))
+        .cloned()
+        .unwrap();
+    assert_eq!(mix.config["inputs"], 3);
+}
+
 #[test]
 fn dropping_a_node_on_a_wire_splices_it_in() {
     let mut p = two_nodes();

@@ -95,9 +95,13 @@ fn step_values(config: &Config, steps: usize) -> Vec<f32> {
         .collect()
 }
 
+/// Telemetry, for the editor's playhead: the step playing (−1 before the
+/// first clock).
+pub const TELEMETRY_STEP: usize = 0;
+
 impl Node for StepSequencer {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(1)
     }
 
     fn describe(config: &Config) -> Signature {
@@ -183,6 +187,10 @@ impl Node for StepSequencer {
             }
         }
         io.outputs.set_int(STEP, self.step as i32);
+        io.telemetry.set(
+            TELEMETRY_STEP,
+            if self.armed { -1.0 } else { self.step as f32 },
+        );
         let mut trig = io.outputs.trigger(STEP_TRIGGER);
         for &at in &self.fired {
             trig.push(at);

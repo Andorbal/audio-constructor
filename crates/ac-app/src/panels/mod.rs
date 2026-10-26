@@ -84,6 +84,10 @@ pub enum PanelRequest {
     UpdateAllBlocks,
     /// Learn a binding for an input or a transport action.
     Learn(ac_core::Target),
+    /// Open a node's editor in a window of its own, or close it.
+    EditorWindow(NodeId),
+    /// Dock a node's editor under the canvas.
+    DockEditor(NodeId),
     /// Show a node kind's reference in the Help tab.
     Help(String),
     /// Open a shipped example (after the unsaved-changes check).

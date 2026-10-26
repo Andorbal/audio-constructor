@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ac_core::{
-    AudioData, PluginLoader, PluginProcessor, PluginRequest, Project, RecordRequest, RecordSink,
-    Registry, Resources, util::content_hash,
+    AudioData, MidiRecordSink, PluginLoader, PluginProcessor, PluginRequest, Project,
+    RecordRequest, RecordSink, Registry, Resources, util::content_hash,
 };
 
 /// An asset problem found while loading.
@@ -148,6 +148,10 @@ pub use ac_core::project::referenced_assets;
 /// Opens recording sinks for `Record` nodes (implemented by the disk recorder).
 pub trait RecorderFactory: Send + Sync {
     fn open(&self, req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>>;
+    /// A sink for a `MIDI Record` node's takes, if this recorder keeps them.
+    fn open_midi(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn MidiRecordSink>> {
+        None
+    }
 }
 
 /// Resources backed by files: loaded assets, an optional recorder, and an
@@ -166,6 +170,10 @@ impl Resources for FileResources {
 
     fn recorder(&self, req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
         self.recorder.as_ref().and_then(|r| r.open(req))
+    }
+
+    fn midi_recorder(&self, req: &RecordRequest<'_>) -> Option<Box<dyn MidiRecordSink>> {
+        self.recorder.as_ref().and_then(|r| r.open_midi(req))
     }
 
     fn plugin(&self, req: &PluginRequest<'_>) -> Result<Box<dyn PluginProcessor>, String> {

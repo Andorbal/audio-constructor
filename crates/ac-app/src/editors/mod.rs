@@ -1,18 +1,24 @@
 //! Editors for node settings that are more than a number: breakpoint
 //! curves (`Graph`, `Envelope`, `Shaper`), step grids (`Pattern`), piano
-//! rolls (`MidiPattern`), crossover bands (`BandSplit`), and step values
-//! (`StepSequencer`).
+//! rolls (`MidiPattern`), crossover bands (`BandSplit`), step values
+//! (`StepSequencer`), and key and velocity zones (`Zones`). The waveform
+//! editor for Clip, Sampler, and Slicer (`sound`) edits inputs and markers
+//! instead, so the Node tab drives it directly.
 //!
 //! Each editor reads one config key and, when the person changes it, returns
 //! the new value; the caller stores it as an undo step (coalesced while a
 //! drag lasts). The editing rules live in plain functions next to each
 //! editor so they can be tested without a window.
 
+pub mod arrange;
 pub mod bands;
+pub mod banks;
 pub mod curve;
 pub mod pattern;
 pub mod piano_roll;
+pub mod sound;
 pub mod steps;
+pub mod zones;
 
 use ac_core::Config;
 use egui::{Color32, Rect, Sense, Stroke, StrokeKind};
@@ -28,6 +34,7 @@ pub enum Editor {
     PianoRoll,
     Bands,
     Steps,
+    Zones,
 }
 
 impl Editor {
@@ -39,6 +46,7 @@ impl Editor {
             Editor::PianoRoll => "notes",
             Editor::Bands => "edges",
             Editor::Steps => "values",
+            Editor::Zones => "zones",
         }
     }
 
@@ -50,6 +58,7 @@ impl Editor {
             Editor::PianoRoll => tr("editor-piano-roll-hint"),
             Editor::Bands => tr("editor-bands-hint"),
             Editor::Steps => tr("editor-steps-hint"),
+            Editor::Zones => tr("editor-zones-hint"),
         }
     }
 
@@ -60,6 +69,7 @@ impl Editor {
             Editor::Pattern => (width * 0.4).clamp(80.0, 320.0),
             Editor::PianoRoll => (width * 0.7).clamp(160.0, 480.0),
             Editor::Bands => (width * 0.4).clamp(90.0, 240.0),
+            Editor::Zones => (width * 0.45).clamp(100.0, 280.0),
         }
     }
 }
@@ -75,8 +85,56 @@ pub fn editor_for(kind: &str, config: &Config) -> Option<Editor> {
         "midi_pattern" => Editor::PianoRoll,
         "band_split" => Editor::Bands,
         "step_sequencer" => Editor::Steps,
+        "zones" => Editor::Zones,
         _ => return None,
     })
+}
+
+/// What an editor shows of its node playing, from the node's telemetry:
+/// a playhead on the grid, roll, steps, or curve.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LiveView {
+    /// The step playing (Pattern, Step Sequencer).
+    pub step: Option<usize>,
+    /// Where it is: beats into a MIDI Pattern, 0 to 1 along a Graph.
+    pub position: Option<f64>,
+    /// The bank playing (Pattern, MIDI Pattern).
+    pub bank: Option<usize>,
+}
+
+/// The [`LiveView`] of a node of `kind` whose telemetry slot `k` reads
+/// `value(k)` (nothing while the engine hasn't sent any).
+pub fn live_view(kind: &str, value: impl Fn(usize) -> Option<f32>) -> LiveView {
+    use ac_nodes::generators::graph as g;
+    use ac_nodes::modulation::step_sequencer as ss;
+    use ac_nodes::sequencing::{midi_pattern as mp, pattern as pt};
+    let index = |k: usize| value(k).filter(|v| *v >= 0.0).map(|v| v.round() as usize);
+    let playing = |k: usize| value(k).is_some_and(|v| v > 0.5);
+    match kind {
+        "pattern" => LiveView {
+            step: index(pt::TELEMETRY_STEP),
+            bank: index(pt::TELEMETRY_BANK),
+            position: None,
+        },
+        "midi_pattern" => LiveView {
+            position: playing(mp::TELEMETRY_PLAYING)
+                .then(|| value(mp::TELEMETRY_POSITION).map(f64::from))
+                .flatten(),
+            bank: index(mp::TELEMETRY_BANK),
+            step: None,
+        },
+        "step_sequencer" => LiveView {
+            step: index(ss::TELEMETRY_STEP),
+            ..LiveView::default()
+        },
+        "graph" => LiveView {
+            position: playing(g::TELEMETRY_PLAYING)
+                .then(|| value(g::TELEMETRY_POSITION).map(f64::from))
+                .flatten(),
+            ..LiveView::default()
+        },
+        _ => LiveView::default(),
+    }
 }
 
 /// A change an editor made.
@@ -87,24 +145,35 @@ pub struct Edit {
     pub done: bool,
 }
 
-/// Show `editor` for `config` in a `width` × `height` area. `salt` keeps
-/// the editor's drag state apart from other instances.
+/// Show `editor` for `config` in a `width` × `height` area, with the
+/// node's playhead from `live`. `salt` keeps the editor's drag state apart
+/// from other instances.
 pub fn show(
     ui: &mut egui::Ui,
     editor: Editor,
     config: &Config,
+    live: &LiveView,
     salt: impl std::hash::Hash + std::fmt::Debug,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
     let id = egui::Id::unique(("node-editor", salt));
     match editor {
-        Editor::Curve(space) => curve::ui(ui, id, space, config, width, height),
-        Editor::Pattern => pattern::ui(ui, id, config, width, height),
-        Editor::PianoRoll => piano_roll::ui(ui, id, config, width, height),
+        Editor::Curve(space) => curve::ui(ui, id, space, config, live, width, height),
+        Editor::Pattern => pattern::ui(ui, id, config, live, width, height),
+        Editor::PianoRoll => piano_roll::ui(ui, id, config, live, width, height),
         Editor::Bands => bands::ui(ui, id, config, width, height),
-        Editor::Steps => steps::ui(ui, id, config, width, height),
+        Editor::Steps => steps::ui(ui, id, config, live, width, height),
+        Editor::Zones => zones::ui(ui, id, config, width, height),
     }
+}
+
+/// The playhead's line, drawn over an editor.
+fn playhead(painter: &egui::Painter, x: f32, top: f32, bottom: f32) {
+    painter.line_segment(
+        [egui::pos2(x, top), egui::pos2(x, bottom)],
+        Stroke::new(1.5, theme::play()),
+    );
 }
 
 /// Allocate the editor's area and paint its well.
@@ -168,7 +237,31 @@ mod tests {
         assert_eq!(editor_for("midi_pattern", &c), Some(Editor::PianoRoll));
         assert_eq!(editor_for("band_split", &c), Some(Editor::Bands));
         assert_eq!(editor_for("step_sequencer", &c), Some(Editor::Steps));
+        assert_eq!(editor_for("zones", &c), Some(Editor::Zones));
         assert_eq!(editor_for("oscillator", &c), None);
+    }
+
+    #[test]
+    fn live_views_read_each_kinds_telemetry() {
+        let t = |v: &'static [f32]| move |k: usize| v.get(k).copied();
+        let p = live_view("pattern", t(&[3.0, 1.0, 1.0]));
+        assert_eq!((p.step, p.bank), (Some(3), Some(1)));
+        assert_eq!(live_view("pattern", t(&[-1.0, 0.0, 0.0])).step, None);
+        let m = live_view("midi_pattern", t(&[2.5, 0.0, 1.0]));
+        assert_eq!(m.position, Some(2.5));
+        assert_eq!(
+            live_view("midi_pattern", t(&[2.5, 0.0, 0.0])).position,
+            None,
+            "stopped"
+        );
+        assert_eq!(live_view("step_sequencer", t(&[5.0])).step, Some(5));
+        assert_eq!(live_view("graph", t(&[0.25, 1.0])).position, Some(0.25));
+        assert_eq!(live_view("oscillator", t(&[1.0])), LiveView::default());
+        assert_eq!(
+            live_view("pattern", |_| None),
+            LiveView::default(),
+            "no engine"
+        );
     }
 
     #[test]

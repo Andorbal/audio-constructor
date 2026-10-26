@@ -720,6 +720,27 @@ impl Canvas {
                     (None, Some(t)) => (Endpoint::new(node, socket), t.clone()),
                     _ => return,
                 };
+                // A second trigger or MIDI wire into a wired input: offer
+                // to merge the two rather than replace one (D214).
+                let existing = io.doc.graph().wire_into(&to).map(|w| w.from.clone());
+                let merges = matches!(pending.ty, SignalType::Trigger | SignalType::Midi)
+                    && scene
+                        .node(to.node)
+                        .and_then(|n| n.socket(&to.socket, true))
+                        .is_some_and(|s| s.ty == pending.ty);
+                if pending.from.is_some()
+                    && detached.is_none()
+                    && merges
+                    && let Some(existing) = existing.filter(|e| *e != from)
+                {
+                    io.events.push(CanvasEvent::OfferMerge {
+                        screen: pointer,
+                        canvas: self.transform().to_canvas(pointer),
+                        pending,
+                        offer: crate::palette::MergeOffer { existing, to },
+                    });
+                    return;
+                }
                 let mut error = None;
                 io.doc.edit(io.registry, &tr("undo-connect"), |g, ctx| {
                     let at = detached
@@ -728,11 +749,17 @@ impl Canvas {
                     if let Some(i) = at {
                         g.wires.remove(i);
                     }
-                    if let Err(e) = edit::connect(g, ctx, from, to) {
-                        if let (Some(i), Some(d)) = (at, detached.clone()) {
-                            g.wires.insert(i.min(g.wires.len()), d);
+                    match edit::connect(g, ctx, from, to.clone()) {
+                        // Mix and Merge keep a free input.
+                        Ok(()) => {
+                            edit::grow_inputs(g, &to);
                         }
-                        error = Some(e.to_string());
+                        Err(e) => {
+                            if let (Some(i), Some(d)) = (at, detached.clone()) {
+                                g.wires.insert(i.min(g.wires.len()), d);
+                            }
+                            error = Some(e.to_string());
+                        }
                     }
                 });
                 if let Some(e) = error {

@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use ac_core::{
     AudioData, Channels, Config, ConfigExt, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate,
-    Signature, SocketSpec, Unit, node,
+    Signature, SocketSpec, SongLock, Unit, node,
 };
 use ac_dsp::interp::hermite4;
 use ac_dsp::resample::Resampler;
 use ac_dsp::util::snap_samples;
 
 use crate::segments::Runs;
+use crate::song;
 
 node! {
     kind: "clip",
@@ -33,6 +34,14 @@ node! {
     /// backwards); fractional rates are interpolated. Events at the same
     /// frame apply in the order reverse, stop, start, reset. A missing or
     /// empty file fires `end` as soon as it starts, so chains keep moving.
+    ///
+    /// **Placed in the song:** set `start` to *At beat…* and the clip
+    /// starts when the song reaches beat `at`, on that sample, and stops at
+    /// beat `until` (0 plays on). Start the
+    /// transport anywhere (play from bar 9, a seek, a loop) and the clip is
+    /// already where it would be had the song played from the top:
+    /// partway through, around again if it loops, or finished and silent
+    /// if it doesn't; before its beat it waits.
     ///
     /// Changing `position` (seconds) seeks there, at the start of the next
     /// block. After loading or a transport reset the clip counts as being at
@@ -61,11 +70,11 @@ node! {
 
 const POSITION: usize = 0;
 const START: usize = 1;
-const STOP: usize = 2;
-const RESET: usize = 3;
-const LOOP: usize = 4;
-const REVERSE: usize = 5;
-const RATE: usize = 6;
+const STOP: usize = 4;
+const RESET: usize = 5;
+const LOOP: usize = 6;
+const REVERSE: usize = 7;
+const RATE: usize = 8;
 
 const OUT: usize = 0;
 const POSITION_OUT: usize = 1;
@@ -74,6 +83,9 @@ const END: usize = 3;
 
 /// Telemetry slot: 1.0 when the file couldn't be loaded.
 pub const TELEMETRY_MISSING: usize = 0;
+/// Telemetry slot: the sound's length in seconds (0 without one), for the
+/// Arrangement's blocks.
+pub const TELEMETRY_SECONDS: usize = 1;
 
 const MAX_CHANNELS: u64 = 64;
 /// Fastest playback, either way.
@@ -137,7 +149,7 @@ impl Clip {
 
 impl Node for Clip {
     fn meta() -> NodeMeta {
-        Self::base_meta().assets(&["file"]).telemetry(1)
+        Self::base_meta().assets(&["file"]).telemetry(2)
     }
 
     fn describe(config: &Config) -> Signature {
@@ -147,7 +159,7 @@ impl Node for Clip {
                     .range(0.0, 600.0)
                     .doc("Seeks here when it changes."),
             )
-            .generator_inputs(true, true)
+            .song_generator_inputs(true, true)
             .output(
                 SocketSpec::audio("out")
                     .channels(Channels::Fixed(channels(config) as u32))
@@ -187,24 +199,62 @@ impl Node for Clip {
     fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         io.telemetry
             .set(TELEMETRY_MISSING, if self.missing { 1.0 } else { 0.0 });
+        let seconds = if self.rate > 0.0 {
+            self.len as f64 / self.rate
+        } else {
+            0.0
+        };
+        io.telemetry.set(TELEMETRY_SECONDS, seconds as f32);
         let frames = io.frames();
         let len = self.len as f64;
         let looping = io.inputs.boolean(LOOP);
         let speed = io.inputs.float(RATE);
+        let lock = song::lock(ctx, io, START);
+        let mut at = [0; 2];
+        let (start, stop) = song::triggers(
+            lock,
+            io.inputs.triggers(START),
+            io.inputs.triggers(STOP),
+            &mut at,
+        );
         let events = [
             io.inputs.triggers(REVERSE),
-            io.inputs.triggers(STOP),
-            io.inputs.triggers(START),
+            stop,
+            start,
             io.inputs.triggers(RESET),
         ];
 
         let position = io.inputs.float(POSITION).first();
-        let seek = if position.is_finite() && position != self.last_position {
+        let mut seek = if position.is_finite() && position != self.last_position {
             self.last_position = position;
             Some(snap_samples(f64::from(position.max(0.0)) * ctx.sample_rate).min(len))
         } else {
             None
         };
+        // Placed in the song: be where the song says, from frame 0. The
+        // clip has played `samples` frames since its beat, at `rate` from
+        // `position` (or back from its end when reversed).
+        match lock {
+            SongLock::Wait => self.playing = false,
+            SongLock::Land { samples, .. } => {
+                let r = f64::from(finite_or(speed.first(), 1.0).clamp(-MAX_RATE, MAX_RATE));
+                let base = if self.forward {
+                    f64::from(position.max(0.0)) * ctx.sample_rate
+                } else {
+                    self.beginning()
+                };
+                let moved = samples as f64 * if self.forward { r } else { -r };
+                let mut at = base + moved;
+                let inside = (0.0..len).contains(&at);
+                if !inside && looping.first() && self.len > 0 {
+                    at = at.rem_euclid(len);
+                }
+                self.playing = self.len > 0 && (inside || looping.first());
+                self.pos = at;
+                seek = None;
+            }
+            _ => {}
+        }
 
         // Pass 1: transport and read positions, frame by frame.
         {
@@ -355,16 +405,82 @@ mod tests {
     fn declares_its_asset_and_telemetry() {
         let meta = Clip::meta();
         assert_eq!(meta.asset_keys, &["file"]);
-        assert_eq!(meta.telemetry, 1);
+        assert_eq!(meta.telemetry, 2);
         let sig = Clip::describe(&json!({ "channels": 3 }));
         assert_eq!(sig.outputs[OUT].channels, Channels::Fixed(3));
         let names: Vec<_> = sig.inputs.iter().map(|s| s.name.as_ref()).collect();
         assert_eq!(
             names,
             [
-                "position", "start", "stop", "reset", "loop", "reverse", "rate"
+                "position", "start", "at", "until", "stop", "reset", "loop", "reverse", "rate"
             ]
         );
+    }
+
+    /// A mono ramp clip placed at song sample 120 (beat 0.005 at 120 BPM).
+    fn placed(res: &Assets) -> Harness {
+        let mut h = mono(res, 64);
+        h.set("start", "at").set("at", 0.005);
+        h
+    }
+
+    #[test]
+    fn a_placed_clip_starts_on_the_sample_of_its_beat() {
+        let res = assets(vec![ramp()], 48_000);
+        let mut h = placed(&res);
+        let out = h.run(256);
+        let o = &out.audio("out")[0];
+        assert_eq!(peak(&o[..120]), 0.0);
+        assert_eq!(&o[120..220], ramp().as_slice());
+        assert_eq!(out.triggers("end"), &[220]);
+    }
+
+    #[test]
+    fn a_placed_clip_stops_on_the_sample_of_until() {
+        let res = assets(vec![ramp()], 48_000);
+        let mut h = placed(&res);
+        // Beat 0.0075 is sample 180.
+        h.set("loop", true).set("until", 0.0075);
+        let out = h.run(256);
+        let o = &out.audio("out")[0];
+        assert_eq!(&o[120..180], &ramp()[..60]);
+        assert_eq!(peak(&o[180..]), 0.0);
+        assert_eq!(out.triggers("end"), &[180]);
+        // Landing past it, it stays stopped.
+        h.seek(200);
+        assert_eq!(peak(&h.run(64).audio("out")[0]), 0.0);
+    }
+
+    #[test]
+    fn a_seek_lands_a_placed_clip_partway_through() {
+        let res = assets(vec![ramp()], 48_000);
+        let mut h = placed(&res);
+        h.seek(150);
+        let out = h.run(128);
+        let o = &out.audio("out")[0];
+        assert_eq!(&o[..70], &ramp()[30..]);
+        assert_eq!(out.triggers("end"), &[70]);
+        // Past its end it's finished: silent, and no `end` again.
+        h.seek(400);
+        let out = h.run(64);
+        assert_eq!(peak(&out.audio("out")[0]), 0.0);
+        assert!(out.triggers("end").is_empty());
+        assert_eq!(out.float("playing")[0], 0.0);
+    }
+
+    #[test]
+    fn a_looped_placed_clip_lands_around_again_and_waits_before_its_beat() {
+        let res = assets(vec![ramp()], 48_000);
+        let mut h = placed(&res);
+        h.set("loop", true).seek(120 + 250);
+        let out = h.run(64);
+        assert_eq!(&out.audio("out")[0][..50], &ramp()[50..]);
+        // Back before its beat: silent until the song gets there again.
+        h.seek(60);
+        let out = h.run(128);
+        let o = &out.audio("out")[0];
+        assert_eq!(peak(&o[..60]), 0.0);
+        assert_eq!(&o[60..128], &ramp()[..68]);
     }
 
     #[test]

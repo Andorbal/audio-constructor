@@ -120,6 +120,8 @@ fn shipped_block_previews_match_their_golden_hashes() {
         };
         if g["frames"] != w["frames"] || g["feeds"] != w["feeds"] || g["none"] != w["none"] {
             failures.push(format!("{id}: got {g}\n  want {w}"));
+        } else if !g["none"].is_null() {
+            // No preview, as expected: no sound to compare.
         } else if reference {
             if g["sha256"] != w["sha256"] {
                 failures.push(format!("{id}: sha256 {} != {}", g["sha256"], w["sha256"]));
@@ -150,8 +152,22 @@ fn shipped_block_previews_match_their_golden_hashes() {
         "preview mismatches:\n{}",
         failures.join("\n")
     );
-    // Every shipped block makes a sound worth previewing.
-    assert!(got.values().all(|g| g.get("none").is_none()), "{got:?}");
+    // Every shipped block makes a sound worth previewing, except one with
+    // no audio output (a Clip Slot's logic) or whose sound comes in on a
+    // Buffer input (a Drum Pad's), which can't make one alone (D222).
+    for b in &blocks {
+        let def = &b.block.def;
+        let can = def
+            .outputs
+            .iter()
+            .any(|o| o.ty == ac_core::SignalType::Audio)
+            && !def
+                .inputs
+                .iter()
+                .any(|i| i.ty == ac_core::SignalType::Buffer);
+        let g = &got[&b.source.id];
+        assert_eq!(g.get("none").is_none(), can, "{}: {g}", b.source.id);
+    }
 }
 
 #[test]

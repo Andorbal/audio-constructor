@@ -28,6 +28,14 @@ backwards); fractional rates are interpolated. Events at the same
 frame apply in the order reverse, stop, start, reset. A missing or
 empty file fires `end` as soon as it starts, so chains keep moving.
 
+**Placed in the song:** set `start` to *At beat…* and the clip
+starts when the song reaches beat `at`, on that sample, and stops at
+beat `until` (0 plays on). Start the
+transport anywhere (play from bar 9, a seek, a loop) and the clip is
+already where it would be had the song played from the top:
+partway through, around again if it loops, or finished and silent
+if it doesn't; before its beat it waits.
+
 Changing `position` (seconds) seeks there, at the start of the next
 block. After loading or a transport reset the clip counts as being at
 0, so a fixed nonzero `position` acts as the point transport playback
@@ -42,8 +50,10 @@ the second one's `start`.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `position` | Float (s) | 0 | 0 … 600 | Seeks here when it changes. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -115,7 +125,7 @@ tuned texture.
 | `spread` | Float | 0.5 | 0 … 1 | How far grains scatter across the stereo field. |
 | `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -153,6 +163,12 @@ holds the value at `x` = 0; after a pass finishes it holds the end
 value (the value at 1, or at 0 when reversed). `position` reports
 the playhead (0 to 1, once per block).
 
+**Placed in the song:** set `start` to *At beat…* and the curve
+starts at song beat `at` (and stops at `until`, unless that's 0). Start the transport anywhere and the curve
+is already where it would be: an automation lane holds its place
+through a seek or a loop. Before its beat it holds its first value,
+and past the end of an unlooped pass, its last.
+
 Generator contract: `start` plays from the beginning (from the end
 when reversed). A pass lasts `duration`; on its last frame `out`
 reaches the end value, `end` fires, and the Graph stops, or wraps
@@ -173,8 +189,10 @@ one-bar modulation shape that stays in time.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `duration` | Float (s) | 1 | 0 … 10 | How long one pass takes. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -223,6 +241,67 @@ pattern; drive `trigger` from a `Clock` for a metronome click.
 | --- | --- | --- |
 | `out` | Float | The clicks; 0 between them. |
 
+<a id="looper"></a>
+## Looper
+
+Kind: `looper` · Also found by: loop, loop pedal, overdub, layer, record, phrase, live looping, undo, sound on sound
+
+A loop pedal: records what comes into `in`, plays it round and round,
+and layers more on top.
+
+`record` starts a new loop (the old one is gone). With `length` at 0
+the first pass lasts until the next trigger, `record` again (or
+`play`) to play it back, `overdub` to play it back and keep
+recording on top, `stop` to keep it stopped; with `length` set, it
+records that many beats and plays on its own. `overdub` toggles
+layering while it plays (or starts playing and layering), `play`
+plays from the top or ends a layer, `stop` stops. `undo` takes the
+last layer off; `undo` again puts it back. A loop is at most
+`seconds` long (config, 1–120, default 30), with `channels` (config,
+1 or 2, default 2).
+
+While the transport plays, every trigger waits for the next multiple
+of `quantize` beats in the song (default 1; 0 acts at once), so
+loops start and end on the beat and a free loop's length comes out a
+whole number of beats. Stopped, triggers act at once. The transport
+stopping stops the loop too, and so do a restart, a seek, and
+Panic, but none of them clears it.
+
+`out` is the loop alone (wire `in` to the mix as well to hear
+yourself), `playing` and `recording` say what it's doing, and
+`position` is the seconds into the loop. `buffer` is the loop as it
+stood after the last recording, layer, or undo, a moment after it
+ends: wire it into a `Waveform` (with `position`) to see the loop, or
+a `Sampler` to play it.
+
+**Try this:** wire an `Audio In` into a Looper and into the `Audio
+Out`, the Looper's `out` into the Audio Out too, and three Buttons
+into `record`, `overdub`, and `undo`. Record a bar, then press
+overdub and play over it; undo if it went wrong.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | The sound to record. |
+| `record` | Trigger | — |  | Starts a new loop, or ends the first pass. |
+| `play` | Trigger | — |  | Plays from the top, or ends a layer. |
+| `stop` | Trigger | — |  | Stops, keeping the loop. |
+| `overdub` | Trigger | — |  | Starts or ends a layer on top. |
+| `undo` | Trigger | — |  | Takes the last layer off, or puts it back. |
+| `length` | Float (beats) | 0 | 0 … 64 | Beats the first pass records; 0 until the next trigger. |
+| `quantize` | Float (beats) | 1 | 0 … 16 | Triggers wait for the next multiple of this in the song; 0 at once. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The loop. |
+| `buffer` | Buffer | The loop, after each recording or layer. |
+| `playing` | Bool | Playing the loop (or layering). |
+| `recording` | Bool | Recording a first pass or layer. |
+| `position` | Float (s) | Seconds into the loop. |
+
 <a id="noise"></a>
 ## Noise
 
@@ -266,7 +345,7 @@ hear what a filter does across the whole spectrum.
 | `color` | Int | `white` | `white`, `pink`, `brown` | White, pink, or brown. |
 | `gain` | Float (dB) | -12 | -60 … 12 | Output level in decibels. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -319,7 +398,7 @@ apply in the order stop, start, reset, sync.
 | `sync` | Trigger | — |  | Hard sync: resets the phase to 0. |
 | `fm` | Float (Hz) | 0 | -1000 … 1000 | Linear FM: hertz added to `freq`. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -329,6 +408,36 @@ apply in the order stop, start, reset, sync.
 | `out` | Float | The waveform, -1 to 1. |
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="sample"></a>
+## Sample
+
+Kind: `sample` · Also found by: file, audio file, wav, buffer, sound, load, drum, one shot
+
+An audio file as a sound to wire: its `buffer` output holds the
+whole file, for a `Sampler`, a `Slicer`, or anything else that
+plays a Buffer.
+
+Assign the file in the side panel (the `file` config, a path
+relative to the project). It's converted to the engine's sample rate
+once, when the project loads, and keeps all its channels. `length`
+is how long it is, in seconds. A missing file gives no sound (the
+Sampler it feeds plays silence) and is flagged in the editor.
+
+A Sample is how a sound gets into a block from outside: a pad or
+keyboard block can take its sound as a Buffer input, so one block
+plays any file.
+
+**Try this:** wire Sample into a `Sampler`'s `buffer` and a pad's
+trigger into the Sampler's `start`; then wire it into a `Slicer`
+too, set to eight slices, and play the slices from a `Pads` grid.
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `buffer` | Buffer | The whole file. |
+| `length` | Float (s) | How long the file is. |
 
 <a id="sampler"></a>
 ## Sampler
@@ -354,7 +463,9 @@ mono sound goes to every channel and extra channels are dropped.
 speed, and each semitone above multiplies the speed by 2^(1/12).
 `rate` multiplies on top. Fractional speeds are interpolated (cubic
 Hermite); a buffer recorded at another sample rate still plays at
-its own pitch. `gain` is in decibels (silent at −60 and below).
+its own pitch. `gain` is in decibels (silent at −60 and below), and
+`velocity` (0 to 1, taken at each `start`) scales the note's level,
+so a `Note Split`'s `velocity` wires straight in.
 
 **Region and loop.** `start_point` and `end_point` (0 to 1, fractions
 of the whole sound) mark the part that plays; if `end_point` is
@@ -391,13 +502,14 @@ sampled instrument; or wire a `Record` node's `buffer` here and a
 | `buffer` | Buffer | — |  | Sound to play; unwired, the `file` config plays. |
 | `note` | Float | 60 | 0 … 127 | MIDI note; the `root` note plays at the sound's own pitch. |
 | `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+| `velocity` | Float | 1 | 0 … 1 | How hard the note was played (0–1), taken at each start. |
 | `start_point` | Float | 0 | 0 … 1 | Where playback starts (fraction of the sound). |
 | `end_point` | Float | 1 | 0 … 1 | Where playback ends (fraction of the sound). |
 | `loop_start` | Float | 0 | 0 … 1 | Start of the loop (fraction of the sound). |
 | `loop_end` | Float | 1 | 0 … 1 | End of the loop (fraction of the sound). |
 | `crossfade` | Float (s) | 0 | 0 … 0.5 | Blend across the loop seam. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -411,6 +523,95 @@ sampled instrument; or wire a `Record` node's `buffer` here and a
 | `position` | Float (s) | Playback position in the sound. |
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="slicer"></a>
+## Slicer
+
+Kind: `slicer` · Also found by: slice, chop, loop, break, beat, transient, pads, drum loop, cut, sampler
+
+Cuts a sound into slices and plays them one at a time: a drum loop
+becomes a kit on a pad grid.
+
+Wire a sound into `buffer` (a `Sample`, or a `Record` node's take).
+The `mode` config says where the slices are:
+
+- `equal` (the default): `count` slices of the same length;
+- `transients`: a slice at every hit the sound has, as many as
+  `sensitivity` (0 to 1) finds, up to `count`;
+- `markers`: at the `markers` config, fractions of the sound from 0
+  to 1, set by dragging in the Node tab's waveform.
+
+A `trigger` plays slice `slice` (from 0) at `velocity` (0 to 1).
+MIDI notes play slices too: note `low` (config, default 36) is
+slice 0, the next note slice 1, and so on, at the note's velocity,
+so a `Pads` grid plays the slices directly. One slice sounds at a
+time: a new one cuts the last. `rate` sets the speed (and pitch) and
+`gain` the level in dB. `playing` is high while a slice plays,
+`end` fires when one finishes, `slice` says which played last, and
+`slices` how many there are.
+
+The slices are found again when the sound, `count`, or
+`sensitivity` change; finding transients reads the whole sound, so
+it costs a moment the first time.
+
+**Try this:** wire a `Sample` of a drum loop into `buffer`, set
+`count` to 8, and wire a 4 × 2 `Pads` grid's `midi` into `midi`:
+eight pads, each a hit from the loop, played as hard as you hit
+them. Switch `mode` to `transients` for slices that start on each
+hit.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `buffer` | Buffer | — |  | The sound to slice. |
+| `midi` | Midi | — |  | Notes from `low` up play the slices. |
+| `trigger` | Trigger | — |  | Plays slice `slice`. |
+| `slice` | Int | 0 | 0 … 63 | Which slice a trigger plays, from 0. |
+| `velocity` | Float | 1 | 0 … 1 | How hard a trigger plays, 0 to 1. |
+| `count` | Int | 8 | 1 … 64 | Slices (equal), or the most to find (transients). |
+| `sensitivity` | Float | 0.5 | 0 … 1 | How faint a hit still starts a slice (transients). |
+| `rate` | Float (×) | 1 | 0.25 … 4 | Playback speed. |
+| `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The slice playing. |
+| `slice` | Int | The slice played last, from 0. |
+| `slices` | Int | How many slices there are. |
+| `playing` | Bool | True while a slice plays. |
+| `end` | Trigger | Fires when a slice finishes. |
+
+<a id="tempo"></a>
+## Tempo
+
+Kind: `tempo` · Also found by: bpm, tap tempo, tap, speed, tempo map, beats per minute, clock
+
+Sets the song's tempo: turn `bpm`, or tap the tempo on `tap`.
+
+The Tempo node doesn't put out a signal: the editor changes the
+project's tempo map, so every clock, pattern, and placed clip
+follows, and the saved project renders at the new tempo. A change to
+`bpm` (typed, turned, or arriving on a wire) sets the tempo where the
+playhead is; the value it has when the project opens changes
+nothing. Each `tap` after the first, within two seconds of the one
+before, sets the tempo from the average of the last few gaps between
+taps, and `bpm` shows it. Tempos are kept between 20 and 300 BPM.
+Each change is an undo step on the Project tab's tempo. Outside the
+editor (a render on its own, `audioc run`) nothing applies them.
+
+**Try this:** wire a `Button` (or a gamepad button bound to one) into
+`tap` and tap along with a record playing: the song's clocks lock to
+your tempo.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `bpm` | Float (BPM) | 120 | 20 … 300 | The tempo; a change sets the song's tempo. |
+| `tap` | Trigger | — |  | Tap the tempo, two taps or more. |
 
 <a id="transport"></a>
 ## Transport
@@ -499,7 +700,7 @@ Wavetable to play it back as a scanned waveform.
 | `sync` | Trigger | — |  | Hard sync: resets the phase to 0. |
 | `fm` | Float (Hz) | 0 | -1000 … 1000 | Linear FM: hertz added to `freq`. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**

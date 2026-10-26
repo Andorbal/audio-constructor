@@ -75,7 +75,7 @@ const FFT_SIZES: &[&str] = &["256", "512", "1024", "2048", "4096", "8192", "1638
 const WINDOWS: &[&str] = &["hann", "hamming", "blackman", "rectangular"];
 
 /// Signal types `Select` and `Switch` route.
-const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi"];
+const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi", "buffer"];
 
 const UNITS: &[&str] = &[
     "generic",
@@ -200,6 +200,39 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
+        "midi_record" => vec![f(
+            "quantize",
+            "Quantize the take",
+            Kind::Choice {
+                choices: &["off", "sixteenths", "eighths", "quarters"],
+                default: "off",
+            },
+        )],
+        "logic" | "math" => vec![f(
+            "inputs",
+            "Inputs",
+            Kind::Count {
+                min: 2,
+                max: 16,
+                default: 2,
+            },
+        )],
+        "looper" => vec![
+            f(
+                "seconds",
+                "Longest loop (seconds)",
+                Kind::Number { default: 30.0 },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
         "merge" => vec![
             f(
                 "inputs",
@@ -557,7 +590,23 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                     default: 1,
                 },
             ),
+            f(
+                "swing_grid",
+                "Swing",
+                Kind::Choice {
+                    choices: &ac_nodes::sequencing::midi_pattern::SWING_GRIDS,
+                    default: "sixteenths",
+                },
+            ),
         ],
+        "humanize" => vec![f(
+            "type",
+            "Loosens",
+            Kind::Choice {
+                choices: &ac_nodes::sequencing::humanize::TYPES,
+                default: "trigger",
+            },
+        )],
         "random_walk" => vec![f(
             "seed",
             "Seed",
@@ -576,6 +625,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             },
         )],
         "audio_out" => vec![
+            f(
+                "role",
+                "Role",
+                Kind::Choice {
+                    choices: &["main", "monitor"],
+                    default: "main",
+                },
+            ),
             f(
                 "channel",
                 "First output",
@@ -696,6 +753,75 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             },
         )],
         "clip" => vec![f("file", "File", Kind::File)],
+        "sample" => vec![f("file", "File", Kind::File)],
+        "slicer" => vec![
+            f(
+                "mode",
+                "Slices",
+                Kind::Choice {
+                    choices: &["equal", "transients", "markers"],
+                    default: "equal",
+                },
+            ),
+            f(
+                "low",
+                "First note",
+                Kind::Count {
+                    min: 0,
+                    max: 127,
+                    default: 36,
+                },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 2,
+                },
+            ),
+        ],
+        "note_split" => vec![
+            f("notes", "Notes", Kind::Numbers),
+            f("chokes", "Choke groups (one per note)", Kind::Numbers),
+            f(
+                "channel",
+                "MIDI channel (0: all)",
+                Kind::Count {
+                    min: 0,
+                    max: 16,
+                    default: 0,
+                },
+            ),
+        ],
+        "route" => vec![
+            f(
+                "mode",
+                "Mode",
+                Kind::Choice {
+                    choices: &["index", "gate"],
+                    default: "index",
+                },
+            ),
+            f(
+                "outputs",
+                "Outputs",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 4,
+                },
+            ),
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: ROUTE_TYPES,
+                    default: "trigger",
+                },
+            ),
+        ],
         "voices" => vec![
             f(
                 "voices",
@@ -974,6 +1100,8 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
 
     // A node drawn rather than typed shows its editor first.
     node_editor(ui, io, id, &node);
+    sound_editor(ui, io, id, &node);
+    arrangement_view(ui, io, &node);
 
     // Parameters.
     let sockets = edit::sockets_of(
@@ -1025,10 +1153,21 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                         } else {
                             src
                         };
-                        ui.label(
-                            RichText::new(format!("← {from}.{}", w.from.socket))
-                                .color(theme::text_muted()),
-                        );
+                        let beside = s
+                            .spec
+                            .as_ref()
+                            .filter(|spec| crate::canvas::widgets::shown_beside_wire(spec));
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("← {from}.{}", w.from.socket))
+                                    .color(theme::text_muted()),
+                            );
+                            // A wired `stop` still chooses whether
+                            // transport Stop reaches it.
+                            if let Some(spec) = beside {
+                                param_widget(ui, io, id, &node, spec, label_id);
+                            }
+                        });
                     } else if let Some(spec) = &s.spec {
                         param_widget(ui, io, id, &node, spec, label_id);
                     } else {
@@ -1463,8 +1602,9 @@ fn param_widget(
     }
 }
 
-/// The node's own editor (curve, grid, piano roll, bands, steps), and a
-/// larger copy in a window.
+/// The node's own editor (curve, grid, piano roll, bands, steps), live,
+/// with buttons to open it in a window of its own or dock it under the
+/// canvas.
 fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
     let Some(editor) = editors::editor_for(&node.kind, &node.config) else {
         return;
@@ -1478,59 +1618,199 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
         );
     }
     let width = ui.available_width().max(120.0);
+    let tele = io.engine.handle.telemetry();
+    let live = crate::canvas::live::Live::new(&tele, io.doc);
+    let view = editors::live_view(&node.kind, |k| live.node_value(id, k));
     let edit = editors::show(
         ui,
         editor,
         &node.config,
+        &view,
         ("panel", id),
         width,
         editor.height(width),
     );
     apply_editor(io, id, editor, edit);
-    let open_id = egui::Id::unique(("node-editor-window", id));
-    let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
     ui.horizontal(|ui| {
         if icons::spoken(ui.button(format!(
             "{}  {}",
             icons::ARROW_SQUARE_OUT,
             tr("node-tab-larger-editor")
         )))
+        .on_hover_text(tr("node-tab-larger-editor-tip"))
         .clicked()
         {
-            open = !open;
+            io.requests.push(PanelRequest::EditorWindow(id));
         }
-        ui.add(
-            egui::Label::new(
-                RichText::new(editor.hint())
-                    .small()
-                    .color(theme::text_faint()),
-            )
-            .wrap(),
-        );
+        if icons::spoken(ui.button(format!("{}  {}", icons::TRAY_ARROW_DOWN, tr("editor-dock"))))
+            .on_hover_text(tr("editor-dock-tip"))
+            .clicked()
+        {
+            io.requests.push(PanelRequest::DockEditor(id));
+        }
     });
-    if open {
-        let title = node
-            .ui
-            .label
-            .clone()
-            .or_else(|| io.registry.get(&node.kind).map(|e| e.meta.name.to_string()))
-            .unwrap_or_else(|| node.kind.clone());
-        let mut edit = None;
-        egui::Window::new(title)
-            .id(egui::Id::unique(("node-editor-window-frame", id)))
-            .open(&mut open)
-            .default_size(egui::vec2(720.0, 420.0))
-            .resizable(true)
-            .collapsible(false)
-            .show(ui.ctx(), |ui| {
-                let size = ui.available_size();
-                let w = size.x.max(200.0);
-                let h = (size.y - 30.0).max(editor.height(w).min(200.0));
-                edit = editors::show(ui, editor, &node.config, ("window", id), w, h);
-            });
-        apply_editor(io, id, editor, edit);
+    ui.add(
+        egui::Label::new(
+            RichText::new(editor.hint())
+                .small()
+                .color(theme::text_faint()),
+        )
+        .wrap(),
+    );
+}
+
+/// The Arrangement's lanes (D221), when the node is one.
+fn arrangement_view(ui: &mut egui::Ui, io: &mut PanelIo, node: &ac_core::NodeInstance) {
+    use crate::editors::arrange;
+    if node.kind != "arrangement" {
+        return;
     }
-    ui.data_mut(|d| d.insert_temp(open_id, open));
+    section(ui, &tr("section-arrangement"));
+    let tele = io.engine.handle.telemetry();
+    let lanes = arrange::lanes_of(io.doc, io.registry, &tele);
+    let view = arrange::View {
+        lanes: &lanes,
+        settings: &io.doc.project.settings,
+        playhead: Some(arrange::playhead(
+            &io.doc.project.settings,
+            &io.engine.handle,
+        )),
+    };
+    let width = ui.available_width().max(160.0);
+    let height = (36.0 + 26.0 * lanes.len() as f32).clamp(90.0, 420.0);
+    let id = egui::Id::unique(("arrange-tab", node.id));
+    if let Some(e) = arrange::ui(ui, id, &view, width, height) {
+        arrange::apply(io.doc, &mut io.engine.handle, &e, io.now);
+    }
+    ui.label(
+        RichText::new(tr("arrangement-hint"))
+            .small()
+            .color(theme::text_faint()),
+    );
+}
+
+/// The waveform of a Clip's, Sampler's, or Slicer's sound, with a
+/// Sampler's points as handles and a Slicer's slices (D209).
+fn sound_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
+    use editors::sound::{Sound, SoundEdit};
+    if !matches!(node.kind.as_str(), "clip" | "sampler" | "slicer") {
+        return;
+    }
+    let graph = io.doc.display_graph();
+    // The sound: a Slicer's or a wired Sampler's from the Sample feeding
+    // it; otherwise the node's own file.
+    let source = graph
+        .wire_into(&ac_core::Endpoint::new(id, "buffer"))
+        .and_then(|w| graph.node(w.from.node))
+        .filter(|n| n.kind == "sample")
+        .map(|n| n.config.get_str_or("file", "").to_string());
+    let file = source.unwrap_or_else(|| node.config.get_str_or("file", "").to_string());
+    let data = (!file.is_empty()).then(|| io.assets.get(&file)).flatten();
+    section(ui, &tr("section-sound"));
+    if data.is_none() {
+        ui.label(
+            RichText::new(tr("node-tab-no-sound"))
+                .small()
+                .color(theme::text_faint()),
+        );
+        return;
+    }
+    let tele = io.engine.handle.telemetry();
+    let path = io.doc.node_path(id);
+    let seconds = data
+        .as_ref()
+        .map_or(0.0, |d| d.frames() as f32 / d.sample_rate.max(1) as f32);
+    let playing = tele.socket_value(&path, "playing").is_some_and(|v| v > 0.5);
+    let playhead = tele
+        .socket_value(&path, "position")
+        .filter(|_| playing && seconds > 0.0)
+        .map(|p| (p / seconds).clamp(0.0, 1.0));
+    let sockets = edit::sockets_of(&graph, id, io.registry, &io.doc.project.group_defs, None);
+    let names = ["start_point", "end_point", "loop_start", "loop_end"];
+    let handles = (node.kind == "sampler").then(|| {
+        let mut h = [0.0f32; 4];
+        let mut free = [false; 4];
+        for (k, name) in names.iter().enumerate() {
+            if let Some(s) = sockets.input(name) {
+                let wired = graph
+                    .wire_into(&ac_core::Endpoint::new(id, *name))
+                    .is_some();
+                free[k] = !wired;
+                h[k] = if wired {
+                    tele.socket_value(&path, name).unwrap_or(0.0)
+                } else {
+                    s.spec
+                        .as_ref()
+                        .map_or(0.0, |spec| widgets::number(node, spec) as f32)
+                };
+            }
+        }
+        (h, free)
+    });
+    let (slices, markers) = if node.kind == "slicer" {
+        use ac_nodes::generators::slicer::{TELEMETRY_COUNT, TELEMETRY_STARTS, marker_list};
+        let count = tele.node_value(&path, TELEMETRY_COUNT).unwrap_or(0.0) as usize;
+        let slices = (1..count.min(ac_nodes::generators::slicer::MAX_SLICES))
+            .filter_map(|k| tele.node_value(&path, TELEMETRY_STARTS + k))
+            .collect();
+        let marked = node.config.get_str_or("mode", "equal") == "markers";
+        (slices, marked.then(|| marker_list(&node.config)))
+    } else {
+        (Vec::new(), None)
+    };
+    let width = ui.available_width().max(120.0);
+    let sound = Sound {
+        data: data.as_ref(),
+        playhead,
+        handles,
+        slices,
+        markers,
+    };
+    let edit = editors::sound::ui(
+        ui,
+        egui::Id::unique(("sound-editor", id)),
+        &sound,
+        width,
+        (width * 0.3).clamp(70.0, 180.0),
+    );
+    ui.label(
+        RichText::new(if sound.markers.is_some() {
+            tr("editor-markers-hint")
+        } else {
+            tr("editor-sound-hint")
+        })
+        .small()
+        .color(theme::text_faint()),
+    );
+    match edit {
+        Some(SoundEdit::Handle { k, value, done }) => {
+            let v = (f64::from(value) * 1000.0).round() / 1000.0;
+            params::set(
+                io.doc,
+                &mut io.engine.handle,
+                id,
+                names[k],
+                ac_core::Value::Float(v),
+                io.now,
+            );
+            if done {
+                io.doc.end_coalescing();
+            }
+        }
+        Some(SoundEdit::Markers { markers, done }) => {
+            let value = serde_json::Value::Array(
+                markers
+                    .iter()
+                    .map(|m| serde_json::json!((f64::from(*m) * 10_000.0).round() / 10_000.0))
+                    .collect(),
+            );
+            io.doc.set_config(id, "markers", value, io.now);
+            if done {
+                io.doc.end_coalescing();
+            }
+        }
+        None => {}
+    }
 }
 
 fn apply_editor(

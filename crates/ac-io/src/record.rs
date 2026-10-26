@@ -63,14 +63,17 @@ pub struct Take {
     pub channels: usize,
     pub sample_rate: u32,
     pub frames: u64,
+    /// The song position (samples at `sample_rate`) the take started at,
+    /// when the transport was playing.
+    pub song_start: Option<u64>,
     /// Why the take is incomplete or missing, if it is.
     pub error: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Cmd {
-    /// A take begins at this sample-ring position.
-    Start(u64),
+    /// A take begins at this sample-ring position, at this song position.
+    Start(u64, Option<u64>),
     /// The take ends at this position.
     Stop(u64),
 }
@@ -78,7 +81,7 @@ enum Cmd {
 impl Cmd {
     fn at(self) -> u64 {
         match self {
-            Cmd::Start(p) | Cmd::Stop(p) => p,
+            Cmd::Start(p, _) | Cmd::Stop(p) => p,
         }
     }
 }
@@ -248,15 +251,20 @@ impl DiskSink {
 
 impl RecordSink for DiskSink {
     fn start(&mut self) {
+        self.start_at(None);
+    }
+
+    fn start_at(&mut self, song: Option<u64>) {
         if self.state != SinkState::Idle {
             return;
         }
-        self.state =
-            if self.flush_pending_stop() && self.cmd_tx.push(Cmd::Start(self.pushed)).is_ok() {
-                SinkState::Recording
-            } else {
-                SinkState::Failed
-            };
+        self.state = if self.flush_pending_stop()
+            && self.cmd_tx.push(Cmd::Start(self.pushed, song)).is_ok()
+        {
+            SinkState::Recording
+        } else {
+            SinkState::Failed
+        };
     }
 
     fn write(&mut self, audio: &AudioIn<'_>) {
@@ -344,9 +352,9 @@ impl Track {
             {
                 self.cmds.pop_front();
                 match c {
-                    Cmd::Start(_) => {
+                    Cmd::Start(_, song) => {
                         self.finish(shared, keep);
-                        self.open = Some(open_take(shared, &self.reg));
+                        self.open = Some(open_take(shared, &self.reg, song));
                     }
                     Cmd::Stop(_) => self.finish(shared, keep),
                 }
@@ -518,7 +526,7 @@ pub fn sanitize_name(name: &str) -> String {
     }
 }
 
-fn open_take(shared: &Shared, reg: &Registration) -> OpenTake {
+fn open_take(shared: &Shared, reg: &Registration, song_start: Option<u64>) -> OpenTake {
     let base = sanitize_name(&reg.name);
     let dir = shared.project_dir.join("assets");
     let mut take = Take {
@@ -529,6 +537,7 @@ fn open_take(shared: &Shared, reg: &Registration) -> OpenTake {
         channels: reg.channels,
         sample_rate: reg.sample_rate,
         frames: 0,
+        song_start,
         error: None,
     };
     let spec = hound::WavSpec {
@@ -645,12 +654,15 @@ mod tests {
         sink.stop();
         // Written between takes: ignored.
         write_ramp(sink.as_mut(), 0, 100, 100);
-        sink.start();
+        sink.start_at(Some(96_000));
         write_ramp(sink.as_mut(), 50_000, 3_000, 128);
         sink.stop();
 
         let takes = wait_for_takes(&rec, 2);
         assert_eq!(takes.len(), 2, "{takes:?}");
+        // Each take knows where in the song it started, if it did.
+        assert_eq!(takes[0].song_start, None);
+        assert_eq!(takes[1].song_start, Some(96_000));
         assert_eq!(takes[0].relative_path, "assets/Lead-Vox-001.wav");
         assert_eq!(takes[1].relative_path, "assets/Lead-Vox-002.wav");
         assert_eq!(takes[0].frames, 10_000);

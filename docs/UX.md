@@ -154,8 +154,10 @@ a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
 | Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad); it also lists groups, blocks, and the plugins installed on this computer by name |
 | Wire | drag from socket to socket; drop on empty canvas opens the palette **filtered to compatible nodes** and auto-wires the result |
 | Insert on wire | drop a node onto a wire to splice it in (if types match) |
+| Drop a sound file | a WAV file dropped on the canvas becomes a Clip playing it (a Sampler with `Shift` held), copied into the project's `assets/`; dropped on a Clip, Sampler, or Sample card it becomes that card's sound; dropped on a panel, a Pad playing it through a new Sampler, pinned there and wired to the output (D209) |
 | Disconnect | drag a wire end away and release, or `Ctrl+drag` across wires to cut |
 | Connect selected to new node | select two or more nodes, then add a node (`Shift+A` or the Add menu): they're wired into it in selection order and it goes to their right (see below) |
+| Templates | the Add menu's **Track**, **Drum Pad**, **Clip Slot**, and **Send** each add their block, wired in and pinned, in one undo step: a Track from the selected sound into the master Mix (found behind a limiter or meter, grown an input if full) as a channel strip; a Drum Pad with a new Sample for its sound (the file dialog opens) and a selected trigger into `hit`; a Clip Slot driving the selected Clip's `start` and `stop`; a Send from the selected track into the mix. Add ▸ Templates ▸ **Save Selection as Template** keeps the selection (named after its first labelled node) in the editor's settings, listed in that menu to add again with its controls pinned (D222) |
 | Lazy connect | `F` with two selected nodes wires the left one into the right one (see below); the status line says what was wired, or why not |
 | Reroute | `Shift+right-drag` across a wire |
 | Portal | right-click a wire or a reroute ▸ **Make Portal**; `Shift+P` makes portals of the selected reroutes, or of the wires between the selected nodes, and turns selected portal tags back into wires |
@@ -252,6 +254,13 @@ Each of these is one undo step; moving cards never interrupts the sound.
   grows inputs to fit. The new node goes to their right. If any selected
   node doesn't fit, nothing is wired, the node goes where it was added,
   and the status line says why.
+- **Wiring into a full input** (P4): a `Mix` or `Merge` keeps a free
+  input, so wiring its last one adds another. Dropping a trigger or MIDI
+  wire on an input another wire already feeds opens the palette, which
+  says so and offers **Merge both** first (a new `Merge` between, fed by
+  both wires, with a third input free) and **Replace the wire** second;
+  typing searches for any other node to put the new wire into instead.
+  Audio and values still replace the wire, as before.
 - **Find** (`Ctrl+F`) searches labels, kind names, and ids (from their
   start) in every graph of the project, portals by name, and notes by
   their text. A node
@@ -264,7 +273,16 @@ Each of these is one undo step; moving cards never interrupts the sound.
 A resizable panel (`N` toggles) with tabs:
 
 - **Node**: everything about the selected node: full parameter list, docs
-  (with its "Try this" tip highlighted), bindings, timing, latency.
+  (with its "Try this" tip highlighted), bindings, timing, latency. A
+  node with a drawn editor (a Pattern's step grid, a MIDI Pattern's piano
+  roll, a Step Sequencer's steps, a Graph's or Envelope's curve, a Band
+  Split's bands, a Zones map) shows it here, live: the step or beat
+  playing is marked as it plays. **Open in a window** gives it a window of
+  its own (as many windows as you like, one per node, each kept until
+  closed), and **Dock under the canvas** puts it in a resizable panel
+  under the canvas, one at a time, with buttons to send it back to a
+  window or close it (D217). An editor opened inside a group shows while
+  that graph does.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette. Every block that makes
   sound has a play button at the right of its row: it plays the block's
@@ -344,15 +362,51 @@ only their icons, named on hover.
 
 ## Transport bar
 
-Play/stop/record, position in bars:beats and time, tempo and time signature
-(click to edit the tempo map), loop toggle and range, master meter, CPU and
-xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
-**Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
-`R` records, `Shift+Space` plays from the start. At its right end, a
+Play, stop, record, position in bars:beats and time, tempo and time signature
+(click to edit the tempo map), loop toggle and range, the metronome, Panic,
+master meter, CPU and xrun indicator. `Space` plays/stops, `R` records,
+`Shift+Space` plays from the start, `End` goes to the song's end. Drag the
+position sideways to move the playhead a beat at a time, or click it to type
+a bar to go to. The **metronome** button (`Shift+C`, Transport ▸ Metronome)
+clicks on every beat, higher on the first of a bar; it plays live only and
+is never in an export (D207). Its right-click menu sets a **count-in** of
+0–8 bars, clicked before recording starts from a stop. The **automation**
+button (the sliders) sets what moving a control does while recording:
+**Off**, **Touch** (a click turns it on; the moves are written while the
+control is held, then the input goes back), or **Write** (from the first
+move until recording stops; it holds where it was left), from its
+right-click menu. When recording stops, each input moved becomes a Graph
+placed in the song and wired into that input, one undo step for the pass
+(D219). A MIDI Record node's take becomes a MIDI Pattern beside it when
+the take ends (D218). Play and Stop are
+separate buttons so Stop is there with the transport already stopped: it
+fires every generator's `stop` that says *On stop*, wired or not, so
+anything a button, a clock, or a live input started stops too (D200).
+**Panic** (the octagon, Transport ▸ Panic, `Escape` twice within half a
+second, or a bound control) stops the transport, resets every node
+(releasing every voice and ending every note), and silences every Audio
+Out for one block; the performance bar has it too (D201). While anything
+sounds, the status bar names the Audio Out nodes it reaches ("Sounding:
+Main · Click"); clicking it shows the first on the canvas. At its right end, a
 **Canvas | Panels** switch and the performance-mode button. In a plugin's
 window the host's transport plays the patch: the bar shows whether the
 host plays instead of the play, record, rewind, and loop buttons, and
 `Space`, `Shift+Space`, and `R` are the host's (D127).
+
+Under the bar, the **ruler** shows the song's bars (numbered every bar, or
+every few bars where they're narrow), the playhead, the loop (shaded), the
+punch range (a red band along the bottom), and the markers (flags with
+their names) (D207). Click it to move the playhead there, snapped to the
+beat (to the bar when beats are too narrow to aim at); a click on a
+marker jumps to it. Drag across it to set the loop, `Shift`-drag to set
+the punch range, and drag a marker to move it. Right-click it to add a
+marker there, rename or remove the marker under the pointer, or clear the
+loop or the punch range. Markers are in the project; `Alt+M` adds one at
+the playhead and `Alt+←`/`Alt+→` jump to the one before or after
+(Transport ▸ Add Marker, Previous Marker, Next Marker). While recording,
+armed Record nodes record only inside the punch range, from its exact
+first sample. In a plugin's window the host runs the transport, so there's
+no ruler.
 
 The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
 keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)
@@ -378,8 +432,21 @@ pedalboard without the app providing one.
 - **Pinning.** `P` pins the selected nodes that have a widget to the
   current panel, making "Panel 1" if there is none; on nodes already
   pinned there, `P` unpins them. Widgets are the controls (Button, Toggle,
-  Slider, Knob, XY Pad, Keyboard, Number, Dropdown), the displays (Meter,
-  Scope, Analyzer, Readout), and Clip, Record, and Audio Out. A node's
+  Slider, Knob, Fader, Pad, Pads, XY Pad, Keyboard, Number, Dropdown), the
+  displays (Meter, Light, Scope, Analyzer, Readout), Clip, Record, and Audio
+  Out, the **drawn editors** (Pattern, MIDI Pattern, Step Sequencer,
+  Graph: the card is the editor, live and editable, with the step or beat
+  playing marked; a Waveform card drags its handles), the
+  **Arrangement** (the song as lanes of placed Clips, MIDI Patterns,
+  Patterns, and Graphs, moved and trimmed by dragging, with the markers,
+  the loop, and the playhead; D221), and **group and
+  block instances**: a pinned instance is one card with
+  a widget for each input (a fader for a level in dB, with the meter of its
+  audio output beside it; a knob, a toggle, a dropdown, or a fire button by
+  type and unit) and a meter, light, or readout for each output, so a Track
+  block pins as a channel strip (D203). Its widgets set the instance's own
+  inputs; a wired input shows the value arriving on its wire, and a wired
+  trigger input has no button (D222). A node's
   right-click menu pins it to any panel or a new one, and unpins it. Pinned
   nodes carry a pin badge in their header. Only top-level nodes can be
   pinned (the menu says so inside a group): a group's insides are shared by
@@ -395,11 +462,41 @@ pedalboard without the app providing one.
 - **The grid.** Each card has the node's label and its live widget, played
   exactly as on the canvas: dragging a slider is one undo step, a held
   button or key is momentary and never touches the project, and meters,
-  scopes, analyzers, and readouts move with the audio. Cards flow left to
-  right in pin order; the Keyboard, Scope, Analyzer, and XY Pad get bigger
-  cells. Drag a card by its edge (anywhere but its widget) to move it;
-  `−` and `+` in its corner make it smaller or bigger, and `×` unpins it.
-  Each is one undo step. A panel taller than the window scrolls.
+  scopes, analyzers, and readouts move with the audio. The grid is cells
+  across and *lines* down, two lines to a cell (D202). A card has a place
+  of its own and keeps it: pinning something new puts it after everything
+  placed, so nothing already there moves. A panel from before places
+  flows its cards left to right in pin order until the first change to
+  its layout, which gives every card the place it was drawn at. The
+  Keyboard, Scope, Analyzer, XY Pad, Fader, and Pads get bigger cells.
+  Drag a card by its edge (anywhere but its widget) to move it, onto
+  another card of its size to swap them, or into a strip to join it;
+  `Shift`- or `Ctrl`-click selects several cards, strips, and labels, and
+  dragging one of them moves them all. `−` and `+` in a card's corner make
+  it smaller or bigger, and `×` unpins it. Each is one undo step. A panel
+  taller than the window scrolls.
+- **Structure.** A card's right-click menu makes it **compact** (half
+  height: a toggle or button takes one line, so two share a cell), gives it
+  a **color** (amber, green, red, blue, purple, grey, or its category's),
+  makes a **strip** of the selected cards, or takes it out of one. A strip
+  is a named column of cards stacked under one header: drag the header to
+  move it, `−` and `+` on it to make it narrower or wider, `×` to unpin it
+  and its cards; its menu renames it or ungroups it (the cards stay where
+  they were). Right-click an empty place to add a **label** there (a
+  section heading, or a row or column name) or a **separator** (a label
+  with no text); a label's menu edits, widens, narrows, or removes it. On
+  the canvas, **Pin as Strip** pins the selection as one strip, compact
+  where a card can be.
+- **Panels from a selection** (D204). The canvas menu over a selection
+  makes a whole panel in one undo step: **Mixer from Selection** puts each
+  selected group or block instance (a Track's channel strip) side by side
+  under a *Tracks* label, then the other selected controls and displays;
+  **Pads from Selection** adds a Pads node whose pads start the selected
+  Samplers and Clips (in reading order from the bottom-left pad) and pins
+  it; **Launch Grid from Selection** adds a Button for each selected Clip,
+  wired to start it and lit while it plays (its `lit` input), laid out a
+  column per track (clips stacked on the canvas) and a row per scene, with
+  their names along the top and the left.
 - **Performance mode.** `F11`, View ▸ Performance Mode, or the Perform
   button shows the current panel full screen with bigger cells. The menu
   bar, side panel, status bar, and transport bar go; play/stop, the

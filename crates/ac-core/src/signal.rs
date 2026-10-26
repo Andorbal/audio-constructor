@@ -187,12 +187,19 @@ pub enum AutoTrigger {
     None,
     /// Generator `start`: dropdown of *On transport play* / *On load* / *Never*.
     Start,
-    /// Generator `stop`: dropdown of *On transport stop* / *Never*.
+    /// Generator `stop`: dropdown of *On transport stop* / *Never*, kept
+    /// beside a wire (DECISIONS D200).
     Stop,
 }
 
 /// Choices offered by an `AutoTrigger::Start` input, stored as the param value.
 pub const START_CHOICES: &[&str] = &["play", "load", "never"];
+/// Choices of a song-locked generator's `start`: [`START_CHOICES`] and
+/// *At beat…*, which starts it at its `at` input's song beat and lands it
+/// in the right place after a seek (DECISIONS D206).
+pub const START_AT_CHOICES: &[&str] = &["play", "load", "never", "at"];
+/// The index of *At beat…* in [`START_AT_CHOICES`].
+pub const START_AT: usize = 3;
 /// Choices offered by an `AutoTrigger::Stop` input.
 pub const STOP_CHOICES: &[&str] = &["stop", "never"];
 
@@ -221,6 +228,13 @@ pub struct SocketSpec {
     pub doc: &'static str,
     /// Wired by the compiler, never by people: the editor doesn't show it.
     pub hidden: bool,
+    /// Inputs: read one block late. Only for inputs that change what a
+    /// node shows, never what it outputs (a button's light), so a wire
+    /// from downstream doesn't make a cycle (DECISIONS D205).
+    pub late: bool,
+    /// Inputs: used only while the node's `start` is *At beat…*; the
+    /// editor shows it then, or while it's wired (DECISIONS D206).
+    pub song: bool,
     /// `Spectrum` outputs: the FFT size and hop (samples between frames)
     /// the node produces. `None` follows the node's first wired Spectrum
     /// input, the way `Channels::Follow` does for audio.
@@ -276,6 +290,8 @@ impl SocketSpec {
             auto: AutoTrigger::None,
             doc: "",
             hidden: false,
+            late: false,
+            song: false,
             spectrum: None,
         }
     }
@@ -377,6 +393,19 @@ impl SocketSpec {
         self
     }
 
+    /// Read this input one block late: see [`SocketSpec::late`].
+    pub fn late(mut self) -> Self {
+        self.late = true;
+        self
+    }
+
+    /// Show this input only while the node is song-locked: see
+    /// [`SocketSpec::song`].
+    pub fn song(mut self) -> Self {
+        self.song = true;
+        self
+    }
+
     pub fn auto(mut self, auto: AutoTrigger) -> Self {
         self.auto = auto;
         self.default = Value::Text(
@@ -473,7 +502,7 @@ impl Signature {
         self.inputs.push(
             SocketSpec::trigger("stop")
                 .auto(AutoTrigger::Stop)
-                .doc("Stops. Unwired: on transport stop, or never."),
+                .doc("Stops. Also on transport stop, wired or not, unless set to never."),
         );
         self.inputs
             .push(SocketSpec::trigger("reset").doc("Returns to the beginning."));
@@ -491,6 +520,34 @@ impl Signature {
             );
         }
         self
+    }
+
+    /// [`Signature::generator_inputs`] for a generator that can be placed
+    /// in the song: `start` also offers *At beat…*, and `at` and `until`
+    /// inputs (the song beats it plays between, shown while `start` is *At
+    /// beat…*) follow it.
+    pub fn song_generator_inputs(self, finite: bool, reversible: bool) -> Self {
+        let first = self.inputs.len();
+        let mut sig = self.generator_inputs(finite, reversible);
+        if let Some(start) = sig.inputs.get_mut(first) {
+            start.choices = START_AT_CHOICES;
+            start.doc = "Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song.";
+        }
+        sig.inputs.insert(
+            first + 1,
+            SocketSpec::float("at", Unit::Beats, 0.0)
+                .range(0.0, 256.0)
+                .song()
+                .doc("The song beat it plays from, with `start` set to At beat."),
+        );
+        sig.inputs.insert(
+            first + 2,
+            SocketSpec::float("until", Unit::Beats, 0.0)
+                .range(0.0, 256.0)
+                .song()
+                .doc("The song beat it stops at, placed in the song; 0 plays on."),
+        );
+        sig
     }
 
     /// The generator contract outputs: `playing: Bool` and `end: Trigger`.

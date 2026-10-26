@@ -216,6 +216,25 @@ fn relayed(w: &mut Writer, m: &Relayed) {
             w.u64(generation);
             w.u32(slot);
         }
+        Relayed::Panic => w.u8(9),
+        Relayed::Locate(p) => {
+            w.u8(10);
+            w.u64(p);
+        }
+        Relayed::SetPunch(None) => w.u8(11),
+        Relayed::SetPunch(Some((a, b))) => {
+            w.u8(12);
+            w.u64(a);
+            w.u64(b);
+        }
+        Relayed::SetMetronome(on) => {
+            w.u8(13);
+            w.u8(u8::from(on));
+        }
+        Relayed::SetCountIn(bars) => {
+            w.u8(14);
+            w.u32(bars);
+        }
     }
 }
 
@@ -237,6 +256,12 @@ fn read_relayed(r: &mut Reader) -> Option<Relayed> {
             generation: r.u64()?,
             slot: r.u32()?,
         },
+        9 => Relayed::Panic,
+        10 => Relayed::Locate(r.u64()?),
+        11 => Relayed::SetPunch(None),
+        12 => Relayed::SetPunch(Some((r.u64()?, r.u64()?))),
+        13 => Relayed::SetMetronome(r.u8()? != 0),
+        14 => Relayed::SetCountIn(r.u32()?),
         _ => return None,
     })
 }
@@ -559,6 +584,12 @@ mod tests {
             ToAudio::Relayed(Relayed::SetLoop(None)),
             ToAudio::Relayed(Relayed::SetLoop(Some((480, 96_000)))),
             ToAudio::Relayed(Relayed::Reset),
+            ToAudio::Relayed(Relayed::Panic),
+            ToAudio::Relayed(Relayed::Locate(96_000)),
+            ToAudio::Relayed(Relayed::SetPunch(None)),
+            ToAudio::Relayed(Relayed::SetPunch(Some((10, 20)))),
+            ToAudio::Relayed(Relayed::SetMetronome(true)),
+            ToAudio::Relayed(Relayed::SetCountIn(2)),
             ToAudio::Relayed(Relayed::Param {
                 generation: 41,
                 slot: 9,

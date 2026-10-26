@@ -78,6 +78,19 @@ status-learning = Binding { $target }: move a control (MIDI, key, gamepad, or OS
 status-cancel = Cancel
 status-recorded = Recorded { $file }
 status-clip-from-take = Create Clip from take
+status-template-added = Added { $name }
+status-template-saved = Saved the selection as the template “{ $name }” (in the Add menu, under Templates)
+status-template-broken = That template couldn't be read
+template-numbered = Template { $n }
+status-tempo-set = Tempo { $bpm } BPM
+status-automation-written = { $count ->
+    [one] Wrote automation for one input
+   *[other] Wrote automation for { $count } inputs
+}
+status-midi-take = { $count ->
+    [one] Recorded one note from { $name } into a MIDI Pattern
+   *[other] Recorded { $count } notes from { $name } into a MIDI Pattern
+}
 status-dismiss = Dismiss
 status-more-takes = +{ $count } more
 status-exporting-to = Exporting { $path }…
@@ -174,6 +187,8 @@ status-relinked =
        *[other] Relinked { $count } nodes
     }
 status-clip-plays = Clip plays { $file }
+status-pad-from-file = A pad on the panel plays { $file }
+status-drop-not-wav = { $file } isn't a WAV file; only WAV files can be dropped
 status-clip-outside-project = The project isn't saved yet, so the clip refers to the file where it is. Saving the project copies it into the project's assets folder.
 status-couldnt-use-file = Couldn't use that file: { $error }
 
@@ -312,3 +327,14 @@ status-exported-block = Exported { $name } to { $path }
 status-couldnt-export-block = Couldn't export { $name }: { $error }
 status-pack-downloaded = Downloaded the pack to { $path }
 status-couldnt-save-pack = Couldn't save the pack to { $path }: { $error }
+status-panic = Panic: everything stopped and reset
+status-sounding = Sounding: { $outputs }
+status-sounding-tip = The Audio Out nodes something is coming out of. Click to show the first on the canvas.
+status-pinned-strip = Pinned the selection as the strip “{ $name }”
+status-panel-made = Made the panel “{ $panel }”
+status-nothing-for-panel = Nothing in the selection can go on that panel: select groups and controls for a mixer, or Samplers and Clips for pads or a launch grid
+palette-merge-note = This input is already wired.
+palette-merge-both = Merge both
+palette-merge-both-summary = Keep the wire already here and add this one, both through a new Merge.
+palette-replace-wire = Replace the wire
+palette-replace-wire-summary = Disconnect the wire already here and connect this one instead.

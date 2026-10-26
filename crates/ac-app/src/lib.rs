@@ -8,11 +8,13 @@
 pub mod actions;
 mod app;
 pub mod audio;
+pub mod automation;
 pub mod bindings;
 pub mod canvas;
 pub mod dialogs;
 pub mod document;
 pub mod edit;
+pub mod editor_windows;
 pub mod editors;
 #[cfg(feature = "embed")]
 pub mod embed;
@@ -33,7 +35,10 @@ pub mod play_keys;
 pub mod plugins;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod product;
+pub mod ruler;
 pub mod settings;
+pub mod sounding;
+pub mod templates;
 pub mod theme;
 pub mod timing;
 pub mod transport;

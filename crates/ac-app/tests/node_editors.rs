@@ -13,6 +13,7 @@ const H: f32 = 160.0;
 struct State {
     editor: Editor,
     config: Value,
+    live: editors::LiveView,
     /// Where the editor's area was drawn.
     rect: Rect,
     edits: usize,
@@ -23,6 +24,7 @@ fn harness(editor: Editor, config: Value) -> Harness<'static, State> {
     let state = State {
         editor,
         config,
+        live: editors::LiveView::default(),
         rect: Rect::NOTHING,
         edits: 0,
         done: 0,
@@ -33,7 +35,7 @@ fn harness(editor: Editor, config: Value) -> Harness<'static, State> {
         .build_ui_state(
             |ui, s: &mut State| {
                 let before = ui.cursor().min;
-                let edit = editors::show(ui, s.editor, &s.config, "test", W, H);
+                let edit = editors::show(ui, s.editor, &s.config, &s.live, "test", W, H);
                 // The area is the last thing the editor allocated.
                 let after = ui.min_rect();
                 s.rect = Rect::from_min_size(pos2(before.x, after.max.y - H), vec2(W, H));
@@ -115,10 +117,11 @@ fn at(h: &Harness<'static, State>, fx: f32, fy: f32) -> Pos2 {
 }
 
 /// Centre of cell (`row`, `step`) of a Pattern grid of `rows` × `steps`
-/// (the grid inset matches the editor's: an 18 pt row label and margins).
+/// (the grid inset matches the editor's: an 18 pt row label, the bank tabs
+/// above, and margins).
 fn cell(h: &Harness<'static, State>, rows: usize, steps: usize, row: usize, step: usize) -> Pos2 {
     let r = h.state().rect;
-    let cells = Rect::from_min_max(r.min + vec2(22.0, 6.0), r.max - vec2(6.0, 6.0));
+    let cells = Rect::from_min_max(r.min + vec2(22.0, 26.0), r.max - vec2(6.0, 6.0));
     pos2(
         cells.left() + (step as f32 + 0.5) * cells.width() / steps as f32,
         cells.top() + (row as f32 + 0.5) * cells.height() / rows as f32,
@@ -144,6 +147,46 @@ fn pattern_cells_switch_on_click_and_paint_on_drag() {
 }
 
 #[test]
+fn pattern_levels_drag_up_and_down_and_banks_add_and_remove() {
+    let mut h = harness(
+        Editor::Pattern,
+        json!({"rows": 2, "steps": 4, "cells": ["x...", "...."]}),
+    );
+    // Down a quarter of the full span from a full cell: about 7 tenths.
+    let p = cell(&h, 2, 4, 0, 0);
+    drag(&mut h, p, p + vec2(0.0, 22.0));
+    assert_eq!(h.state().config["cells"], json!(["7...", "...."]));
+    // The `+` tab (after bank 0) adds a copy, shown at once.
+    let r = h.state().rect;
+    let plus = pos2(r.left() + 22.0 + 24.0 + 11.0, r.top() + 13.0);
+    click(&mut h, plus);
+    assert_eq!(
+        h.state().config["cells"],
+        json!([["7...", "...."], ["7...", "...."]])
+    );
+    let q = cell(&h, 2, 4, 1, 3);
+    click(&mut h, q);
+    assert_eq!(
+        h.state().config["cells"],
+        json!([["7...", "...."], ["7...", "...x"]])
+    );
+    // Right-click bank 0's tab removes it.
+    right_click(&mut h, pos2(r.left() + 22.0 + 11.0, r.top() + 13.0));
+    assert_eq!(h.state().config["cells"], json!(["7...", "...x"]));
+}
+
+/// The middle of `pitch`'s row in the piano roll as it's drawn for the
+/// current config (below the bank tabs).
+fn pitch_y(h: &Harness<'static, State>, pitch: i32) -> f32 {
+    use ac_app::editors::piano_roll::{parse, pitch_range};
+    let (lo, hi) = pitch_range(&parse(&h.state().config).1);
+    let r = h.state().rect;
+    let top = r.top() + 26.0;
+    let row_h = (r.bottom() - top) / (hi - lo + 1) as f32;
+    top + ((hi - pitch) as f32 + 0.5) * row_h
+}
+
+#[test]
 fn piano_roll_draws_moves_and_deletes_notes() {
     let mut h = harness(Editor::PianoRoll, json!({"length": 4, "notes": []}));
     // An empty clip shows C3..C5 (48..72); click a row a quarter of the way in.
@@ -151,10 +194,11 @@ fn piano_roll_draws_moves_and_deletes_notes() {
     click(&mut h, p);
     let notes = h.state().config["notes"].as_array().cloned().unwrap();
     assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0][2], 62);
     let start = notes[0][0].as_f64().unwrap();
     assert_eq!(start % 0.25, 0.0, "on the grid");
-    // Right-click deletes it.
-    let note_at = at(&h, 0.3 + 0.02, 0.5);
+    // Right-click deletes it, where it's drawn now the view fits it.
+    let note_at = pos2(at(&h, 0.3 + 0.02, 0.0).x, pitch_y(&h, 62));
     right_click(&mut h, note_at);
     assert_eq!(h.state().config["notes"], json!([]));
     // Dragging in empty space draws a longer note.
@@ -210,4 +254,25 @@ fn step_values_follow_the_pointer() {
     let v = h.state().config["values"].as_array().cloned().unwrap();
     assert!(v[1].as_f64().unwrap() > 0.8, "{v:?}");
     assert_eq!(v[0], json!(0.0));
+}
+
+#[test]
+fn zones_move_resize_appear_and_go() {
+    // 320 points over 128 notes: 2.5 points a note.
+    let mut h = harness(Editor::Zones, json!({ "zones": [[60, 71, 0, 1]] }));
+    let zones = |h: &Harness<'static, State>| h.state().config["zones"].clone();
+    // Drag the zone's body a dozen notes right.
+    let mid = at(&h, 66.0 / 128.0, 0.5);
+    drag(&mut h, mid, mid + vec2(30.0, 0.0));
+    assert_eq!(zones(&h), json!([[72.0, 83.0, 0.0, 1.0]]));
+    // Pull its top edge down to half velocity.
+    let top = at(&h, 78.0 / 128.0, 0.0) + vec2(0.0, 1.0);
+    drag(&mut h, top, top + vec2(0.0, H / 2.0));
+    assert_eq!(zones(&h)[0][3], json!(0.5));
+    // Double-click empty space adds one; right-click removes it.
+    let empty = at(&h, 20.0 / 128.0, 0.5);
+    double_click(&mut h, empty);
+    assert_eq!(zones(&h).as_array().map(Vec::len), Some(2));
+    right_click(&mut h, empty);
+    assert_eq!(zones(&h).as_array().map(Vec::len), Some(1));
 }

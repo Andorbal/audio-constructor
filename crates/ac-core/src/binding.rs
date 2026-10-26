@@ -282,15 +282,19 @@ pub enum TransportAction {
     /// Turn recording on (starting playback) or off.
     Record,
     PlayFromStart,
+    /// Stop, reset every node, and mute the outputs for a block: silence
+    /// whatever is sounding (DECISIONS D201).
+    Panic,
 }
 
 impl TransportAction {
-    pub const ALL: [TransportAction; 5] = [
+    pub const ALL: [TransportAction; 6] = [
         TransportAction::Play,
         TransportAction::Stop,
         TransportAction::PlayStop,
         TransportAction::Record,
         TransportAction::PlayFromStart,
+        TransportAction::Panic,
     ];
 
     pub fn label(self) -> &'static str {
@@ -300,6 +304,7 @@ impl TransportAction {
             TransportAction::PlayStop => "Play / stop",
             TransportAction::Record => "Record",
             TransportAction::PlayFromStart => "Play from start",
+            TransportAction::Panic => "Panic",
         }
     }
 }

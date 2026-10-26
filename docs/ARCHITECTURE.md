@@ -183,6 +183,8 @@ pub trait Node: Send {
     fn path_latency(&mut self, samples: u32) {}
     /// Reset internal state (on transport stop/restart).
     fn reset(&mut self);
+    /// The transport jumped (a seek); the default resets (§6).
+    fn seek(&mut self, sample: u64) { self.reset() }
 }
 ```
 
@@ -295,6 +297,27 @@ Transport
 - There is no external sync (MIDI clock, network tempo sync) in scope,
   except that the plugin build follows its host's play, stop, and position
   (§13, DECISIONS D121).
+- **Song-locked generators** (DECISIONS D206). Clip, Graph, MIDI Pattern,
+  and Pattern offer *At beat…* as a `start` choice, with `at` and `until`
+  inputs in beats. `TransportView::song_lock` tells such a node, each
+  block, whether to start (on the exact sample of `at`), stop (at
+  `until`), wait, or **land**: whenever the transport starts (play, a
+  seek, a loop wrap), a generator past its beat jumps to where it would
+  be had the song played from the top. So playback can start anywhere.
+- **Seek and locate.** A seek (the editor's ruler, `audioc render
+  --from`) runs every node's `seek(sample)`, a reset by default, then
+  starts the transport there, so a live seek and a render that starts at
+  the same place give the same samples. A plugin host's jumps and loop
+  wraps only *locate*: the position moves and the transport starts again,
+  but effects keep their tails.
+- **Punch, click, and count-in** live in the processor (DECISIONS D207).
+  The punch range gates the `recording` flag nodes see, and the block is
+  split on its edges so Record starts and stops on the exact sample. The
+  click is a short blip on every beat added to the first two device
+  outputs, and the count-in clicks a bar grid of its own before recording
+  starts from a stop. Neither is part of the graph, and neither runs
+  offline. Device outputs whose `role` config is `monitor` are muted when
+  compiling for a render, so they play live only.
 
 ## 7. Compilation and scheduling
 
@@ -313,7 +336,9 @@ Steps:
    per wire/socket, never panic.
 3. **Break feedback.** Cycles are legal only through a `Feedback` node, which
    introduces exactly one block of delay and is the cut point for the
-   topological sort. A Feedback node whose `delay` config is `sample`
+   topological sort. A wired input marked `late` (a display input such as
+   a button's `lit`) gets a hidden one-block Feedback of its type in front
+   of it first, so a wire into one never closes a cycle (DECISIONS D205). A Feedback node whose `delay` config is `sample`
    closes its loop with one sample instead (DECISIONS D140): the compiler
    finds the strongly connected component of the wire graph that holds it
    (edges out of block-mode Feedback nodes don't count, since those loops
@@ -463,7 +488,10 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   opt-in (DECISIONS D57, D58). If a block overruns, the xrun counter
   increments and the UI shows it; the engine never silently glitches.
 - **Recording** writes to a lock-free ring drained by a disk thread; the
-  disk thread, not the callback, owns the file.
+  disk thread, not the callback, owns the file. A `MIDI Record` node's
+  `MidiRecordSink` pushes its events into a ring the editor drains each
+  frame; no file is involved, and the editor turns each finished take into
+  a MIDI Pattern (D218).
 
 The engine exposes one API to all hosts. Because the control side and the
 audio side live on different threads, an `Engine` is two halves joined by

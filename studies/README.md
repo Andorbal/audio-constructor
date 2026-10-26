@@ -10,10 +10,10 @@ features, and editor changes they argue for, are in
 
 | Study | Stands in for | Nodes | What it builds |
 | --- | --- | --- | --- |
-| `multitrack-recorder.acproj` | A linear multitrack recorder | 92 | Five tracks with fader, pan, mute, solo, a reverb send, and a stem file; reverb and delay buses; a master with a compressor and limiter; clips that enter at bar 5 and bar 9; a volume ride; a punch-in window for recording; a Mixer panel |
-| `pattern-studio.acproj` | A pattern-based studio | 56 | Four drum channels from a 16-step grid, a chord channel and a bass channel from piano rolls, two patterns and a four-node playlist that alternates them, a velocity row for the hats, channel strips, sends, a Rack panel |
-| `pads-and-keys.acproj` | A sampler and drum machine | 83 | Eight pads from MIDI, the computer keys, and buttons, with velocity; a snare with two velocity layers and round robin; a choke; a two-zone keymapped instrument in a Voices body; resampling into a pad; a Pads panel |
-| `scenes.acproj` | A clip launcher and loop pedal | 99 | Three tracks with two clip slots each, launched on the bar, with exclusive slots, stop buttons, and two scenes; a bar-quantized looper; a Session panel |
+| `multitrack-recorder.acproj` | A linear multitrack recorder | 49 | Five tracks, each a Track block pinned as a channel strip with a reverb send and a stem file, soloed through one Logic; reverb and delay buses; a master with a compressor, a limiter, and a Fader; clips placed in the song at bars 1, 5, and 9, so it plays from any bar; a volume ride written as automation; a punch range, markers, and a count-in on the transport; a Mixer panel of strips under labels, and a Song panel with the arrangement |
+| `pattern-studio.acproj` | A pattern-based studio | 20 | Four drums from one 16-step grid with two banks, accented hats, and a swung clock; a chord channel (two banks) and a bass channel from piano rolls; a one-node playlist that alternates the banks every four bars; a channel strip per channel, a reverb send; a Beat panel with the grid and the piano roll, and a Rack panel |
+| `pads-and-keys.acproj` | A sampler and drum machine | 35 | A 4 × 4 Pads grid, MIDI, the computer keys, and a demo beat playing twelve slices of a loop from one Slicer with velocity, each pad lit as it plays; a snare with two velocity layers and round robin (Zones and Route); a choke group; a two-zone keymapped instrument in a Voices body; resampling into a pad; a Pads panel |
+| `scenes.acproj` | A clip launcher and loop pedal | 40 | Three tracks with two Clip Slots each, launched on the bar and lit while they play, with exclusive slots, stop buttons, and two scenes; a Looper that records, overdubs, and undoes on the bar; a Track block per track; a Session panel laid out as tracks by scenes |
 
 Open one in the editor (`cargo run --release -p ac-app -- studies/scenes.acproj`)
 and read the notes on its canvas; the frames mark each part. Render one

@@ -1,0 +1,244 @@
+//! The drawn editors outside the Node tab (ROADMAP M4.5): on a panel card,
+//! live and editable; in several windows at once; docked under the canvas.
+
+use ac_app::audio::AudioMode;
+use ac_app::{AppOptions, EditorApp};
+use ac_core::{NodeId, NodeInstance, Panel, PanelItem, Project};
+use egui::{Key, Modifiers, Pos2, Rect, vec2};
+use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
+use serde_json::json;
+
+fn harness(project: Project) -> Harness<'static, EditorApp> {
+    let ctx = egui::Context::default();
+    let mut app = EditorApp::new(
+        &ctx,
+        AppOptions {
+            audio: AudioMode::Null,
+            ..AppOptions::headless()
+        },
+    );
+    app.open_unsaved(project);
+    let mut h = Harness::builder()
+        .with_size(vec2(1400.0, 900.0))
+        .with_max_steps(64)
+        .with_step_dt(1.0 / 30.0)
+        .with_accessibility_check(false)
+        .build_ui_state(|ui, app: &mut EditorApp| app.ui(ui), app);
+    h.run_steps(4);
+    h
+}
+
+fn click(h: &mut Harness<'static, EditorApp>, at: Pos2) {
+    h.hover_at(at);
+    h.run_steps(2);
+    h.drag_at(at);
+    h.run_steps(1);
+    h.drop_at(at);
+    h.run_steps(3);
+}
+
+fn pattern() -> NodeInstance {
+    NodeInstance::new(NodeId(1), "pattern")
+        .with_config(json!({ "steps": 4, "rows": 2, "cells": ["....", "...."] }))
+}
+
+fn cells(h: &Harness<'static, EditorApp>) -> serde_json::Value {
+    h.state().document().project.graph.nodes[0].config["cells"].clone()
+}
+
+/// The centre of cell (`row`, `step`) of a 2 × 4 grid drawn in `r` (the
+/// editor's insets: an 18 pt label column, the bank tabs, margins).
+fn cell_in(r: Rect, row: usize, step: usize) -> Pos2 {
+    let cells = Rect::from_min_max(r.min + vec2(22.0, 26.0), r.max - vec2(6.0, 6.0));
+    Pos2::new(
+        cells.left() + (step as f32 + 0.5) * cells.width() / 4.0,
+        cells.top() + (row as f32 + 0.5) * cells.height() / 2.0,
+    )
+}
+
+#[test]
+fn a_pinned_pattern_is_its_grid_and_a_click_switches_a_cell() {
+    let mut p = Project::default();
+    p.graph.nodes.push(pattern());
+    let mut panel = Panel::new("Beat");
+    panel.items.push(PanelItem::new(NodeId(1)));
+    p.panels.push(panel);
+    let mut h = harness(p);
+    h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+    h.run_steps(3);
+    let cell = h.state().perform.cells[0].clone();
+    let (editor, r) = cell.editor.expect("an editor on the card");
+    assert_eq!(editor, ac_app::editors::Editor::Pattern);
+    assert!(cell.body.is_none());
+    let before = cell.rect;
+    click(&mut h, cell_in(r, 1, 2));
+    assert_eq!(cells(&h), json!(["....", "..x."]));
+    assert_eq!(
+        h.state().perform.cells[0].rect,
+        before,
+        "the card stays put"
+    );
+    // A drag on the grid paints; it doesn't move the card.
+    let (a, b) = (cell_in(r, 0, 0), cell_in(r, 0, 3));
+    h.hover_at(a);
+    h.run_steps(2);
+    h.drag_at(a);
+    h.run_steps(1);
+    for i in 1..=6 {
+        h.hover_at(a + (b - a) * (i as f32 / 6.0));
+        h.run_steps(1);
+    }
+    h.drop_at(b);
+    h.run_steps(3);
+    assert_eq!(cells(&h), json!(["xxxx", "..x."]));
+    assert_eq!(h.state().perform.cells[0].rect, before);
+}
+
+#[test]
+fn editors_open_in_several_windows_and_one_docks_under_the_canvas() {
+    let mut p = Project::default();
+    p.graph.nodes.push(pattern().at(0.0, 0.0));
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(2), "midi_pattern").at(0.0, 300.0));
+    let mut h = harness(p);
+    {
+        let app = h.state_mut();
+        app.editor_windows.toggle(&app.doc, NodeId(1));
+        app.editor_windows.toggle(&app.doc, NodeId(2));
+    }
+    h.run_steps(4);
+    assert_eq!(h.state().editor_windows.open.len(), 2);
+    assert!(h.query_by_label("Pattern").is_some());
+    assert!(h.query_by_label("MIDI Pattern").is_some());
+    // Docking the Pattern takes it out of its window.
+    {
+        let app = h.state_mut();
+        app.editor_windows.dock(&app.doc, NodeId(1));
+    }
+    h.run_steps(4);
+    let w = &h.state().editor_windows;
+    assert_eq!(w.open.len(), 1);
+    assert_eq!(w.docked.as_ref().map(|o| o.node), Some(NodeId(1)));
+    // Removing the node forgets its editor.
+    h.state_mut()
+        .doc
+        .graph_mut_raw()
+        .nodes
+        .retain(|n| n.id != NodeId(1));
+    h.run_steps(2);
+    assert!(h.state().editor_windows.docked.is_none());
+}
+
+#[test]
+fn the_arrangement_card_moves_and_trims_placed_generators() {
+    use ac_app::editors::arrange;
+    use ac_core::Value;
+    let mut p = Project::default();
+    // 120 BPM, 20 s: 40 beats.
+    p.settings.length = 20.0;
+    let mut riff = NodeInstance::new(NodeId(1), "midi_pattern")
+        .with_config(json!({ "length": 4 }))
+        .at(0.0, 0.0);
+    riff.params.insert("start".into(), Value::Text("at".into()));
+    riff.params.insert("at".into(), Value::Float(0.0));
+    riff.params.insert("loop".into(), Value::Bool(false));
+    p.graph.nodes.push(riff);
+    p.graph
+        .nodes
+        .push(NodeInstance::new(NodeId(2), "arrangement").at(0.0, 300.0));
+    let mut panel = Panel::new("Song");
+    panel.items.push(PanelItem::new(NodeId(2)));
+    p.panels.push(panel);
+    let mut h = harness(p);
+    h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+    h.run_steps(3);
+    let rect = h.state().perform.cells[0].arrange.expect("the lanes");
+    let geo = |h: &Harness<'static, EditorApp>| {
+        let doc = h.state().document();
+        let lanes = arrange::lanes(&doc.project, &h.state().registry, |_| None);
+        let g = arrange::Geometry::new(
+            rect,
+            lanes.len(),
+            arrange::span(&lanes, &doc.project.settings),
+        );
+        (g, lanes)
+    };
+    let (g, lanes) = geo(&h);
+    assert_eq!(lanes.len(), 1);
+    let block = g.block(0, &lanes[0]);
+    // Drag the block four beats later.
+    let from = block.center();
+    let to = from + vec2(g.x(4.0) - g.x(0.0), 0.0);
+    h.hover_at(from);
+    h.run_steps(2);
+    h.drag_at(from);
+    h.run_steps(1);
+    for i in 1..=6 {
+        h.hover_at(from + (to - from) * (i as f32 / 6.0));
+        h.run_steps(1);
+    }
+    h.drop_at(to);
+    h.run_steps(3);
+    let at = |h: &Harness<'static, EditorApp>, k: &str| {
+        h.state().document().project.graph.nodes[0]
+            .params
+            .get(k)
+            .and_then(Value::as_f64)
+    };
+    assert_eq!(at(&h, "at"), Some(4.0));
+    // Trim its right edge back two beats.
+    let (g, lanes) = geo(&h);
+    let block = g.block(0, &lanes[0]);
+    let from = Pos2::new(block.right() - 2.0, block.center().y);
+    let to = Pos2::new(g.x(6.0), block.center().y);
+    h.hover_at(from);
+    h.run_steps(2);
+    h.drag_at(from);
+    h.run_steps(1);
+    for i in 1..=6 {
+        h.hover_at(from + (to - from) * (i as f32 / 6.0));
+        h.run_steps(1);
+    }
+    h.drop_at(to);
+    h.run_steps(3);
+    assert_eq!(at(&h, "until"), Some(6.0));
+    assert_eq!(at(&h, "at"), Some(4.0), "trimming keeps the start");
+}
+
+/// Every study's panels lay out without one card covering another.
+#[test]
+fn study_panels_have_no_overlapping_cards() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../studies");
+    let mut problems = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap() {
+        let path = e.unwrap().path();
+        if path.extension().is_none_or(|x| x != "acproj") {
+            continue;
+        }
+        let project = ac_io::load_project(&path).unwrap();
+        let panels = project.panels.len();
+        let mut h = harness(project);
+        h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+        h.run_steps(3);
+        for k in 0..panels {
+            h.state_mut().perform.current = k;
+            h.run_steps(3);
+            let cells = h.state().perform.cells.clone();
+            for (i, a) in cells.iter().enumerate() {
+                for b in &cells[i + 1..] {
+                    if a.rect.shrink(1.0).intersects(b.rect.shrink(1.0)) {
+                        problems.push(format!(
+                            "{} panel {k}: {:?} overlaps {:?}",
+                            path.display(),
+                            a.node,
+                            b.node
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

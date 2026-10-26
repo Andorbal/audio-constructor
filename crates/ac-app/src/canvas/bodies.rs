@@ -29,7 +29,36 @@ fn meter_pos(x: f32) -> f32 {
     ((db(x) + 60.0) / 63.0).clamp(0.0, 1.0)
 }
 
-pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: bool, alpha: f32) {
+/// A lit control's glow: a ring in the lamp color around `rect`.
+pub fn lit_glow(painter: &Painter, rect: Rect, zoom: f32, color: Color32, alpha: f32) {
+    let r = theme::radius(7.0 * zoom);
+    painter.rect_filled(rect.expand(3.0 * zoom), r, theme::fade(color, 0.25 * alpha));
+    painter.rect_stroke(
+        rect.expand(1.5 * zoom),
+        r,
+        Stroke::new(2.0 * zoom.max(0.5), theme::fade(color, alpha)),
+        StrokeKind::Outside,
+    );
+}
+
+/// The color a lit control glows in.
+pub fn lit_color() -> Color32 {
+    theme::warning()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn button(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    down: bool,
+    lit: bool,
+    hovered: bool,
+    alpha: f32,
+) {
+    if lit {
+        lit_glow(painter, rect, zoom, lit_color(), alpha);
+    }
     let r = theme::radius(6.0 * zoom);
     let rect = if down { rect.shrink(1.0 * zoom) } else { rect };
     let base = if down {
@@ -74,13 +103,24 @@ pub fn button(painter: &Painter, rect: Rect, zoom: f32, down: bool, hovered: boo
     }
 }
 
-pub fn toggle(painter: &Painter, rect: Rect, zoom: f32, on: bool, hovered: bool, alpha: f32) {
-    let h = (rect.height() - 8.0 * zoom).max(4.0);
+pub fn toggle(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    on: bool,
+    lit: bool,
+    hovered: bool,
+    alpha: f32,
+) {
+    let h = (rect.height() - 8.0 * zoom).clamp(4.0, 30.0 * zoom);
     let w = h * 1.9;
     let track = Rect::from_center_size(
         pos2(rect.min.x + w / 2.0 + 2.0 * zoom, rect.center().y),
         vec2(w, h),
     );
+    if lit {
+        lit_glow(painter, track, zoom, lit_color(), alpha);
+    }
     let on_color = theme::category_color(ac_core::Category::Controls);
     let fill = if on {
         on_color
@@ -1206,5 +1246,458 @@ mod analyzer_tests {
         assert_eq!(analyzer_height(f32::NAN), 0.0);
         assert_eq!(analyzer_height(f32::NEG_INFINITY), 0.0);
         assert!((analyzer_height(-48.0) - 0.5).abs() < 1e-6);
+    }
+}
+
+/// A lamp: dark when `level` is 0, glowing in `color` up to full at 1.
+pub fn light(painter: &Painter, rect: Rect, zoom: f32, level: f32, color: Color32, alpha: f32) {
+    let level = if level.is_finite() {
+        level.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let r = (rect.height().min(rect.width()) / 2.0 - 2.0 * zoom).max(2.0);
+    let c = pos2(rect.min.x + r + 2.0 * zoom, rect.center().y);
+    if level > 0.0 {
+        painter.circle_filled(c, r * 1.35, theme::fade(color, 0.22 * level * alpha));
+    }
+    painter.circle_filled(c, r, theme::fade(theme::meter_bg(), alpha));
+    painter.circle_filled(c, r, theme::fade(color, (0.15 + 0.85 * level) * alpha));
+    painter.circle_stroke(
+        c,
+        r,
+        Stroke::new(1.0, theme::fade(theme::node_outline(), alpha)),
+    );
+    if zoom >= 0.4 && rect.width() > 4.0 * r {
+        painter.text(
+            pos2(c.x + r + 8.0 * zoom, c.y),
+            Align2::LEFT_CENTER,
+            if level > 0.5 {
+                tr("canvas-light-on")
+            } else {
+                tr("canvas-light-off")
+            },
+            theme::canvas_font(theme::FONT_NODE_LABEL, zoom, false),
+            theme::fade(
+                if level > 0.5 {
+                    theme::text_strong()
+                } else {
+                    theme::text_muted()
+                },
+                alpha,
+            ),
+        );
+    }
+}
+
+/// A vertical meter bar, filling upwards from −60 dBFS.
+pub fn meter_column(painter: &Painter, bar: Rect, zoom: f32, c: MeterChannel, alpha: f32) {
+    let r = theme::radius(2.0 * zoom);
+    painter.rect_filled(bar, r, theme::fade(theme::meter_bg(), alpha));
+    let h = bar.height();
+    let p = meter_pos(c.peak.max(c.rms));
+    if p > 0.0 {
+        let top = bar.max.y - h * p;
+        let fill = Rect::from_min_max(pos2(bar.min.x, top), bar.max);
+        painter.rect_filled(fill, r, theme::fade(theme::meter_color(db(c.peak)), alpha));
+    }
+    let hold = meter_pos(c.hold);
+    if hold > 0.0 {
+        let y = bar.max.y - h * hold;
+        painter.line_segment(
+            [pos2(bar.min.x, y), pos2(bar.max.x, y)],
+            Stroke::new(
+                1.5 * zoom.max(0.5),
+                theme::fade(theme::meter_color(db(c.hold)), alpha),
+            ),
+        );
+    }
+}
+
+/// A fader: a vertical track with a handle at `t` (0 bottom, 1 top), the
+/// value above it, and a two-bar meter beside it.
+#[allow(clippy::too_many_arguments)]
+pub fn fader(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    t: f32,
+    text: &str,
+    meter: [MeterChannel; 2],
+    hovered: bool,
+    active: bool,
+    alpha: f32,
+) {
+    let t = t.clamp(0.0, 1.0);
+    let label_h = if zoom >= 0.4 { 16.0 * zoom } else { 0.0 };
+    let area = Rect::from_min_max(pos2(rect.min.x, rect.min.y + label_h), rect.max);
+    let handle_h = (10.0 * zoom).max(4.0);
+    let travel = Rect::from_min_max(
+        pos2(area.min.x, area.min.y + handle_h / 2.0),
+        pos2(area.max.x, area.max.y - handle_h / 2.0),
+    );
+    let track_w = 6.0 * zoom;
+    let cx = area.min.x + (area.width() * 0.4).max(14.0 * zoom);
+    let track = Rect::from_center_size(
+        pos2(cx, travel.center().y),
+        vec2(track_w, travel.height() + handle_h),
+    );
+    painter.rect_filled(
+        track,
+        theme::radius(track_w / 2.0),
+        theme::fade(theme::widget_bg(), alpha),
+    );
+    let y = travel.max.y - travel.height() * t;
+    let fill = Rect::from_min_max(pos2(track.min.x, y), track.max);
+    painter.rect_filled(
+        fill,
+        theme::radius(track_w / 2.0),
+        theme::fade(controls_color(), alpha),
+    );
+    // The 0 dB mark is the caller's to place; the handle is a wide cap.
+    let cap_w = (22.0 * zoom).min(area.width() * 0.7);
+    let cap = Rect::from_center_size(pos2(cx, y), vec2(cap_w, handle_h));
+    painter.rect_filled(
+        cap.translate(vec2(0.0, 1.0 * zoom)),
+        theme::radius(3.0 * zoom),
+        theme::fade(theme::body_shadow(), alpha),
+    );
+    painter.rect_filled(
+        cap,
+        theme::radius(3.0 * zoom),
+        theme::fade(
+            if hovered || active {
+                theme::text_strong()
+            } else {
+                theme::text()
+            },
+            alpha,
+        ),
+    );
+    // The meter: two thin bars to the right of the track.
+    let bar_w = 4.0 * zoom;
+    let mx = (cx + cap_w / 2.0 + 6.0 * zoom).min(area.max.x - 2.0 * bar_w - 2.0 * zoom);
+    for (k, c) in meter.iter().enumerate() {
+        let bar = Rect::from_min_max(
+            pos2(mx + k as f32 * (bar_w + 2.0 * zoom), travel.min.y),
+            pos2(mx + k as f32 * (bar_w + 2.0 * zoom) + bar_w, travel.max.y),
+        );
+        meter_column(painter, bar, zoom, *c, alpha);
+    }
+    if label_h > 0.0 {
+        painter.text(
+            pos2(rect.center().x, rect.min.y + label_h / 2.0),
+            Align2::CENTER_CENTER,
+            text,
+            theme::canvas_font(theme::FONT_VALUE, zoom, true),
+            theme::fade(theme::text_strong(), alpha),
+        );
+    }
+}
+
+/// A drum pad: brighter while held, glowing while lit, its last velocity
+/// as a bar along the bottom.
+#[allow(clippy::too_many_arguments)]
+pub fn pad(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    down: bool,
+    lit: bool,
+    velocity: f32,
+    hovered: bool,
+    alpha: f32,
+) {
+    let r = theme::radius(6.0 * zoom);
+    let rect = if down { rect.shrink(1.0 * zoom) } else { rect };
+    if lit {
+        lit_glow(painter, rect, zoom, lit_color(), alpha);
+    }
+    let base = if down {
+        controls_color()
+    } else if hovered {
+        theme::raised_hover()
+    } else {
+        theme::raised()
+    };
+    painter.rect_filled(rect, r, theme::fade(base, alpha));
+    if lit && !down {
+        painter.rect_filled(
+            rect.shrink(3.0 * zoom),
+            r,
+            theme::fade(lit_color(), 0.35 * alpha),
+        );
+    }
+    let v = if velocity.is_finite() {
+        velocity.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if v > 0.0 {
+        let h = 3.0 * zoom;
+        let bar = Rect::from_min_size(
+            pos2(rect.min.x + 4.0 * zoom, rect.max.y - h - 4.0 * zoom),
+            vec2((rect.width() - 8.0 * zoom) * v, h),
+        );
+        painter.rect_filled(
+            bar,
+            theme::radius(h / 2.0),
+            theme::fade(theme::text_strong(), 0.7 * alpha),
+        );
+    }
+}
+
+/// The rectangle of each pad of a `rows` × `columns` grid drawn in
+/// `rect`, by pad number (pads count from the bottom-left). The gaps
+/// follow the grid's size, so drawing and hitting agree at any zoom.
+pub fn pad_rects(rect: Rect, rows: usize, columns: usize) -> Vec<Rect> {
+    let (rows, columns) = (rows.max(1), columns.max(1));
+    let gap = (rect.width().min(rect.height()) / (rows.max(columns) as f32) * 0.08).clamp(1.0, 6.0);
+    let w = (rect.width() - gap * (columns - 1) as f32) / columns as f32;
+    let h = (rect.height() - gap * (rows - 1) as f32) / rows as f32;
+    let mut out = vec![Rect::NOTHING; rows * columns];
+    for row in 0..rows {
+        for col in 0..columns {
+            let k = ac_nodes::controls::pads::pad_at(rows, columns, row, col);
+            out[k] = Rect::from_min_size(
+                pos2(
+                    rect.min.x + col as f32 * (w + gap),
+                    rect.min.y + row as f32 * (h + gap),
+                ),
+                vec2(w.max(1.0), h.max(1.0)),
+            );
+        }
+    }
+    out
+}
+
+/// A grid of pads: `down` and `lit` by pad number, `over` the pad under
+/// the pointer.
+#[allow(clippy::too_many_arguments)]
+pub fn pads(
+    painter: &Painter,
+    rects: &[Rect],
+    zoom: f32,
+    down: &[bool],
+    lit: &[bool],
+    over: Option<usize>,
+    alpha: f32,
+) {
+    for (k, r) in rects.iter().enumerate() {
+        let is = |v: &[bool]| v.get(k).copied().unwrap_or(false);
+        pad(
+            painter,
+            *r,
+            zoom,
+            is(down),
+            is(lit),
+            0.0,
+            over == Some(k),
+            alpha,
+        );
+    }
+}
+
+/// What a Waveform shows: the sound's overview, the playhead, and the
+/// handles (start, end, loop start, loop end), as fractions of the sound.
+#[derive(Clone, Debug, Default)]
+pub struct WaveView {
+    /// Each column's lowest and highest sample.
+    pub columns: Vec<(f32, f32)>,
+    pub playhead: Option<f32>,
+    pub handles: Option<[f32; 4]>,
+    /// Slice starts, for a Slicer.
+    pub slices: Vec<f32>,
+}
+
+/// A sound's waveform with its handles: the shaded region between start
+/// and end, the loop bracketed, a line at the playhead. Shared by the
+/// Waveform card and the Node tab's editor for Clip, Sampler, and Slicer.
+pub fn waveform(painter: &Painter, rect: Rect, zoom: f32, w: &WaveView, alpha: f32) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    let x = |f: f32| rect.min.x + f.clamp(0.0, 1.0) * rect.width();
+    if let Some([s, e, ls, le]) = w.handles {
+        // Outside the region dims.
+        for (a, b) in [(0.0, s), (e, 1.0)] {
+            if b > a {
+                painter.rect_filled(
+                    Rect::from_x_y_ranges(x(a)..=x(b), rect.y_range()),
+                    0.0,
+                    theme::fade(theme::panel_bg(), 0.55 * alpha),
+                );
+            }
+        }
+        if le > ls && (ls > 0.0 || le < 1.0) {
+            let band = Rect::from_x_y_ranges(x(ls)..=x(le), rect.top()..=rect.top() + 4.0 * zoom);
+            painter.rect_filled(band, 0.0, theme::fade(theme::accent(), 0.7 * alpha));
+        }
+    }
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0 - 2.0 * zoom;
+    let n = w.columns.len().max(1);
+    let col_w = rect.width() / n as f32;
+    for (k, &(lo, hi)) in w.columns.iter().enumerate() {
+        let cx = rect.min.x + (k as f32 + 0.5) * col_w;
+        let (lo, hi) = (lo.clamp(-1.0, 1.0), hi.clamp(-1.0, 1.0));
+        painter.line_segment(
+            [pos2(cx, mid - hi * half), pos2(cx, mid - lo * half + 0.5)],
+            Stroke::new(
+                col_w.max(1.0),
+                theme::fade(theme::type_color(ac_core::SignalType::Audio), 0.85 * alpha),
+            ),
+        );
+    }
+    for &f in &w.slices {
+        painter.line_segment(
+            [pos2(x(f), rect.top()), pos2(x(f), rect.bottom())],
+            Stroke::new(1.0, theme::fade(theme::warning(), alpha)),
+        );
+    }
+    if let Some([s, e, ..]) = w.handles {
+        for f in [s, e] {
+            let hx = x(f);
+            painter.line_segment(
+                [pos2(hx, rect.top()), pos2(hx, rect.bottom())],
+                Stroke::new(
+                    2.0 * zoom.max(0.5),
+                    theme::fade(theme::text_strong(), alpha),
+                ),
+            );
+            painter.rect_filled(
+                Rect::from_center_size(pos2(hx, rect.bottom() - 4.0 * zoom), vec2(6.0, 8.0) * zoom),
+                theme::radius(1.0),
+                theme::fade(theme::text_strong(), alpha),
+            );
+        }
+    }
+    if let Some(p) = w.playhead {
+        let px = x(p);
+        painter.line_segment(
+            [pos2(px, rect.top()), pos2(px, rect.bottom())],
+            Stroke::new(1.5 * zoom.max(0.5), theme::fade(theme::play(), alpha)),
+        );
+    }
+}
+
+/// Which handle (0 start, 1 end, 2 loop start, 3 loop end) is under `x`
+/// on a waveform in `rect`, if one is near: the ends win ties, so a
+/// handle at the far edge can still be pulled back.
+pub fn waveform_handle_at(rect: Rect, handles: [f32; 4], x: f32, reach: f32) -> Option<usize> {
+    let at = |f: f32| rect.min.x + f.clamp(0.0, 1.0) * rect.width();
+    [1usize, 0, 3, 2]
+        .into_iter()
+        .map(|k| (k, (at(handles[k]) - x).abs()))
+        .filter(|(_, d)| *d <= reach)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(k, _)| k)
+}
+
+/// MIDI Monitor: the last messages, newest at the top.
+pub fn midi_monitor(painter: &Painter, rect: Rect, zoom: f32, lines: &[String], alpha: f32) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    if zoom < 0.4 {
+        return;
+    }
+    let font = theme::canvas_font(theme::FONT_SMALL, zoom, true);
+    let line = (theme::FONT_SMALL + 3.0) * zoom;
+    for (k, text) in lines.iter().enumerate() {
+        let y = rect.top() + 4.0 * zoom + k as f32 * line;
+        if y + line > rect.bottom() {
+            break;
+        }
+        painter.text(
+            pos2(rect.min.x + 6.0 * zoom, y),
+            Align2::LEFT_TOP,
+            text,
+            font.clone(),
+            theme::fade(
+                if k == 0 {
+                    theme::text_strong()
+                } else {
+                    theme::text_muted()
+                },
+                alpha,
+            ),
+        );
+    }
+}
+
+/// Tuner: the note's name, and a needle from −50 to +50 cents that turns
+/// green within 5 cents.
+pub fn tuner(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    note: &str,
+    cents: f32,
+    clear: bool,
+    alpha: f32,
+) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    let cents = if cents.is_finite() {
+        cents.clamp(-50.0, 50.0)
+    } else {
+        0.0
+    };
+    let in_tune = clear && cents.abs() <= 5.0;
+    let scale = Rect::from_min_max(
+        pos2(rect.min.x + 10.0 * zoom, rect.bottom() - 12.0 * zoom),
+        pos2(rect.max.x - 10.0 * zoom, rect.bottom() - 6.0 * zoom),
+    );
+    painter.line_segment(
+        [scale.left_center(), scale.right_center()],
+        Stroke::new(1.0, theme::fade(theme::text_faint(), alpha)),
+    );
+    for t in [-50.0f32, -25.0, 0.0, 25.0, 50.0] {
+        let x = scale.min.x + (t + 50.0) / 100.0 * scale.width();
+        let h = if t == 0.0 { 6.0 } else { 3.0 } * zoom;
+        painter.line_segment(
+            [pos2(x, scale.center().y - h), pos2(x, scale.center().y + h)],
+            Stroke::new(1.0, theme::fade(theme::text_faint(), alpha)),
+        );
+    }
+    let nx = scale.min.x + (cents + 50.0) / 100.0 * scale.width();
+    let color = if in_tune {
+        theme::play()
+    } else {
+        theme::warning()
+    };
+    painter.line_segment(
+        [pos2(nx, rect.top() + 6.0 * zoom), pos2(nx, scale.bottom())],
+        Stroke::new(
+            2.0 * zoom.max(0.5),
+            theme::fade(color, if clear { alpha } else { 0.4 * alpha }),
+        ),
+    );
+    if zoom >= 0.3 {
+        painter.text(
+            pos2(
+                rect.center().x,
+                rect.top() + (rect.height() - 16.0 * zoom) / 2.0,
+            ),
+            Align2::CENTER_CENTER,
+            note,
+            theme::canvas_font(17.0, zoom, true),
+            theme::fade(
+                if in_tune {
+                    theme::play()
+                } else {
+                    theme::text_strong()
+                },
+                alpha,
+            ),
+        );
     }
 }

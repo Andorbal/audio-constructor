@@ -83,7 +83,67 @@ pub struct Settings {
     /// Loop region in beats, `[start, end)`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loop_region: Option<[f64; 2]>,
+    /// Punch range in beats, `[in, out)`: while it's set, armed Record
+    /// nodes record only inside it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub punch: Option<[f64; 2]>,
+    /// Named places in the song, on the ruler and jumpable.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<Marker>,
+    /// The transport's click plays (live only; never in a render).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub metronome: bool,
+    /// Bars of click before recording starts from a stop (0: none).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub count_in: u32,
+    /// What moving a control while recording does (DECISIONS D219).
+    #[serde(default, skip_serializing_if = "AutomationMode::is_off")]
+    pub automation: AutomationMode,
 }
+
+/// Automation recording: moving an unwired input while the transport
+/// records writes a song-locked Graph into it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationMode {
+    /// Moving controls only moves them.
+    #[default]
+    Off,
+    /// From the first move, the input's value is written until recording
+    /// stops; let go and it holds.
+    Write,
+    /// Only while a control is held; let go and the input goes back to
+    /// where it was.
+    Touch,
+}
+
+impl AutomationMode {
+    pub fn is_off(&self) -> bool {
+        *self == AutomationMode::Off
+    }
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+/// A named place in the song.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Marker {
+    /// Where it is, in beats.
+    pub beat: f64,
+    #[serde(default)]
+    pub name: String,
+}
+
+/// Most markers a project keeps; more are dropped when it loads.
+pub const MAX_MARKERS: usize = 256;
+/// Most bars of count-in.
+pub const MAX_COUNT_IN: u32 = 8;
 
 fn default_rate() -> u32 {
     48_000
@@ -107,6 +167,11 @@ impl Default for Settings {
             block_size: default_block(),
             tempo: default_tempo(),
             loop_region: None,
+            punch: None,
+            markers: Vec::new(),
+            metronome: false,
+            count_in: 0,
+            automation: AutomationMode::Off,
         }
     }
 }
@@ -556,8 +621,8 @@ mod tests {
         let mut live = Panel::new("Live");
         live.items.push(PanelItem::new(NodeId(1)));
         live.items.push(PanelItem {
-            node: NodeId(2),
             size: Some([3, 2]),
+            ..PanelItem::new(NodeId(2))
         });
         p.panels = vec![live, Panel::new("Mixer")];
         let text = p.to_json();

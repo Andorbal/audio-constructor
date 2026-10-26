@@ -105,6 +105,52 @@ wide fifths under a bass line.
 | --- | --- | --- |
 | `midi` | Midi | The chords and everything else. |
 
+<a id="humanize"></a>
+## Humanize
+
+Kind: `humanize` · Also found by: groove, feel, jitter, random, loose, timing, velocity, drift, human
+
+Loosens a part the way a player would: each trigger or note comes a
+little late and a little louder or softer, differently every time.
+
+Set the `type` config to *trigger* (the default) or *midi*. Each
+event on `in` is delayed by a random time from 0 to `timing`
+(seconds, default 10 ms) and its level moved by up to `dynamics` of
+itself, up or down (0.1 is ±10%). MIDI note-ons have their velocity
+changed (never below 1), and each note-off is delayed as much as its
+note-on, so notes keep their length; other messages pass on time.
+For triggers, `level` (0 to 1, default 1) is read at each trigger,
+changed the same way, and held on `velocity` from where the trigger
+comes out, so a Pattern's `velocity_k` wired into `level` keeps its
+accents, loosened.
+
+The randomness comes from the project's seed, so a render sounds
+the same every time, and restarting the transport replays it. Every
+event uses the same two draws whatever `timing` and `dynamics` are,
+so changing them doesn't reshuffle the part. Up to 1024 events can
+wait at once; more are dropped.
+
+**Try this:** put Humanize (`timing` 0.008, `dynamics` 0.2) between
+a Pattern's hat row and its envelope, with `velocity_2` into `level`
+and Humanize's `velocity` into the hat's level: the same grid, but
+it breathes.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Trigger | — |  | The triggers to loosen. |
+| `timing` | Float (s) | 0.01 | 0 … 0.05 | Each event comes up to this much late. |
+| `dynamics` | Float | 0.1 | 0 … 1 | How far each level moves, up or down, as a share of itself. |
+| `level` | Float | 1 | 0 … 1 | Each trigger's level, read as it arrives. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Trigger | The triggers, a little late. |
+| `velocity` | Float | The last trigger's level, loosened, from where it comes out. |
+
 <a id="midi-cc"></a>
 ## MIDI CC
 
@@ -277,6 +323,17 @@ no length, or hold something other than numbers are skipped. Up to
 4096 notes, played on MIDI channel `channel` (config, 1–16,
 default 1).
 
+**Banks:** a clip can hold several sets of notes of the same length
+(up to 16), added as tabs in the piano roll; `notes` is then a list
+of note lists. The `bank` input picks which plays, counting from 0.
+A new bank starts with the next pass, so the riff changes on its
+downbeat; while stopped it applies at once.
+
+**Swing:** `swing` (0 to 1) moves the notes on every other
+sixteenth (or eighth, with the `swing_grid` config) later, by up to
+half a sixteenth, stretching the time between so nothing changes
+order: at about 0.67 a straight riff shuffles in triplets.
+
 Timing follows the song's tempo map from wherever the clip started:
 a note `n` beats into the clip plays `n / rate` song beats after the
 start, on the exact sample the tempo map gives for that beat, so
@@ -285,6 +342,13 @@ loops. The clip keeps its own count of samples since it started, so
 it also plays when started while the transport is stopped. `rate`
 scales the speed (2 is double time; 0 pauses, holding any sounding
 notes).
+
+**Placed in the song:** set `start` to *At beat…* and the clip
+starts at song beat `at` and stops at `until` (unless that's 0). Start the transport anywhere and it
+carries on from where the song is: around again if it loops,
+finished if it doesn't, waiting before its beat. Notes already
+under way where the transport starts stay silent; the next ones
+play.
 
 Generator contract: `start` (on transport play by default) plays
 from the top: note-offs for anything sounding, then the notes at
@@ -309,11 +373,15 @@ one's `start`.
 
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `rate` | Float (×) | 1 | 0 … 4 | Playback speed: 2 is double time, 0 pauses. |
+| `swing` | Float | 0 | 0 … 1 | Moves every other sixteenth later, up to half of one. |
+| `bank` | Float | 0 | 0 … 15 | Which notes play, from 0; a new bank starts with the next pass. |
 
 **Outputs**
 
@@ -371,6 +439,53 @@ lands in A minor pentatonic.
 | --- | --- | --- |
 | `midi` | Midi | The shifted notes and everything else. |
 
+<a id="note-split"></a>
+## Note Split
+
+Kind: `note_split` · Also found by: drum map, drum, pad, note, split, trigger, gate, velocity, choke, midi to trigger
+
+Splits MIDI into a trigger, a gate, and a velocity for each of a
+list of notes: one node turns a drum pad's or a pattern's notes into
+what each sound needs.
+
+The `notes` config lists the notes, such as `[36, 38, 42, 46]`
+(kick, snare, closed and open hat); without it, `count` notes from
+`low` (default one note, 36). Up to 64. For the note at place *k* in
+the list:
+
+- `trigger_k` fires on its note-on, on that sample;
+- `gate_k` is high from the note-on until its note-off;
+- `velocity_k` is how hard it was played, 0 to 1, from the note-on
+  (wire it into a `Sampler`'s `velocity`);
+- `off_k` fires when the gate ends.
+
+**Choke groups:** the `chokes` config gives each note a group, such
+as `[0, 0, 1, 1]`. A note in a group ends every other note of its
+group (their gates close and their `off` fires), so wiring `off_k`
+into a Sampler's `stop` lets the closed hat cut the open one. Group 0
+chokes nothing. `channel` (config, 1–16; 0, the default, for all)
+picks the MIDI channel to listen to.
+
+**Try this:** wire a `Pads` grid's `midi` into Note Split with
+`notes` `[36, 37, 38, 39]`, and each `trigger_k` and `velocity_k`
+into the `start` and `velocity` of a Sampler: four pads that play
+soft and hard, in two nodes per pad.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to split. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger_0` | Trigger | Fires on this note's note-on. |
+| `gate_0` | Bool | High while this note is held. |
+| `velocity_0` | Float | How hard this note was played, 0 to 1. |
+| `off_0` | Trigger | Fires when this note ends or is choked. |
+
 <a id="note-to-midi"></a>
 ## Note To MIDI
 
@@ -424,19 +539,36 @@ A grid of step buttons that plays one step per clock tick, like a drum machine's
 
 The grid has `steps` columns (config, 1–64, default 16) and `rows`
 rows (config, 1–16, default 4); click cells in the node to switch
-them on. The `cells` config holds the grid as one string per row,
-`x` for an on step and `.` for an off one, such as
-`["x...x...x...x...", "....x.......x..."]`. Missing rows and steps
-are off, and any other character counts as off.
+them on, and drag up or down on one to set its level. The `cells`
+config holds the grid as one string per row, `x` for an on step at
+full level, `1` to `9` for an on step at that many tenths, and `.`
+for an off one, such as `["x...x...x...x...", "....x.......x..."]`.
+Missing rows and steps are off, and any other character counts as
+off.
+
+**Banks:** a Pattern can hold several grids of the same size (up to
+16), added as tabs in the editor; `cells` is then a list of grids,
+one list of strings each. The `bank` input picks which plays,
+counting from 0. A new bank starts at the beginning of the next
+pass, so a scene change lands on the downbeat; while stopped it
+applies at once.
 
 Each `clock` trigger moves to the next step. Where that step is on
-in row *n*, `trigger_n` fires on the clock's sample and `gate_n`
-goes high until the next clock (rows count from 0, the top row). On
-steps next to each other keep the gate high from one to the next,
-so use the trigger to restart an envelope on every step. `step` is
+in row *n*, `trigger_n` fires on the clock's sample, `gate_n` goes
+high until the next clock, and `velocity_n` holds the step's level
+(0 to 1) until the row's next on step (rows count from 0, the top
+row). On steps next to each other keep the gate high from one to the
+next, so use the trigger to restart an envelope on every step. `step` is
 the last step played, counting from 0. Nothing moves without a
 clock: wire a `Clock` into `clock` (`interval` 0.25 for sixteenth
 notes).
+
+**Placed in the song:** set `start` to *At beat…* and the pattern
+starts at song beat `at` (and stops at `until`, unless that's 0), with `interval` beats per step (0.25,
+sixteenths, by default: set it to the clock's interval). Each clock
+then plays the step the song is on, counted from `at`, so after a
+seek, a loop, or play from the middle the pattern is on the right
+step at once; clocks before its beat play nothing.
 
 Generator contract: `start` (on transport play by default) goes
 back to the beginning and plays, so the next clock, or one on the
@@ -455,18 +587,23 @@ reverse, stop, start, reset, clock.
 `trigger_0` into the `on` of an `ADSR` (sustain 0) on a low
 `Oscillator` for a kick, and `trigger_1` into another on a `Noise`
 for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
-`....x.......x...`.
+`....x.......x...`. Paint the hats at level 5 with an `x` on every
+fourth step, and wire `velocity_2` into their amplifier, for accents.
 
 **Inputs**
 
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `clock` | Trigger | — |  | Moves to the next step. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
+| `interval` | Float (beats) | 0.25 | 0 … 4 | Beats per step, placed in the song: each clock plays the step the song is on. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles the direction. |
+| `bank` | Float | 0 | 0 … 15 | Which grid plays, from 0; a new one starts with the next pass. |
 
 **Outputs**
 
@@ -474,12 +611,16 @@ for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
 | --- | --- | --- |
 | `trigger_0` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_0` | Bool | High from an on step until the next clock. |
+| `velocity_0` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_1` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_1` | Bool | High from an on step until the next clock. |
+| `velocity_1` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_2` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_2` | Bool | High from an on step until the next clock. |
+| `velocity_2` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_3` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_3` | Bool | High from an on step until the next clock. |
+| `velocity_3` | Float | The level of this row's last on step, 0 to 1. |
 | `step` | Int | The last step played, from 0. |
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
@@ -534,6 +675,43 @@ part in key.
 | --- | --- | --- |
 | `out` | Float | The nearest scale note. |
 | `note` | Int | The nearest scale note, per block. |
+
+<a id="velocity"></a>
+## Velocity
+
+Kind: `velocity` · Also found by: dynamics, velocity curve, sensitivity, accent, midi, touch, fixed
+
+Reshapes how hard MIDI notes are played: scale, curve, range, or one
+fixed velocity for every note.
+
+Each note-on's velocity, as 0 to 1, is bent by `curve` (positive
+makes soft playing louder, negative makes it quieter; 0 leaves it),
+multiplied by `scale`, and placed between `min` and `max`. A `fixed`
+above 0 replaces it all with that one velocity. Notes stay at least
+velocity 1, so a soft hit is never taken for a note-off. Note-offs
+and every other message pass unchanged.
+
+**Try this:** put Velocity between a drum pad controller and a
+`Note Split`, with `curve` at 0.5 for pads that feel too stiff, or
+`min` at 0.4 so the softest hit still speaks; set `fixed` to 1 to
+hear every hit at full strength.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to reshape. |
+| `scale` | Float (×) | 1 | 0 … 2 | Multiplies every velocity. |
+| `curve` | Float | 0 | -1 … 1 | Positive: soft playing louder; negative: quieter. |
+| `min` | Float | 0 | 0 … 1 | The softest velocity out, 0 to 1. |
+| `max` | Float | 1 | 0 … 1 | The hardest velocity out, 0 to 1. |
+| `fixed` | Float | 0 | 0 … 1 | Above 0: every note at this velocity. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The notes, reshaped. |
 
 <a id="voice"></a>
 ## Voice
@@ -614,4 +792,44 @@ node, and change the group into a Voices node: play chords.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `midi` | Midi | — |  | Notes to share out among the voices. |
+
+<a id="zones"></a>
+## Zones
+
+Kind: `zones` · Also found by: keymap, key zone, velocity layer, split, layer, multisample, map, range, sampler
+
+Finds which zone of a key and velocity map a note falls in: the
+heart of a keymapped or velocity-layered instrument.
+
+The `zones` config lists the zones, each `[low, high, soft, hard]`:
+the notes from `low` to `high` (MIDI numbers, both included) played
+at a velocity from `soft` to `hard` (0 to 1). Draw them in the Node
+tab's map: drag a zone to move it, its edges to resize it. The
+default is one zone over every note and velocity. Up to 32.
+
+On each `trigger`, the `note` and `velocity` at that sample pick
+the zones they fall in: every one fires its `trigger_k`, and `zone`
+becomes the first of them (−1 when none). With `trigger` unwired,
+`zone` follows `note` and `velocity` all the time.
+
+**Try this:** in a `Voices` body, wire the Voice node's `note`,
+`velocity`, and `trigger` into Zones with two zones, `[0, 59, 0, 1]`
+and `[60, 127, 0, 1]`, and `trigger_0` and `trigger_1` into the
+`start` of two Samplers: a low sound and a high one. Split a zone by
+velocity instead for a soft and a hard layer.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `note` | Float | 60 | 0 … 127 | The note number. |
+| `velocity` | Float | 1 | 0 … 1 | How hard it was played, 0 to 1. |
+| `trigger` | Trigger | — |  | When to look the note up. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `zone` | Int | The first zone the note falls in, from 0; −1 for none. |
+| `trigger_0` | Trigger | Fires when a triggered note falls in this zone. |
 

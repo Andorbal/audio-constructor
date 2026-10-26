@@ -34,7 +34,9 @@ node! {
     /// speed, and each semitone above multiplies the speed by 2^(1/12).
     /// `rate` multiplies on top. Fractional speeds are interpolated (cubic
     /// Hermite); a buffer recorded at another sample rate still plays at
-    /// its own pitch. `gain` is in decibels (silent at −60 and below).
+    /// its own pitch. `gain` is in decibels (silent at −60 and below), and
+    /// `velocity` (0 to 1, taken at each `start`) scales the note's level,
+    /// so a `Note Split`'s `velocity` wires straight in.
     ///
     /// **Region and loop.** `start_point` and `end_point` (0 to 1, fractions
     /// of the whole sound) mark the part that plays; if `end_point` is
@@ -88,23 +90,27 @@ node! {
         positions: Vec<f64>,
         partners: Vec<f64>,
         shares: Vec<f32>,
+        /// The velocity taken at the last start, and per frame of the block.
+        velocity: f32,
+        velocities: Vec<f32>,
     }
 }
 
 const BUFFER: usize = 0;
 const NOTE: usize = 1;
 const GAIN: usize = 2;
-const START_POINT: usize = 3;
-const END_POINT: usize = 4;
-const LOOP_START: usize = 5;
-const LOOP_END: usize = 6;
-const CROSSFADE: usize = 7;
-const START: usize = 8;
-const STOP: usize = 9;
-const RESET: usize = 10;
-const LOOP: usize = 11;
-const REVERSE: usize = 12;
-const RATE: usize = 13;
+const VELOCITY: usize = 3;
+const START_POINT: usize = 4;
+const END_POINT: usize = 5;
+const LOOP_START: usize = 6;
+const LOOP_END: usize = 7;
+const CROSSFADE: usize = 8;
+const START: usize = 9;
+const STOP: usize = 10;
+const RESET: usize = 11;
+const LOOP: usize = 12;
+const REVERSE: usize = 13;
+const RATE: usize = 14;
 
 const OUT: usize = 0;
 const POSITION: usize = 1;
@@ -263,6 +269,12 @@ impl Node for Sampler {
                     .range(-60.0, 12.0)
                     .doc("Level in decibels."),
             )
+            .input(
+                SocketSpec::float("velocity", Unit::Generic, 1.0)
+                    .range(0.0, 1.0)
+                    .no_smooth()
+                    .doc("How hard the note was played (0–1), taken at each start."),
+            )
             .input(fraction(
                 "start_point",
                 0.0,
@@ -326,6 +338,8 @@ impl Node for Sampler {
             positions: vec![f64::NAN; block],
             partners: vec![f64::NAN; block],
             shares: vec![0.0; block],
+            velocity: 1.0,
+            velocities: vec![1.0; block],
         }
     }
 
@@ -342,6 +356,7 @@ impl Node for Sampler {
         let frames = io.frames();
         let note = io.inputs.float(NOTE);
         let gain = io.inputs.float(GAIN);
+        let velocity = io.inputs.float(VELOCITY);
         let points = Points {
             start: io.inputs.float(START_POINT),
             end: io.inputs.float(END_POINT),
@@ -377,6 +392,12 @@ impl Node for Sampler {
                     end.push(run.at as u32);
                 }
                 if start {
+                    let v = velocity.at(run.at);
+                    self.velocity = if v.is_finite() {
+                        v.clamp(0.0, 1.0)
+                    } else {
+                        1.0
+                    };
                     let next = if buffer_wired {
                         io.inputs.buffer(BUFFER)
                     } else {
@@ -480,6 +501,9 @@ impl Node for Sampler {
                     if let Some(s) = self.shares.get_mut(i) {
                         *s = share;
                     }
+                    if let Some(v) = self.velocities.get_mut(i) {
+                        *v = self.velocity;
+                    }
                 }
             }
         }
@@ -517,7 +541,7 @@ impl Node for Sampler {
                     let (s, k) = (w * std::f32::consts::FRAC_PI_2).sin_cos();
                     main * k + Self::read(src, q) * s
                 };
-                *o = v * gain_at(i);
+                *o = v * gain_at(i) * self.velocities.get(i).copied().unwrap_or(1.0);
             }
         }
 
@@ -594,6 +618,26 @@ mod tests {
     }
 
     #[test]
+    fn velocity_is_taken_at_each_start() {
+        let buf = Arc::new(AudioData {
+            sample_rate: 48_000,
+            channels: vec![vec![1.0; 1_000]],
+        });
+        let mut h = Harness::new::<Sampler>(json!({ "channels": 1 }));
+        h.buffer("buffer", buf);
+        let v: Vec<f32> = (0..128).map(|i| if i < 64 { 0.5 } else { 0.25 }).collect();
+        h.stopped()
+            .set_samples("velocity", v)
+            .triggers("start", &[0, 100]);
+        let out = h.run(128);
+        let o = &out.audio("out")[0];
+        assert!((o[10] - 0.5).abs() < 1e-3, "{}", o[10]);
+        // The velocity changing mid-note doesn't change the note.
+        assert!((o[80] - 0.5).abs() < 1e-3, "{}", o[80]);
+        assert!((o[110] - 0.25).abs() < 1e-3, "{}", o[110]);
+    }
+
+    #[test]
     fn declares_its_asset_and_sockets() {
         assert_eq!(Sampler::meta().asset_keys, &["file"]);
         let sig = Sampler::describe(&json!({ "channels": 3 }));
@@ -605,6 +649,7 @@ mod tests {
                 "buffer",
                 "note",
                 "gain",
+                "velocity",
                 "start_point",
                 "end_point",
                 "loop_start",

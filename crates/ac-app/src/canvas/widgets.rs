@@ -38,6 +38,13 @@ pub fn field(spec: &SocketSpec) -> Field {
     }
 }
 
+/// Whether an input keeps its widget when it's wired: a generator's `stop`
+/// keeps its *On stop* / *Never* dropdown, since transport Stop still
+/// reaches it beside the wire (DECISIONS D200).
+pub fn shown_beside_wire(spec: &SocketSpec) -> bool {
+    spec.auto == AutoTrigger::Stop
+}
+
 /// The stored value of an input, or its default.
 pub fn value(node: &NodeInstance, spec: &SocketSpec) -> Value {
     node.params
@@ -96,6 +103,7 @@ pub fn choice_label(spec: &SocketSpec, name: &str) -> String {
     match (spec.auto, name) {
         (AutoTrigger::Start, "play") => "On play".into(),
         (AutoTrigger::Start, "load") => "On load".into(),
+        (AutoTrigger::Start, "at") => "At beat…".into(),
         (AutoTrigger::Stop, "stop") => "On stop".into(),
         (_, "never") => "Never".into(),
         _ => {

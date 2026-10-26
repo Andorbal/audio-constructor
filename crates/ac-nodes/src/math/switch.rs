@@ -1,7 +1,7 @@
 use ac_core::{Config, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec, node};
 
 use super::finite_or_zero;
-use super::route::{Fader, HeldNotes, RouteType};
+use super::routing::{Fader, HeldNotes, RouteType};
 
 node! {
     kind: "switch",
@@ -11,7 +11,7 @@ node! {
     /// Passes on `a` while `select` is false and `b` while it is true.
     ///
     /// The `type` config sets what `a`, `b`, and `out` carry: `float` (the
-    /// default), `audio`, `int`, `bool`, `trigger`, or `midi`. `select` is
+    /// default), `audio`, `int`, `bool`, `trigger`, `midi`, or `buffer`. `select` is
     /// a gate read per sample, so a sample-rate gate switches on its exact
     /// sample.
     ///
@@ -24,6 +24,7 @@ node! {
     ///   `select` picks at that sample.
     /// - `midi`: events pass the same way, and flipping `select` releases
     ///   any notes (and sustain pedals) still held from the other input.
+    /// - `buffer`: passes on one sound, read from `select` once per block.
     ///
     /// **Try this:** wire a `Toggle` into `select` with `type` `audio` for a
     /// click-free A/B comparison of a dry and an effected signal, or switch
@@ -93,6 +94,10 @@ impl Node for Switch {
             RouteType::Int => {
                 let v = io.inputs.int(if sel.first() { B } else { A });
                 io.outputs.set_int(OUT, v);
+            }
+            RouteType::Buffer => {
+                let b = io.inputs.buffer(if sel.first() { B } else { A });
+                io.outputs.set_buffer(OUT, b);
             }
             RouteType::Audio => {
                 let ins = io.inputs;
@@ -195,6 +200,21 @@ mod tests {
         (0..n)
             .map(|i| if (from..to).contains(&i) { 1.0 } else { 0.0 })
             .collect()
+    }
+
+    #[test]
+    fn buffers_switch_once_a_block() {
+        let sound = |v: f32| {
+            std::sync::Arc::new(ac_core::AudioData {
+                sample_rate: 48_000,
+                channels: vec![vec![v; 8]],
+            })
+        };
+        let mut h = Harness::new::<Switch>(json!({ "type": "buffer" }));
+        h.buffer("a", sound(0.1)).buffer("b", sound(0.2));
+        assert_eq!(h.run(64).buffer("out").map(|b| b.channels[0][0]), Some(0.1));
+        h.set("select", true);
+        assert_eq!(h.run(64).buffer("out").map(|b| b.channels[0][0]), Some(0.2));
     }
 
     #[test]
