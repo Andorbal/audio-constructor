@@ -126,6 +126,11 @@ Phase 4: the tools the gap studies found missing.
   move it, or its end to trim it.
 - **Pin editors with `P`.** Patterns, MIDI Patterns, Step Sequencers, and
   Graphs pin to panels like controls, as their editors.
+- **Templates.** The Add menu's **Track**, **Drum Pad**, **Clip Slot**,
+  and **Send** each add a ready-made block in one step: wired from what
+  you selected into the mix, and pinned to the panel. **Save Selection as
+  Template** keeps your own, to add again from the same menu. Drum Pad,
+  Clip Slot, and Send are new blocks in the Library too.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs

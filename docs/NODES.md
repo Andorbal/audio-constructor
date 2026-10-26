@@ -293,7 +293,11 @@ Plate Reverb, Hall Reverb, Chorus, Flanger, Phaser, Tremolo, Vibrato,
 Auto-Wah, Karplus-Strong String, Subtractive Synth Voice, FM Operator Pair,
 Drum Machine (Pattern + Samplers), Metronome, Track (Clip → Gain → Pan with
 mute/solo), Vocoder (BandSplit × 2 + EnvelopeFollowers), Tape Stop,
-Stutter, Euclidean Drummer.
+Stutter, Euclidean Drummer, and (P4, the templates' blocks) Drum Pad
+(Sampler → Pan, its sound a `Buffer` input from a Sample), Clip Slot (the
+launcher slot: Merges into a Latch sampled on a Clock's grid, with
+`start`/`end` for its clip and `launched`/`playing`/`armed`), and Send (a
+Gain to an effect bus).
 
 Every block is also an example of good patching and is linked from the
 in-app help for the nodes it uses. Each is a file in `blocks/` with a golden
@@ -305,7 +309,11 @@ Notes on the blocks as built:
   **Track** takes audio in (wire a `Clip` into it) rather than holding a
   Clip, and **Drum Machine** and **Euclidean Drummer** synthesize their
   drums; both also output a trigger per drum to play your own `Sampler`s.
-  Track's `soloed`/`any_solo` sockets make solo work across a mix.
+  Track's `soloed`/`any_solo` sockets make solo work across a mix. The
+  same rule puts **Drum Pad**'s sound outside: a `Sample` wired into its
+  `sound`.
+- **Clip Slot** has no audio output and **Drum Pad** takes its sound from
+  a Buffer input, so neither has a Library preview (D222).
 - The three instruments (**Karplus-Strong String**, **Subtractive Synth
   Voice**, **FM Operator Pair**) are bodies for `Voices`: add one, tick
   Polyphonic in the Node tab, and play MIDI into it.

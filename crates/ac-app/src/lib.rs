@@ -38,6 +38,7 @@ pub mod product;
 pub mod ruler;
 pub mod settings;
 pub mod sounding;
+pub mod templates;
 pub mod theme;
 pub mod timing;
 pub mod transport;

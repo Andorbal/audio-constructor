@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "name": "Send",
+  "description": "A send to an effect: `out` is `in` at `amount`, to wire into a reverb or delay bus while the track goes on to the mix as well. The Add menu's Send template adds one fed from the selected track, wired into the mix, with its knob on the panel; drop a reverb on its wire.\n\n- `in` (audio): the track (wire a Track's `out` here and to the mix).\n- `amount` (dB): how much goes to the effect; −60 is none.\n- `out` (audio): to the effect bus.\n\nInside: a Gain.",
+  "version": 1,
+  "author": "Audio Constructor",
+  "tags": [
+    "mixing",
+    "send",
+    "effects",
+    "bus"
+  ],
+  "inputs": [
+    {
+      "name": "in",
+      "type": "audio",
+      "targets": [
+        "1:in"
+      ]
+    },
+    {
+      "name": "amount",
+      "type": "float",
+      "unit": "db",
+      "default": -12.0,
+      "range": [
+        -60.0,
+        12.0
+      ],
+      "targets": [
+        "1:gain"
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "name": "out",
+      "type": "audio",
+      "source": "1:out"
+    }
+  ],
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "gain",
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ],
+          "label": "Amount"
+        }
+      }
+    ],
+    "wires": []
+  }
+}

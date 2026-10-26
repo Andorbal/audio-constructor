@@ -488,7 +488,7 @@ pub fn ui(ui: &mut egui::Ui, id: egui::Id, view: &View, width: f32, height: f32)
             StrokeKind::Inside,
         );
         let name = if l.open {
-            format!("{} ↻", l.label)
+            format!("{} {}", l.label, crate::i18n::tr("arrangement-loops"))
         } else {
             l.label.clone()
         };

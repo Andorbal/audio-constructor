@@ -1215,6 +1215,7 @@ impl EditorApp {
                     can_quit: self.engine.hosted().is_none(),
                     updates,
                     show_recent: !self.host_files,
+                    templates: &self.settings.prefs.templates,
                 };
                 let cmds = menubar::show(ui, &state);
                 for c in cmds {
@@ -2433,6 +2434,12 @@ impl EditorApp {
                 let feed = self.feed_order();
                 self.add_node_from(&c, at, None, &feed, now);
             }
+            MenuCommand::Template(t) => {
+                self.add_template(t, now);
+            }
+            MenuCommand::SavedTemplate(k) => self.paste_template(k, now),
+            MenuCommand::SaveTemplate => self.save_selection_as_template(now),
+            MenuCommand::RemoveTemplate(k) => self.settings.remove_template(k),
         }
     }
 
@@ -2462,6 +2469,143 @@ impl EditorApp {
     }
 
     // ------------------------------------------------------------ commands
+
+    /// Add ▸ Track, Drum Pad, Clip Slot, or Send: its block's instance,
+    /// wired from the selection and into the master mix, and pinned to the
+    /// panel showing (or a new one), in one undo step (D222). Returns the
+    /// instance.
+    pub fn add_template(
+        &mut self,
+        t: crate::templates::Template,
+        now: f64,
+    ) -> Option<ac_core::NodeId> {
+        let source = ac_core::BlockSource::new(ac_core::Origin::Shipped, t.block());
+        let Some(text) = self.block_instance(&source) else {
+            self.warn(
+                tr_args("status-block-gone", &[("name", t.name().into())]),
+                now,
+            );
+            return None;
+        };
+        self.track_selection();
+        let selection: Vec<ac_core::NodeId> = self.selection_order.get().to_vec();
+        let at = match selection
+            .iter()
+            .filter_map(|id| self.doc.graph().node(*id))
+            .next_back()
+        {
+            Some(n) => egui::pos2(n.ui.pos[0] + theme::NODE_WIDTH + 80.0, n.ui.pos[1]),
+            None => self.canvas.view.center,
+        };
+        let root = self.doc.scope.is_empty();
+        let panel = self.perform.current;
+        let registry = self.registry.clone();
+        let made = self.doc.edit_with_panels(
+            &registry,
+            &tr_args("undo-add-named", &[("name", t.name().into())]),
+            |g, ctx, panels| {
+                let id = *edit::paste(g, ctx, &text, [at.x, at.y]).ok()?.first()?;
+                if let Some(n) = g.node_mut(id) {
+                    n.ui.label = Some(t.name());
+                }
+                let added = crate::templates::wire(t, g, ctx, id, &selection);
+                if root {
+                    if panels.is_empty() {
+                        edit::pins::add_panel(panels, "");
+                    }
+                    let index = panel.min(panels.len() - 1);
+                    edit::pins::pin(panels, g, index, &[id]);
+                }
+                Some((id, added))
+            },
+        );
+        let (id, added) = made?;
+        self.doc.selection = [id].into();
+        self.say(
+            tr_args("status-template-added", &[("name", t.name().into())]),
+            now,
+        );
+        // A Drum Pad's new Sample asks for its sound.
+        if let Some(sample) = added.first() {
+            self.file_dialog(FilePurpose::ChooseClip(*sample), now);
+        }
+        Some(id)
+    }
+
+    /// The selections saved as templates.
+    pub fn saved_templates(&self) -> &[crate::templates::Saved] {
+        &self.settings.prefs.templates
+    }
+
+    /// Keep the selection as a template, named after its first labelled
+    /// node (D222).
+    pub fn save_selection_as_template(&mut self, now: f64) {
+        let ids = self.doc.selection.clone();
+        if ids.is_empty() {
+            return;
+        }
+        let text = edit::copy(self.doc.graph(), &self.doc.project.group_defs, &ids);
+        let name = ids
+            .iter()
+            .filter_map(|id| self.doc.graph().node(*id))
+            .find_map(|n| n.ui.label.clone())
+            .unwrap_or_else(|| {
+                tr_args(
+                    "template-numbered",
+                    &[("n", (self.settings.prefs.templates.len() + 1).into())],
+                )
+            });
+        self.settings.add_template(crate::templates::Saved {
+            name: name.clone(),
+            text,
+        });
+        self.say(
+            tr_args("status-template-saved", &[("name", name.into())]),
+            now,
+        );
+    }
+
+    /// Paste saved template `k` at the view's center and pin what can be
+    /// pinned to the panel showing.
+    pub fn paste_template(&mut self, k: usize, now: f64) {
+        let Some(t) = self.settings.prefs.templates.get(k).cloned() else {
+            return;
+        };
+        let at = self.canvas.view.center;
+        let root = self.doc.scope.is_empty();
+        let panel = self.perform.current;
+        let registry = self.registry.clone();
+        let ids = self.doc.edit_with_panels(
+            &registry,
+            &tr_args("undo-add-named", &[("name", (&t.name).into())]),
+            |g, ctx, panels| {
+                let ids = edit::paste(g, ctx, &t.text, [at.x, at.y]).ok()?;
+                let pin: Vec<ac_core::NodeId> = ids
+                    .iter()
+                    .copied()
+                    .filter(|id| g.node(*id).is_some_and(edit::pins::pinnable))
+                    .collect();
+                if root && !pin.is_empty() {
+                    if panels.is_empty() {
+                        edit::pins::add_panel(panels, "");
+                    }
+                    let index = panel.min(panels.len() - 1);
+                    edit::pins::pin(panels, g, index, &pin);
+                }
+                Some(ids)
+            },
+        );
+        match ids {
+            Some(ids) => {
+                self.doc.selection = ids.into_iter().collect();
+                self.say(
+                    tr_args("status-template-added", &[("name", t.name.into())]),
+                    now,
+                );
+            }
+            None => self.warn(tr("status-template-broken"), now),
+        }
+    }
 
     /// A wire dropped on a wired trigger or MIDI input, finished from the
     /// palette: through a new Merge with the wire already there, or in its

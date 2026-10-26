@@ -375,3 +375,4 @@ node-tab-export-block-tip = Write this definition to a block file to share, with
 arrangement-empty = Nothing is placed in the song yet: set a Clip's, MIDI Pattern's, Pattern's, or Graph's start to At beat…
 section-arrangement = Arrangement
 arrangement-hint = Drag a block to move it, its right edge to trim it; double-click to play its whole length. Shift: sixteenths.
+arrangement-loops = (loops)

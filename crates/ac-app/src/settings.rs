@@ -48,6 +48,8 @@ pub struct Prefs {
     /// Shared libraries the Library tab lists, by their index's link, in
     /// the order they were added (DECISIONS D194).
     pub libraries: Vec<String>,
+    /// Selections saved as templates, offered under Add ▸ Templates (D222).
+    pub templates: Vec<crate::templates::Saved>,
 }
 
 impl Default for Prefs {
@@ -62,6 +64,7 @@ impl Default for Prefs {
             skip_version: String::new(),
             crash_prompt: true,
             libraries: Vec::new(),
+            templates: Vec::new(),
         }
     }
 }
@@ -223,6 +226,20 @@ impl AppSettings {
         }
     }
 
+    /// Keep a selection as a template.
+    pub fn add_template(&mut self, t: crate::templates::Saved) {
+        self.prefs.templates.push(t);
+        self.save();
+    }
+
+    /// Forget saved template `index`.
+    pub fn remove_template(&mut self, index: usize) {
+        if index < self.prefs.templates.len() {
+            self.prefs.templates.remove(index);
+            self.save();
+        }
+    }
+
     pub fn set_crash_prompt(&mut self, on: bool) {
         if self.prefs.crash_prompt != on {
             self.prefs.crash_prompt = on;
@@ -293,6 +310,12 @@ fn parse(text: &str) -> Prefs {
                 prefs.libraries.push(l.to_string());
             }
         }
+    }
+    if let Some(list) = map.get("templates").and_then(serde_json::Value::as_array) {
+        prefs.templates = list
+            .iter()
+            .filter_map(|v| serde_json::from_value(v.clone()).ok())
+            .collect();
     }
     prefs.sanitized()
 }

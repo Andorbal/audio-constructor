@@ -1,0 +1,220 @@
+{
+  "schema_version": 2,
+  "name": "Block: Drum Pad",
+  "settings": {
+    "sample_rate": 48000,
+    "length": 2.0,
+    "seed": 0,
+    "block_size": 256,
+    "tempo": [
+      {
+        "beat": 0.0,
+        "bpm": 120.0,
+        "time_sig": [
+          4,
+          4
+        ]
+      }
+    ]
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "1",
+        "kind": "sample",
+        "config": {
+          "file": "assets/tone.wav"
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": "2",
+        "kind": "clock",
+        "params": {
+          "interval": 0.5
+        },
+        "ui": {
+          "pos": [
+            0.0,
+            160.0
+          ]
+        }
+      },
+      {
+        "id": "3",
+        "kind": "group",
+        "config": {
+          "def": "drum-pad"
+        },
+        "params": {
+          "level": -6.0,
+          "note": 72.0,
+          "pan": 0.5
+        },
+        "ui": {
+          "pos": [
+            320.0,
+            0.0
+          ],
+          "label": "Pad"
+        }
+      },
+      {
+        "id": "4",
+        "kind": "audio_out",
+        "ui": {
+          "pos": [
+            640.0,
+            0.0
+          ]
+        }
+      }
+    ],
+    "wires": [
+      {
+        "from": "1:buffer",
+        "to": "3:sound"
+      },
+      {
+        "from": "2:trigger",
+        "to": "3:hit"
+      },
+      {
+        "from": "3:out",
+        "to": "4:in"
+      }
+    ]
+  },
+  "group_defs": {
+    "drum-pad": {
+      "name": "Drum Pad",
+      "description": "One pad of a drum kit: a sound played on each `hit`, as hard as `velocity`, at `level`, tuned by `note`, and placed by `pan`. The Add menu's Drum Pad template adds one with a Sample for its sound and a card on the panel.\n\n- `hit` (trigger): plays the sound from the top. Wire a Pad's `trigger`, a Note Split's `trigger_k`, or a Pattern row into it.\n- `velocity` (0–1): how hard, taken at each hit. Wire the Pad's or Note Split's `velocity` into it.\n- `sound` (buffer): the sound, from a Sample node outside. It stays outside because every instance of a block shares the same inside, so a file chosen inside would be every pad's.\n- `level` (dB), `note` (60 plays the sound as it is; 72 an octave up), `pan` (−1 left to 1 right).\n- `out` (audio): stereo.\n\nInside: a Sampler and a Pan.",
+      "version": 1,
+      "author": "Audio Constructor",
+      "tags": [
+        "drums",
+        "sampler",
+        "pad"
+      ],
+      "source": "shipped:drum-pad",
+      "inputs": [
+        {
+          "name": "hit",
+          "type": "trigger",
+          "targets": [
+            "1:start"
+          ]
+        },
+        {
+          "name": "velocity",
+          "type": "float",
+          "default": 1.0,
+          "range": [
+            0.0,
+            1.0
+          ],
+          "targets": [
+            "1:velocity"
+          ]
+        },
+        {
+          "name": "sound",
+          "type": "buffer",
+          "targets": [
+            "1:buffer"
+          ]
+        },
+        {
+          "name": "level",
+          "type": "float",
+          "unit": "db",
+          "default": 0.0,
+          "range": [
+            -60.0,
+            12.0
+          ],
+          "targets": [
+            "1:gain"
+          ]
+        },
+        {
+          "name": "note",
+          "type": "float",
+          "default": 60.0,
+          "range": [
+            24.0,
+            96.0
+          ],
+          "targets": [
+            "1:note"
+          ]
+        },
+        {
+          "name": "pan",
+          "type": "float",
+          "default": 0.0,
+          "range": [
+            -1.0,
+            1.0
+          ],
+          "targets": [
+            "2:pan"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "audio",
+          "source": "2:out"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "1",
+            "kind": "sampler",
+            "config": {
+              "channels": 1,
+              "root": 60
+            },
+            "params": {
+              "start": "never"
+            },
+            "ui": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "label": "Sound"
+            }
+          },
+          {
+            "id": "2",
+            "kind": "pan",
+            "ui": {
+              "pos": [
+                280.0,
+                0.0
+              ]
+            }
+          }
+        ],
+        "wires": [
+          {
+            "from": "1:out",
+            "to": "2:in"
+          }
+        ]
+      }
+    }
+  },
+  "golden": {
+    "block_independent": true
+  }
+}

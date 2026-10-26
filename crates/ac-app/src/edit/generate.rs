@@ -282,9 +282,23 @@ pub fn hear(graph: &mut Graph, ctx: &mut Ctx, node: NodeId) -> bool {
     };
     let from = Endpoint::new(node, "out");
     let into_out = Endpoint::new(out, "in");
-    let Some(feeding) = graph.wire_into(&into_out).map(|w| w.from.node) else {
+    let Some(mut feeding) = graph.wire_into(&into_out).map(|w| w.from.node) else {
         return connect(graph, ctx, from, into_out).is_ok();
     };
+    // Upstream through the master's effects (a limiter, a meter) to its Mix.
+    for _ in 0..16 {
+        if graph.node(feeding).is_some_and(|n| n.kind == "mix") {
+            break;
+        }
+        match graph
+            .wires_to(feeding)
+            .find(|w| ctx.in_type(graph, &w.to) == Some(ac_core::SignalType::Audio))
+            .map(|w| w.from.node)
+        {
+            Some(up) => feeding = up,
+            None => return false,
+        }
+    }
     let Some(mix) = graph.node(feeding).filter(|n| n.kind == "mix") else {
         return false;
     };
@@ -296,10 +310,19 @@ pub fn hear(graph: &mut Graph, ctx: &mut Ctx, node: NodeId) -> bool {
     let free = (0..inputs)
         .map(|k| Endpoint::new(feeding, format!("in_{k}")))
         .find(|e| graph.wire_into(e).is_none());
-    match free {
-        Some(e) => connect(graph, ctx, from, e).is_ok(),
-        None => false,
-    }
+    let to = match free {
+        Some(e) => e,
+        // A full Mix grows an input (D214).
+        None if inputs < 64 => {
+            let last = Endpoint::new(feeding, format!("in_{}", inputs - 1));
+            if !super::grow_inputs(graph, &last) {
+                return false;
+            }
+            Endpoint::new(feeding, format!("in_{inputs}"))
+        }
+        None => return false,
+    };
+    connect(graph, ctx, from, to).is_ok()
 }
 
 /// A pad from an audio file dropped on a panel: a Sampler playing it and a

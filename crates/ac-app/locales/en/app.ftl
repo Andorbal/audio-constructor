@@ -78,6 +78,10 @@ status-learning = Binding { $target }: move a control (MIDI, key, gamepad, or OS
 status-cancel = Cancel
 status-recorded = Recorded { $file }
 status-clip-from-take = Create Clip from take
+status-template-added = Added { $name }
+status-template-saved = Saved the selection as the template “{ $name }” (in the Add menu, under Templates)
+status-template-broken = That template couldn't be read
+template-numbered = Template { $n }
 status-tempo-set = Tempo { $bpm } BPM
 status-automation-written = { $count ->
     [one] Wrote automation for one input
