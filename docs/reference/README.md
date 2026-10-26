@@ -10,12 +10,12 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-140 nodes in 13 categories.
+142 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
-| [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
-| [Generators](#generators) | 12 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
+| [Input / Output](#io) | 11 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
+| [Generators](#generators) | 13 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 7 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
@@ -42,6 +42,7 @@ Sound, MIDI, and controls coming into and going out of the patch: audio devices,
 | [Keyboard In](io.md#keyboard-in) | Brings the computer keyboard into the patch: chosen keys as gates and press triggers, and a row of letter keys played like a piano. *Live source.* |
 | [MIDI In](io.md#midi-in) | Brings MIDI from the connected devices into the patch. *Live source.* |
 | [MIDI Out](io.md#midi-out) | Sends MIDI to the connected devices. |
+| [MIDI Record](io.md#midi-record) | Records the notes played into it, one take at a time; each take becomes a MIDI Pattern beside it. |
 | [OSC In](io.md#osc-in) | Receives Open Sound Control messages, such as the faders and buttons of a phone or tablet control surface, as numbers and a trigger. *Live source.* |
 | [OSC Out](io.md#osc-out) | Sends numbers from the patch as Open Sound Control messages, to move the faders of a phone or tablet control surface or to drive anything else on the network that speaks OSC. |
 | [Record](io.md#record) | Writes audio to a file, one take at a time. |
@@ -63,6 +64,7 @@ Sources of signal over time: oscillators, noise, audio files, samplers, drawn cu
 | [Sample](generators.md#sample) | An audio file as a sound to wire: its `buffer` output holds the whole file, for a `Sampler`, a `Slicer`, or anything else that plays a Buffer. |
 | [Sampler](generators.md#sampler) | Plays a recorded sound at any pitch, with start and end points, a sustain loop, and the generator contract: the building block for drum machines and sampled instruments. |
 | [Slicer](generators.md#slicer) | Cuts a sound into slices and plays them one at a time: a drum loop becomes a kit on a pad grid. |
+| [Tempo](generators.md#tempo) | Sets the song's tempo: turn `bpm`, or tap the tempo on `tap`. |
 | [Transport](generators.md#transport) | Song time as signals: seconds, beats, bars, tempo, and play state. |
 | [Wavetable](generators.md#wavetable) | An oscillator that plays single-cycle waveforms from a table and morphs between them with `position`, as a sample-rate `Float`. |
 

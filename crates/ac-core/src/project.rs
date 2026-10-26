@@ -96,6 +96,31 @@ pub struct Settings {
     /// Bars of click before recording starts from a stop (0: none).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub count_in: u32,
+    /// What moving a control while recording does (DECISIONS D219).
+    #[serde(default, skip_serializing_if = "AutomationMode::is_off")]
+    pub automation: AutomationMode,
+}
+
+/// Automation recording: moving an unwired input while the transport
+/// records writes a song-locked Graph into it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationMode {
+    /// Moving controls only moves them.
+    #[default]
+    Off,
+    /// From the first move, the input's value is written until recording
+    /// stops; let go and it holds.
+    Write,
+    /// Only while a control is held; let go and the input goes back to
+    /// where it was.
+    Touch,
+}
+
+impl AutomationMode {
+    pub fn is_off(&self) -> bool {
+        *self == AutomationMode::Off
+    }
 }
 
 fn is_false(b: &bool) -> bool {
@@ -146,6 +171,7 @@ impl Default for Settings {
             markers: Vec::new(),
             metronome: false,
             count_in: 0,
+            automation: AutomationMode::Off,
         }
     }
 }

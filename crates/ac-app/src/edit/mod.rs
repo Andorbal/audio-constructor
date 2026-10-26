@@ -9,6 +9,7 @@
 //! converts the virtual wires back into the definition's interface after.
 
 pub mod align;
+pub mod automation;
 pub mod connect;
 pub mod generate;
 pub mod group;

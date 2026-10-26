@@ -9,6 +9,7 @@ pub mod gamepad;
 pub mod keyboard_in;
 pub mod midi_in;
 pub mod midi_out;
+pub mod midi_record;
 pub mod osc_in;
 pub mod osc_out;
 pub mod record;
@@ -20,6 +21,7 @@ pub fn register(r: &mut Registry) {
     r.register::<midi_in::MidiIn>();
     r.register::<midi_out::MidiOut>();
     r.register::<record::Record>();
+    r.register::<midi_record::MidiRecord>();
     r.register::<file_out::FileOut>();
     r.register::<gamepad::Gamepad>();
     r.register::<keyboard_in::KeyboardIn>();

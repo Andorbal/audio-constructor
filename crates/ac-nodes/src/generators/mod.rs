@@ -12,6 +12,7 @@ pub mod oscillator;
 pub mod sample;
 pub mod sampler;
 pub mod slicer;
+pub mod tempo;
 pub mod transport;
 pub mod wavetable;
 
@@ -28,5 +29,6 @@ pub fn register(r: &mut Registry) {
     r.register::<sampler::Sampler>();
     r.register::<slicer::Slicer>();
     r.register::<transport::Transport>();
+    r.register::<tempo::Tempo>();
     r.register::<wavetable::Wavetable>();
 }

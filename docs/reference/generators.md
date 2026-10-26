@@ -584,6 +584,35 @@ hit.
 | `playing` | Bool | True while a slice plays. |
 | `end` | Trigger | Fires when a slice finishes. |
 
+<a id="tempo"></a>
+## Tempo
+
+Kind: `tempo` · Also found by: bpm, tap tempo, tap, speed, tempo map, beats per minute, clock
+
+Sets the song's tempo: turn `bpm`, or tap the tempo on `tap`.
+
+The Tempo node doesn't put out a signal: the editor changes the
+project's tempo map, so every clock, pattern, and placed clip
+follows, and the saved project renders at the new tempo. A change to
+`bpm` (typed, turned, or arriving on a wire) sets the tempo where the
+playhead is; the value it has when the project opens changes
+nothing. Each `tap` after the first, within two seconds of the one
+before, sets the tempo from the average of the last few gaps between
+taps, and `bpm` shows it. Tempos are kept between 20 and 300 BPM.
+Each change is an undo step on the Project tab's tempo. Outside the
+editor (a render on its own, `audioc run`) nothing applies them.
+
+**Try this:** wire a `Button` (or a gamepad button bound to one) into
+`tap` and tap along with a record playing: the song's clocks lock to
+your tempo.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `bpm` | Float (BPM) | 120 | 20 … 300 | The tempo; a change sets the song's tempo. |
+| `tap` | Trigger | — |  | Tap the tempo, two taps or more. |
+
 <a id="transport"></a>
 ## Transport
 

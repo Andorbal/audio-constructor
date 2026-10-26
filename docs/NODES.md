@@ -81,6 +81,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3, **P4** Phase 4. **WI** =
 | `AudioOut` | P1 | A device output. In: `in: Audio`. Multiple instances allowed (main, cue). A `role` config, *main* or *monitor* (P4): monitor outputs play live only and renders leave them out. |
 | `MidiIn` | P1, Live | A MIDI device (or all). Out: `midi: Midi`. |
 | `MidiOut` | P2 | Send `Midi` to a device. |
+| `MIDI Record` | P4 | Records `midi` while `arm` is on and the transport records, or between `start`/`stop`; each take becomes a MIDI Pattern beside it, placed at the take's beat and merged into where the MIDI went, its starts optionally quantized (config). Outputs `recording`, `notes`, `length`. |
 | `Record` | P1 | Writes `in: Audio` to a file while `arm: Bool` is true (or between `start`/`stop` triggers). Outputs `recording: Bool`, `length: Float(Seconds)`, and (Phase 2) `buffer: Buffer`, the last finished take, so a recording can feed a Sampler immediately. |
 | `FileOut` | P2 | Offline-only sink: render `in` to a file path. Lets a project produce several files in one `audioc render`. |
 | `Gamepad` | P2, Live | A game controller (config `pad`, 1–16). Every button as a `Bool` gate (`south`, `east`, …, `dpad_right`) plus a `<button>_press` `Trigger` (`<button>_release` too with the `releases` config); sticks (`left_x` … `right_y`, −1..1) and analog triggers (`left_trigger_axis`, `right_trigger_axis`, 0..1) as `Float`, shaped by `dead_zone` (radial for sticks, rescaled to full travel) and `curve` (an exponent). Sample-accurate; state survives a transport restart. |
@@ -93,6 +94,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3, **P4** Phase 4. **WI** =
 | --- | --- | --- |
 | `Oscillator` | P1 | `freq: Float(Hz)`, `shape` (sine, tri, saw, square, pulse with `width`), `phase: Float`, `sync: Trigger` (hard sync), `fm: Float` (linear FM). Out: `out: Float` at sample rate (wires to Audio or to any parameter). Band-limited for audio use; a `pure` config flag disables anti-aliasing for LFO-style use. |
 | `Clip` | P1 | Plays an audio file. Generator contract (start/stop/loop/reverse/rate), placeable in the song (P4). `position: Float(Seconds)` input for seeking; outputs `out: Audio`, `position: Float`, `end: Trigger`. Resamples to engine rate on load. |
+| `Tempo` | P4 | `bpm` in and a `tap` trigger; not a signal: the editor sets the song's tempo where the playhead is from a change to `bpm` or the average gap of the last taps (20–300 BPM). |
 | `Transport` | P1 | Song time as signals: `time: Float(Seconds)`, `beat: Float(Beats)`, `bar: Int`, `beat_in_bar: Int`, `bpm: Float`, `playing: Bool`, `play: Trigger`, `stop: Trigger`. (The user's "SongTime".) |
 | `Noise` | P2 | White, pink, brown at the same RMS; seeded. `gain`, `seed` config; start/stop/reset. |
 | `Graph` | P2 | A hand-drawn curve (straight, held, smooth, or bent segments, drawn in the node editor) with `duration: Float(Seconds or Beats)`; generator contract, placeable in the song (P4), so a curve is an automation lane that holds its place through a seek. Out: `out: Float`, `position`. Doubles as an envelope. |

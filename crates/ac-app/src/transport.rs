@@ -176,6 +176,51 @@ impl TransportState {
                 }
             }
         });
+        // Automation: moving controls while recording writes Graphs (D219).
+        use ac_core::AutomationMode;
+        let mode = doc.project.settings.automation;
+        let on = !mode.is_off();
+        let tip = match mode {
+            AutomationMode::Off => tr("transport-automation-off-tip"),
+            AutomationMode::Write => tr("transport-automation-write-tip"),
+            AutomationMode::Touch => tr("transport-automation-touch-tip"),
+        };
+        let r = icons::spoken(
+            ui.add(
+                egui::Button::new(RichText::new(icons::SLIDERS).size(17.0).color(if on {
+                    theme::record()
+                } else {
+                    theme::text()
+                }))
+                .selected(on)
+                .min_size(vec2(32.0, 28.0)),
+            ),
+        )
+        .on_hover_text(tip)
+        .accessible_name(tr("transport-automation"));
+        let mut set = None;
+        if r.clicked() {
+            set = Some(if on {
+                AutomationMode::Off
+            } else {
+                AutomationMode::Touch
+            });
+        }
+        r.context_menu(|ui| {
+            for (m, label) in [
+                (AutomationMode::Off, tr("transport-automation-off")),
+                (AutomationMode::Write, tr("transport-automation-write")),
+                (AutomationMode::Touch, tr("transport-automation-touch")),
+            ] {
+                if ui.radio(mode == m, label).clicked() {
+                    set = Some(m);
+                    ui.close();
+                }
+            }
+        });
+        if let Some(m) = set {
+            doc.edit_project(&tr("undo-automation-mode"), |p| p.settings.automation = m);
+        }
         panic_button(ui, actions);
     }
 

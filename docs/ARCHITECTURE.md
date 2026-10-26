@@ -488,7 +488,10 @@ review, and a debug-mode allocation detector (`assert_no_alloc`):
   opt-in (DECISIONS D57, D58). If a block overruns, the xrun counter
   increments and the UI shows it; the engine never silently glitches.
 - **Recording** writes to a lock-free ring drained by a disk thread; the
-  disk thread, not the callback, owns the file.
+  disk thread, not the callback, owns the file. A `MIDI Record` node's
+  `MidiRecordSink` pushes its events into a ring the editor drains each
+  frame; no file is involved, and the editor turns each finished take into
+  a MIDI Pattern (D218).
 
 The engine exposes one API to all hosts. Because the control side and the
 audio side live on different threads, an `Engine` is two halves joined by

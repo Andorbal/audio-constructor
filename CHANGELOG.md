@@ -110,6 +110,16 @@ Phase 4: the tools the gap studies found missing.
   there while it plays. Every editor marks the step or beat playing.
   Open as many editor windows as you like from the Node tab, and dock one
   under the canvas.
+- **Record MIDI.** The new **MIDI Record** node records what's played into
+  it; when a take ends, the notes become a MIDI Pattern beside it, placed
+  where you played them and playing into the same instrument as the keys
+  (optionally quantized).
+- **Record automation.** Turn on the transport's automation button and
+  move a knob or fader while recording: when you stop, the moves are a
+  Graph placed in the song and wired into that control. **Touch** writes
+  only while you hold the control; **Write** keeps going until you stop.
+- **Tempo** node: tap the tempo, or turn `bpm`, and the song's tempo
+  changes where the playhead is.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs

@@ -62,6 +62,7 @@ pub mod library;
 pub mod midi;
 pub mod midi_file;
 pub mod midi_out;
+pub mod midi_record;
 pub mod monitor;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod net;
@@ -96,6 +97,7 @@ pub use midi::{
 };
 pub use midi_file::{midi_file_bytes, write_midi_file};
 pub use midi_out::{MidiOutQueue, MidiOutputs, list_outputs};
+pub use midi_record::{MidiTake, MidiTakes, Recorders};
 pub use monitor::{RECENT_MESSAGES, Recent};
 pub use null::{NullAudio, NullHost, NullStream};
 pub use osc::{DEFAULT_OSC_PORT, OscInput, OscSeen, OscStats};

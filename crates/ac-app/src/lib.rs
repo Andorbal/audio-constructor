@@ -8,6 +8,7 @@
 pub mod actions;
 mod app;
 pub mod audio;
+pub mod automation;
 pub mod bindings;
 pub mod canvas;
 pub mod dialogs;

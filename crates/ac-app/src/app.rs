@@ -180,6 +180,10 @@ pub struct EditorApp {
     native_dialogs: bool,
     /// Writes Record nodes' takes into the saved project's assets folder.
     recorder: Option<Arc<ac_io::DiskRecorder>>,
+    /// MIDI Record nodes' takes, kept in memory (D218).
+    midi_takes: ac_io::MidiTakes,
+    /// Each Tempo node's request count as last applied (D220).
+    tempo_serials: std::collections::HashMap<ac_core::NodeId, f32>,
     /// Finished takes waiting to be turned into Clip nodes.
     pub takes: Vec<ac_io::Take>,
     export_job: Option<(PathBuf, Receiver<Result<ExportSummary, String>>)>,
@@ -398,11 +402,13 @@ impl EditorApp {
             .and_then(|p| ac_io::DiskRecorder::new(&files::project_dir(p)).ok())
             .map(Arc::new);
         let plugins = opts.plugins.clone().map(crate::plugins::Plugins::new);
+        let midi_takes = ac_io::MidiTakes::new();
         let resources = Arc::new(FileResources {
             assets: assets.clone(),
-            recorder: recorder
-                .clone()
-                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            recorder: Some(Arc::new(ac_io::Recorders {
+                disk: recorder.clone(),
+                midi: midi_takes.clone(),
+            })),
             plugins: plugins.as_ref().map(crate::plugins::Plugins::loader),
         });
         let engine = EngineHost::start(&project, registry.clone(), resources, &opts.audio);
@@ -446,6 +452,8 @@ impl EditorApp {
             prompt: None,
             native_dialogs: opts.native_dialogs,
             recorder,
+            midi_takes,
+            tempo_serials: Default::default(),
             takes: Vec::new(),
             export_job: None,
             show_timing: false,
@@ -1549,6 +1557,15 @@ impl EditorApp {
         self.engine.tick();
         self.serve_plugins(now);
         self.poll_takes(now);
+        self.poll_midi_takes(now);
+        self.follow_tempo_nodes(now);
+        let written = crate::automation::poll(&mut self.doc, &self.engine.handle, &self.registry);
+        if written > 0 {
+            self.say(
+                tr_args("status-automation-written", &[("count", written.into())]),
+                now,
+            );
+        }
         self.sync_loop();
     }
 
@@ -1723,10 +1740,10 @@ impl EditorApp {
         }
         Arc::new(FileResources {
             assets: self.assets.clone(),
-            recorder: self
-                .recorder
-                .clone()
-                .map(|r| r as Arc<dyn ac_io::RecorderFactory>),
+            recorder: Some(Arc::new(ac_io::Recorders {
+                disk: self.recorder.clone(),
+                midi: self.midi_takes.clone(),
+            })),
             plugins: self.plugins.as_ref().map(crate::plugins::Plugins::loader),
         })
     }
@@ -1818,6 +1835,125 @@ impl EditorApp {
                 ),
             }
             self.takes.push(t);
+        }
+    }
+
+    /// Tempo nodes asking for a tempo: set it where the playhead is, and
+    /// show a tapped tempo on the node's `bpm` (D220).
+    fn follow_tempo_nodes(&mut self, now: f64) {
+        use ac_nodes::generators::tempo as t;
+        let tele = self.engine.handle.telemetry();
+        let asks: Vec<(ac_core::NodeId, f32, f32)> = self
+            .doc
+            .project
+            .graph
+            .nodes
+            .iter()
+            .filter(|n| n.kind == "tempo")
+            .filter_map(|n| {
+                let path = ac_core::NodePath(vec![n.id]);
+                Some((
+                    n.id,
+                    tele.node_value(&path, t::TELEMETRY_BPM)?,
+                    tele.node_value(&path, t::TELEMETRY_SERIAL)?,
+                ))
+            })
+            .collect();
+        self.tempo_serials
+            .retain(|id, _| asks.iter().any(|a| a.0 == *id));
+        for (id, bpm, serial) in asks {
+            // The first reading is where it stands, not a request.
+            let Some(last) = self.tempo_serials.insert(id, serial) else {
+                continue;
+            };
+            if last == serial || bpm.is_nan() || bpm <= 0.0 {
+                continue;
+            }
+            let bpm = (f64::from(bpm) * 100.0).round() / 100.0;
+            let rate = f64::from(self.engine.info.sample_rate);
+            let tempo = &self.doc.project.settings.tempo;
+            let beat = TempoMap::new(rate, tempo).beat_at(self.engine.handle.position());
+            let i = tempo.iter().rposition(|s| s.beat <= beat).unwrap_or(0);
+            if tempo.get(i).is_some_and(|s| (s.bpm - bpm).abs() > 1e-6) {
+                self.doc.edit_settings("tempo", now, |p| {
+                    if let Some(s) = p.settings.tempo.get_mut(i) {
+                        s.bpm = bpm;
+                    }
+                });
+                self.doc.end_coalescing();
+                self.say(
+                    tr_args("status-tempo-set", &[("bpm", format!("{bpm}").into())]),
+                    now,
+                );
+            }
+            let wired = self
+                .doc
+                .project
+                .graph
+                .wire_into(&ac_core::Endpoint::new(id, "bpm"))
+                .is_some();
+            let shown = self
+                .doc
+                .project
+                .graph
+                .node(id)
+                .and_then(|n| n.params.get("bpm"))
+                .and_then(ac_core::Value::as_f64);
+            if !wired && shown.is_none_or(|v| (v - bpm).abs() > 1e-3) && self.doc.scope.is_empty() {
+                crate::params::set(
+                    &mut self.doc,
+                    &mut self.engine.handle,
+                    id,
+                    "bpm",
+                    ac_core::Value::Float(bpm),
+                    now,
+                );
+                self.doc.end_coalescing();
+            }
+        }
+    }
+
+    /// MIDI takes that finished: each becomes a MIDI Pattern beside its MIDI
+    /// Record node, placed and merged where the notes went (D218).
+    fn poll_midi_takes(&mut self, now: f64) {
+        for take in self.midi_takes.finished() {
+            if take.events.is_empty() {
+                continue;
+            }
+            let prefix = self.doc.scope_prefix();
+            let record = take
+                .node_key
+                .parse::<ac_core::NodePath>()
+                .ok()
+                .filter(|p| p.0.len() == prefix.len() + 1 && p.0[..prefix.len()] == prefix[..])
+                .and_then(|p| p.leaf())
+                .filter(|id| self.doc.graph().node(*id).is_some());
+            let grid = record
+                .and_then(|id| self.doc.graph().node(id))
+                .map_or(0.0, |n| ac_nodes::io::midi_record::quantize_grid(&n.config));
+            let pos = record
+                .and_then(|id| self.doc.graph().node(id))
+                .map(|n| [n.ui.pos[0], n.ui.pos[1] + 260.0])
+                .unwrap_or([self.canvas.view.center.x, self.canvas.view.center.y]);
+            let tempo = TempoMap::new(
+                f64::from(take.sample_rate),
+                &self.doc.project.settings.tempo,
+            );
+            let notes =
+                edit::take::take_notes(&take.events, take.frames, take.song_start, &tempo, grid);
+            let count = notes.notes.len();
+            let registry = self.registry.clone();
+            let pattern = self.doc.edit(&registry, &tr("undo-midi-take"), |g, ctx| {
+                edit::take::pattern_from_take(g, ctx, notes, record, pos)
+            });
+            self.doc.selection = [pattern].into();
+            self.say(
+                tr_args(
+                    "status-midi-take",
+                    &[("count", count.into()), ("name", (&take.name).into())],
+                ),
+                now,
+            );
         }
     }
 

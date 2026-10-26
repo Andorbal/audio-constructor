@@ -354,6 +354,19 @@ pub trait RecordSink: Send {
     }
 }
 
+/// A real-time-safe sink for recorded MIDI, one per `MIDI Record` node: the
+/// host collects each take and turns it into a MIDI Pattern (DECISIONS
+/// D218). Every method must be wait-free and allocation-free.
+pub trait MidiRecordSink: Send {
+    /// Begin a take that starts at song sample `song` (when the transport
+    /// plays).
+    fn start_at(&mut self, song: Option<u64>);
+    /// One event, `frame` samples after the take began.
+    fn event(&mut self, frame: u64, msg: crate::MidiMsg);
+    /// Finish the take, `frames` samples long.
+    fn stop(&mut self, frames: u64);
+}
+
 /// Host-provided services available while preparing nodes. The engine never
 /// touches files or devices; hosts implement this.
 pub trait Resources: Send + Sync {
@@ -364,6 +377,12 @@ pub trait Resources: Send + Sync {
 
     /// A sink for a `Record` node, or `None` if recording isn't available.
     fn recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn RecordSink>> {
+        None
+    }
+
+    /// A sink for a `MIDI Record` node, or `None` if recording isn't
+    /// available.
+    fn midi_recorder(&self, _req: &RecordRequest<'_>) -> Option<Box<dyn MidiRecordSink>> {
         None
     }
 

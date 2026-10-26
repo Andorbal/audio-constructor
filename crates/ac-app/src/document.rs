@@ -40,6 +40,8 @@ pub struct Document {
     /// While [`Document::at_root`] runs: the scope to come back to, which
     /// undo steps record (so undoing a panel edit doesn't leave a group).
     outer_scope: Option<Vec<ScopeEntry>>,
+    /// Moves recorded as automation this pass (D219); not saved.
+    pub automation: crate::automation::Capture,
 }
 
 impl Document {
@@ -63,6 +65,7 @@ impl Document {
             engine_revision: 0,
             history: History::default(),
             outer_scope: None,
+            automation: Default::default(),
         }
     }
 
@@ -280,6 +283,7 @@ impl Document {
     /// End coalescing (a drag ended), so the next change is a new step.
     pub fn end_coalescing(&mut self) {
         self.history.end_coalescing();
+        self.automation.release();
     }
 
     /// After a gesture that recorded a step up front (a move): forget the

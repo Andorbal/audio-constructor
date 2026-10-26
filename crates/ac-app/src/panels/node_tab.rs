@@ -200,6 +200,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
+        "midi_record" => vec![f(
+            "quantize",
+            "Quantize the take",
+            Kind::Choice {
+                choices: &["off", "sixteenths", "eighths", "quarters"],
+                default: "off",
+            },
+        )],
         "logic" | "math" => vec![f(
             "inputs",
             "Inputs",

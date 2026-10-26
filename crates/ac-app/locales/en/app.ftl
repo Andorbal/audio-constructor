@@ -78,6 +78,15 @@ status-learning = Binding { $target }: move a control (MIDI, key, gamepad, or OS
 status-cancel = Cancel
 status-recorded = Recorded { $file }
 status-clip-from-take = Create Clip from take
+status-tempo-set = Tempo { $bpm } BPM
+status-automation-written = { $count ->
+    [one] Wrote automation for one input
+   *[other] Wrote automation for { $count } inputs
+}
+status-midi-take = { $count ->
+    [one] Recorded one note from { $name } into a MIDI Pattern
+   *[other] Recorded { $count } notes from { $name } into a MIDI Pattern
+}
 status-dismiss = Dismiss
 status-more-takes = +{ $count } more
 status-exporting-to = Exporting { $path }…

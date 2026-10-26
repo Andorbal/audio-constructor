@@ -369,7 +369,15 @@ position sideways to move the playhead a beat at a time, or click it to type
 a bar to go to. The **metronome** button (`Shift+C`, Transport ▸ Metronome)
 clicks on every beat, higher on the first of a bar; it plays live only and
 is never in an export (D207). Its right-click menu sets a **count-in** of
-0–8 bars, clicked before recording starts from a stop. Play and Stop are
+0–8 bars, clicked before recording starts from a stop. The **automation**
+button (the sliders) sets what moving a control does while recording:
+**Off**, **Touch** (a click turns it on; the moves are written while the
+control is held, then the input goes back), or **Write** (from the first
+move until recording stops; it holds where it was left), from its
+right-click menu. When recording stops, each input moved becomes a Graph
+placed in the song and wired into that input, one undo step for the pass
+(D219). A MIDI Record node's take becomes a MIDI Pattern beside it when
+the take ends (D218). Play and Stop are
 separate buttons so Stop is there with the transport already stopped: it
 fires every generator's `stop` that says *On stop*, wired or not, so
 anything a button, a clock, or a live input started stops too (D200).
