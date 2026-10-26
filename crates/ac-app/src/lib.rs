@@ -13,6 +13,7 @@ pub mod canvas;
 pub mod dialogs;
 pub mod document;
 pub mod edit;
+pub mod editor_windows;
 pub mod editors;
 #[cfg(feature = "embed")]
 pub mod embed;

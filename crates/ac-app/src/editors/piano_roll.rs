@@ -15,7 +15,7 @@ use ac_nodes::sequencing::midi_pattern::{MAX_BANKS, note_banks};
 use egui::{Align2, CursorIcon, Pos2, Rect, Stroke, pos2, vec2};
 
 use super::banks::{self, Tabs};
-use super::{Edit, area, grid, load, snap, store};
+use super::{Edit, LiveView, area, grid, load, snap, store};
 use crate::theme;
 
 /// Snap grid in beats (a sixteenth note).
@@ -156,6 +156,7 @@ pub(super) fn ui(
     ui: &mut egui::Ui,
     id: egui::Id,
     config: &Config,
+    live: &LiveView,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
@@ -376,7 +377,7 @@ pub(super) fn ui(
             ),
         );
     }
-    tabs.paint(&painter, bank, resp.hover_pos());
+    tabs.paint(&painter, bank, live.bank, resp.hover_pos());
     let color = theme::category_color(ac_core::Category::Sequencing);
     for n in &notes {
         let r = note_rect(n);
@@ -392,6 +393,12 @@ pub(super) fn ui(
             Stroke::new(1.0, theme::fade(theme::text_strong(), 0.4)),
             egui::StrokeKind::Inside,
         );
+    }
+    if let Some(beat) = live.position.filter(|b| *b >= 0.0 && *b <= length)
+        && live.bank.is_none_or(|b| b == bank)
+    {
+        let x = roll.left() + beat as f32 * beat_w;
+        super::playhead(&painter, x, roll.top(), roll.bottom());
     }
     edit
 }

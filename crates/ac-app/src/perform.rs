@@ -114,6 +114,9 @@ pub struct Cell {
     pub accent: Color32,
     /// A pinned group's widgets and where each is drawn.
     pub group: Option<(Vec<group_card::Widget>, Vec<Rect>)>,
+    /// A node's drawn editor (step grid, piano roll, steps, curve), live
+    /// and editable on the card (D217).
+    pub editor: Option<(crate::editors::Editor, Rect)>,
 }
 
 /// A strip drawn last frame: its header and everything it holds.
@@ -180,6 +183,8 @@ impl Geometry {
 enum PanelHit {
     None,
     Body(usize),
+    /// The drawn editor on a card: it takes the pointer itself.
+    Editor(usize),
     /// Anywhere else on a card: drag to move, click to select.
     Card(usize),
     Shrink(usize),
@@ -198,6 +203,7 @@ impl PanelHit {
     fn cell(self) -> Option<usize> {
         match self {
             PanelHit::Body(i)
+            | PanelHit::Editor(i)
             | PanelHit::Card(i)
             | PanelHit::Shrink(i)
             | PanelHit::Grow(i)
@@ -593,6 +599,33 @@ impl PerformView {
         }
     }
 
+    /// The drawn editors on the cards, live and editable: each in a child
+    /// of the grid's `ui` at its place, so it takes its own pointer input.
+    fn editors(&self, ui: &mut egui::Ui, io: &mut CanvasIo, live: &Live, now: f64) {
+        for c in &self.cells {
+            let Some((editor, rect)) = c.editor else {
+                continue;
+            };
+            let Some(n) = io.doc.graph().node(c.node).cloned() else {
+                continue;
+            };
+            let view = crate::editors::live_view(&n.kind, |k| live.node_value(c.node, k));
+            // The step editor's range menu sits above its area.
+            let extra = if editor == crate::editors::Editor::Steps {
+                26.0
+            } else {
+                0.0
+            };
+            let (w, h) = (rect.width(), (rect.height() - extra).max(24.0));
+            let edit = ui
+                .scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                    crate::editors::show(ui, editor, &n.config, &view, ("card", c.node), w, h)
+                })
+                .inner;
+            crate::editor_windows::apply(io.doc, c.node, editor, edit, now);
+        }
+    }
+
     /// The minimal transport of performance mode: play/stop, the
     /// position, the panels to switch between, and the way out.
     pub fn performance_bar(
@@ -801,7 +834,8 @@ impl PerformView {
                 _ => {}
             }
         }
-        if secondary && response.hovered() {
+        // An editor's right-click is its own (deleting a note).
+        if secondary && response.hovered() && !matches!(hover, PanelHit::Editor(_)) {
             self.menu = Some(self.menu_target(hover, pointer));
         }
         if released {
@@ -978,6 +1012,7 @@ impl PerformView {
                 );
             }
         }
+        self.editors(ui, io, &live, now);
         if let (Some(m), Some(p)) = (&self.moving, pointer) {
             self.paint_ghosts(&painter, m, p);
         }
@@ -1130,6 +1165,7 @@ impl PerformView {
     fn menu_target(&self, hit: PanelHit, p: Option<Pos2>) -> MenuTarget {
         match hit {
             PanelHit::Body(i)
+            | PanelHit::Editor(i)
             | PanelHit::Card(i)
             | PanelHit::Shrink(i)
             | PanelHit::Grow(i)
@@ -1726,6 +1762,11 @@ impl PerformView {
             {
                 return PanelHit::Body(i);
             }
+            if let Some((_, e)) = c.editor
+                && e.contains(p)
+            {
+                return PanelHit::Editor(i);
+            }
             return PanelHit::Card(i);
         }
         for (i, l) in self.labels.iter().enumerate() {
@@ -1854,6 +1895,11 @@ impl PerformView {
                         n.and_then(|n| n.body)
                             .map(|(b, _)| (b, fit_body(b, content, scale)))
                     };
+                    let editor = (group.is_none() && body.is_none() && !compact)
+                        .then(|| graph.node(it.node))
+                        .flatten()
+                        .and_then(|n| crate::editors::editor_for(&n.kind, &n.config))
+                        .map(|e| (e, content));
                     let buttons = (!self.fullscreen && !compact).then(|| header_buttons(header));
                     cells.push(Cell {
                         node: it.node,
@@ -1867,6 +1913,7 @@ impl PerformView {
                         compact,
                         accent,
                         group,
+                        editor,
                     });
                 }
             }
@@ -2004,6 +2051,12 @@ pub fn natural_span(registry: &Registry, node: &ac_core::NodeInstance) -> [u32; 
         Some(Body::Tuner) => [2, 1],
         Some(Body::Slider | Body::Meter | Body::Clip | Body::Record | Body::AudioOut) => [2, 1],
         Some(Body::Fader) => [1, 2],
+        None if crate::editors::editor_for(&node.kind, &node.config).is_some() => {
+            match node.kind.as_str() {
+                "pattern" | "midi_pattern" => [4, 2],
+                _ => [3, 2],
+            }
+        }
         Some(Body::Pads) => {
             let (rows, cols) = ac_nodes::controls::pads::shape(&node.config);
             [

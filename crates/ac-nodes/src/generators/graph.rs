@@ -118,9 +118,14 @@ impl Graph {
     }
 }
 
+/// Telemetry, for the editor's playhead: where on the curve it is (0 to 1)
+/// and whether it plays (1 or 0).
+pub const TELEMETRY_POSITION: usize = 0;
+pub const TELEMETRY_PLAYING: usize = 1;
+
 impl Node for Graph {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(2)
     }
 
     fn describe(config: &Config) -> Signature {
@@ -275,6 +280,9 @@ impl Node for Graph {
         }
         io.outputs.set_float(POSITION, self.position() as f32);
         io.outputs.set_bool(PLAYING, self.playing);
+        io.telemetry.set(TELEMETRY_POSITION, self.position() as f32);
+        io.telemetry
+            .set(TELEMETRY_PLAYING, if self.playing { 1.0 } else { 0.0 });
     }
 
     fn reset(&mut self) {

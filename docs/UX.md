@@ -272,7 +272,16 @@ Each of these is one undo step; moving cards never interrupts the sound.
 A resizable panel (`N` toggles) with tabs:
 
 - **Node**: everything about the selected node: full parameter list, docs
-  (with its "Try this" tip highlighted), bindings, timing, latency.
+  (with its "Try this" tip highlighted), bindings, timing, latency. A
+  node with a drawn editor (a Pattern's step grid, a MIDI Pattern's piano
+  roll, a Step Sequencer's steps, a Graph's or Envelope's curve, a Band
+  Split's bands, a Zones map) shows it here, live: the step or beat
+  playing is marked as it plays. **Open in a window** gives it a window of
+  its own (as many windows as you like, one per node, each kept until
+  closed), and **Dock under the canvas** puts it in a resizable panel
+  under the canvas, one at a time, with buttons to send it back to a
+  window or close it (D217). An editor opened inside a group shows while
+  that graph does.
 - **Library**: nodes by category and user/shared blocks; drag to the canvas.
   Search here is the same engine as the palette. Every block that makes
   sound has a play button at the right of its row: it plays the block's
@@ -416,7 +425,10 @@ pedalboard without the app providing one.
   pinned there, `P` unpins them. Widgets are the controls (Button, Toggle,
   Slider, Knob, Fader, Pad, Pads, XY Pad, Keyboard, Number, Dropdown), the
   displays (Meter, Light, Scope, Analyzer, Readout), Clip, Record, and Audio
-  Out, and **group and block instances**: a pinned instance is one card with
+  Out, the **drawn editors** (Pattern, MIDI Pattern, Step Sequencer,
+  Graph: the card is the editor, live and editable, with the step or beat
+  playing marked; a Waveform card drags its handles), and **group and
+  block instances**: a pinned instance is one card with
   a widget for each input (a fader for a level in dB, with the meter of its
   audio output beside it; a knob, a toggle, a dropdown, or a fire button by
   type and unit) and a meter, light, or readout for each output, so a Track

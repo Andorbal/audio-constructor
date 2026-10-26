@@ -164,6 +164,8 @@ pub struct EditorApp {
     pub side: SidePanel,
     /// The performance panels' view (UX.md "Panels").
     pub perform: PerformView,
+    /// Node editors in windows and docked under the canvas.
+    pub editor_windows: crate::editor_windows::EditorWindows,
     pub recent: Recent,
     /// Shipped, saved, and imported blocks.
     pub library: Library,
@@ -438,6 +440,7 @@ impl EditorApp {
             assets,
             transport: TransportState::default(),
             ruler: crate::ruler::Ruler::default(),
+            editor_windows: Default::default(),
             status,
             confirm: None,
             prompt: None,
@@ -1095,6 +1098,16 @@ impl EditorApp {
             self.performance_frame(ui, &ctx, now);
         } else {
             self.chrome(ui, &ctx, now);
+            let tele = self.engine.handle.telemetry();
+            let live = crate::canvas::live::Live::new(&tele, &self.doc);
+            self.editor_windows
+                .dock_panel(ui, &mut self.doc, &self.registry, &live, now);
+        }
+        {
+            let tele = self.engine.handle.telemetry();
+            let live = crate::canvas::live::Live::new(&tele, &self.doc);
+            self.editor_windows
+                .windows(&ctx, &mut self.doc, &self.registry, &live, now);
         }
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme::canvas_bg()))
@@ -2208,6 +2221,8 @@ impl EditorApp {
                 self.update_all_blocks(now);
             }
             PanelRequest::Learn(target) => self.start_learn(target),
+            PanelRequest::EditorWindow(node) => self.editor_windows.toggle(&self.doc, node),
+            PanelRequest::DockEditor(node) => self.editor_windows.dock(&self.doc, node),
             PanelRequest::Help(kind) => self.side.show_help(Some(&kind)),
             PanelRequest::OpenExample(path) => self.request(AfterConfirm::OpenExample(path), now),
             PanelRequest::Preview(key) => self.toggle_preview(key, now),

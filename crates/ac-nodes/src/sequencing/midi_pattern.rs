@@ -131,6 +131,11 @@ const END: usize = 3;
 pub const MAX_NOTES: usize = 4096;
 pub const MAX_BANKS: usize = 16;
 pub const SWING_GRIDS: [&str; 2] = ["sixteenths", "eighths"];
+/// Telemetry, for the piano roll's playhead: beats into the clip, the bank
+/// playing, and whether it plays (1 or 0).
+pub const TELEMETRY_POSITION: usize = 0;
+pub const TELEMETRY_BANK: usize = 1;
+pub const TELEMETRY_PLAYING: usize = 2;
 const MIN_LENGTH: f64 = 0.25;
 const MAX_LENGTH: f64 = 1024.0;
 /// Fastest `rate`, beyond the input's soft range.
@@ -448,7 +453,7 @@ impl MidiPattern {
 
 impl Node for MidiPattern {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(3)
     }
 
     fn describe(_: &Config) -> Signature {
@@ -649,6 +654,10 @@ impl Node for MidiPattern {
         }
         io.outputs.set_float(POSITION, self.position as f32);
         io.outputs.set_bool(PLAYING, self.playing);
+        io.telemetry.set(TELEMETRY_POSITION, self.position as f32);
+        io.telemetry.set(TELEMETRY_BANK, self.bank as f32);
+        io.telemetry
+            .set(TELEMETRY_PLAYING, if self.playing { 1.0 } else { 0.0 });
         let mut end = io.outputs.trigger(END);
         for &at in &self.ends {
             end.push(at);

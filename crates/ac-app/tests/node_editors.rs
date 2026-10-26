@@ -13,6 +13,7 @@ const H: f32 = 160.0;
 struct State {
     editor: Editor,
     config: Value,
+    live: editors::LiveView,
     /// Where the editor's area was drawn.
     rect: Rect,
     edits: usize,
@@ -23,6 +24,7 @@ fn harness(editor: Editor, config: Value) -> Harness<'static, State> {
     let state = State {
         editor,
         config,
+        live: editors::LiveView::default(),
         rect: Rect::NOTHING,
         edits: 0,
         done: 0,
@@ -33,7 +35,7 @@ fn harness(editor: Editor, config: Value) -> Harness<'static, State> {
         .build_ui_state(
             |ui, s: &mut State| {
                 let before = ui.cursor().min;
-                let edit = editors::show(ui, s.editor, &s.config, "test", W, H);
+                let edit = editors::show(ui, s.editor, &s.config, &s.live, "test", W, H);
                 // The area is the last thing the editor allocated.
                 let after = ui.min_rect();
                 s.rect = Rect::from_min_size(pos2(before.x, after.max.y - H), vec2(W, H));

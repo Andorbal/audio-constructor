@@ -105,6 +105,11 @@ Phase 4: the tools the gap studies found missing.
   another. Dropping a trigger or MIDI wire on an input that's already
   wired offers to merge the two wires through a new Merge, or to replace
   the old one.
+- **Editors everywhere.** Pin a Pattern, MIDI Pattern, Step Sequencer, or
+  Graph to a panel and its card is its editor: paint steps or draw notes
+  there while it plays. Every editor marks the step or beat playing.
+  Open as many editor windows as you like from the Node tab, and dock one
+  under the canvas.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs

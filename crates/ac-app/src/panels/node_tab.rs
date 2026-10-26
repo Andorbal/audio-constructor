@@ -1593,8 +1593,9 @@ fn param_widget(
     }
 }
 
-/// The node's own editor (curve, grid, piano roll, bands, steps), and a
-/// larger copy in a window.
+/// The node's own editor (curve, grid, piano roll, bands, steps), live,
+/// with buttons to open it in a window of its own or dock it under the
+/// canvas.
 fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
     let Some(editor) = editors::editor_for(&node.kind, &node.config) else {
         return;
@@ -1608,59 +1609,45 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
         );
     }
     let width = ui.available_width().max(120.0);
+    let tele = io.engine.handle.telemetry();
+    let live = crate::canvas::live::Live::new(&tele, io.doc);
+    let view = editors::live_view(&node.kind, |k| live.node_value(id, k));
     let edit = editors::show(
         ui,
         editor,
         &node.config,
+        &view,
         ("panel", id),
         width,
         editor.height(width),
     );
     apply_editor(io, id, editor, edit);
-    let open_id = egui::Id::unique(("node-editor-window", id));
-    let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
     ui.horizontal(|ui| {
         if icons::spoken(ui.button(format!(
             "{}  {}",
             icons::ARROW_SQUARE_OUT,
             tr("node-tab-larger-editor")
         )))
+        .on_hover_text(tr("node-tab-larger-editor-tip"))
         .clicked()
         {
-            open = !open;
+            io.requests.push(PanelRequest::EditorWindow(id));
         }
-        ui.add(
-            egui::Label::new(
-                RichText::new(editor.hint())
-                    .small()
-                    .color(theme::text_faint()),
-            )
-            .wrap(),
-        );
+        if icons::spoken(ui.button(format!("{}  {}", icons::TRAY_ARROW_DOWN, tr("editor-dock"))))
+            .on_hover_text(tr("editor-dock-tip"))
+            .clicked()
+        {
+            io.requests.push(PanelRequest::DockEditor(id));
+        }
     });
-    if open {
-        let title = node
-            .ui
-            .label
-            .clone()
-            .or_else(|| io.registry.get(&node.kind).map(|e| e.meta.name.to_string()))
-            .unwrap_or_else(|| node.kind.clone());
-        let mut edit = None;
-        egui::Window::new(title)
-            .id(egui::Id::unique(("node-editor-window-frame", id)))
-            .open(&mut open)
-            .default_size(egui::vec2(720.0, 420.0))
-            .resizable(true)
-            .collapsible(false)
-            .show(ui.ctx(), |ui| {
-                let size = ui.available_size();
-                let w = size.x.max(200.0);
-                let h = (size.y - 30.0).max(editor.height(w).min(200.0));
-                edit = editors::show(ui, editor, &node.config, ("window", id), w, h);
-            });
-        apply_editor(io, id, editor, edit);
-    }
-    ui.data_mut(|d| d.insert_temp(open_id, open));
+    ui.add(
+        egui::Label::new(
+            RichText::new(editor.hint())
+                .small()
+                .color(theme::text_faint()),
+        )
+        .wrap(),
+    );
 }
 
 /// The waveform of a Clip's, Sampler's, or Slicer's sound, with a

@@ -89,6 +89,53 @@ pub fn editor_for(kind: &str, config: &Config) -> Option<Editor> {
     })
 }
 
+/// What an editor shows of its node playing, from the node's telemetry:
+/// a playhead on the grid, roll, steps, or curve.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LiveView {
+    /// The step playing (Pattern, Step Sequencer).
+    pub step: Option<usize>,
+    /// Where it is: beats into a MIDI Pattern, 0 to 1 along a Graph.
+    pub position: Option<f64>,
+    /// The bank playing (Pattern, MIDI Pattern).
+    pub bank: Option<usize>,
+}
+
+/// The [`LiveView`] of a node of `kind` whose telemetry slot `k` reads
+/// `value(k)` (nothing while the engine hasn't sent any).
+pub fn live_view(kind: &str, value: impl Fn(usize) -> Option<f32>) -> LiveView {
+    use ac_nodes::generators::graph as g;
+    use ac_nodes::modulation::step_sequencer as ss;
+    use ac_nodes::sequencing::{midi_pattern as mp, pattern as pt};
+    let index = |k: usize| value(k).filter(|v| *v >= 0.0).map(|v| v.round() as usize);
+    let playing = |k: usize| value(k).is_some_and(|v| v > 0.5);
+    match kind {
+        "pattern" => LiveView {
+            step: index(pt::TELEMETRY_STEP),
+            bank: index(pt::TELEMETRY_BANK),
+            position: None,
+        },
+        "midi_pattern" => LiveView {
+            position: playing(mp::TELEMETRY_PLAYING)
+                .then(|| value(mp::TELEMETRY_POSITION).map(f64::from))
+                .flatten(),
+            bank: index(mp::TELEMETRY_BANK),
+            step: None,
+        },
+        "step_sequencer" => LiveView {
+            step: index(ss::TELEMETRY_STEP),
+            ..LiveView::default()
+        },
+        "graph" => LiveView {
+            position: playing(g::TELEMETRY_PLAYING)
+                .then(|| value(g::TELEMETRY_POSITION).map(f64::from))
+                .flatten(),
+            ..LiveView::default()
+        },
+        _ => LiveView::default(),
+    }
+}
+
 /// A change an editor made.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Edit {
@@ -97,25 +144,35 @@ pub struct Edit {
     pub done: bool,
 }
 
-/// Show `editor` for `config` in a `width` × `height` area. `salt` keeps
-/// the editor's drag state apart from other instances.
+/// Show `editor` for `config` in a `width` × `height` area, with the
+/// node's playhead from `live`. `salt` keeps the editor's drag state apart
+/// from other instances.
 pub fn show(
     ui: &mut egui::Ui,
     editor: Editor,
     config: &Config,
+    live: &LiveView,
     salt: impl std::hash::Hash + std::fmt::Debug,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
     let id = egui::Id::unique(("node-editor", salt));
     match editor {
-        Editor::Curve(space) => curve::ui(ui, id, space, config, width, height),
-        Editor::Pattern => pattern::ui(ui, id, config, width, height),
-        Editor::PianoRoll => piano_roll::ui(ui, id, config, width, height),
+        Editor::Curve(space) => curve::ui(ui, id, space, config, live, width, height),
+        Editor::Pattern => pattern::ui(ui, id, config, live, width, height),
+        Editor::PianoRoll => piano_roll::ui(ui, id, config, live, width, height),
         Editor::Bands => bands::ui(ui, id, config, width, height),
-        Editor::Steps => steps::ui(ui, id, config, width, height),
+        Editor::Steps => steps::ui(ui, id, config, live, width, height),
         Editor::Zones => zones::ui(ui, id, config, width, height),
     }
+}
+
+/// The playhead's line, drawn over an editor.
+fn playhead(painter: &egui::Painter, x: f32, top: f32, bottom: f32) {
+    painter.line_segment(
+        [egui::pos2(x, top), egui::pos2(x, bottom)],
+        Stroke::new(1.5, theme::play()),
+    );
 }
 
 /// Allocate the editor's area and paint its well.
@@ -181,6 +238,29 @@ mod tests {
         assert_eq!(editor_for("step_sequencer", &c), Some(Editor::Steps));
         assert_eq!(editor_for("zones", &c), Some(Editor::Zones));
         assert_eq!(editor_for("oscillator", &c), None);
+    }
+
+    #[test]
+    fn live_views_read_each_kinds_telemetry() {
+        let t = |v: &'static [f32]| move |k: usize| v.get(k).copied();
+        let p = live_view("pattern", t(&[3.0, 1.0, 1.0]));
+        assert_eq!((p.step, p.bank), (Some(3), Some(1)));
+        assert_eq!(live_view("pattern", t(&[-1.0, 0.0, 0.0])).step, None);
+        let m = live_view("midi_pattern", t(&[2.5, 0.0, 1.0]));
+        assert_eq!(m.position, Some(2.5));
+        assert_eq!(
+            live_view("midi_pattern", t(&[2.5, 0.0, 0.0])).position,
+            None,
+            "stopped"
+        );
+        assert_eq!(live_view("step_sequencer", t(&[5.0])).step, Some(5));
+        assert_eq!(live_view("graph", t(&[0.25, 1.0])).position, Some(0.25));
+        assert_eq!(live_view("oscillator", t(&[1.0])), LiveView::default());
+        assert_eq!(
+            live_view("pattern", |_| None),
+            LiveView::default(),
+            "no engine"
+        );
     }
 
     #[test]

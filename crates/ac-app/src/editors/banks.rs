@@ -73,7 +73,14 @@ impl Tabs {
         }
     }
 
-    pub fn paint(&self, painter: &Painter, shown: usize, hover: Option<Pos2>) {
+    /// Paint the tabs: `shown` highlighted, a dot on the one `playing`.
+    pub fn paint(
+        &self,
+        painter: &Painter,
+        shown: usize,
+        playing: Option<usize>,
+        hover: Option<Pos2>,
+    ) {
         let color = theme::category_color(ac_core::Category::Sequencing);
         let small = egui::FontId::proportional(theme::FONT_SMALL);
         let last = if self.count < self.max {
@@ -99,6 +106,9 @@ impl Tabs {
                     Stroke::new(1.0, color),
                     StrokeKind::Inside,
                 );
+            }
+            if playing == Some(k) && self.count > 1 {
+                painter.circle_filled(r.right_top() + vec2(-4.0, 4.0), 2.5, theme::play());
             }
             let label = if k < self.count {
                 k.to_string()

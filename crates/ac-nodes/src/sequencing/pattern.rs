@@ -111,6 +111,11 @@ const MIN_INTERVAL: f64 = 1.0 / 64.0;
 pub const MAX_STEPS: u64 = 64;
 pub const MAX_ROWS: usize = 16;
 pub const MAX_BANKS: usize = 16;
+/// Telemetry, for the grid's playhead: the step playing (−1 before the
+/// first clock), the bank playing, and whether it plays (1 or 0).
+pub const TELEMETRY_STEP: usize = 0;
+pub const TELEMETRY_BANK: usize = 1;
+pub const TELEMETRY_PLAYING: usize = 2;
 /// A full-level step.
 pub const FULL: u8 = 10;
 
@@ -311,7 +316,7 @@ impl Pattern {
 
 impl Node for Pattern {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(3)
     }
 
     fn describe(config: &Config) -> Signature {
@@ -499,6 +504,14 @@ impl Node for Pattern {
             fill(&mut gate, from, frames, high);
         }
         let base = 3 * self.rows;
+        let step = match (self.playing, self.current) {
+            (true, Some(s)) => s as f32,
+            _ => -1.0,
+        };
+        io.telemetry.set(TELEMETRY_STEP, step);
+        io.telemetry.set(TELEMETRY_BANK, self.bank as f32);
+        io.telemetry
+            .set(TELEMETRY_PLAYING, if self.playing { 1.0 } else { 0.0 });
         io.outputs.set_int(base, self.shown as i32);
         io.outputs.set_bool(base + 1, self.playing);
         let mut end = io.outputs.trigger(base + 2);
@@ -826,6 +839,21 @@ mod tests {
         h.set("bank", 7);
         h.triggers("clock", &[0, 10]);
         assert_eq!(h.run(16).triggers("trigger_0"), &[0, 10]);
+    }
+
+    #[test]
+    fn telemetry_shows_the_step_and_bank_playing() {
+        let mut h = harness(
+            json!({ "steps": 4, "rows": 1, "cells": [["x..."], ["x.x."]] }),
+            16,
+        );
+        h.run(16);
+        assert_eq!(h.telemetry(TELEMETRY_STEP), -1.0, "before the first clock");
+        h.set("bank", 1).triggers("clock", &[16, 26]);
+        h.run(16);
+        assert_eq!(h.telemetry(TELEMETRY_STEP), 1.0);
+        assert_eq!(h.telemetry(TELEMETRY_BANK), 1.0);
+        assert_eq!(h.telemetry(TELEMETRY_PLAYING), 1.0);
     }
 
     #[test]

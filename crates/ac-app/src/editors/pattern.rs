@@ -15,7 +15,7 @@ use ac_nodes::sequencing::pattern::{FULL, MAX_BANKS, cells_value, grids};
 use egui::{Align2, Pos2, Rect, Stroke, StrokeKind, pos2, vec2};
 
 use super::banks::{self, Tabs};
-use super::{Edit, area, load, store};
+use super::{Edit, LiveView, area, load, store};
 use crate::theme;
 
 /// Banks, each rows of step levels.
@@ -73,6 +73,7 @@ pub(super) fn ui(
     ui: &mut egui::Ui,
     id: egui::Id,
     config: &Config,
+    live: &LiveView,
     width: f32,
     height: f32,
 ) -> Option<Edit> {
@@ -189,7 +190,7 @@ pub(super) fn ui(
     let on_color = theme::category_color(ac_core::Category::Sequencing);
     let small = egui::FontId::proportional(theme::FONT_SMALL);
     let hover = resp.hover_pos();
-    tabs.paint(&painter, bank, hover);
+    tabs.paint(&painter, bank, live.bank, hover);
     let hover_cell = hover.and_then(cell_at);
     for (r, row) in grids[bank].iter().enumerate() {
         painter.text(
@@ -234,6 +235,21 @@ pub(super) fn ui(
                 }
             }
         }
+    }
+    // The step playing, in the bank playing.
+    if let Some(s) = live.step.filter(|&s| s < steps)
+        && live.bank.is_none_or(|b| b == bank)
+    {
+        let column = Rect::from_min_size(
+            pos2(cells.left() + s as f32 * cw, cells.top()),
+            vec2(cw, ch * rows as f32),
+        );
+        painter.rect_stroke(
+            column,
+            theme::radius(2.0),
+            Stroke::new(1.5, theme::play()),
+            StrokeKind::Inside,
+        );
     }
     edit
 }
