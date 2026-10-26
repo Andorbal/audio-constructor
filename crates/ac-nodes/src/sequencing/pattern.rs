@@ -307,6 +307,22 @@ impl Node for Pattern {
         self.gates = 0;
         self.shown = 0;
     }
+
+    /// An edited grid keeps playing from the step it was on; the next
+    /// clock plays the next step of the new grid. Gates of rows that are
+    /// gone close.
+    fn take_over(&mut self, previous: &dyn Node) -> bool {
+        let Some(old) = (previous as &dyn std::any::Any).downcast_ref::<Pattern>() else {
+            return false;
+        };
+        let last = self.steps - 1;
+        self.playing = old.playing;
+        self.current = old.current.map(|c| c.min(last));
+        self.forward = old.forward;
+        self.gates = old.gates & ((1u32 << self.rows) - 1) as u16;
+        self.shown = old.shown.min(last);
+        true
+    }
 }
 
 #[cfg(test)]
@@ -489,6 +505,27 @@ mod tests {
         assert!(one.iter().all(|(t, _)| !t.is_empty()));
         assert_eq!(one, render(64));
         assert_eq!(one, render(512));
+    }
+
+    #[test]
+    fn an_edited_grid_plays_on_from_the_same_step() {
+        // Clocks every 16 samples; the grid is edited after the third step.
+        let mut h = harness(json!({ "steps": 4, "rows": 1, "cells": ["x..."] }), 48);
+        h.triggers("clock", &(0..12).map(|k| k * 16).collect::<Vec<_>>());
+        let out = h.run(48);
+        assert_eq!(out.triggers("trigger_0"), &[0]);
+        assert_eq!(out.int("step")[47], 2);
+        // Without the edit the next hit is step 0 at 64; the new grid has
+        // step 3 on, so it fires at 48 and the pattern keeps its place.
+        h.reconfigure::<Pattern>(json!({ "steps": 4, "rows": 1, "cells": ["x..x"] }));
+        let out = h.run(48);
+        assert_eq!(out.triggers("trigger_0"), &[48, 64]);
+        assert_eq!(out.float("playing")[0], 1.0);
+        // A grid now no longer than the step it was on wraps at the next
+        // clock, still playing.
+        h.reconfigure::<Pattern>(json!({ "steps": 1, "rows": 1, "cells": ["x"] }));
+        let out = h.run(48);
+        assert_eq!(out.triggers("trigger_0"), &[96, 112, 128]);
     }
 
     #[test]

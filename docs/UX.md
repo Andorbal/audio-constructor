@@ -131,6 +131,11 @@ a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
   to type.
 - Wired inputs show the live value in muted text; hover a socket to see it
   large, with rate (const/block/sample) and channel count.
+- A Plugin card shows its audio and MIDI sockets, its first 8 knobs, and
+  every wired knob; a last row counts the rest ("+57 more knobs"), which
+  the Node tab lists in full. **Show All Knobs** in the card's menu (or
+  the checkbox above the Node tab's inputs) puts them all on the card
+  (D198).
 - Right-click a socket: disconnect, **Bind…** to a MIDI controller or note,
   key, gamepad control, or OSC address (learn; see Bindings), remove its
   bindings, expose as a group input, add a Reroute.

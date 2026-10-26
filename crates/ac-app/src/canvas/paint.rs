@@ -665,6 +665,20 @@ impl Canvas {
                 self.paint_bound_badge(painter, p, s.wired, &b.sources, alpha);
             }
         }
+        if let Some((count, row)) = n.more
+            && !n.collapsed
+            && text_ok
+        {
+            let row = t.rect_to_screen(row);
+            painter.text(
+                pos2(row.min.x + theme::NODE_PAD_X * z, row.center().y),
+                Align2::LEFT_CENTER,
+                tr_args("canvas-more-knobs", &[("count", count.into())]),
+                theme::canvas_font(theme::FONT_NODE_LABEL, z, false),
+                theme::fade(theme::text_faint(), alpha),
+            );
+            self.tips.push((row, tr("canvas-more-knobs-tip")));
+        }
         painter.extend(sockets);
     }
 

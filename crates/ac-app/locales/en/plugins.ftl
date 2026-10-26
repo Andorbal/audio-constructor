@@ -72,3 +72,7 @@ status-plugins-found-some-failed =
        *[other] Found { $count } plugins ({ $failed } couldn't be opened: see the Devices tab)
     }
 status-plugin-window-failed = Couldn't open the plugin's window: { $error }
+
+# A checkbox in a plugin's Node tab section, for plugins with many knobs.
+plugin-show-all-knobs = Show every knob on the card
+plugin-show-all-knobs-tip = Off, the card shows the first { $count } knobs and the wired ones.

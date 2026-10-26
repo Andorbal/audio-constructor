@@ -439,6 +439,30 @@ impl Harness {
         self
     }
 
+    /// Rebuild the node with `config` before the next block, as the engine
+    /// does when a node's config is edited while it runs: the new node
+    /// takes over from the old one if it can ([`Node::take_over`]), and
+    /// otherwise starts as a new node does (*On load* fires). Feeds stay.
+    pub fn reconfigure<N: Node>(&mut self, config: Config) -> &mut Self {
+        let ctx = PrepareCtx {
+            sample_rate: self.sample_rate,
+            max_block: self.block,
+            seed: 0x5eed,
+            node_key: "test",
+            name: self.meta.name,
+            resources: &NoResources,
+        };
+        let mut node: Box<dyn Node> = Box::new(N::new(&config, &ctx));
+        if !node.take_over(&*self.node) {
+            self.pending_load = true;
+        }
+        self.node = node;
+        self.sig = N::describe(&config);
+        self.feeds.resize(self.sig.inputs.len(), Feed::Unwired);
+        self.fire.resize(self.sig.inputs.len(), Vec::new());
+        self
+    }
+
     /// Telemetry value `k` as last published.
     pub fn telemetry(&self, k: usize) -> f32 {
         self.telemetry

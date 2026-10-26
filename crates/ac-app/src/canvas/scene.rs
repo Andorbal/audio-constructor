@@ -168,6 +168,9 @@ pub struct NodeView {
     pub inputs: Vec<SocketView>,
     pub outputs: Vec<SocketView>,
     pub body: Option<(Body, Rect)>,
+    /// A Plugin's knobs left off the card, and the last row, which counts
+    /// them.
+    pub more: Option<(usize, Rect)>,
 }
 
 impl NodeView {
@@ -286,6 +289,7 @@ fn build_with(
                     size: None,
                     collapsed: false,
                     hide_unwired: false,
+                    knob_limit: None,
                     muted: false,
                     selected: doc.selection.contains(&id),
                     body: None,
@@ -361,6 +365,10 @@ fn build_with(
                 collapsed: n.ui.collapsed && !expanded,
                 hide_unwired: !expanded
                     && n.extra.get(HIDE_UNWIRED).and_then(|v| v.as_bool()) == Some(true),
+                knob_limit: (n.kind == ac_core::PLUGIN_KIND
+                    && !expanded
+                    && !edit::shows_all_knobs(n))
+                .then_some(edit::PLUGIN_KNOBS_SHOWN),
                 muted: n.muted,
                 selected: doc.selection.contains(&n.id),
                 body,
@@ -428,6 +436,8 @@ struct LayoutIn {
     size: Option<[f32; 2]>,
     collapsed: bool,
     hide_unwired: bool,
+    /// Show only this many of a Plugin's knobs, and the wired ones.
+    knob_limit: Option<usize>,
     muted: bool,
     selected: bool,
     body: Option<Body>,
@@ -482,6 +492,21 @@ fn layout(
         inputs.retain(|s| s.wired);
         outputs.retain(|s| s.wired);
     }
+    // A Plugin's knobs are its `Float` inputs, after its audio and MIDI; a
+    // synth can have a hundred (DECISIONS D198).
+    let mut hidden = 0;
+    if let Some(limit) = l.knob_limit {
+        let mut knob = 0;
+        inputs.retain(|s| {
+            if s.ty != SignalType::Float {
+                return true;
+            }
+            knob += 1;
+            let keep = knob <= limit || s.wired;
+            hidden += usize::from(!keep);
+            keep
+        });
+    }
 
     let mut view = NodeView {
         id,
@@ -498,6 +523,7 @@ fn layout(
         inputs,
         outputs,
         body: None,
+        more: None,
     };
     let x = l.pos.x;
 
@@ -586,6 +612,11 @@ fn layout(
         }
         y += theme::ROW_HEIGHT;
     }
+    if hidden > 0 {
+        let row = Rect::from_min_size(pos2(x, y), vec2(w, theme::ROW_HEIGHT));
+        view.more = Some((hidden, row));
+        y += theme::ROW_HEIGHT;
+    }
     y += theme::NODE_PAD_BOTTOM;
     let min_h = theme::HEADER_HEIGHT + 10.0;
     view.rect = Rect::from_min_max(l.pos, pos2(x + w, y.max(l.pos.y + min_h)));
@@ -636,6 +667,82 @@ mod tests {
         assert!(matches!(missing.class, Class::Missing(_)));
         assert!(missing.socket("flux", false).is_some());
         assert_eq!(scene.wires.len(), 1);
+    }
+
+    #[test]
+    fn a_plugin_card_shows_a_few_knobs_and_the_wired_ones() {
+        // A synth with 20 knobs, one of them (k15) wired (#20).
+        let registry = ac_nodes::registry();
+        let desc = ac_core::PluginDesc {
+            id: "org.example.big".into(),
+            name: "Big Synth".into(),
+            audio_out: vec![ac_core::PluginPort {
+                name: "Out".into(),
+                channels: 2,
+            }],
+            midi_in: true,
+            params: (0..20)
+                .map(|i| ac_core::PluginParam {
+                    id: i,
+                    name: format!("K{i}"),
+                    socket: format!("k{i}"),
+                    min: 0.0,
+                    max: 1.0,
+                    default: 0.5,
+                    stepped: false,
+                })
+                .collect(),
+            ..ac_core::PluginDesc::default()
+        };
+        let mut p = Project::default();
+        p.graph.nodes.push(
+            NodeInstance::new(NodeId(1), ac_core::PLUGIN_KIND)
+                .with_config(serde_json::json!({ "plugin": desc })),
+        );
+        p.graph
+            .nodes
+            .push(NodeInstance::new(NodeId(2), "lfo").at(-300.0, 0.0));
+        p.graph.connect(
+            Endpoint::new(NodeId(2), "out"),
+            Endpoint::new(NodeId(1), "k15"),
+        );
+        let mut doc = Document::new(p, None, PathBuf::from("."), 1);
+        let knobs = |n: &NodeView| {
+            n.inputs
+                .iter()
+                .filter(|s| s.name.starts_with('k'))
+                .map(|s| s.name.clone())
+                .collect::<Vec<_>>()
+        };
+        let scene = build(&doc, &registry, None);
+        let card = scene.node(NodeId(1)).unwrap();
+        assert!(card.socket("midi", true).is_some());
+        assert!(card.socket("out", false).is_some());
+        let mut shown: Vec<String> = (0..8).map(|i| format!("k{i}")).collect();
+        shown.push("k15".into());
+        assert_eq!(knobs(card), shown);
+        let (count, row) = card.more.unwrap();
+        assert_eq!(count, 11);
+        assert!(row.max.y <= card.rect.max.y);
+        assert_eq!(scene.wires.len(), 1, "the wired knob's wire is drawn");
+        let short = card.rect.height();
+        // Showing them all: every knob, and no count.
+        doc.edit(&registry, "all", |g, _| {
+            crate::edit::set_show_all_knobs(g.node_mut(NodeId(1)).unwrap(), true);
+        });
+        let scene = build(&doc, &registry, None);
+        let card = scene.node(NodeId(1)).unwrap();
+        assert_eq!(knobs(card).len(), 20);
+        assert!(card.more.is_none());
+        // Eleven knob rows back, the count's row gone.
+        let taller = card.rect.height() - short;
+        assert!((taller - 10.0 * theme::ROW_HEIGHT).abs() < 0.01, "{taller}");
+        // Panels always see every socket.
+        doc.edit(&registry, "fewer", |g, _| {
+            crate::edit::set_show_all_knobs(g.node_mut(NodeId(1)).unwrap(), false);
+        });
+        let all = build_expanded(&doc, &registry);
+        assert_eq!(knobs(all.node(NodeId(1)).unwrap()).len(), 20);
     }
 
     #[test]

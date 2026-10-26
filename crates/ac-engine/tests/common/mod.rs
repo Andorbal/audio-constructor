@@ -283,6 +283,46 @@ impl Node for TCounter {
 }
 
 node! {
+    kind: "t_follower",
+    name: "Follower",
+    category: Math,
+    keywords: [],
+    /// Counts processed blocks in config `step`s (default 1), and keeps
+    /// counting from where it was when its config changes. Try this: nothing.
+    pub struct TFollower { n: f32, step: f32 }
+}
+impl Node for TFollower {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new().output(SocketSpec::float("out", Unit::Generic, 0.0).rate(Rate::Block))
+    }
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        TFollower {
+            n: 0.0,
+            step: config.get_f64_or("step", 1.0) as f32,
+        }
+    }
+    fn process(&mut self, _: &ProcessCtx, io: &mut Io) {
+        self.n += self.step;
+        io.outputs.set_float(0, self.n);
+    }
+    fn reset(&mut self) {
+        self.n = 0.0;
+    }
+    fn take_over(&mut self, previous: &dyn Node) -> bool {
+        match (previous as &dyn std::any::Any).downcast_ref::<TFollower>() {
+            Some(old) => {
+                self.n = old.n;
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+node! {
     kind: "t_restored",
     name: "Restored",
     category: Utility,
@@ -400,6 +440,7 @@ pub fn registry() -> Registry {
         .register::<TQuad>()
         .register::<TFb>()
         .register::<TCounter>()
+        .register::<TFollower>()
         .register::<TStarts>()
         .register::<TRestored>()
         .register::<TMix>();

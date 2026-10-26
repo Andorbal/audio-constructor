@@ -382,6 +382,34 @@ fn state_carries_over_unless_config_changes() {
 }
 
 #[test]
+fn a_node_rebuilt_for_its_config_can_take_over() {
+    let p = P::new()
+        .node(1, "t_follower")
+        .node(2, "t_sum")
+        .node(3, "t_out")
+        .wire(1, "out", 2, "amount")
+        .wire(2, "out", 3, "in")
+        .build();
+    let (e, _) = engine(p.clone(), 32);
+    let mut host = NullHost::new(e, 0, 2);
+    host.handle().play();
+    host.run(32 * 5, 32);
+    // New config, same place and kind: a new node that counts on from 5
+    // (on the audio thread, inside the allocation guard).
+    let mut p2 = p.clone();
+    p2.graph.node_mut(NodeId(1)).unwrap().config = json!({ "step": 10 });
+    host.handle().edit(GraphEdit::Replace(Box::new(p2.clone())));
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 15.0);
+    // Another kind in its place starts over.
+    let mut p3 = p2.clone();
+    p3.graph.node_mut(NodeId(1)).unwrap().kind = "t_counter".into();
+    host.handle().edit(GraphEdit::Replace(Box::new(p3)));
+    let out = host.run(32, 32);
+    assert_eq!(out[0][0], 1.0);
+}
+
+#[test]
 fn state_keys_dont_rebuild_warnings_stay_and_rebuild_starts_over() {
     let p = P::new()
         .node(1, "t_restored")

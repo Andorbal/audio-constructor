@@ -194,3 +194,12 @@ a11y-to = to { $targets }
 a11y-not-connected = not connected
 hint-keyboard-wire = Wiring from { $node } { $socket }: Tab to a card, Alt+↓ to a socket, Enter connects · Esc cancels
 status-keyboard-wire-nothing = Nothing there takes that wire: pick a socket with Alt+↓ and ↑
+
+# The last row of a plugin's card when it has more knobs than the card shows.
+canvas-more-knobs = { $count ->
+    [one] +1 more knob
+   *[other] +{ $count } more knobs
+}
+canvas-more-knobs-tip = Every knob is in the Node tab. Wire one and it shows here; Show All Knobs in the node's menu puts them all on the card.
+canvas-all-knobs = Show All Knobs
+canvas-fewer-knobs = Show Fewer Knobs

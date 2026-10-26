@@ -11,6 +11,54 @@ Before 1.0, a minor version marks a milestone, new features, or a change to
 project files, the command line, or rendered output; a patch version marks
 fixes and smaller changes.
 
+## [0.14.2] - 2026-10-25
+
+Fixes for the six issues people reported after 0.14.0.
+
+### Fixed
+
+- **Renaming a group and its sockets in the Node tab works.** Typing into
+  the name of a group's input or output (with the group input or output
+  card selected inside the group), or into the group's own name, put the
+  old name back after every keystroke, so nothing could be renamed there.
+  The fields now keep what you type until you press Enter or click away
+  (#13).
+- **Editing a pattern while it plays keeps it playing, in time.** Switching
+  a cell of a Pattern (such as the one inside the Drum Machine block) while
+  the transport ran silenced it until you stopped and started again. Now
+  the pattern plays on from the step it was on with the new grid. The same
+  goes for editing a Step Sequencer's values, which no longer start over
+  from the first step, and a MIDI Pattern's piano roll, which no longer
+  goes quiet or leaves notes hanging (#14).
+- **MIDI wires into polyphonic blocks and Voices nodes stay.** Wiring a
+  Keyboard or any other MIDI source into the `midi` input of the
+  Karplus-Strong String block (or any block or group played as voices)
+  seemed to do nothing: the editor removed the wire as soon as it was made,
+  and any later edit removed such wires already in a project (#21).
+- **Plugins with many knobs get a card that fits.** A Plugin node put
+  every knob on its card, so a synth with dozens of parameters made a
+  card taller than the window. The card now shows the plugin's audio and
+  MIDI sockets, its first 8 knobs, and any knob you've wired, and counts
+  the rest in a last row; every knob is still in the Node tab.
+  **Show All Knobs** in the card's menu, or the checkbox above the Node
+  tab's inputs, puts them all on the card, to wire one that isn't shown
+  (#20).
+- **The plugin's window keeps drawing on macOS.** In a music program on
+  a Mac, the Audio Constructor plugin's window stopped updating (meters,
+  scopes, the playhead) unless the pointer was moving over it. It now
+  redraws on its own, as on Linux and Windows (#19).
+
+### Security
+
+- **Plugins load only from your plugin folders.** A project, pack, or
+  block records where each of its plugins was found. When the plugin
+  wasn't among the ones found on your computer, the editor and `audioc`
+  used to load whatever file sat at that recorded spot, so a project from
+  someone else could choose a library to run. Now plugins load only from
+  the standard plugin folders and the ones in `CLAP_PATH` and
+  `VST3_PATH`; a plugin anywhere else is reported missing, with where the
+  project last saw it (#22).
+
 ## [0.14.1] - 2026-10-22
 
 A measurement, not a feature: how far today's nodes get toward four
@@ -957,6 +1005,7 @@ person (see the M1.7 table in `docs/ROADMAP.md`).
   binaries for Linux (x86-64), macOS (Apple silicon), and Windows (x86-64).
   The binaries are unsigned for now.
 
+[0.14.2]: https://github.com/Andorbal/audio-constructor/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/Andorbal/audio-constructor/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/Andorbal/audio-constructor/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Andorbal/audio-constructor/compare/v0.12.0...v0.13.0

@@ -19,6 +19,14 @@ for each format:
 Folders listed in the `CLAP_PATH` and `VST3_PATH` environment variables
 (separated like `PATH`) are searched first.
 
+These folders are the only places a plugin is ever loaded from. A project
+remembers where each of its plugins was found, but only as a note: if the
+plugin isn't in one of these folders on your computer, the project can't
+make the editor or `audioc` load it from that spot (so a project someone
+sends you can't run a library of its choosing). A plugin you keep
+somewhere else, such as a portable install, runs once its folder is in
+`CLAP_PATH` or `VST3_PATH`.
+
 The first time takes a moment: each plugin is opened once to read its
 inputs, outputs, and knobs. That happens in a separate process, so a
 plugin that crashes while it's looked at can't close the editor; it's
@@ -51,6 +59,13 @@ the plugin's sockets:
   that answers the mod wheel, pitch bend, or other MIDI controllers gets
   them from `midi` as the plugin asks.
 
+A synth can have a hundred knobs, so the card shows only its first 8
+and any you've wired, and its last row says how many more there are.
+Every knob is in the Node tab, where you can set it. To wire one that
+isn't on the card, right-click the card ▸ **Show All Knobs** (or tick
+**Show every knob on the card** in the Node tab), wire it, and switch it
+back: a wired knob stays on the card.
+
 > **Try this:** add a synth plugin, wire a **Keyboard** node into its
 > `midi` and its `out` into **Audio Out**, and play. Then wire an
 > **LFO** into one of its knobs and watch the knob follow.
@@ -75,8 +90,9 @@ the node.
 
 Open a project on a computer without one of its plugins and the project
 still opens: the Plugin node keeps its sockets and wires, plays silence,
-and the Problems tab (and the Node tab) says which plugin is missing.
-Install it, press **Rescan** in the Devices tab, and it plays again.
+and the Problems tab (and the Node tab) says which plugin is missing and
+where the project last saw it. Install it into one of the folders above,
+press **Rescan** in the Devices tab, and it plays again.
 
 ## Latency
 

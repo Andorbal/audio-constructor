@@ -17,6 +17,7 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 use egui_baseview::baseview::dpi::LogicalSize;
 use egui_baseview::baseview::{self as bv, HandlerError};
@@ -411,6 +412,24 @@ fn failed(ui: &mut egui::Ui, why: &str) {
     });
 }
 
+/// How long the window waits before the frame egui asks for `delay` from
+/// now.
+///
+/// On macOS baseview 0.4 wakes a window with no delay right away, on the
+/// main thread, so a wake-up asked for during a frame (egui asks for the
+/// next frame that way whenever something moves: every frame while the
+/// transport plays, and once more after each request) is undone when that
+/// frame ends, and the window redraws only while the pointer moves over it
+/// (#19). Any delay at all queues the wake-up on the main thread, after the
+/// frame. The other platforms queue it already.
+fn wake_delay(delay: Duration) -> Duration {
+    if cfg!(target_os = "macos") {
+        delay.max(Duration::from_millis(1))
+    } else {
+        delay
+    }
+}
+
 /// Key presses egui-baseview 0.9 drops, recovered from the text they typed.
 ///
 /// It turns only unshifted letters, digits, and a few named keys into key
@@ -457,8 +476,13 @@ fn recover_keys(events: &mut Vec<egui::Event>, modifiers: &mut egui::Modifiers) 
 }
 
 impl egui_baseview::App for WindowApp {
-    fn build(&mut self, _ctx: egui::Context, _frame: &mut Frame) -> Result<(), HandlerError> {
-        // The editor styles a new context on its first frame.
+    fn build(&mut self, ctx: egui::Context, frame: &mut Frame) -> Result<(), HandlerError> {
+        // The editor styles a new context on its first frame. Repaints are
+        // asked for as egui-baseview does, through `wake_delay`.
+        let waker = frame.baseview_window().waker();
+        ctx.set_request_repaint_callback(move |info| {
+            waker.request_redraw_after(wake_delay(info.delay));
+        });
         Ok(())
     }
 
@@ -485,6 +509,18 @@ mod tests {
     use crate::AppOptions;
     use crate::audio::{AudioMode, HostAudio};
     use raw_window_handle::{WaylandWindowHandle, WebWindowHandle};
+
+    #[test]
+    fn wake_ups_come_after_the_frame_that_asked() {
+        let soon = Duration::from_millis(30);
+        assert_eq!(wake_delay(soon), soon);
+        if cfg!(target_os = "macos") {
+            assert!(wake_delay(Duration::ZERO) > Duration::ZERO);
+            assert!(wake_delay(Duration::ZERO) <= Duration::from_millis(1));
+        } else {
+            assert_eq!(wake_delay(Duration::ZERO), Duration::ZERO);
+        }
+    }
 
     #[test]
     fn parents_this_platform_cant_hold_are_refused_before_baseview_panics() {

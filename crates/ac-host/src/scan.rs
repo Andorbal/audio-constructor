@@ -68,6 +68,43 @@ pub fn search_paths(format: PluginFormat) -> Vec<PathBuf> {
     out
 }
 
+/// `path` as a bundle of `format` that sits in one of the plugin folders
+/// ([`search_paths`]), with links resolved; `None` if it's anywhere else.
+/// A project records where each of its plugins was found, and this is the
+/// only way that record can name a library to load (DECISIONS D197): a
+/// project from someone else can't make the host load a file of its
+/// choosing.
+pub fn in_plugin_folders(path: &Path, format: PluginFormat) -> Option<PathBuf> {
+    within(path, format, &search_paths(format))
+}
+
+/// [`in_plugin_folders`] with the folders given: the path must be
+/// absolute, not on a network share, a bundle of `format` by its
+/// extension, and, once both are resolved, inside one of `folders`.
+fn within(path: &Path, format: PluginFormat, folders: &[PathBuf]) -> Option<PathBuf> {
+    if !path.is_absolute() || on_network(path) || format_of(path) != Some(format) {
+        return None;
+    }
+    let real = std::fs::canonicalize(path).ok()?;
+    if on_network(&real) {
+        return None;
+    }
+    folders
+        .iter()
+        .filter_map(|f| std::fs::canonicalize(f).ok())
+        .any(|f| real.starts_with(f))
+        .then_some(real)
+}
+
+/// A path on another computer: a Windows UNC path (`\\server\share`).
+fn on_network(path: &Path) -> bool {
+    use std::path::{Component, Prefix};
+    matches!(
+        path.components().next(),
+        Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::UNC(..) | Prefix::VerbatimUNC(..))
+    )
+}
+
 fn extension(format: PluginFormat) -> &'static str {
     match format {
         PluginFormat::Clap => "clap",
@@ -361,4 +398,76 @@ pub fn scan(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fresh folder with `plugins/` (a plugin folder) and `elsewhere/`.
+    fn folders(name: &str) -> (PathBuf, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("ac-scan-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let plugins = dir.join("plugins");
+        std::fs::create_dir_all(plugins.join("Vendor")).unwrap();
+        std::fs::create_dir_all(dir.join("elsewhere")).unwrap();
+        (dir, plugins)
+    }
+
+    #[test]
+    fn only_bundles_inside_the_plugin_folders_count() {
+        let (dir, plugins) = folders("within");
+        let roots = [plugins.clone()];
+        let inside = plugins.join("Vendor").join("Synth.clap");
+        let outside = dir.join("elsewhere").join("Synth.clap");
+        let wrong_kind = plugins.join("Synth.so");
+        for f in [&inside, &outside, &wrong_kind] {
+            std::fs::write(f, b"library").unwrap();
+        }
+        let clap = PluginFormat::Clap;
+        assert_eq!(
+            within(&inside, clap, &roots),
+            Some(std::fs::canonicalize(&inside).unwrap())
+        );
+        assert_eq!(within(&inside, PluginFormat::Vst3, &roots), None);
+        assert_eq!(within(&outside, clap, &roots), None);
+        assert_eq!(within(&wrong_kind, clap, &roots), None);
+        // `..` can't climb out of a plugin folder.
+        let climbing = plugins.join("..").join("elsewhere").join("Synth.clap");
+        assert_eq!(within(&climbing, clap, &roots), None);
+        // Relative paths and files that aren't there never count.
+        assert_eq!(within(Path::new("Vendor/Synth.clap"), clap, &roots), None);
+        assert_eq!(within(&plugins.join("Gone.clap"), clap, &roots), None);
+        assert_eq!(within(&inside, clap, &[]), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_in_a_plugin_folder_counts_where_it_leads() {
+        let (dir, plugins) = folders("links");
+        let roots = [plugins.clone()];
+        let outside = dir.join("elsewhere").join("Synth.clap");
+        std::fs::write(&outside, b"library").unwrap();
+        let link = plugins.join("Linked.clap");
+        std::os::unix::fs::symlink(&outside, &link).unwrap();
+        assert_eq!(within(&link, PluginFormat::Clap, &roots), None);
+        // A plugin folder that is itself a link is followed.
+        let linked_folder = dir.join("linked-plugins");
+        std::os::unix::fs::symlink(&plugins, &linked_folder).unwrap();
+        let real = plugins.join("Real.clap");
+        std::fs::write(&real, b"library").unwrap();
+        assert!(within(&real, PluginFormat::Clap, &[linked_folder]).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn network_paths_never_count() {
+        assert!(on_network(Path::new(r"\\server\share\Synth.clap")));
+        assert!(on_network(Path::new(r"\\?\UNC\server\share\Synth.clap")));
+        assert!(!on_network(Path::new(
+            r"C:\Program Files\Common Files\CLAP"
+        )));
+    }
 }

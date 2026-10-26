@@ -976,6 +976,16 @@ impl Processor {
                     std::mem::swap(&mut n.node, &mut o.node);
                 }
             }
+            for i in 0..new.handover.len() {
+                let (ni, oi) = new.handover[i];
+                if let (Some(n), Some(o)) = (
+                    new.nodes.get_mut(ni as usize),
+                    self.graph.nodes.get(oi as usize),
+                ) && n.node.take_over(&*o.node)
+                {
+                    n.load_pending = false;
+                }
+            }
             carry_over(&mut new, &self.graph);
             let old = std::mem::replace(&mut self.graph, new);
             self.status

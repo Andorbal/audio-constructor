@@ -478,6 +478,7 @@ pub(crate) fn compile_with(
     let mut nb = NodeBuilder {
         nodes: Vec::new(),
         carry: Vec::new(),
+        handover: Vec::new(),
         layout: CarryLayout {
             nodes: HashMap::new(),
             sample_rate,
@@ -1322,6 +1323,7 @@ pub(crate) fn compile_with(
         tempo,
         nodes,
         carry: nb.carry,
+        handover: nb.handover,
         steps,
         waves,
         chains: chain_ranges,
@@ -1366,6 +1368,9 @@ pub(crate) fn compile_with(
 struct NodeBuilder<'a> {
     nodes: Vec<NodeBox>,
     carry: Vec<(u32, u32)>,
+    /// (new, old) node indices of nodes rebuilt because their config
+    /// changed, which may take over from the old one (`Node::take_over`).
+    handover: Vec<(u32, u32)>,
     layout: CarryLayout,
     index: Vec<Option<u32>>,
     latency: Vec<u32>,
@@ -1432,11 +1437,12 @@ impl NodeBuilder<'_> {
     ) {
         let mut config_key = carry_config(&f.config, f.meta.state_keys);
         config_key.push_str(extra);
-        let carried = self
+        let previous = self
             .reuse
             .and_then(|p| p.nodes.get(&f.path))
-            .filter(|k| k.kind == f.kind && k.config == config_key)
-            .cloned();
+            .filter(|k| k.kind == f.kind);
+        let carried = previous.filter(|k| k.config == config_key).cloned();
+        let replaced = previous.filter(|k| k.config != config_key).map(|k| k.index);
         match carried {
             Some(old) => {
                 let idx = self.nodes.len() as u32;
@@ -1474,6 +1480,9 @@ impl NodeBuilder<'_> {
                     resources,
                 };
                 let node = create(&f.config, &ctx);
+                if let Some(old) = replaced {
+                    self.handover.push((self.nodes.len() as u32, old));
+                }
                 self.push_fresh(f, fi, node, config_key);
             }
         }
