@@ -946,35 +946,21 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
             }));
         return true;
     }
-    let mut made = None;
-    ui.menu_button(
-        format!(
-            "{}  {}",
-            icons::SQUARES_FOUR,
-            tr("canvas-panel-from-selection")
-        ),
-        |ui| {
-            use crate::perform::Generated;
-            for (kind, label) in [
-                (Generated::Mixer, tr("canvas-mixer-from-selection")),
-                (Generated::Pads, tr("canvas-pads-from-selection")),
-                (Generated::Grid, tr("canvas-grid-from-selection")),
-            ] {
-                if ui.button(label).clicked() {
-                    made = Some(kind);
-                    ui.close();
-                }
-            }
-        },
-    );
-    if let Some(kind) = made {
-        io.events.push(CanvasEvent::Pin(
-            crate::perform::PinRequest::FromSelection {
-                nodes: nodes.clone(),
-                kind,
-            },
-        ));
-        return true;
+    use crate::perform::Generated;
+    for (kind, label) in [
+        (Generated::Mixer, tr("canvas-mixer-from-selection")),
+        (Generated::Pads, tr("canvas-pads-from-selection")),
+        (Generated::Grid, tr("canvas-grid-from-selection")),
+    ] {
+        if item(ui, icons::SQUARES_FOUR, &label, None) {
+            io.events.push(CanvasEvent::Pin(
+                crate::perform::PinRequest::FromSelection {
+                    nodes: nodes.clone(),
+                    kind,
+                },
+            ));
+            return true;
+        }
     }
     for (i, name, on) in &panels {
         if *on

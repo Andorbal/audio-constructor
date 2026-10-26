@@ -165,6 +165,13 @@ const PINNABLE: &[&str] = &[
     "clip",
     "record",
     "audio_out",
+    "light",
+    "fader",
+    "pad",
+    "pads",
+    // A group or block instance pins as a card of its sockets (D203).
+    "group",
+    "voices",
 ];
 
 #[test]
