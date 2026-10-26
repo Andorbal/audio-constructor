@@ -10,12 +10,12 @@ together, read the [user guide](../guide/README.md).
 
 ## Categories
 
-138 nodes in 13 categories.
+140 nodes in 13 categories.
 
 | Category | Nodes | What's in it |
 | --- | --- | --- |
 | [Input / Output](#io) | 10 | Sound, MIDI, and controls coming into and going out of the patch: audio devices, MIDI ports, gamepads, the computer keyboard, OSC, and files. |
-| [Generators](#generators) | 11 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
+| [Generators](#generators) | 12 | Sources of signal over time: oscillators, noise, audio files, samplers, drawn curves, and the song position. |
 | [Level & Dynamics](#level) | 9 | Volume, panning, and mixing, and the parts that compressors, limiters, and gates are built from. |
 | [Filters](#filters) | 7 | Filters for shaping tone, for synth sounds, and for building reverbs and resonators. |
 | [Time](#time) | 7 | Effects that work with time: delays, reversing, freezing, pitch shifting, and diffusion. |
@@ -23,7 +23,7 @@ together, read the [user guide](../guide/README.md).
 | [Math & Logic](#math) | 22 | Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, for numbers and gates. |
 | [Modulation](#modulation) | 6 | Envelopes, LFOs, step sequencers, and random movement, for moving other nodes' inputs over time. |
 | [Triggers & Gates](#triggers) | 14 | Clocks and rhythms, and tools that make, delay, count, filter, and reshape triggers and gates. |
-| [Sequencing & Notes](#sequencing) | 15 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
+| [Sequencing & Notes](#sequencing) | 16 | Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeggios, chords, scales, and polyphony. |
 | [Controls](#controls) | 11 | Widgets you play by hand, on the canvas or on a performance panel: knobs, sliders, buttons, pads, and a keyboard. |
 | [Display](#display) | 9 | Meters, scopes, readouts, and analyzers that show what a signal is doing. |
 | [Utility](#utility) | 10 | Wiring helpers and odds and ends: feedback loops, reroutes, groups, channel tools, notes on the canvas, the engine's vital signs, and plugins installed on the computer. |
@@ -57,6 +57,7 @@ Sources of signal over time: oscillators, noise, audio files, samplers, drawn cu
 | [Granular](generators.md#granular) | A cloud of grains: tiny, overlapping slices of a recorded sound, each a few milliseconds to a second long, played over and over from around one spot. A plain recording turns into a texture, a pad, or a shimmer, and it can stand still in time. |
 | [Graph](generators.md#graph) | A hand-drawn curve played over time: an envelope, an automation lane, or (looped) a custom LFO, as a sample-rate `Float`. |
 | [Impulse](generators.md#impulse) | A single-sample click on each `trigger`, as a sample-rate `Float`. |
+| [Looper](generators.md#looper) | A loop pedal: records what comes into `in`, plays it round and round, and layers more on top. |
 | [Noise](generators.md#noise) | Random noise in three colors: white, pink, or brown, as a sample-rate `Float` that wires into audio or into any parameter. |
 | [Oscillator](generators.md#oscillator) | A periodic waveform (sine, triangle, saw, square, or pulse) at `freq` + `fm` Hz, as a sample-rate `Float` that wires into audio or into any parameter. |
 | [Sample](generators.md#sample) | An audio file as a sound to wire: its `buffer` output holds the whole file, for a `Sampler`, a `Slicer`, or anything else that plays a Buffer. |
@@ -142,7 +143,7 @@ Arithmetic, comparisons, unit conversions, smoothing, randomness, and routing, f
 | [Counter](math.md#counter) | Counts triggers: each `trigger` adds `step` to `count`, wrapping around at `max`. |
 | [Differentiate](math.md#differentiate) | How fast `in` is changing, in units per second. |
 | [Integrate](math.md#integrate) | Adds up `in` over time: the running integral, per second. |
-| [Logic](math.md#logic) | Combines two gates, `a` and `b`, with a logic operation. |
+| [Logic](math.md#logic) | Combines gates, `a`, `b`, and more, with a logic operation. |
 | [Map](math.md#map) | Remaps `in` from one range (`in_min`..`in_max`) to another (`out_min`..`out_max`), along a straight line or a curve. |
 | [Math](math.md#math) | Combines two values, `a` and `b`, with an arithmetic operation. |
 | [Merge](math.md#merge) | Combines several MIDI or trigger streams into one, so two sources can play one instrument at once. |
@@ -202,6 +203,7 @@ Notes and MIDI: turning MIDI into signals and back, patterns, piano rolls, arpeg
 | --- | --- |
 | [Arpeggiator](sequencing.md#arpeggiator) | Plays the notes you hold one at a time, stepping on each clock tick. |
 | [Chord](sequencing.md#chord) | Plays a whole chord for every incoming note. |
+| [Humanize](sequencing.md#humanize) | Loosens a part the way a player would: each trigger or note comes a little late and a little louder or softer, differently every time. |
 | [MIDI CC](sequencing.md#midi-cc) | Turns one MIDI controller into a `Float` in a range you choose. |
 | [MIDI Filter](sequencing.md#midi-filter) | Passes only the MIDI you want: one channel, a range of notes, and chosen kinds of message. |
 | [MIDI Note](sequencing.md#midi-note) | Turns MIDI notes into a pitch, a gate, and a velocity for one voice. |

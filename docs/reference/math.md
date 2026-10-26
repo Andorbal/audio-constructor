@@ -347,16 +347,19 @@ restarts on every beat.
 
 Kind: `logic` · Also found by: and, or, xor, not, nand, nor, boolean, gate
 
-Combines two gates, `a` and `b`, with a logic operation.
+Combines gates, `a`, `b`, and more, with a logic operation.
 
 | `op` | `out` is true when |
 | --- | --- |
-| `and` | both are true |
-| `or` | either is true |
-| `xor` | exactly one is true |
-| `not` | `a` is false (`b` is ignored) |
-| `nand` | not both are true |
-| `nor` | neither is true |
+| `and` | all are true |
+| `or` | any is true |
+| `xor` | an odd number are true (with two: exactly one) |
+| `not` | `a` is false (the others are ignored) |
+| `nand` | not all are true |
+| `nor` | none is true |
+
+The `inputs` config sets how many gates there are (2 to 16, default
+2), named `a`, `b`, `c`, and on; the Node tab sets it.
 
 A `Float` wired into `a` or `b` counts as true above 0.5. The output
 runs at the fastest rate of the inputs, so two sample-rate gates
@@ -450,7 +453,12 @@ Combines two values, `a` and `b`, with an arithmetic operation.
 | `modulo` | the remainder of a ÷ b, always from 0 up to \|b\| (Euclidean: −0.25 modulo 1 is 0.75) |
 | `atan2` | the angle in radians (−π..π) of the point with x = b and y = a |
 
-The output runs at the fastest rate of `a` and `b`: block rate when
+The `inputs` config adds more operands, `c`, `d`, and on (2 to 16,
+default 2). `add`, `multiply`, `min`, and `max` take them all (the
+sum, the product, the smallest, the largest); the other operations
+use `a` and `b` only.
+
+The output runs at the fastest rate of its inputs: block rate when
 both are controls, sample rate when either carries audio-rate
 modulation. Audio wired into `a` or `b` arrives as its first channel.
 

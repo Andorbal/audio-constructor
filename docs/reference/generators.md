@@ -241,6 +241,67 @@ pattern; drive `trigger` from a `Clock` for a metronome click.
 | --- | --- | --- |
 | `out` | Float | The clicks; 0 between them. |
 
+<a id="looper"></a>
+## Looper
+
+Kind: `looper` · Also found by: loop, loop pedal, overdub, layer, record, phrase, live looping, undo, sound on sound
+
+A loop pedal: records what comes into `in`, plays it round and round,
+and layers more on top.
+
+`record` starts a new loop (the old one is gone). With `length` at 0
+the first pass lasts until the next trigger, `record` again (or
+`play`) to play it back, `overdub` to play it back and keep
+recording on top, `stop` to keep it stopped; with `length` set, it
+records that many beats and plays on its own. `overdub` toggles
+layering while it plays (or starts playing and layering), `play`
+plays from the top or ends a layer, `stop` stops. `undo` takes the
+last layer off; `undo` again puts it back. A loop is at most
+`seconds` long (config, 1–120, default 30), with `channels` (config,
+1 or 2, default 2).
+
+While the transport plays, every trigger waits for the next multiple
+of `quantize` beats in the song (default 1; 0 acts at once), so
+loops start and end on the beat and a free loop's length comes out a
+whole number of beats. Stopped, triggers act at once. The transport
+stopping stops the loop too, and so do a restart, a seek, and
+Panic, but none of them clears it.
+
+`out` is the loop alone (wire `in` to the mix as well to hear
+yourself), `playing` and `recording` say what it's doing, and
+`position` is the seconds into the loop. `buffer` is the loop as it
+stood after the last recording, layer, or undo, a moment after it
+ends: wire it into a `Waveform` (with `position`) to see the loop, or
+a `Sampler` to play it.
+
+**Try this:** wire an `Audio In` into a Looper and into the `Audio
+Out`, the Looper's `out` into the Audio Out too, and three Buttons
+into `record`, `overdub`, and `undo`. Record a bar, then press
+overdub and play over it; undo if it went wrong.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Audio | — |  | The sound to record. |
+| `record` | Trigger | — |  | Starts a new loop, or ends the first pass. |
+| `play` | Trigger | — |  | Plays from the top, or ends a layer. |
+| `stop` | Trigger | — |  | Stops, keeping the loop. |
+| `overdub` | Trigger | — |  | Starts or ends a layer on top. |
+| `undo` | Trigger | — |  | Takes the last layer off, or puts it back. |
+| `length` | Float (beats) | 0 | 0 … 64 | Beats the first pass records; 0 until the next trigger. |
+| `quantize` | Float (beats) | 1 | 0 … 16 | Triggers wait for the next multiple of this in the song; 0 at once. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The loop. |
+| `buffer` | Buffer | The loop, after each recording or layer. |
+| `playing` | Bool | Playing the loop (or layering). |
+| `recording` | Bool | Recording a first pass or layer. |
+| `position` | Float (s) | Seconds into the loop. |
+
 <a id="noise"></a>
 ## Noise
 

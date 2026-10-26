@@ -253,6 +253,13 @@ Each of these is one undo step; moving cards never interrupts the sound.
   grows inputs to fit. The new node goes to their right. If any selected
   node doesn't fit, nothing is wired, the node goes where it was added,
   and the status line says why.
+- **Wiring into a full input** (P4): a `Mix` or `Merge` keeps a free
+  input, so wiring its last one adds another. Dropping a trigger or MIDI
+  wire on an input another wire already feeds opens the palette, which
+  says so and offers **Merge both** first (a new `Merge` between, fed by
+  both wires, with a third input free) and **Replace the wire** second;
+  typing searches for any other node to put the new wire into instead.
+  Audio and values still replace the wire, as before.
 - **Find** (`Ctrl+F`) searches labels, kind names, and ids (from their
   start) in every graph of the project, portals by name, and notes by
   their text. A node

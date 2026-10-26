@@ -92,6 +92,19 @@ Phase 4: the tools the gap studies found missing.
 - **Swing.** The Clock's new `swing` input moves every other tick later,
   so everything it clocks swings together; a MIDI Pattern's `swing` does
   the same for its drawn notes, on sixteenths or eighths.
+- **Looper.** One node records a loop, plays it, layers more on top
+  (overdub), and takes the last layer off again (undo, and undo again to
+  put it back), with every press landing on the beat. The loop comes out
+  as a sound too, for a Waveform or a Sampler.
+- **Humanize** loosens a part: each trigger or note comes a little late
+  and a little louder or softer, the same way on every render.
+- **More inputs for Logic and Math.** An `inputs` setting gives them
+  `c`, `d`, and on: `and` or `or` several gates, or add, multiply, or take
+  the smallest or largest of several values, in one node.
+- **Wiring grows and merges.** Wiring a Mix's or Merge's last input adds
+  another. Dropping a trigger or MIDI wire on an input that's already
+  wired offers to merge the two wires through a new Merge, or to replace
+  the old one.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs

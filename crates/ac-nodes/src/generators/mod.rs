@@ -6,6 +6,7 @@ pub mod clip;
 pub mod granular;
 pub mod graph;
 pub mod impulse;
+pub mod looper;
 pub mod noise;
 pub mod oscillator;
 pub mod sample;
@@ -20,6 +21,7 @@ pub fn register(r: &mut Registry) {
     r.register::<graph::Graph>();
     r.register::<granular::Granular>();
     r.register::<impulse::Impulse>();
+    r.register::<looper::Looper>();
     r.register::<noise::Noise>();
     r.register::<oscillator::Oscillator>();
     r.register::<sample::Sample>();

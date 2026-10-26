@@ -200,6 +200,31 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 default: "float",
             },
         )],
+        "logic" | "math" => vec![f(
+            "inputs",
+            "Inputs",
+            Kind::Count {
+                min: 2,
+                max: 16,
+                default: 2,
+            },
+        )],
+        "looper" => vec![
+            f(
+                "seconds",
+                "Longest loop (seconds)",
+                Kind::Number { default: 30.0 },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 2,
+                    default: 2,
+                },
+            ),
+        ],
         "merge" => vec![
             f(
                 "inputs",
@@ -566,6 +591,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                 },
             ),
         ],
+        "humanize" => vec![f(
+            "type",
+            "Loosens",
+            Kind::Choice {
+                choices: &ac_nodes::sequencing::humanize::TYPES,
+                default: "trigger",
+            },
+        )],
         "random_walk" => vec![f(
             "seed",
             "Seed",

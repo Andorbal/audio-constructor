@@ -90,6 +90,52 @@ fn connect_checks_types_and_replaces_the_input_wire() {
 }
 
 #[test]
+fn mix_and_merge_grow_when_their_last_input_is_wired() {
+    let mut ch = chain();
+    root(&mut ch.project, |g, ctx| {
+        let mix = add_node(g, ctx, "mix", ac_core::empty_config(), [0.0, 300.0]);
+        assert!(!grow_inputs(g, &ep(mix, "in_2")), "not the last");
+        assert!(grow_inputs(g, &ep(mix, "in_3")));
+        assert_eq!(g.node(mix).unwrap().config["inputs"], 5);
+        let merge = add_node(
+            g,
+            ctx,
+            "merge",
+            serde_json::json!({ "inputs": 16 }),
+            [0.0, 400.0],
+        );
+        assert!(!grow_inputs(g, &ep(merge, "in_15")), "at the limit");
+        assert!(!grow_inputs(g, &ep(ch.g1, "in")), "only Mix and Merge");
+    });
+}
+
+#[test]
+fn a_merge_takes_both_wires_into_an_input() {
+    let mut ch = chain();
+    root(&mut ch.project, |g, ctx| {
+        let a = add_node(g, ctx, "button", ac_core::empty_config(), [0.0, 200.0]);
+        let b = add_node(g, ctx, "button", ac_core::empty_config(), [0.0, 300.0]);
+        let s = add_node(g, ctx, "sampler", ac_core::empty_config(), [300.0, 200.0]);
+        connect(g, ctx, ep(a, "trigger"), ep(s, "start")).unwrap();
+        let m = merge_into(
+            g,
+            ctx,
+            ep(a, "trigger"),
+            ep(b, "trigger"),
+            ep(s, "start"),
+            SignalType::Trigger,
+            [150.0, 250.0],
+        )
+        .unwrap();
+        assert_eq!(g.node(m).unwrap().config["type"], "trigger");
+        assert!(has_wire(g, ep(a, "trigger"), ep(m, "in_0")));
+        assert!(has_wire(g, ep(b, "trigger"), ep(m, "in_1")));
+        assert!(has_wire(g, ep(m, "out"), ep(s, "start")));
+        assert_eq!(g.wires_to(s).count(), 1);
+    });
+}
+
+#[test]
 fn delete_with_reconnect_keeps_the_chain() {
     let mut ch = chain();
     root(&mut ch.project, |g, ctx| {

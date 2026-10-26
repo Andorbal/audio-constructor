@@ -717,6 +717,56 @@ pub fn rename_interface_socket(
     Some(name)
 }
 
+/// Mix and Merge keep a free input: wiring their last one adds another (up
+/// to their limit), so the next wire has somewhere to go. Returns whether
+/// it grew.
+pub fn grow_inputs(graph: &mut Graph, to: &Endpoint) -> bool {
+    let Some(n) = graph.node_mut(to.node) else {
+        return false;
+    };
+    let (default, max) = match n.kind.as_str() {
+        "mix" => (4, 64),
+        "merge" => (2, 16),
+        _ => return false,
+    };
+    let count = ac_core::ConfigExt::get_u64_or(&n.config, "inputs", default).clamp(1, max);
+    if count >= max || to.socket != format!("in_{}", count - 1) {
+        return false;
+    }
+    match n.config.as_object_mut() {
+        Some(o) => {
+            o.insert("inputs".into(), (count + 1).into());
+        }
+        None => n.config = serde_json::json!({ "inputs": count + 1 }),
+    }
+    true
+}
+
+/// Put a Merge in front of `to`, fed by the wire already into it (from
+/// `existing`) and by `from`, with a third input free. `ty` is what flows:
+/// MIDI or triggers. Returns the Merge.
+pub fn merge_into(
+    graph: &mut Graph,
+    ctx: &mut Ctx,
+    existing: Endpoint,
+    from: Endpoint,
+    to: Endpoint,
+    ty: ac_core::SignalType,
+    pos: [f32; 2],
+) -> Result<NodeId, ConnectError> {
+    let kind = if ty == ac_core::SignalType::Midi {
+        "midi"
+    } else {
+        "trigger"
+    };
+    let config = serde_json::json!({ "type": kind, "inputs": 3 });
+    let id = add_node(graph, ctx, "merge", config, pos);
+    connect(graph, ctx, existing, Endpoint::new(id, "in_0"))?;
+    connect(graph, ctx, from, Endpoint::new(id, "in_1"))?;
+    connect(graph, ctx, Endpoint::new(id, "out"), to)?;
+    Ok(id)
+}
+
 // ---------------------------------------------------------------- nodes
 
 /// Add a node of `kind` at canvas position `pos` (its top-left corner).

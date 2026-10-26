@@ -54,6 +54,7 @@ undo-back-to-wire = Back to wire
 undo-make-portal = Make portal
 undo-auto-layout = Auto-layout
 undo-connect = Connect
+undo-merge-wires = Merge wires
 undo-resize = Resize
 undo-move-frame = Move frame
 undo-resize-frame = Resize frame

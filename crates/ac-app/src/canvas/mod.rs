@@ -76,6 +76,14 @@ pub enum CanvasEvent {
     Bind { node: NodeId, socket: String },
     /// Open a Plugin node's own window.
     ShowPluginWindow(NodeId),
+    /// A wire was dropped on a trigger or MIDI input that's already wired:
+    /// open the palette offering a Merge of both, or a replacement.
+    OfferMerge {
+        screen: Pos2,
+        canvas: Pos2,
+        pending: PendingWire,
+        offer: crate::palette::MergeOffer,
+    },
 }
 
 /// What the canvas needs from the app each frame.

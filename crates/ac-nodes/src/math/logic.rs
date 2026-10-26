@@ -1,6 +1,6 @@
 use ac_core::{
-    BoolIn, Config, FloatOut, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec,
-    node,
+    BoolIn, Config, ConfigExt, FloatOut, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature,
+    SocketSpec, node,
 };
 
 node! {
@@ -8,16 +8,19 @@ node! {
     name: "Logic",
     category: Math,
     keywords: ["and", "or", "xor", "not", "nand", "nor", "boolean", "gate"],
-    /// Combines two gates, `a` and `b`, with a logic operation.
+    /// Combines gates, `a`, `b`, and more, with a logic operation.
     ///
     /// | `op` | `out` is true when |
     /// | --- | --- |
-    /// | `and` | both are true |
-    /// | `or` | either is true |
-    /// | `xor` | exactly one is true |
-    /// | `not` | `a` is false (`b` is ignored) |
-    /// | `nand` | not both are true |
-    /// | `nor` | neither is true |
+    /// | `and` | all are true |
+    /// | `or` | any is true |
+    /// | `xor` | an odd number are true (with two: exactly one) |
+    /// | `not` | `a` is false (the others are ignored) |
+    /// | `nand` | not all are true |
+    /// | `nor` | none is true |
+    ///
+    /// The `inputs` config sets how many gates there are (2 to 16, default
+    /// 2), named `a`, `b`, `c`, and on; the Node tab sets it.
     ///
     /// A `Float` wired into `a` or `b` counts as true above 0.5. The output
     /// runs at the fastest rate of the inputs, so two sample-rate gates
@@ -26,13 +29,23 @@ node! {
     /// **Try this:** `and` a `Clock` gate with a `Toggle` to mute a rhythm
     /// without stopping the clock, or `xor` two clocks at different
     /// intervals for a syncopated gate to drive an `ADSR`.
-    pub struct Logic {}
+    pub struct Logic {
+        inputs: usize,
+    }
 }
 
-const A: usize = 0;
-const B: usize = 1;
-const OP: usize = 2;
 const OUT: usize = 0;
+pub const MAX_INPUTS: usize = 16;
+
+/// Gate inputs from config, clamped; `op` follows them.
+pub fn input_count(config: &Config) -> usize {
+    config.get_u64_or("inputs", 2).clamp(2, MAX_INPUTS as u64) as usize
+}
+
+/// The name of input `k`: `a`, `b`, `c`, ….
+pub fn input_name(k: usize) -> String {
+    char::from(b'a' + (k.min(25)) as u8).to_string()
+}
 
 const OPS: &[&str] = &["and", "or", "xor", "not", "nand", "nor"];
 
@@ -41,23 +54,44 @@ impl Node for Logic {
         Self::base_meta()
     }
 
-    fn describe(_: &Config) -> Signature {
-        Signature::new()
+    fn describe(config: &Config) -> Signature {
+        let mut sig = Signature::new()
             .input(SocketSpec::boolean("a", false).doc("First gate."))
-            .input(SocketSpec::boolean("b", false).doc("Second gate (ignored by `not`)."))
-            .input(SocketSpec::choice("op", OPS, "and").doc("The operation."))
+            .input(SocketSpec::boolean("b", false).doc("Second gate (ignored by `not`)."));
+        for k in 2..input_count(config) {
+            sig = sig.input(
+                SocketSpec::boolean(input_name(k), false).doc("Another gate (ignored by `not`)."),
+            );
+        }
+        sig.input(SocketSpec::choice("op", OPS, "and").doc("The operation."))
             .output(SocketSpec::boolean("out", false).poly().doc("The result."))
     }
 
-    fn new(_: &Config, _: &PrepareCtx) -> Self {
-        Logic {}
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        Logic {
+            inputs: input_count(config),
+        }
     }
 
     fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
-        let a = io.inputs.boolean(A);
-        let b = io.inputs.boolean(B);
-        let op = io.inputs.choice(OP, OPS.len());
+        let n = self.inputs;
+        let op = io.inputs.choice(n, OPS.len());
         let mut out = io.outputs.float(OUT);
+        if n > 2 && op != 3 {
+            let ins: [BoolIn; MAX_INPUTS] =
+                std::array::from_fn(|k| io.inputs.boolean(k.min(n - 1)));
+            let ins = &ins[..n];
+            let count = |i: usize| ins.iter().filter(|g| g.at(i)).count();
+            match op {
+                0 => out.fill_with(|i| bit(count(i) == n)),
+                1 => out.fill_with(|i| bit(count(i) > 0)),
+                2 => out.fill_with(|i| bit(count(i) % 2 == 1)),
+                4 => out.fill_with(|i| bit(count(i) < n)),
+                _ => out.fill_with(|i| bit(count(i) == 0)),
+            }
+            return;
+        }
+        let (a, b) = (io.inputs.boolean(0), io.inputs.boolean(1));
         match op {
             0 => apply(&mut out, a, b, |x, y| x && y),
             1 => apply(&mut out, a, b, |x, y| x || y),
@@ -69,6 +103,11 @@ impl Node for Logic {
     }
 
     fn reset(&mut self) {}
+}
+
+#[inline]
+fn bit(on: bool) -> f32 {
+    if on { 1.0 } else { 0.0 }
 }
 
 #[inline]
@@ -137,6 +176,28 @@ mod tests {
         let out = h.run(128);
         let want: Vec<f32> = gate.iter().map(|&g| 1.0 - g).collect();
         assert_eq!(out.float("out"), want.as_slice());
+    }
+
+    #[test]
+    fn more_inputs_combine_together() {
+        let sig = Logic::describe(&json!({ "inputs": 4 }));
+        let names: Vec<_> = sig.inputs.iter().map(|s| s.name.to_string()).collect();
+        assert_eq!(names, ["a", "b", "c", "d", "op"]);
+        assert_eq!(Logic::describe(&json!({ "inputs": 99 })).inputs.len(), 17);
+        let run = |op: &str| {
+            let mut h = Harness::new::<Logic>(json!({ "inputs": 3 }));
+            h.set_samples("a", vec![0.0, 1.0, 1.0, 1.0])
+                .set_samples("b", vec![0.0, 0.0, 1.0, 1.0])
+                .set_samples("c", vec![0.0, 0.0, 0.0, 1.0])
+                .set("op", op);
+            h.run(4).float("out").to_vec()
+        };
+        assert_eq!(run("and"), [0.0, 0.0, 0.0, 1.0]);
+        assert_eq!(run("or"), [0.0, 1.0, 1.0, 1.0]);
+        assert_eq!(run("xor"), [0.0, 1.0, 0.0, 1.0], "odd parity");
+        assert_eq!(run("nand"), [1.0, 1.0, 1.0, 0.0]);
+        assert_eq!(run("nor"), [1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(run("not"), [1.0, 0.0, 0.0, 0.0], "a alone");
     }
 
     #[test]

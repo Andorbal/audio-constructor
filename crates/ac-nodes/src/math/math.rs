@@ -4,6 +4,7 @@ use ac_core::{
 };
 
 use super::finite_or_zero;
+use super::logic::{input_count, input_name};
 
 node! {
     kind: "math",
@@ -23,7 +24,12 @@ node! {
     /// | `modulo` | the remainder of a ÷ b, always from 0 up to \|b\| (Euclidean: −0.25 modulo 1 is 0.75) |
     /// | `atan2` | the angle in radians (−π..π) of the point with x = b and y = a |
     ///
-    /// The output runs at the fastest rate of `a` and `b`: block rate when
+    /// The `inputs` config adds more operands, `c`, `d`, and on (2 to 16,
+    /// default 2). `add`, `multiply`, `min`, and `max` take them all (the
+    /// sum, the product, the smallest, the largest); the other operations
+    /// use `a` and `b` only.
+    ///
+    /// The output runs at the fastest rate of its inputs: block rate when
     /// both are controls, sample rate when either carries audio-rate
     /// modulation. Audio wired into `a` or `b` arrives as its first channel.
     ///
@@ -35,13 +41,13 @@ node! {
     /// control, then `add` a second `Slider` to set the centre, and wire the
     /// result into a `Biquad` cutoff. `modulo` with `b` = 1 wraps a rising
     /// ramp (such as `Transport.time`) into a repeating 0..1 sawtooth.
-    pub struct Math {}
+    pub struct Math {
+        inputs: usize,
+    }
 }
 
-const A: usize = 0;
-const B: usize = 1;
-const OP: usize = 2;
 const OUT: usize = 0;
+const MAX_INPUTS: usize = super::logic::MAX_INPUTS;
 
 const OPS: &[&str] = &[
     "add", "subtract", "multiply", "divide", "min", "max", "power", "modulo", "atan2",
@@ -52,11 +58,17 @@ impl Node for Math {
         Self::base_meta()
     }
 
-    fn describe(_: &Config) -> Signature {
-        Signature::new()
+    fn describe(config: &Config) -> Signature {
+        let mut sig = Signature::new()
             .input(SocketSpec::float("a", Unit::Generic, 0.0).doc("First operand."))
-            .input(SocketSpec::float("b", Unit::Generic, 0.0).doc("Second operand."))
-            .input(SocketSpec::choice("op", OPS, "add").doc("The operation."))
+            .input(SocketSpec::float("b", Unit::Generic, 0.0).doc("Second operand."));
+        for k in 2..input_count(config) {
+            sig = sig.input(
+                SocketSpec::float(input_name(k), Unit::Generic, 0.0)
+                    .doc("Another operand, for add, multiply, min, and max."),
+            );
+        }
+        sig.input(SocketSpec::choice("op", OPS, "add").doc("The operation."))
             .output(
                 SocketSpec::float("out", Unit::Generic, 0.0)
                     .poly()
@@ -64,15 +76,29 @@ impl Node for Math {
             )
     }
 
-    fn new(_: &Config, _: &PrepareCtx) -> Self {
-        Math {}
+    fn new(config: &Config, _: &PrepareCtx) -> Self {
+        Math {
+            inputs: input_count(config),
+        }
     }
 
     fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
-        let a = io.inputs.float(A);
-        let b = io.inputs.float(B);
-        let op = io.inputs.choice(OP, OPS.len());
+        let n = self.inputs;
+        let op = io.inputs.choice(n, OPS.len());
         let mut out = io.outputs.float(OUT);
+        if n > 2 && matches!(op, 0 | 2 | 4 | 5) {
+            let ins: [FloatIn; MAX_INPUTS] = std::array::from_fn(|k| io.inputs.float(k.min(n - 1)));
+            let ins = &ins[..n];
+            match op {
+                0 => fold(&mut out, ins, |x, y| x + y),
+                2 => fold(&mut out, ins, |x, y| x * y),
+                4 => fold(&mut out, ins, f32::min),
+                _ => fold(&mut out, ins, f32::max),
+            }
+            return;
+        }
+        let a = io.inputs.float(0);
+        let b = io.inputs.float(1);
         // One monomorphized loop per op keeps the match out of the per-sample path.
         match op {
             0 => apply(&mut out, a, b, |x, y| x + y),
@@ -93,6 +119,18 @@ impl Node for Math {
 #[inline]
 fn apply(out: &mut FloatOut, a: FloatIn, b: FloatIn, f: impl Fn(f32, f32) -> f32) {
     out.fill_with(|i| finite_or_zero(f(finite_or_zero(a.at(i)), finite_or_zero(b.at(i)))));
+}
+
+/// `out` is every input combined by `f`, left to right.
+#[inline]
+fn fold(out: &mut FloatOut, ins: &[FloatIn], f: impl Fn(f32, f32) -> f32) {
+    out.fill_with(|i| {
+        let mut v = finite_or_zero(ins[0].at(i));
+        for x in &ins[1..] {
+            v = finite_or_zero(f(v, finite_or_zero(x.at(i))));
+        }
+        v
+    });
 }
 
 #[inline]
@@ -133,6 +171,27 @@ mod tests {
         assert_eq!(eval("min", 2.0, 3.0), 2.0);
         assert_eq!(eval("max", 2.0, 3.0), 3.0);
         assert_eq!(eval("power", 2.0, 3.0), 8.0);
+    }
+
+    #[test]
+    fn more_operands_for_add_multiply_min_and_max() {
+        let run = |op: &str| {
+            let mut h = Harness::new::<Math>(json!({ "inputs": 4 }));
+            h.set("a", 2.0).set("b", 3.0).set("c", -1.0).set("d", 4.0);
+            h.set("op", op);
+            h.run(1).float("out")[0]
+        };
+        assert_eq!(run("add"), 8.0);
+        assert_eq!(run("multiply"), -24.0);
+        assert_eq!(run("min"), -1.0);
+        assert_eq!(run("max"), 4.0);
+        assert_eq!(run("subtract"), -1.0, "a and b only");
+        let names: Vec<_> = Math::describe(&json!({ "inputs": 3 }))
+            .inputs
+            .iter()
+            .map(|s| s.name.to_string())
+            .collect();
+        assert_eq!(names, ["a", "b", "c", "op"]);
     }
 
     #[test]

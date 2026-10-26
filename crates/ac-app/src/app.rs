@@ -28,7 +28,7 @@ use crate::i18n::{self, Language, LanguageChoice, tr, tr_args};
 use crate::icons;
 use crate::menubar::{self, MenuCommand, MenuState};
 use crate::online::Online;
-use crate::palette::{Candidate, Palette};
+use crate::palette::{self, Candidate, Palette};
 use crate::panels::{PanelIo, PanelRequest, SidePanel, Tab};
 use crate::perform::{PerformView, PinRequest};
 use crate::play_keys::{KeyInput, PlayKeys};
@@ -1133,7 +1133,14 @@ impl EditorApp {
             .show(&ctx, &self.registry, &self.library, &self.doc)
         {
             let feed = std::mem::take(&mut self.palette_feed);
-            self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+            match (p.merge, p.candidate.kind.as_str()) {
+                (Some(offer), palette::MERGE_BOTH | palette::REPLACE_WIRE) => {
+                    self.merge_or_replace(offer, p.pending, &p.candidate.kind, p.at, now);
+                }
+                _ => {
+                    self.add_node_from(&p.candidate, p.at, p.pending, &feed, now);
+                }
+            }
         }
         if !self.palette.open {
             self.palette_feed.clear();
@@ -2070,6 +2077,15 @@ impl EditorApp {
                 self.file_dialog(FilePurpose::ChooseClip(node), now)
             }
             CanvasEvent::ShowPluginWindow(node) => self.show_plugin_window(node, now),
+            CanvasEvent::OfferMerge {
+                screen,
+                canvas,
+                pending,
+                offer,
+            } => {
+                self.find.close();
+                self.palette.open_merge(screen, canvas, pending, offer);
+            }
             CanvasEvent::ShowHelp(node) => {
                 self.doc.selection = [node].into();
                 let kind = self.doc.graph().node(node).map(|n| n.kind.clone());
@@ -2295,6 +2311,51 @@ impl EditorApp {
     }
 
     // ------------------------------------------------------------ commands
+
+    /// A wire dropped on a wired trigger or MIDI input, finished from the
+    /// palette: through a new Merge with the wire already there, or in its
+    /// place (D214).
+    fn merge_or_replace(
+        &mut self,
+        offer: palette::MergeOffer,
+        pending: Option<PendingWire>,
+        kind: &str,
+        at: egui::Pos2,
+        now: f64,
+    ) {
+        let Some(p) = pending else { return };
+        let Some(from) = p.from else { return };
+        let mut error = None;
+        if kind == palette::MERGE_BOTH {
+            let pos = at - vec2(theme::NODE_WIDTH + 40.0, 30.0);
+            self.doc
+                .edit(&self.registry, &tr("undo-merge-wires"), |g, ctx| {
+                    if let Err(e) = edit::merge_into(
+                        g,
+                        ctx,
+                        offer.existing,
+                        from,
+                        offer.to,
+                        p.ty,
+                        [pos.x, pos.y],
+                    ) {
+                        error = Some(e.to_string());
+                    }
+                });
+        } else {
+            self.doc
+                .edit(&self.registry, &tr("undo-connect"), |g, ctx| {
+                    if let Err(e) = edit::connect(g, ctx, from, offer.to.clone()) {
+                        error = Some(e.to_string());
+                    } else {
+                        edit::grow_inputs(g, &offer.to);
+                    }
+                });
+        }
+        if let Some(e) = error {
+            self.warn(e, now);
+        }
+    }
 
     /// Add a node or a library block from the palette or library at canvas
     /// position `at`, completing a pending wire if there is one.

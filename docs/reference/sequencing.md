@@ -105,6 +105,52 @@ wide fifths under a bass line.
 | --- | --- | --- |
 | `midi` | Midi | The chords and everything else. |
 
+<a id="humanize"></a>
+## Humanize
+
+Kind: `humanize` · Also found by: groove, feel, jitter, random, loose, timing, velocity, drift, human
+
+Loosens a part the way a player would: each trigger or note comes a
+little late and a little louder or softer, differently every time.
+
+Set the `type` config to *trigger* (the default) or *midi*. Each
+event on `in` is delayed by a random time from 0 to `timing`
+(seconds, default 10 ms) and its level moved by up to `dynamics` of
+itself, up or down (0.1 is ±10%). MIDI note-ons have their velocity
+changed (never below 1), and each note-off is delayed as much as its
+note-on, so notes keep their length; other messages pass on time.
+For triggers, `level` (0 to 1, default 1) is read at each trigger,
+changed the same way, and held on `velocity` from where the trigger
+comes out, so a Pattern's `velocity_k` wired into `level` keeps its
+accents, loosened.
+
+The randomness comes from the project's seed, so a render sounds
+the same every time, and restarting the transport replays it. Every
+event uses the same two draws whatever `timing` and `dynamics` are,
+so changing them doesn't reshuffle the part. Up to 1024 events can
+wait at once; more are dropped.
+
+**Try this:** put Humanize (`timing` 0.008, `dynamics` 0.2) between
+a Pattern's hat row and its envelope, with `velocity_2` into `level`
+and Humanize's `velocity` into the hat's level: the same grid, but
+it breathes.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Trigger | — |  | The triggers to loosen. |
+| `timing` | Float (s) | 0.01 | 0 … 0.05 | Each event comes up to this much late. |
+| `dynamics` | Float | 0.1 | 0 … 1 | How far each level moves, up or down, as a share of itself. |
+| `level` | Float | 1 | 0 … 1 | Each trigger's level, read as it arrives. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Trigger | The triggers, a little late. |
+| `velocity` | Float | The last trigger's level, loosened, from where it comes out. |
+
 <a id="midi-cc"></a>
 ## MIDI CC
 
