@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a sampler and drum machine (pads from MIDI, the computer keys, and the mouse; velocity layers; round robin; choke; slices of a loop; a keymapped instrument; resampling), built from today's nodes.\n\nA Pads grid plays everything: notes 36 to 43 are eight slices of one drum loop, cut at its hits by a Slicer; 44 is a snare with a soft and a hard layer and two round-robin samples; 45 and 46 are a closed and an open hat, the closed one choking the open one; 47 plays what the Resample section recorded. Each pad lights when its note plays and plays as hard as it's hit. The Keys section is a two-zone sampled instrument inside a Voices node.\n\nWhat a sampler has that this can't: a pad block that carries its own sample and a library of kits. Read docs/GAPS.md."
+          "text": "Study: a sampler and drum machine (pads from MIDI, the computer keys, and the mouse; velocity layers; round robin; choke; slices of a loop; a keymapped instrument; resampling), rebuilt with Phase 4's tools.\n\nA 4 × 4 Pads grid plays everything: notes 36 to 47 are twelve slices of one drum loop, cut at its hits by a Slicer; 48 is a snare with a soft and a hard layer and two round-robin samples; 49 and 50 are a closed and an open hat, the closed one choking the open one; 51 plays what the Resample section recorded. Each pad lights when its note plays, the demo pattern's included, and plays as hard as it's hit. The bank is twenty nodes, from the players to the pads' Mix. The Keys section (notes 52 and up) is a two-zone sampled instrument inside a Voices node.\n\nWhat a sampler has that this can't: a library of kits. Read docs/GAPS.md."
         },
         "ui": {
           "pos": [
@@ -57,7 +57,7 @@
         "id": "c0",
         "kind": "comment",
         "config": {
-          "text": "Slices: a Sample of the drum loop into a Slicer that cuts it at its hits. Notes from 36 play the slices in order, at the note's velocity; the Slicer's Node tab shows where it cut."
+          "text": "Slices: a Sample of the drum loop into a Slicer that cuts it at its hits. Notes 36 to 47 play the twelve slices in order, at the note's velocity; the Slicer's Node tab shows where it cut."
         },
         "ui": {
           "pos": [
@@ -74,7 +74,7 @@
         "id": "21",
         "kind": "comment",
         "config": {
-          "text": "Velocity layers and round robin: Note Split gives the snare's note a trigger and a velocity, Zones splits it into a soft and a hard layer by velocity, and a Counter steps two Routes so each layer alternates between two samples. The hats share a choke group, so the closed one ends the open one."
+          "text": "Velocity layers and round robin: Note Split gives the snare's note (48) a trigger and a velocity, Zones splits it into a soft and a hard layer by velocity, and a Counter steps two Routes so each layer alternates between two samples. The hats share a choke group, so the closed one ends the open one."
         },
         "ui": {
           "pos": [
@@ -135,7 +135,7 @@
         "id": "60",
         "kind": "pads",
         "config": {
-          "rows": 3,
+          "rows": 4,
           "columns": 4,
           "low": 36
         },
@@ -162,7 +162,7 @@
             [
               0.0,
               0.25,
-              45,
+              49,
               95
             ],
             [
@@ -174,31 +174,31 @@
             [
               0.5,
               0.25,
-              45,
+              49,
               70
             ],
             [
               1.0,
               0.25,
-              44,
+              48,
               90
             ],
             [
               1.0,
               0.25,
-              45,
+              49,
               95
             ],
             [
               1.5,
               0.25,
-              45,
+              49,
               70
             ],
             [
               1.5,
               0.25,
-              46,
+              50,
               90
             ],
             [
@@ -216,7 +216,7 @@
             [
               2.0,
               0.25,
-              45,
+              49,
               95
             ],
             [
@@ -234,7 +234,7 @@
             [
               2.5,
               0.25,
-              45,
+              49,
               70
             ],
             [
@@ -246,25 +246,25 @@
             [
               3.0,
               0.25,
-              44,
+              48,
               120
             ],
             [
               3.0,
               0.25,
-              45,
+              49,
               95
             ],
             [
               3.5,
               0.25,
-              45,
+              49,
               70
             ],
             [
               3.5,
               0.25,
-              46,
+              50,
               90
             ],
             [
@@ -278,7 +278,7 @@
         "ui": {
           "pos": [
             0.0,
-            600.0
+            700.0
           ],
           "label": "Demo beat"
         }
@@ -321,7 +321,7 @@
           "channels": 1
         },
         "params": {
-          "count": 8,
+          "count": 12,
           "sensitivity": 0.6
         },
         "ui": {
@@ -337,10 +337,10 @@
         "kind": "note_split",
         "config": {
           "notes": [
-            44,
-            45,
-            46,
-            47
+            48,
+            49,
+            50,
+            51
           ],
           "chokes": [
             0,
@@ -523,20 +523,6 @@
         "hide_unwired": true
       },
       {
-        "id": "20",
-        "kind": "mix",
-        "config": {
-          "inputs": 4
-        },
-        "ui": {
-          "pos": [
-            1980.0,
-            440.0
-          ],
-          "label": "Snare layers"
-        }
-      },
-      {
         "id": "27",
         "kind": "sampler",
         "config": {
@@ -587,14 +573,14 @@
         "kind": "midi_filter",
         "params": {
           "high": 127,
-          "low": 48
+          "low": 52
         },
         "ui": {
           "pos": [
             0.0,
             1520.0
           ],
-          "label": "Keys (notes 48 and up)"
+          "label": "Keys (notes 52 and up)"
         },
         "hide_unwired": true
       },
@@ -607,13 +593,13 @@
             [
               0,
               1.5,
-              48,
+              55,
               90
             ],
             [
               2,
               1.5,
-              55,
+              60,
               90
             ],
             [
@@ -722,7 +708,7 @@
         "id": "4b",
         "kind": "mix",
         "config": {
-          "inputs": 5
+          "inputs": 8
         },
         "ui": {
           "pos": [
@@ -884,22 +870,6 @@
         "to": "1f:velocity"
       },
       {
-        "from": "1a:out",
-        "to": "20:in_0"
-      },
-      {
-        "from": "1b:out",
-        "to": "20:in_1"
-      },
-      {
-        "from": "1e:out",
-        "to": "20:in_2"
-      },
-      {
-        "from": "1f:out",
-        "to": "20:in_3"
-      },
-      {
         "from": "63:trigger_1",
         "to": "27:start"
       },
@@ -956,22 +926,6 @@
         "to": "4f:velocity"
       },
       {
-        "from": "62:out",
-        "to": "4b:in_0"
-      },
-      {
-        "from": "20:out",
-        "to": "4b:in_1"
-      },
-      {
-        "from": "27:out",
-        "to": "4b:in_2"
-      },
-      {
-        "from": "2d:out",
-        "to": "4b:in_3"
-      },
-      {
         "from": "4b:out",
         "to": "4d:in"
       },
@@ -998,6 +952,34 @@
       {
         "from": "52:out",
         "to": "53:in"
+      },
+      {
+        "from": "62:out",
+        "to": "4b:in_0"
+      },
+      {
+        "from": "1a:out",
+        "to": "4b:in_1"
+      },
+      {
+        "from": "1b:out",
+        "to": "4b:in_2"
+      },
+      {
+        "from": "1e:out",
+        "to": "4b:in_3"
+      },
+      {
+        "from": "1f:out",
+        "to": "4b:in_4"
+      },
+      {
+        "from": "27:out",
+        "to": "4b:in_5"
+      },
+      {
+        "from": "2d:out",
+        "to": "4b:in_6"
       }
     ],
     "frames": [
@@ -1007,7 +989,7 @@
           -24.0,
           -372.0,
           608.0,
-          1181.0
+          1283.0
         ]
       },
       {
@@ -1061,7 +1043,7 @@
           2286.0,
           -212.0,
           1564.0,
-          331.0
+          470.0
         ]
       }
     ]
@@ -2017,7 +1999,7 @@
           "node": "60",
           "size": [
             4,
-            3
+            4
           ],
           "at": [
             0,

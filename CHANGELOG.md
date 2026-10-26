@@ -34,7 +34,9 @@ Phase 4: the tools the gap studies found missing.
   versions open as they were.
 - **Pin a group or block to a panel.** It becomes one card with a widget
   for each of its inputs and a meter or light for each output, so a Track
-  block pins as a channel strip: fader with meter, pan, mute, solo.
+  block pins as a channel strip: fader with meter, pan, mute, solo. A
+  trigger input that's wired has no button there: a Clip Slot's card is
+  its launch button and light.
 - **Panels from a selection.** Select Track blocks and choose **Mixer from
   Selection**, Samplers for **Pads from Selection**, or Clips for **Launch
   Grid from Selection** (a button per clip, lit while it plays, a column
@@ -149,17 +151,6 @@ Phase 4: the tools the gap studies found missing.
   set it to **Never** to leave the generator to its wire, as before.
 - **Play and Stop are separate buttons** in the transport bar, so Stop is
   there while the transport is stopped. `Space` still plays and stops.
-- **The pads study is rebuilt with the sampler nodes**: a Pads grid, eight
-  slices of the loop from one Slicer, Note Split for the snare, hats, and
-  resampled pad, Zones and Route for velocity layers and round robin, a
-  choke group, and keys whose zones are a Zones node: 36 nodes instead
-  of 83.
-- **The pattern and scenes studies are rebuilt** with the new pattern
-  tools: one Pattern with two banks, accented hats, and a swung clock
-  instead of two Patterns and four Switches, chord banks in one piano roll,
-  a one-node playlist, and a Beat panel with the grid and the piano roll
-  (45 nodes instead of 56); and a Looper with Record, Overdub, and Undo
-  buttons in the scenes study (84 nodes instead of 89).
 - **Create Clip from take places the clip in the song** at the beat the
   take started, and wires it where the recorded input went, so the take
   plays in time in the mix straight away.
@@ -168,13 +159,19 @@ Phase 4: the tools the gap studies found missing.
 - **A seek starts every node fresh** where it lands, as a render from that
   point does: effects start empty and notes end. (A plugin host's loop
   doesn't reset anything.)
-- **The multitrack recorder and scenes studies are rebuilt with pinned
-  blocks.** The recorder's Mixer panel is a channel strip per track (its
-  Track block with the reverb send under it), the bus returns, a master
-  Fader, and the recording controls, each under a label. Its clips are
-  placed in the song, so it plays from bar 9; the punch window and the
-  click are the transport's: 52 nodes instead of 92. The scenes study's Session panel is a grid of tracks by scenes
-  with its slot buttons lit by their clips and a Track block per track.
+- **The four gap studies are rebuilt with Phase 4's tools**, and
+  `docs/GAPS.md` counts each gesture again. The multitrack recorder is 49
+  nodes instead of 92: a channel strip per track under labels, clips
+  placed in the song so it plays from bar 9, the transport's punch range
+  and click, one Logic for solo, the lead's volume ride as automation, and
+  a Song panel with the arrangement. The pattern studio is 20 instead of
+  56: one Pattern with two banks, accents, and swing, the chords' banks in
+  one piano roll, a one-node playlist, and the grid and piano roll on a
+  panel. The pads study is 35 instead of 83: a 4 × 4 Pads grid lit by what
+  plays it, twelve slices of a loop from one Slicer, Note Split, and Zones
+  and Route for velocity layers and round robin. The scenes study is 40
+  instead of 99: a Clip Slot per slot on a Session grid of tracks by
+  scenes, and a Looper that records, overdubs, and undoes.
 
 ## [0.14.2] - 2026-10-25
 

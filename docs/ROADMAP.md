@@ -963,10 +963,10 @@ table in `GAPS.md`.
 - [x] Rebuild the pattern and scenes studies: the pattern Switches are gone, the hats have accents and swing, the looper is one node and overdubs. *Verified:* the pattern study is 45 nodes (was 56): `the_pattern_study_alternates_its_banks_on_the_bar` reads bank A in bar 4 and B from bar 5 on both the Pattern and the chords, A again after a seek to bar 9, the accented hat row, and no Switches; the scenes study is 84 nodes (was 89) and `the_scenes_looper_is_one_node_that_overdubs` finds one Looper with record, overdub, and undo wired and quantized to the bar, and no Record. GAPS.md's pattern and launcher tables have their Phase 4 entries for these gestures.
 
 ### M4.6 Recording and arranging
-- [ ] **MIDI Record** node (a take becomes a MIDI Pattern beside it, optionally quantized); automation write and touch (moving a knob while recording writes a song-locked Graph into that input); a **Tempo** node (`bpm` in, `tap` trigger; an edit to the tempo map, not a signal).
-- [ ] An **Arrangement** panel card: lanes of song-locked Clips and MIDI Patterns drawn in time, draggable and trimmable, with the markers and the loop; a view onto nodes, nothing of its own.
-- [ ] Templates: Add ▸ Track, Drum Pad, Clip Slot, Send, each a block instance wired in and pinned; user-saved templates from a selection.
-- [ ] Rebuild all four studies; the gesture tables in GAPS.md get their "after" column.
+- [x] **MIDI Record** node (a take becomes a MIDI Pattern beside it, optionally quantized); automation write and touch (moving a knob while recording writes a song-locked Graph into that input); a **Tempo** node (`bpm` in, `tap` trigger; an edit to the tempo map, not a signal). *Verified:* `a_take_runs_from_start_to_stop_with_its_notes_timed` and `the_transport_records_an_armed_take_and_quantize_reads` on the node, `a_take_arrives_whole_once_it_stops` on the file side's sink, `a_takes_notes_come_out_in_beats_quantized_if_asked` and `a_midi_take_becomes_a_placed_pattern_merged_where_the_keys_went` on the editing functions, and in the editor `a_midi_take_becomes_a_pattern_beside_its_record_node` (a riff recorded with `R` becomes a placed MIDI Pattern with its notes, merged into the MIDI Note the riff fed, one undo step) (DECISIONS D218). Automation: `moves_become_a_placed_graph_into_the_input`, `thinning_keeps_one_move_a_step_and_the_last`, and `moving_a_knob_while_recording_writes_automation_into_it` (in Write the curve keeps the last value, in Touch it returns to where it was when the knob is let go; a song-locked Graph in beats wired into the knob, one undo step) (D219). Tempo: `taps_ask_for_their_tempo`, `a_change_to_bpm_asks_but_the_first_value_doesnt`, and `a_tempo_node_sets_the_songs_tempo` (the project's tempo map follows a change to `bpm`) (D220). Recording from a real MIDI keyboard, how automation feels to write, and tapping a tempo need manual verification.
+- [x] An **Arrangement** panel card: lanes of song-locked Clips and MIDI Patterns drawn in time, draggable and trimmable, with the markers and the loop; a view onto nodes, nothing of its own. *Verified:* `lanes_come_from_placed_generators` (Clips, MIDI Patterns, Patterns, and Graphs placed *At beat…*, top to bottom as on the canvas, each ending at its `until`, its clip's length, or the song's end), `drags_move_and_trim_on_the_beat`, and `blocks_are_hit_by_body_and_end` on the view; `the_arrangement_card_moves_and_trims_placed_generators` drags a pinned card's block to move a placed MIDI Pattern and its end to trim it, each one undo step on the node's own `at` and `until`; `it_has_no_sockets_of_its_own` on the node (DECISIONS D221). The multitrack recorder's Song panel is one. Dragging it by hand needs manual verification.
+- [x] Templates: Add ▸ Track, Drum Pad, Clip Slot, Send, each a block instance wired in and pinned; user-saved templates from a selection. *Verified:* `a_track_takes_the_selected_sound_into_the_master_mix_behind_its_limiter` and `a_drum_pad_gets_a_sample_and_a_clip_slot_drives_the_clip` on the recipes; in the editor `a_track_template_is_a_wired_pinned_channel_strip_in_one_step` (one undo takes it all away), `a_clip_slot_template_drives_the_selected_clip_and_a_send_feeds_the_mix`, and `a_saved_selection_adds_again_with_its_controls_pinned` (kept in the settings file); the three new blocks have goldens, and `the_clip_slot_block_launches_and_stops_on_the_bar` renders a slot launched mid-bar starting its clip on the next bar line, and stopped mid-bar ending it on the one after (DECISIONS D222). Choosing a file for a Drum Pad from the dialog needs manual verification.
+- [x] Rebuild all four studies; the gesture tables in GAPS.md get their "after" column. *Verified:* the recorder is 49 nodes (was 92), the pattern studio 20 (was 56), the pads 35 (was 83), and the scenes 40 (was 99); `crates/ac-cli/tests/studies.rs` keeps each loading, canonical, compiling, sounding, and bound, with the acceptance tests below, and `study_panels_have_no_overlapping_cards` keeps their panels drawable. Every row of GAPS.md's four gesture tables has its Phase 4 entry, and each study's *Rebuilt* note says what changed.
 
 **Phase 4 acceptance** (each measured against the gesture tables in GAPS.md)
 - Press Stop in any study, with the transport playing or already stopped, and nothing sounds; the Mixer panel reads as one strip per track with a label over each section.
@@ -974,3 +974,46 @@ table in `GAPS.md`.
 - A 4×4 pad bank from a MIDI drum pad in at most 20 nodes, each pad lit by the pattern and playing with velocity.
 - A three-track, two-scene session grid in at most 12 nodes besides the clips, launched on the bar, each slot showing its state; a loop recorded and overdubbed with one node.
 - A pattern studio with two patterns alternating every four bars in at most 20 nodes, with swing and accents, its grid and piano roll on one panel.
+
+*Verified* (on Linux, with the whole of Phase 4 on one branch; GAPS.md's
+gesture tables have the counts):
+- **Stop silences everything; the Mixer reads as strips.**
+  `stop_silences_every_study_playing_or_not` plays each study for three
+  seconds, presses Stop, lets the effects' tails ring out, and finds
+  silence, then presses Stop again with the transport stopped and still
+  finds it; `stop_ends_the_scene_loops_playing_or_not` does the same for
+  the launcher's wired loops. `the_recorders_mixer_is_a_strip_per_track_under_labels`
+  finds a strip per Track block, each headed by its Track, under *Tracks*,
+  *Buses*, *Master*, and *Recording* (DECISIONS D200, D202).
+- **A track recorded in four gestures, then bar 9.**
+  `four_tracks_gets_a_recorded_track_in_four_gestures` opens the Four
+  Tracks example, saves it, and with nothing selected chooses Add ▸ Track
+  (a Track fed by an Audio In, with an armed Record), presses `R` and
+  `Space`, and chooses Create Clip from take: the take is a Clip wired into
+  the new Track. A click on the ruler at bar 9 moves the playhead there and
+  `Space` plays on from it (D222).
+- **A 4 × 4 pad bank in 20 nodes.** `the_kit_is_made_of_sampler_nodes_not_chains`
+  finds a 4 × 4 Pads lit by the merged players (MIDI In, the computer keys,
+  the Pads, and the demo Pattern) and counts 20 nodes from the players to
+  the pads' Mix; `the_pads_play_slices_and_the_kit_with_velocity` plays a
+  slice hard and soft from MIDI and hears the difference, and the snare
+  and both hats from Note Split.
+- **A session grid in 11 nodes; one Looper.**
+  `the_scenes_looper_is_one_node_that_overdubs` finds six Clip Slots, each
+  starting its clip and pinned to the Session panel, and five buttons (two
+  scenes, three stops): 11 nodes besides the clips. The slot's card lights
+  from its `playing`; `the_clip_slot_block_launches_and_stops_on_the_bar`
+  renders a launch and a stop each waiting for the bar line. The same test
+  finds one Looper with record, overdub, and undo wired and quantized to
+  the bar, and no Record.
+- **A pattern studio in 20 nodes.**
+  `the_pattern_studio_is_twenty_nodes_with_its_editors_on_a_panel` counts
+  20 nodes, finds the Pattern and a MIDI Pattern on the Beat panel, a
+  Track strip per channel on the Rack panel, and a swung Sixteenths clock;
+  `the_pattern_study_alternates_its_banks_on_the_bar` hears bank A in bar
+  4, B from bar 5, and A after a seek to bar 9, with the accented hat row.
+
+*Needs manual verification:* how the editors and their playheads feel on
+panels and in windows, recording a real instrument (Looper and a take on
+a new Track), a real MIDI drum pad on the pads study, writing automation
+by hand, tapping a tempo, and choosing a Drum Pad's file in the dialog.

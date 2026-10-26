@@ -46,7 +46,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each a Track block (fader, pan, mute, solo) with a reverb send and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. The clips are placed in the song (`start` At beat): chords from bar 5 to bar 13, lead from bar 9, so playing from any bar finds each one where it belongs. A volume ride on the lead, a punch range for the vocal on bars 5 and 6, and markers for the sections, all on the ruler. The Mixer panel is the mixer window: each Track block pinned as a channel strip with its send under it, the bus returns, the master fader with its meter, and the recording controls, each section under a label.\n\nClick the ruler at bar 9 and press Space: everything plays from there. The click is the metronome button, live only, so it's never in the export.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, record MIDI, comp takes, or trim and fade a clip. Read docs/GAPS.md for the full list."
+          "text": "Study: a linear multitrack recorder, rebuilt with Phase 4's tools.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each a Track block (fader, pan, mute, solo) with a reverb send and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. The clips are placed in the song (`start` At beat): chords from bar 5 to bar 13, lead from bar 9, so playing from any bar finds each one where it belongs. Automation on the lead's volume, a punch range for the vocal on bars 5 and 6, and markers for the sections, all on the ruler. The Mixer panel is the mixer window: each Track block pinned as a channel strip with its send under it, the bus returns, the master fader with its meter, and the recording controls, each section under a label.\n\nClick the ruler at bar 9 and press Space: everything plays from there. The click is the metronome button, live only, so it's never in the export.\n\nThe Song panel is the song in time, a lane per placed clip and the automation: drag a block to move it, its end to trim it.\n\nWhat a recorder does that this can't: comp takes, or fade a clip. Read docs/GAPS.md for the full list."
         },
         "ui": {
           "pos": [
@@ -550,23 +550,23 @@
           "points": [
             [
               0,
-              -24
+              -36
             ],
             [
               0.5,
-              -24
+              -36
             ],
             [
               0.56,
-              0
+              -12
             ],
             [
               0.9,
-              0
+              -12
             ],
             [
               1,
-              -12
+              -24
             ]
           ]
         },
@@ -580,29 +580,14 @@
             900.0,
             2340.0
           ],
-          "label": "Lead ride (dB)"
-        }
-      },
-      {
-        "id": "45",
-        "kind": "math",
-        "params": {
-          "a": -12.0,
-          "op": "add"
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            2040.0
-          ],
-          "label": "Level + ride"
+          "label": "Automation: volume"
         }
       },
       {
         "id": "46",
         "kind": "comment",
         "config": {
-          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song, placed at beat 0 so it's in the right place from any bar, and is added to a fixed -12 dB, so the Lead strip's fader shows the ride as it plays rather than taking a hand; there's no automation lane under the track and no write/touch/latch."
+          "text": "Automation: turn on the transport's automation button and move the lead's fader while recording, and the moves become a Graph like this one, placed in the song and wired into the Track's volume: here, the lead comes in at bar 9 and drops back for the end. Being placed at beat 0, it's right from any bar."
         },
         "ui": {
           "pos": [
@@ -616,8 +601,11 @@
         }
       },
       {
-        "id": "47",
+        "id": "4a",
         "kind": "logic",
+        "config": {
+          "inputs": 5
+        },
         "params": {
           "op": "or"
         },
@@ -625,48 +613,6 @@
           "pos": [
             2400.0,
             0.0
-          ],
-          "label": "Any solo 1"
-        }
-      },
-      {
-        "id": "48",
-        "kind": "logic",
-        "params": {
-          "op": "or"
-        },
-        "ui": {
-          "pos": [
-            2400.0,
-            150.0
-          ],
-          "label": "Any solo 2"
-        }
-      },
-      {
-        "id": "49",
-        "kind": "logic",
-        "params": {
-          "op": "or"
-        },
-        "ui": {
-          "pos": [
-            2400.0,
-            300.0
-          ],
-          "label": "Any solo 3"
-        }
-      },
-      {
-        "id": "4a",
-        "kind": "logic",
-        "params": {
-          "op": "or"
-        },
-        "ui": {
-          "pos": [
-            2400.0,
-            450.0
           ],
           "label": "Any solo"
         }
@@ -884,6 +830,17 @@
             96.0
           ]
         }
+      },
+      {
+        "id": "60",
+        "kind": "arrangement",
+        "ui": {
+          "pos": [
+            0.0,
+            3660.0
+          ],
+          "label": "Song"
+        }
       }
     ],
     "wires": [
@@ -978,46 +935,6 @@
       {
         "from": "41:out",
         "to": "42:gain"
-      },
-      {
-        "from": "44:out",
-        "to": "45:b"
-      },
-      {
-        "from": "45:out",
-        "to": "36:volume"
-      },
-      {
-        "from": "1b:soloed",
-        "to": "47:a"
-      },
-      {
-        "from": "24:soloed",
-        "to": "47:b"
-      },
-      {
-        "from": "47:out",
-        "to": "48:a"
-      },
-      {
-        "from": "2d:soloed",
-        "to": "48:b"
-      },
-      {
-        "from": "48:out",
-        "to": "49:a"
-      },
-      {
-        "from": "36:soloed",
-        "to": "49:b"
-      },
-      {
-        "from": "49:out",
-        "to": "4a:a"
-      },
-      {
-        "from": "3f:soloed",
-        "to": "4a:b"
       },
       {
         "from": "4a:out",
@@ -1138,6 +1055,30 @@
       {
         "from": "10:out",
         "to": "15:arm"
+      },
+      {
+        "from": "44:out",
+        "to": "36:volume"
+      },
+      {
+        "from": "1b:soloed",
+        "to": "4a:a"
+      },
+      {
+        "from": "24:soloed",
+        "to": "4a:b"
+      },
+      {
+        "from": "2d:soloed",
+        "to": "4a:c"
+      },
+      {
+        "from": "36:soloed",
+        "to": "4a:d"
+      },
+      {
+        "from": "3f:soloed",
+        "to": "4a:e"
       }
     ],
     "frames": [
@@ -2513,6 +2454,14 @@
             6
           ],
           "span": 4
+        }
+      ]
+    },
+    {
+      "name": "Song",
+      "items": [
+        {
+          "node": "60"
         }
       ]
     }

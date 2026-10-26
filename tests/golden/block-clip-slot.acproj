@@ -3,7 +3,7 @@
   "name": "Block: Clip Slot",
   "settings": {
     "sample_rate": 48000,
-    "length": 2.5,
+    "length": 5.0,
     "seed": 0,
     "block_size": 256,
     "tempo": [
@@ -76,7 +76,7 @@
         "id": "5",
         "kind": "compare",
         "params": {
-          "b": 1.6,
+          "b": 2.5,
           "op": "greater_equal"
         },
         "ui": {
@@ -94,7 +94,7 @@
             0.0,
             660.0
           ],
-          "label": "Stop at 1.6 s"
+          "label": "Stop at 2.5 s"
         }
       },
       {
@@ -102,9 +102,6 @@
         "kind": "group",
         "config": {
           "def": "clip-slot"
-        },
-        "params": {
-          "quantize": 1.0
         },
         "ui": {
           "pos": [
@@ -167,7 +164,7 @@
   "group_defs": {
     "clip-slot": {
       "name": "Clip Slot",
-      "description": "One slot of a clip launcher: press `launch` and its clip starts on the next bar; press `stop` (or launch another slot on the track, wired into `release`) and it stops on the next bar. The Add menu's Clip Slot template adds one wired to the selected Clip, with a card on the panel that is the slot's button and light.\n\n- `launch` (trigger): the slot's own button, on its card.\n- `scene` (trigger): a scene button launching a row of slots.\n- `release` (trigger): another slot on the same track launched: wire that slot's `launched` here, and this one's `launched` into its `release`, for one slot playing at a time.\n- `stop` (trigger): the track's stop button.\n- `quantize` (beats): the grid launches wait for, 4 for a bar.\n- `start` and `end` (triggers): wire them into the clip's `start` and `stop`.\n- `launched` (trigger): fires on every launch. `armed` is on from a launch until a release or stop; `playing` follows it on the grid.\n\nInside: two Merges gather the launches and the releases into a Latch; a Clock on the grid samples it with a Sample & Hold, and two Gate to Triggers turn the changes into `start` and `end`.",
+      "description": "One slot of a clip launcher: press `launch` and its clip starts on the next bar line (every slot waits for the bar: the Grid clock inside, which you can change for all of them); press `stop` (or launch another slot on the track, wired into `release`) and it stops on the next bar. The Add menu's Clip Slot template adds one wired to the selected Clip, with a card on the panel that is the slot's button and light.\n\n- `launch` (trigger): the slot's own button, on its card.\n- `scene` (trigger): a scene button launching a row of slots.\n- `release` (trigger): another slot on the same track launched: wire that slot's `launched` here, and this one's `launched` into its `release`, for one slot playing at a time.\n- `stop` (trigger): the track's stop button.\n- `start` and `end` (triggers): wire them into the clip's `start` and `stop`.\n- `launched` (trigger): fires on every launch. `armed` is on from a launch until a release or stop; `playing` follows it on the grid.\n\nInside: two Merges gather the launches and the releases into a Latch; a Clock on the grid samples it with a Sample & Hold, and two Gate to Triggers turn the changes into `start` and `end`.",
       "version": 1,
       "author": "Audio Constructor",
       "tags": [
@@ -204,19 +201,6 @@
           "type": "trigger",
           "targets": [
             "2:in_1"
-          ]
-        },
-        {
-          "name": "quantize",
-          "type": "float",
-          "unit": "beats",
-          "default": 4.0,
-          "range": [
-            0.25,
-            16.0
-          ],
-          "targets": [
-            "4:interval"
           ]
         }
       ],

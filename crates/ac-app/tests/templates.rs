@@ -6,8 +6,10 @@ use ac_app::audio::AudioMode;
 use ac_app::templates::Template;
 use ac_app::{AppOptions, EditorApp};
 use ac_core::{Endpoint, NodeId, NodeInstance, Project};
+use egui::accesskit::Role;
 use egui::vec2;
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use serde_json::json;
 
 fn harness(project: Project) -> Harness<'static, EditorApp> {
@@ -235,8 +237,40 @@ fn four_tracks_gets_a_recorded_track_in_four_gestures() {
         "clip",
         "the take plays on the track"
     );
-    // Then play from bar 9: the song is long enough to have one.
-    let settings = &h.state().document().project.settings;
-    assert!(ac_app::editors::arrange::song_end(settings) >= 36.0);
+    // Then play from bar 9: a click on the ruler at beat 32, and Space.
+    let settings = h.state().document().project.settings.clone();
+    let rate = f64::from(h.state().engine.info.sample_rate);
+    let tempo = ac_core::TempoMap::new(rate, &settings.tempo);
+    let song = tempo.beat_at((settings.length * rate) as u64);
+    assert!(song >= 36.0, "the song has a bar 9");
+    // The ruler shows the song's bars plus one.
+    let shown = ((song / 4.0).ceil() + 1.0).max(8.0) * 4.0;
+    let r = h.get_by_role_and_label(Role::Slider, "Song ruler").rect();
+    let x = r.left() + 10.0 + (32.2 / shown) as f32 * (r.width() - 20.0);
+    let p = egui::pos2(x, r.center().y);
+    h.hover_at(p);
+    h.run_steps(2);
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton {
+            pos: p,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        });
+    }
+    h.run_steps(3);
+    let bar_9 = tempo.sample_at(32.0);
+    assert!(
+        wait_for(&mut h, |app| app.engine.handle.position() == bar_9),
+        "at {} not {bar_9}",
+        h.state().engine.handle.position()
+    );
+    h.hover_at(egui::pos2(700.0, 600.0));
+    h.run_steps(1);
+    h.key_press_modifiers(Modifiers::NONE, Key::Space);
+    assert!(
+        wait_for(&mut h, |app| app.engine.handle.position() > bar_9),
+        "playing from bar 9"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

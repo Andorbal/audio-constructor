@@ -206,3 +206,39 @@ fn the_arrangement_card_moves_and_trims_placed_generators() {
     assert_eq!(at(&h, "until"), Some(6.0));
     assert_eq!(at(&h, "at"), Some(4.0), "trimming keeps the start");
 }
+
+/// Every study's panels lay out without one card covering another.
+#[test]
+fn study_panels_have_no_overlapping_cards() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../studies");
+    let mut problems = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap() {
+        let path = e.unwrap().path();
+        if path.extension().is_none_or(|x| x != "acproj") {
+            continue;
+        }
+        let project = ac_io::load_project(&path).unwrap();
+        let panels = project.panels.len();
+        let mut h = harness(project);
+        h.key_press_modifiers(Modifiers::CTRL, Key::Tab);
+        h.run_steps(3);
+        for k in 0..panels {
+            h.state_mut().perform.current = k;
+            h.run_steps(3);
+            let cells = h.state().perform.cells.clone();
+            for (i, a) in cells.iter().enumerate() {
+                for b in &cells[i + 1..] {
+                    if a.rect.shrink(1.0).intersects(b.rect.shrink(1.0)) {
+                        problems.push(format!(
+                            "{} panel {k}: {:?} overlaps {:?}",
+                            path.display(),
+                            a.node,
+                            b.node
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

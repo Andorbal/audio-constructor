@@ -23,12 +23,12 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a pattern-based studio (channel rack, step sequencer, piano roll, playlist), rebuilt with pattern banks, accents, and swing.\n\nFour drum channels play slices of one sample from one Pattern with two banks, A and B. Its hat row carries accents (levels set by dragging a cell up or down) into the hat Sampler's velocity, and the Sixteenths clock swings, so every drum swings with it. A chord channel and a bass channel play from MIDI Patterns (piano rolls); the chords have banks A and B too. One Clock gate is the playlist. Each channel has volume, pan, and mute on a Track block. The Beat panel is the grid and the piano roll, edited while they play; the Rack panel is the channel rack's knobs and mutes.\n\nWhat the real thing has that this can't: a playlist you draw patterns onto, per-step pitch inside the grid, and a fill button. Read docs/GAPS.md."
+          "text": "Study: a pattern-based studio (channel rack, step sequencer, piano roll, playlist), rebuilt with Phase 4's tools in twenty nodes.\n\nFour drum sounds play slices of one sample from one Pattern with two banks, A and B: its hat row carries accents (levels set by dragging a cell up or down) into the hat Sampler's velocity, and the Sixteenths clock swings, so every drum swings with it. They sum into a Drums track. A chord channel and a bass channel play from MIDI Patterns (piano rolls); the chords have banks A and B too and a plate reverb. The playlist is one Clock 32 beats long whose gate is high for its second half: the Pattern's and the chords' bank is B in bars 5 to 8 of every eight, switching on the bar line from any bar. The Beat panel is the grid and the piano roll, edited while they play; the Rack panel is a channel strip per track. Keys 1 to 3 mute the tracks.\n\nWhat the real thing has that this can't: a playlist you draw patterns onto, per-step pitch inside the grid, and a fill button. Read docs/GAPS.md."
         },
         "ui": {
           "pos": [
             0.0,
-            -560.0
+            -900.0
           ],
           "size": [
             760.0,
@@ -65,23 +65,6 @@
             -300.0
           ],
           "label": "Every other four bars"
-        }
-      },
-      {
-        "id": "6",
-        "kind": "comment",
-        "config": {
-          "text": "The playlist: a Clock 32 beats long whose gate is high for its second half (offset 16), so the Pattern's and the chords' bank is 1, pattern B, in bars 5 to 8 of every eight. A bank changes where its next pass begins, so B starts on the bar line, and from any bar the song is played from."
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            -300.0
-          ],
-          "size": [
-            466.0,
-            80.0
-          ]
         }
       },
       {
@@ -130,7 +113,7 @@
         },
         "ui": {
           "pos": [
-            1200.0,
+            900.0,
             0.0
           ],
           "label": "Kick"
@@ -154,8 +137,8 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            470.0
+            900.0,
+            400.0
           ],
           "label": "Snare"
         },
@@ -178,8 +161,8 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            940.0
+            900.0,
+            800.0
           ],
           "label": "Hat"
         },
@@ -202,10 +185,42 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            1410.0
+            900.0,
+            1200.0
           ],
           "label": "Clap"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "40",
+        "kind": "mix",
+        "config": {
+          "inputs": 4
+        },
+        "ui": {
+          "pos": [
+            1200.0,
+            0.0
+          ],
+          "label": "Drums"
+        }
+      },
+      {
+        "id": "21",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": 0.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            0.0
+          ],
+          "label": "Drums track"
         },
         "hide_unwired": true
       },
@@ -392,7 +407,7 @@
         "ui": {
           "pos": [
             300.0,
-            1880.0
+            1700.0
           ],
           "label": "Chords (banks A and B)"
         }
@@ -417,10 +432,28 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            1880.0
+            900.0,
+            1700.0
           ],
           "label": "Poly synth"
+        },
+        "hide_unwired": true
+      },
+      {
+        "id": "31",
+        "kind": "group",
+        "config": {
+          "def": "track"
+        },
+        "params": {
+          "volume": -2.0
+        },
+        "ui": {
+          "pos": [
+            1500.0,
+            1700.0
+          ],
+          "label": "Chords track"
         },
         "hide_unwired": true
       },
@@ -1203,7 +1236,7 @@
         "ui": {
           "pos": [
             300.0,
-            2580.0
+            2300.0
           ],
           "label": "Bass (whole song)"
         }
@@ -1229,61 +1262,30 @@
         },
         "ui": {
           "pos": [
-            1200.0,
-            2580.0
+            900.0,
+            2300.0
           ],
           "label": "FM bass"
         },
         "hide_unwired": true
       },
       {
-        "id": "19",
-        "kind": "comment",
+        "id": "35",
+        "kind": "group",
         "config": {
-          "text": "A 64-beat MIDI Pattern holds the bass for the whole song: the 'one long clip' way of arranging. Pin it to a panel, or open its piano roll in a window, to see it beside the drums."
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            2730.0
-          ],
-          "size": [
-            466.0,
-            80.0
-          ]
-        }
-      },
-      {
-        "id": "1a",
-        "kind": "mix",
-        "config": {
-          "inputs": 8
+          "def": "track"
         },
         "params": {
-          "gain_6": -8.0,
-          "gain_7": -14.0
+          "volume": 0.0
         },
         "ui": {
           "pos": [
-            2400.0,
-            0.0
+            1500.0,
+            2300.0
           ],
-          "label": "Master"
-        }
-      },
-      {
-        "id": "1b",
-        "kind": "mix",
-        "config": {
-          "inputs": 2
+          "label": "Bass track"
         },
-        "ui": {
-          "pos": [
-            2100.0,
-            1000.0
-          ],
-          "label": "Reverb bus"
-        }
+        "hide_unwired": true
       },
       {
         "id": "1c",
@@ -1297,408 +1299,28 @@
         },
         "ui": {
           "pos": [
-            2400.0,
-            1000.0
+            1800.0,
+            1700.0
           ],
           "label": "Plate"
         }
       },
       {
-        "id": "1d",
-        "kind": "delay",
+        "id": "1a",
+        "kind": "mix",
         "config": {
-          "unit": "beats"
+          "inputs": 4
         },
         "params": {
-          "feedback": 0.4,
-          "mix": 1.0,
-          "time": 0.75
+          "gain_3": -8.0
         },
         "ui": {
           "pos": [
             2100.0,
-            1400.0
-          ],
-          "label": "Chord echo"
-        }
-      },
-      {
-        "id": "1e",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
             0.0
           ],
-          "label": "Kick volume"
+          "label": "Master"
         }
-      },
-      {
-        "id": "1f",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            150.0
-          ],
-          "label": "Kick pan"
-        }
-      },
-      {
-        "id": "20",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            150.0
-          ],
-          "label": "Kick mute"
-        }
-      },
-      {
-        "id": "21",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            0.0
-          ],
-          "label": "Kick strip"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "22",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            470.0
-          ],
-          "label": "Snare volume"
-        }
-      },
-      {
-        "id": "23",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.1
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            620.0
-          ],
-          "label": "Snare pan"
-        }
-      },
-      {
-        "id": "24",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            620.0
-          ],
-          "label": "Snare mute"
-        }
-      },
-      {
-        "id": "25",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            470.0
-          ],
-          "label": "Snare strip"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "26",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            940.0
-          ],
-          "label": "Hat volume"
-        }
-      },
-      {
-        "id": "27",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": -0.3
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            1090.0
-          ],
-          "label": "Hat pan"
-        }
-      },
-      {
-        "id": "28",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            1090.0
-          ],
-          "label": "Hat mute"
-        }
-      },
-      {
-        "id": "29",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            940.0
-          ],
-          "label": "Hat strip"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "2a",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            1410.0
-          ],
-          "label": "Clap volume"
-        }
-      },
-      {
-        "id": "2b",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.3
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            1560.0
-          ],
-          "label": "Clap pan"
-        }
-      },
-      {
-        "id": "2c",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            1560.0
-          ],
-          "label": "Clap mute"
-        }
-      },
-      {
-        "id": "2d",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            1410.0
-          ],
-          "label": "Clap strip"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "2e",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": -2.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            1880.0
-          ],
-          "label": "Chords volume"
-        }
-      },
-      {
-        "id": "2f",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            2030.0
-          ],
-          "label": "Chords pan"
-        }
-      },
-      {
-        "id": "30",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            2030.0
-          ],
-          "label": "Chords mute"
-        }
-      },
-      {
-        "id": "31",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            1880.0
-          ],
-          "label": "Chords strip"
-        },
-        "hide_unwired": true
-      },
-      {
-        "id": "32",
-        "kind": "knob",
-        "config": {
-          "min": -60.0,
-          "max": 12.0,
-          "unit": "db"
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            2580.0
-          ],
-          "label": "Bass volume"
-        }
-      },
-      {
-        "id": "33",
-        "kind": "knob",
-        "config": {
-          "min": -1.0,
-          "max": 1.0
-        },
-        "params": {
-          "value": 0.0
-        },
-        "ui": {
-          "pos": [
-            1500.0,
-            2730.0
-          ],
-          "label": "Bass pan"
-        }
-      },
-      {
-        "id": "34",
-        "kind": "toggle",
-        "ui": {
-          "pos": [
-            1800.0,
-            2730.0
-          ],
-          "label": "Bass mute"
-        }
-      },
-      {
-        "id": "35",
-        "kind": "group",
-        "config": {
-          "def": "track"
-        },
-        "ui": {
-          "pos": [
-            1800.0,
-            2580.0
-          ],
-          "label": "Bass strip"
-        },
-        "hide_unwired": true
       },
       {
         "id": "36",
@@ -1711,21 +1333,10 @@
         },
         "ui": {
           "pos": [
-            2700.0,
+            2400.0,
             0.0
           ],
           "label": "Limiter"
-        }
-      },
-      {
-        "id": "37",
-        "kind": "meter",
-        "ui": {
-          "pos": [
-            3000.0,
-            0.0
-          ],
-          "label": "Master meter"
         }
       },
       {
@@ -1733,7 +1344,7 @@
         "kind": "audio_out",
         "ui": {
           "pos": [
-            3300.0,
+            2700.0,
             0.0
           ],
           "label": "Main out"
@@ -1746,164 +1357,12 @@
         "to": "7:clock"
       },
       {
-        "from": "17:midi",
-        "to": "18:midi"
+        "from": "39:gate",
+        "to": "7:bank"
       },
       {
-        "from": "a:out",
-        "to": "21:in"
-      },
-      {
-        "from": "1e:out",
-        "to": "21:volume"
-      },
-      {
-        "from": "1f:out",
-        "to": "21:pan"
-      },
-      {
-        "from": "20:out",
-        "to": "21:mute"
-      },
-      {
-        "from": "21:out",
-        "to": "1a:in_0"
-      },
-      {
-        "from": "c:out",
-        "to": "25:in"
-      },
-      {
-        "from": "22:out",
-        "to": "25:volume"
-      },
-      {
-        "from": "23:out",
-        "to": "25:pan"
-      },
-      {
-        "from": "24:out",
-        "to": "25:mute"
-      },
-      {
-        "from": "25:out",
-        "to": "1a:in_1"
-      },
-      {
-        "from": "e:out",
-        "to": "29:in"
-      },
-      {
-        "from": "26:out",
-        "to": "29:volume"
-      },
-      {
-        "from": "27:out",
-        "to": "29:pan"
-      },
-      {
-        "from": "28:out",
-        "to": "29:mute"
-      },
-      {
-        "from": "29:out",
-        "to": "1a:in_2"
-      },
-      {
-        "from": "12:out",
-        "to": "2d:in"
-      },
-      {
-        "from": "2a:out",
-        "to": "2d:volume"
-      },
-      {
-        "from": "2b:out",
-        "to": "2d:pan"
-      },
-      {
-        "from": "2c:out",
-        "to": "2d:mute"
-      },
-      {
-        "from": "2d:out",
-        "to": "1a:in_3"
-      },
-      {
-        "from": "2d:out",
-        "to": "1b:in_0"
-      },
-      {
-        "from": "16:out",
-        "to": "31:in"
-      },
-      {
-        "from": "2e:out",
-        "to": "31:volume"
-      },
-      {
-        "from": "2f:out",
-        "to": "31:pan"
-      },
-      {
-        "from": "30:out",
-        "to": "31:mute"
-      },
-      {
-        "from": "31:out",
-        "to": "1a:in_4"
-      },
-      {
-        "from": "31:out",
-        "to": "1b:in_1"
-      },
-      {
-        "from": "31:out",
-        "to": "1d:in"
-      },
-      {
-        "from": "18:out",
-        "to": "35:in"
-      },
-      {
-        "from": "32:out",
-        "to": "35:volume"
-      },
-      {
-        "from": "33:out",
-        "to": "35:pan"
-      },
-      {
-        "from": "34:out",
-        "to": "35:mute"
-      },
-      {
-        "from": "35:out",
-        "to": "1a:in_5"
-      },
-      {
-        "from": "1b:out",
-        "to": "1c:in"
-      },
-      {
-        "from": "1c:out",
-        "to": "1a:in_6"
-      },
-      {
-        "from": "1d:out",
-        "to": "1a:in_7"
-      },
-      {
-        "from": "1a:out",
-        "to": "36:in"
-      },
-      {
-        "from": "36:out",
-        "to": "37:in"
-      },
-      {
-        "from": "37:out",
-        "to": "38:in"
+        "from": "39:gate",
+        "to": "13:bank"
       },
       {
         "from": "7:trigger_0",
@@ -1926,80 +1385,96 @@
         "to": "e:velocity"
       },
       {
-        "from": "39:gate",
-        "to": "7:bank"
+        "from": "a:out",
+        "to": "40:in_0"
       },
       {
-        "from": "39:gate",
-        "to": "13:bank"
+        "from": "c:out",
+        "to": "40:in_1"
+      },
+      {
+        "from": "e:out",
+        "to": "40:in_2"
+      },
+      {
+        "from": "12:out",
+        "to": "40:in_3"
+      },
+      {
+        "from": "40:out",
+        "to": "21:in"
+      },
+      {
+        "from": "21:out",
+        "to": "1a:in_0"
       },
       {
         "from": "13:midi",
         "to": "16:midi"
+      },
+      {
+        "from": "16:out",
+        "to": "31:in"
+      },
+      {
+        "from": "31:out",
+        "to": "1a:in_1"
+      },
+      {
+        "from": "31:out",
+        "to": "1c:in"
+      },
+      {
+        "from": "1c:out",
+        "to": "1a:in_3"
+      },
+      {
+        "from": "17:midi",
+        "to": "18:midi"
+      },
+      {
+        "from": "18:out",
+        "to": "35:in"
+      },
+      {
+        "from": "35:out",
+        "to": "1a:in_2"
+      },
+      {
+        "from": "1a:out",
+        "to": "36:in"
+      },
+      {
+        "from": "36:out",
+        "to": "38:in"
       }
     ],
     "frames": [
       {
-        "label": "Kick",
+        "label": "The beat: one Pattern, two banks, a swung clock",
         "rect": [
-          1176.0,
-          -52.0,
-          844.0,
-          366.0
+          -24.0,
+          -352.0,
+          1724.0,
+          1980.0
         ]
       },
       {
-        "label": "Snare",
-        "rect": [
-          1176.0,
-          418.0,
-          844.0,
-          366.0
-        ]
-      },
-      {
-        "label": "Hat",
-        "rect": [
-          1176.0,
-          888.0,
-          844.0,
-          366.0
-        ]
-      },
-      {
-        "label": "Clap",
-        "rect": [
-          1176.0,
-          1358.0,
-          844.0,
-          366.0
-        ]
-      },
-      {
-        "label": "Chords",
+        "label": "Chords and bass",
         "rect": [
           276.0,
-          1828.0,
-          1744.0,
-          633.0
+          1648.0,
+          1424.0,
+          1100.0
         ]
       },
       {
-        "label": "Bass",
+        "label": "Mix",
         "rect": [
-          276.0,
-          2528.0,
-          1744.0,
-          366.0
-        ]
-      },
-      {
-        "label": "Mixer and master",
-        "rect": [
-          2076.0,
+          1776.0,
           -52.0,
-          1444.0,
-          1615.0
+          1244.0,
+          400.0
         ]
       }
     ]
@@ -4038,61 +3513,48 @@
       "name": "Rack",
       "items": [
         {
-          "node": "1e"
+          "node": "21",
+          "at": [
+            0,
+            1
+          ]
         },
         {
-          "node": "1f"
+          "node": "31",
+          "at": [
+            1,
+            1
+          ]
         },
         {
-          "node": "20"
+          "node": "35",
+          "at": [
+            2,
+            1
+          ]
+        }
+      ],
+      "labels": [
+        {
+          "text": "Drums",
+          "at": [
+            0,
+            0
+          ]
         },
         {
-          "node": "22"
+          "text": "Chords",
+          "at": [
+            1,
+            0
+          ]
         },
         {
-          "node": "23"
-        },
-        {
-          "node": "24"
-        },
-        {
-          "node": "26"
-        },
-        {
-          "node": "27"
-        },
-        {
-          "node": "28"
-        },
-        {
-          "node": "2a"
-        },
-        {
-          "node": "2b"
-        },
-        {
-          "node": "2c"
-        },
-        {
-          "node": "2e"
-        },
-        {
-          "node": "2f"
-        },
-        {
-          "node": "30"
-        },
-        {
-          "node": "32"
-        },
-        {
-          "node": "33"
-        },
-        {
-          "node": "34"
-        },
-        {
-          "node": "37"
+          "text": "Bass",
+          "at": [
+            2,
+            0
+          ]
         }
       ]
     }
@@ -4105,8 +3567,8 @@
       },
       "target": {
         "type": "input",
-        "node": "20",
-        "socket": "value"
+        "node": "21",
+        "socket": "mute"
       },
       "mode": "toggle"
     },
@@ -4117,8 +3579,8 @@
       },
       "target": {
         "type": "input",
-        "node": "24",
-        "socket": "value"
+        "node": "31",
+        "socket": "mute"
       },
       "mode": "toggle"
     },
@@ -4129,44 +3591,8 @@
       },
       "target": {
         "type": "input",
-        "node": "28",
-        "socket": "value"
-      },
-      "mode": "toggle"
-    },
-    {
-      "source": {
-        "type": "key",
-        "key": "4"
-      },
-      "target": {
-        "type": "input",
-        "node": "2c",
-        "socket": "value"
-      },
-      "mode": "toggle"
-    },
-    {
-      "source": {
-        "type": "key",
-        "key": "5"
-      },
-      "target": {
-        "type": "input",
-        "node": "30",
-        "socket": "value"
-      },
-      "mode": "toggle"
-    },
-    {
-      "source": {
-        "type": "key",
-        "key": "6"
-      },
-      "target": {
-        "type": "input",
-        "node": "34",
-        "socket": "value"
+        "node": "35",
+        "socket": "mute"
       },
       "mode": "toggle"
     }

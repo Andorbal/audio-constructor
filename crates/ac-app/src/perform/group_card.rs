@@ -106,7 +106,8 @@ fn widgets_from(inputs: &[In<'_>], outputs: &[Out<'_>]) -> Vec<Widget> {
         .map(|s| s.0.to_string());
     for &(name, ty, spec, wired) in inputs {
         let Some(spec) = spec.cloned() else { continue };
-        if spec.hidden {
+        // A trigger a wire fires isn't a button to press (D222).
+        if spec.hidden || (wired && ty == SignalType::Trigger) {
             continue;
         }
         let kind = match ty {

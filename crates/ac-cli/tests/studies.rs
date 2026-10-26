@@ -446,8 +446,9 @@ fn the_pads_play_slices_and_the_kit_with_velocity() {
         peak(&hard),
         peak(&soft)
     );
-    // The snare, the hats, and the resampled pad come through Note Split.
-    for note in [44, 45, 46] {
+    // The snare and the two hats come through Note Split (51, the
+    // resampled pad, is silent until something is recorded).
+    for note in [48, 49, 50] {
         assert!(
             peak(&pads_with(&[(0, on(note, 110))], 0.5)) > 0.01,
             "note {note}"
@@ -480,6 +481,55 @@ fn the_kit_is_made_of_sampler_nodes_not_chains() {
         "{}",
         project.graph.nodes.len()
     );
+    // Phase 4 acceptance: a 4 × 4 bank of pads, lit by the merged MIDI
+    // (the demo pattern's notes too), in at most twenty nodes from the
+    // players to the pads' Mix.
+    let pads = project
+        .graph
+        .nodes
+        .iter()
+        .find(|n| n.kind == "pads")
+        .unwrap();
+    assert_eq!(
+        (
+            pads.config["rows"].as_u64(),
+            pads.config["columns"].as_u64()
+        ),
+        (Some(4), Some(4))
+    );
+    let lit = project
+        .graph
+        .wire_into(&Endpoint::new(pads.id, "lit"))
+        .unwrap();
+    let players = lit.from.node;
+    for feeds in project.graph.wires_to(players) {
+        let k = project.graph.node(feeds.from.node).unwrap().kind.as_str();
+        assert!(
+            ["midi_in", "keyboard_in", "pads", "midi_pattern"].contains(&k),
+            "{k}"
+        );
+    }
+    let bank = project
+        .graph
+        .nodes
+        .iter()
+        .filter(|n| {
+            !matches!(
+                n.kind.as_str(),
+                "comment"
+                    | "audio_out"
+                    | "meter"
+                    | "button"
+                    | "record"
+                    | "voices"
+                    | "midi_filter"
+                    | "group"
+            ) && n.ui.label.as_deref() != Some("Master")
+                && n.ui.label.as_deref() != Some("Keys players")
+                && n.ui.label.as_deref() != Some("Demo riff")
+        })
+        .count();
+    assert!(bank <= 20, "the bank is {bank} nodes");
 }
 
 /// ROADMAP M4.5: the pattern study's one Pattern plays bank B in bars 5–8
@@ -536,4 +586,140 @@ fn the_scenes_looper_is_one_node_that_overdubs() {
         !g.nodes.iter().any(|n| n.kind == "record"),
         "no Record and Sampler pair"
     );
+    // Phase 4 acceptance: the three-track, two-scene grid is at most twelve
+    // nodes besides the clips: a Clip Slot each, the scene and stop buttons.
+    let slots: Vec<_> = g
+        .nodes
+        .iter()
+        .filter(|n| n.group_def().is_some_and(|d| d.0 == "clip-slot"))
+        .collect();
+    assert_eq!(slots.len(), 6);
+    let feeds_a_slot = |id: ac_core::NodeId| {
+        g.wires_from(id)
+            .any(|w| slots.iter().any(|s| s.id == w.to.node))
+    };
+    let buttons = g
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "button")
+        .filter(|n| {
+            feeds_a_slot(n.id)
+                || g.wires_from(n.id).any(|w| {
+                    g.node(w.to.node)
+                        .is_some_and(|m| m.kind == "merge" && feeds_a_slot(m.id))
+                })
+        })
+        .count();
+    assert_eq!(buttons, 5, "two scenes and three stops");
+    assert!(slots.len() + buttons <= 12);
+    // Each slot drives its clip and shows its state on the Session panel.
+    for s in &slots {
+        let starts = g
+            .wires_from(s.id)
+            .filter(|w| w.from.socket == "start")
+            .filter_map(|w| g.node(w.to.node))
+            .all(|n| n.kind == "clip");
+        assert!(starts, "{:?} starts a clip", s.ui.label);
+        assert!(
+            project.panels[0].contains(s.id),
+            "{:?} on the panel",
+            s.ui.label
+        );
+    }
+}
+
+/// Phase 4 acceptance: the pattern studio is at most twenty nodes, with its
+/// grid and piano roll on one panel and a channel strip per track.
+#[test]
+fn the_pattern_studio_is_twenty_nodes_with_its_editors_on_a_panel() {
+    let project = ac_io::load_project(&studies_dir().join("pattern-studio.acproj")).unwrap();
+    let g = &project.graph;
+    assert!(g.nodes.len() <= 20, "{}", g.nodes.len());
+    let beat = project
+        .panels
+        .iter()
+        .find(|p| p.name == "Beat")
+        .expect("Beat");
+    let kinds: Vec<&str> = beat
+        .items
+        .iter()
+        .filter_map(|i| g.node(i.node))
+        .map(|n| n.kind.as_str())
+        .collect();
+    assert!(kinds.contains(&"pattern") && kinds.contains(&"midi_pattern"));
+    let rack = project
+        .panels
+        .iter()
+        .find(|p| p.name == "Rack")
+        .expect("Rack");
+    assert!(rack.items.iter().all(|i| {
+        g.node(i.node)
+            .is_some_and(|n| n.group_def().is_some_and(|d| d.0 == "track"))
+    }));
+    let clock = g
+        .nodes
+        .iter()
+        .find(|n| n.ui.label.as_deref() == Some("Sixteenths"))
+        .unwrap();
+    assert!(clock.params["swing"].as_f64().unwrap() > 0.0, "swing");
+}
+
+/// Phase 4 acceptance: Stop in any study, playing or already stopped, and
+/// nothing goes on sounding once the effects' tails have died away.
+#[test]
+fn stop_silences_every_study_playing_or_not() {
+    for path in studies() {
+        let name = stem(&path);
+        let mut host = live_study(&path, 256);
+        host.handle().play();
+        let playing = host.run(48_000 * 3, 256);
+        assert!(peak(&playing) > 0.01, "{name} plays");
+        host.handle().stop();
+        // Reverb and delay tails ring on for a while, as they would.
+        host.run(48_000 * 4, 256);
+        let after = host.run(48_000, 256);
+        assert!(
+            peak(&after) < 1e-3,
+            "{name}: Stop ended it ({})",
+            peak(&after)
+        );
+        host.handle().stop();
+        let again = host.run(24_000, 256);
+        assert!(peak(&again) < 1e-3, "{name}: still quiet");
+    }
+}
+
+/// Phase 4 acceptance: the recorder's Mixer panel reads as one strip per
+/// track, its Track block on top, with a label over each section.
+#[test]
+fn the_recorders_mixer_is_a_strip_per_track_under_labels() {
+    let project = ac_io::load_project(&studies_dir().join("multitrack-recorder.acproj")).unwrap();
+    let g = &project.graph;
+    let mixer = project
+        .panels
+        .iter()
+        .find(|p| p.name == "Mixer")
+        .expect("Mixer");
+    let tracks: Vec<_> = g
+        .nodes
+        .iter()
+        .filter(|n| n.group_def().is_some_and(|d| d.0 == "track"))
+        .collect();
+    assert_eq!(tracks.len(), 5);
+    assert_eq!(mixer.strips.len(), tracks.len(), "a strip per track");
+    for strip in &mixer.strips {
+        let first = mixer
+            .items
+            .iter()
+            .find(|i| i.strip == Some(strip.id))
+            .and_then(|i| g.node(i.node))
+            .unwrap_or_else(|| panic!("{} is empty", strip.name));
+        assert!(
+            first.group_def().is_some_and(|d| d.0 == "track"),
+            "{} starts with its Track",
+            strip.name
+        );
+    }
+    let labels: Vec<&str> = mixer.labels.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(labels, ["Tracks", "Buses", "Master", "Recording"]);
 }

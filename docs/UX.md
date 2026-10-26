@@ -445,7 +445,8 @@ pedalboard without the app providing one.
   audio output beside it; a knob, a toggle, a dropdown, or a fire button by
   type and unit) and a meter, light, or readout for each output, so a Track
   block pins as a channel strip (D203). Its widgets set the instance's own
-  inputs; a wired input shows the value arriving on its wire. A node's
+  inputs; a wired input shows the value arriving on its wire, and a wired
+  trigger input has no button (D222). A node's
   right-click menu pins it to any panel or a new one, and unpins it. Pinned
   nodes carry a pin badge in their header. Only top-level nodes can be
   pinned (the menu says so inside a group): a group's insides are shared by
