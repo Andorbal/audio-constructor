@@ -26,6 +26,7 @@ pub enum Relayed {
     SetRecording(bool),
     SetLoop(Option<(u64, u64)>),
     Reset,
+    Panic,
     /// A parameter change for the graph of `generation`, already converted
     /// to the slot's value.
     Param {
@@ -49,6 +50,7 @@ impl From<Command> for Relayed {
             Command::SetRecording(on) => Relayed::SetRecording(on),
             Command::SetLoop(r) => Relayed::SetLoop(r),
             Command::Reset => Relayed::Reset,
+            Command::Panic => Relayed::Panic,
         }
     }
 }
@@ -157,6 +159,7 @@ impl EngineHandle {
             Relayed::SetRecording(on) => return self.queue(Command::SetRecording(on)),
             Relayed::SetLoop(r) => return self.queue(Command::SetLoop(r)),
             Relayed::Reset => return self.queue(Command::Reset),
+            Relayed::Panic => return self.queue(Command::Panic),
             Relayed::Param {
                 generation,
                 slot,

@@ -550,10 +550,13 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
                 tr("menu-play")
             };
             entry_labeled(ui, &mut out, Action::PlayStop, icons::PLAY, &play, true);
+            entry(ui, &mut out, Action::Stop, icons::STOP, true);
             entry(ui, &mut out, Action::PlayFromStart, icons::PLAY, true);
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
             toggle(ui, &mut out, Action::ToggleLoop, s.looping);
+            ui.separator();
+            entry(ui, &mut out, Action::Panic, icons::WARNING_OCTAGON, true);
             ui.separator();
             toggle(ui, &mut out, Action::PlayKeys, s.play_keys);
         });

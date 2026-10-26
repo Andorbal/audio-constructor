@@ -390,6 +390,71 @@ impl Node for TStarts {
 }
 
 node! {
+    kind: "t_stops",
+    name: "Stops",
+    category: Generators,
+    keywords: [],
+    /// Counts stop triggers into telemetry 0, with the frame of the last
+    /// one (from the transport position) in telemetry 1. Try this: nothing.
+    pub struct TStops { n: f32 }
+}
+impl Node for TStops {
+    fn meta() -> NodeMeta {
+        Self::base_meta().telemetry(2)
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new().generator_inputs(false, false)
+    }
+    fn new(_: &Config, _: &PrepareCtx) -> Self {
+        TStops { n: 0.0 }
+    }
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
+        let stops = io.inputs.triggers(1);
+        self.n += stops.len() as f32;
+        io.telemetry.set(0, self.n);
+        if let Some(&at) = stops.last() {
+            io.telemetry
+                .set(1, (ctx.transport.position + u64::from(at)) as f32);
+        }
+    }
+    fn reset(&mut self) {
+        self.n = 0.0;
+    }
+}
+
+node! {
+    kind: "t_pulse",
+    name: "Pulse",
+    category: Triggers,
+    keywords: [],
+    /// Fires a trigger at frame `at` (an Int), counted from its creation
+    /// whatever the transport does. Try this: nothing.
+    pub struct TPulse { clock: u64 }
+}
+impl Node for TPulse {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+    fn describe(_: &Config) -> Signature {
+        Signature::new()
+            .input(SocketSpec::int("at", -1))
+            .output(SocketSpec::trigger("out"))
+    }
+    fn new(_: &Config, _: &PrepareCtx) -> Self {
+        TPulse { clock: 0 }
+    }
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
+        let at = i64::from(io.inputs.int(0));
+        let now = self.clock as i64;
+        if at >= now && at < now + ctx.frames as i64 {
+            io.outputs.trigger(0).push((at - now) as u32);
+        }
+        self.clock += ctx.frames as u64;
+    }
+    fn reset(&mut self) {}
+}
+
+node! {
     kind: "t_mix",
     name: "Mix",
     category: Level,
@@ -442,6 +507,8 @@ pub fn registry() -> Registry {
         .register::<TCounter>()
         .register::<TFollower>()
         .register::<TStarts>()
+        .register::<TStops>()
+        .register::<TPulse>()
         .register::<TRestored>()
         .register::<TMix>();
     r

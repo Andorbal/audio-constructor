@@ -219,7 +219,7 @@
         "id": "e",
         "kind": "toggle",
         "params": {
-          "value": true
+          "value": false
         },
         "ui": {
           "pos": [
@@ -333,7 +333,7 @@
         "id": "16",
         "kind": "comment",
         "config": {
-          "text": "Recording: press R. The Record node writes a take while Arm is on: the Punch toggle AND the song being inside bars 5-6. Monitor passes the input to the track so you hear yourself. After the take, the status line offers Create Clip from take; the clip then needs its own enter/leave logic like Chords above to sit at bar 5. There's no count-in, no pre-roll, and no take lanes."
+          "text": "Recording: press R. The Record node writes a take while Arm is on: the Punch toggle AND the song being inside bars 5-6. Monitor passes the input to the track so you hear yourself; it starts off, so the microphone is quiet until you turn it on. After the take, the status line offers Create Clip from take; the clip then needs its own enter/leave logic like Chords above to sit at bar 5. There's no count-in, no pre-roll, and no take lanes."
         },
         "ui": {
           "pos": [

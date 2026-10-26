@@ -80,6 +80,12 @@ pub enum Action {
     PerformanceMode,
 
     PlayStop,
+    /// Stop, even with the transport already stopped: every generator's
+    /// `stop` fires (D200).
+    Stop,
+    /// Stop everything, reset every node, and mute the outputs for a block
+    /// (D201). `Escape` twice.
+    Panic,
     PlayFromStart,
     Record,
     ToggleLoop,
@@ -181,6 +187,8 @@ impl Action {
         Action::TogglePanels,
         Action::PerformanceMode,
         Action::PlayStop,
+        Action::Stop,
+        Action::Panic,
         Action::PlayFromStart,
         Action::Record,
         Action::ToggleLoop,
@@ -251,6 +259,8 @@ impl Action {
             Action::TogglePanels => tr("action-toggle-panels"),
             Action::PerformanceMode => tr("action-performance-mode"),
             Action::PlayStop => tr("action-play-stop"),
+            Action::Stop => tr("action-stop"),
+            Action::Panic => tr("action-panic"),
             Action::PlayFromStart => tr("action-play-from-start"),
             Action::Record => tr("action-record"),
             Action::ToggleLoop => tr("action-toggle-loop"),
@@ -324,6 +334,10 @@ impl Action {
             Action::TogglePanels => sc(CMD, Key::Tab),
             Action::PerformanceMode => sc(NONE, Key::F11),
             Action::PlayStop => sc(NONE, Key::Space),
+            Action::Stop => None,
+            // `Escape` twice, which the editor counts itself: one Escape
+            // cancels whatever is under way.
+            Action::Panic => None,
             Action::PlayFromStart => sc(SHIFT, Key::Space),
             Action::Record => sc(NONE, Key::R),
             Action::ToggleLoop => None,
@@ -369,6 +383,8 @@ impl Action {
                 | Action::TogglePanels
                 | Action::PerformanceMode
                 | Action::PlayStop
+                | Action::Stop
+                | Action::Panic
                 | Action::PlayFromStart
                 | Action::Record
                 | Action::ToggleLoop

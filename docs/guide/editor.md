@@ -118,7 +118,10 @@ Generators such as Oscillator, Clip, and Sampler have a `start` input.
 Unwired, it says when they start by themselves: **On play** (when the
 transport starts, the usual choice), **On load** (as soon as the project
 opens, and keep running), or **Never** (only when something wires a
-trigger into it). `stop` works the same way.
+trigger into it). `stop` says whether the transport's Stop stops them:
+**On stop** or **Never**. Unlike `start`, `stop` keeps its choice when
+it's wired, so a clip that a button stops still stops when you press
+Stop.
 
 ### The Node tab
 
@@ -385,12 +388,13 @@ The same list is in Help ▸ Keyboard Shortcuts. On macOS, shortcuts with
 | Canvas / Panels | `Ctrl+Tab` |
 | Performance Mode | `F11` |
 | Play / Stop | `Space` |
+| Panic | `Esc` twice |
 | Play from Start | `Shift+Space` |
 | Record | `R` |
 | Play Keys | `Ctrl+K` |
 | Keyboard Shortcuts | `Ctrl+/` |
 
-Transport ▸ Loop and Transport ▸ Go to Start have no shortcut; use the
-transport bar's buttons.
+Transport ▸ Stop, Transport ▸ Loop, and Transport ▸ Go to Start have no
+shortcut; use the transport bar's buttons.
 
 Next: [Building sounds](building-sounds.md).

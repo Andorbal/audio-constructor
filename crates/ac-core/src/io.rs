@@ -107,6 +107,16 @@ pub enum TriggerSrc {
         param: u32,
         auto: AutoTrigger,
     },
+    /// Wired, and also fired by the transport as the param's value chooses:
+    /// a generator's `stop` keeps its *On transport stop* beside a wire, so
+    /// transport Stop reaches it (DECISIONS D200). The transport stops on
+    /// frame 0 of a one-frame block, so the wire's events there are at most
+    /// one on frame 0.
+    WiredAuto {
+        wire: u32,
+        param: u32,
+        auto: AutoTrigger,
+    },
 }
 
 /// Compiled binding of one input socket.
@@ -430,25 +440,54 @@ impl<'a> Inputs<'a> {
             }
             InputSlot::Trigger(TriggerSrc::Unwired { param, auto }) => {
                 let p = self.param(param);
-                let mode = p.value.round() as i32;
-                let auto_fire = match auto {
-                    AutoTrigger::None => false,
-                    // START_CHOICES: play, load, never
-                    AutoTrigger::Start => match mode {
-                        0 => self.auto.play,
-                        1 => self.auto.load,
-                        _ => false,
-                    },
-                    // STOP_CHOICES: stop, never
-                    AutoTrigger::Stop => mode == 0 && self.auto.stop,
-                };
-                if p.fired || auto_fire {
+                if p.fired || self.auto_fires(p, auto) {
                     TRIGGER_AT_ZERO
                 } else {
                     &[]
                 }
             }
+            InputSlot::Trigger(TriggerSrc::WiredAuto { wire, param, auto }) => {
+                let wired =
+                    pick(self.triggers, self.local.triggers, wire).map_or(&[][..], Vec::as_slice);
+                if self.auto_fires(self.param(param), auto) && wired.first() != Some(&0) {
+                    TRIGGER_AT_ZERO
+                } else {
+                    wired
+                }
+            }
             _ => &[],
+        }
+    }
+
+    /// Whether the transport fires a start or stop socket this block, by
+    /// its param's mode.
+    fn auto_fires(&self, p: ParamSlot, auto: AutoTrigger) -> bool {
+        let mode = p.value.round() as i32;
+        match auto {
+            AutoTrigger::None => false,
+            // START_CHOICES: play, load, never, at
+            AutoTrigger::Start => match mode {
+                0 => self.auto.play,
+                1 => self.auto.load,
+                _ => false,
+            },
+            // STOP_CHOICES: stop, never
+            AutoTrigger::Stop => mode == 0 && self.auto.stop,
+        }
+    }
+
+    /// The mode index of an auto-triggered input (a generator's `start` or
+    /// `stop`) when the transport may fire it: the index into
+    /// [`crate::START_CHOICES`] or [`crate::STOP_CHOICES`]. `None` for a
+    /// wired `start` (the wire replaces the dropdown) or any other input.
+    pub fn auto_mode(&self, i: usize) -> Option<usize> {
+        match self.slot(i) {
+            InputSlot::Trigger(
+                TriggerSrc::Unwired { param, auto } | TriggerSrc::WiredAuto { param, auto, .. },
+            ) if auto != AutoTrigger::None => {
+                Some(self.param(param).value.round().max(0.0) as usize)
+            }
+            _ => None,
         }
     }
 
@@ -1184,5 +1223,65 @@ mod tests {
         assert!(inputs.is_wired(0));
         // Out of range reads as silence, never a panic.
         assert_eq!(inputs.float(9).at(0), 0.0);
+    }
+
+    #[test]
+    fn a_wired_stop_also_fires_from_the_transport_unless_never() {
+        use crate::signal::AutoTrigger;
+        let slots = [
+            InputSlot::Trigger(TriggerSrc::WiredAuto {
+                wire: 0,
+                param: 0,
+                auto: AutoTrigger::Stop,
+            }),
+            InputSlot::Trigger(TriggerSrc::WiredAuto {
+                wire: 1,
+                param: 0,
+                auto: AutoTrigger::Stop,
+            }),
+            InputSlot::Trigger(TriggerSrc::WiredAuto {
+                wire: 0,
+                param: 1,
+                auto: AutoTrigger::Stop,
+            }),
+        ];
+        // Mode 0 ("stop") and 1 ("never").
+        let params = [
+            ParamSlot::default(),
+            ParamSlot {
+                value: 1.0,
+                target: 1.0,
+                ..ParamSlot::default()
+            },
+        ];
+        let triggers = [vec![], vec![0]];
+        let inputs = |stop: bool| Inputs {
+            slots: &slots,
+            frames: 1,
+            params: &params,
+            scalars: &[],
+            ints: &[],
+            samples: &[],
+            chan_table: &[],
+            triggers: &triggers,
+            midi: &[],
+            spectra: &[],
+            buffers: &[],
+            texts: &[],
+            auto: AutoFlags {
+                stop,
+                ..AutoFlags::default()
+            },
+            local: Local::default(),
+        };
+        let stopping = inputs(true);
+        assert_eq!(stopping.triggers(0), &[0]);
+        assert_eq!(stopping.triggers(1), &[0], "one event, not two");
+        assert!(stopping.triggers(2).is_empty(), "never");
+        assert_eq!(stopping.auto_mode(2), Some(1));
+        assert!(stopping.is_wired(0));
+        let playing = inputs(false);
+        assert!(playing.triggers(0).is_empty());
+        assert_eq!(playing.triggers(1), &[0]);
     }
 }

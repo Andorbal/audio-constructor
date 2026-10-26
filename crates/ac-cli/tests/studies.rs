@@ -235,3 +235,73 @@ fn study_panels_and_bindings_point_at_real_controls() {
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
+
+/// A study running live on the null host (silent input), with its files.
+fn live_study(path: &Path, block: usize) -> ac_engine::NullHost {
+    let project = ac_io::load_project(path).expect("study loads");
+    let registry = Arc::new(ac_nodes::registry());
+    let assets = AssetStore::load_for(&project, path.parent().expect("dir"), &registry);
+    let res = Arc::new(FileResources {
+        assets,
+        recorder: None,
+        plugins: None,
+    });
+    let (engine, report) = ac_engine::Engine::new(
+        project,
+        registry,
+        res,
+        ac_engine::EngineOptions {
+            sample_rate: 48_000.0,
+            max_block: block,
+            socket_telemetry: false,
+            offline: false,
+        },
+    );
+    assert!(!report.has_errors(), "{}", path.display());
+    ac_engine::NullHost::new(engine, 2, 2)
+}
+
+/// ROADMAP M4.1: in the launcher study every clip's `stop` is wired (the
+/// slot logic needs it), and transport Stop still ends the loops, and does
+/// again with the transport already stopped.
+#[test]
+fn stop_ends_the_scene_loops_playing_or_not() {
+    let mut host = live_study(&studies_dir().join("scenes.acproj"), 256);
+    host.handle().play();
+    // The demo arms scene 1 at the start; it launches on bar 2 (2 s in).
+    let playing = host.run(48_000 * 3, 256);
+    assert!(
+        peak(&[playing[0][96_000..].to_vec()]) > 0.01,
+        "scene 1 plays"
+    );
+    host.handle().stop();
+    // A block for the stop, then nothing but a filter's last ring.
+    host.run(4_800, 256);
+    let after = host.run(24_000, 256);
+    assert!(
+        peak(&after) < 1e-3,
+        "Stop ended the loops ({})",
+        peak(&after)
+    );
+    host.handle().stop();
+    let again = host.run(24_000, 256);
+    assert!(peak(&again) < 1e-3);
+}
+
+/// ROADMAP M4.1: the recorder study's input monitor starts off, so a
+/// microphone is quiet until someone turns it on.
+#[test]
+fn the_recorders_input_monitor_starts_off() {
+    let project = ac_io::load_project(&studies_dir().join("multitrack-recorder.acproj"))
+        .expect("study loads");
+    let monitor = project
+        .graph
+        .nodes
+        .iter()
+        .find(|n| n.ui.label.as_deref() == Some("Monitor input"))
+        .expect("the monitor toggle");
+    assert_eq!(
+        monitor.params.get("value").and_then(|v| v.as_bool()),
+        Some(false)
+    );
+}

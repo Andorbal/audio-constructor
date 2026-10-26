@@ -312,3 +312,6 @@ status-exported-block = Exported { $name } to { $path }
 status-couldnt-export-block = Couldn't export { $name }: { $error }
 status-pack-downloaded = Downloaded the pack to { $path }
 status-couldnt-save-pack = Couldn't save the pack to { $path }: { $error }
+status-panic = Panic: everything stopped and reset
+status-sounding = Sounding: { $outputs }
+status-sounding-tip = The Audio Out nodes something is coming out of. Click to show the first on the canvas.

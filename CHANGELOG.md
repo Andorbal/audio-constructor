@@ -13,6 +13,29 @@ fixes and smaller changes.
 
 ## [0.15.0] - 2026-10-26
 
+Phase 4: the tools the gap studies found missing.
+
+### Added
+
+- **Panic.** The octagon button in the transport bar (and in performance
+  mode), Transport ▸ Panic, or `Esc` twice: the transport stops, every
+  node resets (voices let go, notes end, delays empty), and the outputs go
+  quiet for a moment. It's a transport action you can bind to a key, a
+  pad, or a gamepad button too.
+- **The status line says what's sounding.** While any Audio Out plays
+  something, the status line names it ("Sounding: Main · Click"); click it
+  to find the node.
+
+### Changed
+
+- **Stop always stops.** The transport's Stop now stops a clip, pattern,
+  sampler, or other generator even when its `stop` is wired (to a button
+  or a clock), and works with the transport already stopped, so a loop a
+  button started can always be ended. A wired `stop` keeps its dropdown:
+  set it to **Never** to leave the generator to its wire, as before.
+- **Play and Stop are separate buttons** in the transport bar, so Stop is
+  there while the transport is stopped. `Space` still plays and stops.
+
 ## [0.14.2] - 2026-10-25
 
 Fixes for the six issues people reported after 0.14.0.

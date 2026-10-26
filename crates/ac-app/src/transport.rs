@@ -61,26 +61,32 @@ impl TransportState {
         {
             actions.push(Action::Rewind);
         }
-        let play = if playing { icons::STOP } else { icons::PLAY };
+        // Play and Stop are separate, so Stop is there with the transport
+        // already stopped: it still stops whatever buttons or live inputs
+        // started (D200).
         if ui
             .add(
-                egui::Button::new(big(play, playing, theme::play()))
+                egui::Button::new(big(icons::PLAY, playing, theme::play()))
                     .selected(playing)
                     .min_size(vec2(40.0, 28.0)),
             )
-            .on_hover_text(if playing {
-                tr("transport-stop-tip")
-            } else {
-                tr("transport-play-tip")
-            })
-            .accessible_name(if playing {
-                tr("transport-stop")
-            } else {
-                tr("transport-play")
-            })
+            .on_hover_text(tr("transport-play-tip"))
+            .accessible_name(tr("transport-play"))
             .clicked()
+            && !playing
         {
             actions.push(Action::PlayStop);
+        }
+        if ui
+            .add(
+                egui::Button::new(big(icons::STOP, false, theme::text()))
+                    .min_size(vec2(32.0, 28.0)),
+            )
+            .on_hover_text(tr("transport-stop-tip"))
+            .accessible_name(tr("transport-stop"))
+            .clicked()
+        {
+            actions.push(Action::Stop);
         }
         if icons::spoken(
             ui.add(
@@ -113,6 +119,7 @@ impl TransportState {
         {
             actions.push(Action::ToggleLoop);
         }
+        panic_button(ui, actions);
     }
 
     /// Draw the bar; returns commands to run. `panels`: the panels are
@@ -428,6 +435,26 @@ impl TransportState {
         // A meter to screen readers, its peak in its name.
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Meter, true, &text));
         resp.on_hover_text(text);
+    }
+}
+
+/// Panic (D201): stop, reset, and silence everything; `Escape` twice.
+pub fn panic_button(ui: &mut egui::Ui, actions: &mut Vec<Action>) {
+    if icons::spoken(
+        ui.add(
+            egui::Button::new(
+                RichText::new(icons::WARNING_OCTAGON)
+                    .size(17.0)
+                    .color(theme::warning()),
+            )
+            .min_size(vec2(32.0, 28.0)),
+        ),
+    )
+    .on_hover_text(tr("transport-panic-tip"))
+    .accessible_name(tr("transport-panic"))
+    .clicked()
+    {
+        actions.push(Action::Panic);
     }
 }
 

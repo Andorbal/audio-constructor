@@ -43,7 +43,7 @@ the second one's `start`.
 | --- | --- | --- | --- | --- |
 | `position` | Float (s) | 0 | 0 … 600 | Seeks here when it changes. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -115,7 +115,7 @@ tuned texture.
 | `spread` | Float | 0.5 | 0 … 1 | How far grains scatter across the stereo field. |
 | `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -174,7 +174,7 @@ one-bar modulation shape that stays in time.
 | --- | --- | --- | --- | --- |
 | `duration` | Float (s) | 1 | 0 … 10 | How long one pass takes. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -266,7 +266,7 @@ hear what a filter does across the whole spectrum.
 | `color` | Int | `white` | `white`, `pink`, `brown` | White, pink, or brown. |
 | `gain` | Float (dB) | -12 | -60 … 12 | Output level in decibels. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -319,7 +319,7 @@ apply in the order stop, start, reset, sync.
 | `sync` | Trigger | — |  | Hard sync: resets the phase to 0. |
 | `fm` | Float (Hz) | 0 | -1000 … 1000 | Linear FM: hertz added to `freq`. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**
@@ -397,7 +397,7 @@ sampled instrument; or wire a `Record` node's `buffer` here and a
 | `loop_end` | Float | 1 | 0 … 1 | End of the loop (fraction of the sound). |
 | `crossfade` | Float (s) | 0 | 0 … 0.5 | Blend across the loop seam. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles playback direction. |
@@ -499,7 +499,7 @@ Wavetable to play it back as a scanned waveform.
 | `sync` | Trigger | — |  | Hard sync: resets the phase to 0. |
 | `fm` | Float (Hz) | 0 | -1000 … 1000 | Linear FM: hertz added to `freq`. |
 | `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
-| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Unwired: on transport stop, or never. |
+| `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 
 **Outputs**

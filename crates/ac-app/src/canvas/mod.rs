@@ -1029,10 +1029,13 @@ impl Canvas {
                 && let Some(node) = doc.graph().node(n.id)
             {
                 for s in &n.inputs {
-                    if s.wired || !t.rect_to_screen(s.row).contains(p) {
+                    if !t.rect_to_screen(s.row).contains(p) {
                         continue;
                     }
                     let Some(spec) = &s.spec else { continue };
+                    if s.wired && !widgets::shown_beside_wire(spec) {
+                        continue;
+                    }
                     if n.body.is_some_and(|(b, _)| b.drives(&s.name)) {
                         continue;
                     }

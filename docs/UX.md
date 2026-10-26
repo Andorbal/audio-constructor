@@ -344,11 +344,20 @@ only their icons, named on hover.
 
 ## Transport bar
 
-Play/stop/record, position in bars:beats and time, tempo and time signature
-(click to edit the tempo map), loop toggle and range, master meter, CPU and
+Play, stop, record, position in bars:beats and time, tempo and time signature
+(click to edit the tempo map), loop toggle and range, Panic, master meter, CPU and
 xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
 **Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
-`R` records, `Shift+Space` plays from the start. At its right end, a
+`R` records, `Shift+Space` plays from the start. Play and Stop are
+separate buttons so Stop is there with the transport already stopped: it
+fires every generator's `stop` that says *On stop*, wired or not, so
+anything a button, a clock, or a live input started stops too (D200).
+**Panic** (the octagon, Transport ▸ Panic, `Escape` twice within half a
+second, or a bound control) stops the transport, resets every node
+(releasing every voice and ending every note), and silences every Audio
+Out for one block; the performance bar has it too (D201). While anything
+sounds, the status bar names the Audio Out nodes it reaches ("Sounding:
+Main · Click"); clicking it shows the first on the canvas. At its right end, a
 **Canvas | Panels** switch and the performance-mode button. In a plugin's
 window the host's transport plays the patch: the bar shows whether the
 host plays instead of the play, record, rewind, and loop buttons, and

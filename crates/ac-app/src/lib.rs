@@ -34,6 +34,7 @@ pub mod plugins;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod product;
 pub mod settings;
+pub mod sounding;
 pub mod theme;
 pub mod timing;
 pub mod transport;

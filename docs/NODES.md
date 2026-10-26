@@ -31,7 +31,10 @@ losing performance or clarity, it should be a *block* (a saved group) in
   (Oscillator, Clip, Graph, Sampler, Pattern, MidiPattern) has:
   - `start: Trigger` — starts or restarts. Unwired, it shows a dropdown:
     *On transport play* (default) / *Never* (only via wire).
-  - `stop: Trigger`, `reset: Trigger`.
+  - `stop: Trigger` — stops. It shows a dropdown, *On transport stop*
+    (default) / *Never*, wired or not: a wire is a second source, so
+    transport Stop still reaches a generator a button or a clock stops
+    (DECISIONS D200). `reset: Trigger`.
   - `loop: Bool` for anything with a finite length.
   - `reverse: Trigger` toggles direction where that makes sense (Clip, Graph,
     Sampler, Pattern), and `rate: Float(Ratio)` scales speed.

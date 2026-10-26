@@ -98,8 +98,8 @@ The window has five parts:
 
 - **The menu bar** at the top: File, Edit, View, Add, Transport, Help.
   Every command is in a menu, with its shortcut beside it.
-- **The transport bar** under it: go to start, play/stop, record, loop,
-  and Play keys; the song position in bars and beats and in time; the
+- **The transport bar** under it: go to start, play, stop, record, loop,
+  Panic, and Play keys; the song position in bars and beats and in time; the
   tempo and time signature; and, on the right, the master meter, the audio
   load, the dropout (xrun) counter, the Canvas | Panels switch, and the
   performance-mode button.
@@ -107,7 +107,7 @@ The window has five parts:
 - **The side panel** on the right, with tabs: Node, Library, Project,
   Devices, Problems, and Help. `N` shows or hides it.
 - **The status line** at the bottom: hints and messages on the left, and
-  on the right the audio device in use (click it to open the Devices
+  on the right which outputs are sounding, and the audio device in use (click it to open the Devices
   tab) and the number of problems, if any (click to see them).
 
 Now make a sound:

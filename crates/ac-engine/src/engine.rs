@@ -102,6 +102,8 @@ enum Command {
     SetRecording(bool),
     SetLoop(Option<(u64, u64)>),
     Reset,
+    /// Stop, reset every node, and mute the outputs for a block.
+    Panic,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -125,6 +127,8 @@ struct Transport {
     start_flag: bool,
     stop_flag: bool,
     reset_flag: bool,
+    /// Silence the device outputs for the rest of this host block (a panic).
+    mute: bool,
 }
 
 /// The audio-thread half.
@@ -650,6 +654,13 @@ impl EngineHandle {
         self.command(Command::Reset);
     }
 
+    /// Silence everything: stop the transport (firing every generator's
+    /// `stop`), reset every node, which releases every voice and ends every
+    /// note, and mute the device outputs for one block (DECISIONS D201).
+    pub fn panic(&mut self) {
+        self.command(Command::Panic);
+    }
+
     pub fn is_playing(&self) -> bool {
         self.status.playing.load(Ordering::Relaxed)
     }
@@ -800,6 +811,12 @@ impl Processor {
             }
             let mut n = (frames - done).min(max_block);
             let t = self.transport;
+            // The transport stops on a frame of its own, so a wired `stop`
+            // that it also fires carries at most that frame's events
+            // (TriggerSrc::WiredAuto).
+            if t.stop_flag {
+                n = 1;
+            }
             if t.playing
                 && let Some((_, le)) = t.loop_region
                 && t.position < le
@@ -889,6 +906,10 @@ impl Processor {
                 }
             }
             done += n;
+        }
+        if self.transport.mute {
+            io.output.fill(0.0);
+            self.transport.mute = false;
         }
         if node_clock.is_some() {
             self.graph.telemetry.publish_node_times();
@@ -1026,12 +1047,13 @@ fn command(t: &mut Transport, c: Command) {
                 }
             }
         }
+        // Stop fires every generator's `stop` even when the transport is
+        // already stopped, so anything a button or a live input started
+        // while stopped can be stopped too (DECISIONS D200).
         Command::Stop => {
-            if t.playing {
-                t.playing = false;
-                t.stop_flag = true;
-                t.start_flag = false;
-            }
+            t.playing = false;
+            t.stop_flag = true;
+            t.start_flag = false;
             t.recording = false;
         }
         Command::Seek(p) => {
@@ -1046,6 +1068,11 @@ fn command(t: &mut Transport, c: Command) {
         Command::SetRecording(on) => t.recording = on,
         Command::SetLoop(r) => t.loop_region = r.filter(|(a, b)| b > a),
         Command::Reset => t.reset_flag = true,
+        Command::Panic => {
+            command(t, Command::Stop);
+            t.reset_flag = true;
+            t.mute = true;
+        }
     }
 }
 
@@ -1073,6 +1100,7 @@ fn press(t: &mut Transport, action: TransportAction) {
             command(t, Command::Seek(0));
             command(t, Command::Play);
         }
+        TransportAction::Panic => command(t, Command::Panic),
     }
 }
 

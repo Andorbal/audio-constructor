@@ -216,6 +216,7 @@ fn relayed(w: &mut Writer, m: &Relayed) {
             w.u64(generation);
             w.u32(slot);
         }
+        Relayed::Panic => w.u8(9),
     }
 }
 
@@ -237,6 +238,7 @@ fn read_relayed(r: &mut Reader) -> Option<Relayed> {
             generation: r.u64()?,
             slot: r.u32()?,
         },
+        9 => Relayed::Panic,
         _ => return None,
     })
 }
@@ -559,6 +561,7 @@ mod tests {
             ToAudio::Relayed(Relayed::SetLoop(None)),
             ToAudio::Relayed(Relayed::SetLoop(Some((480, 96_000)))),
             ToAudio::Relayed(Relayed::Reset),
+            ToAudio::Relayed(Relayed::Panic),
             ToAudio::Relayed(Relayed::Param {
                 generation: 41,
                 slot: 9,

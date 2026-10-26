@@ -187,7 +187,8 @@ pub enum AutoTrigger {
     None,
     /// Generator `start`: dropdown of *On transport play* / *On load* / *Never*.
     Start,
-    /// Generator `stop`: dropdown of *On transport stop* / *Never*.
+    /// Generator `stop`: dropdown of *On transport stop* / *Never*, kept
+    /// beside a wire (DECISIONS D200).
     Stop,
 }
 
@@ -473,7 +474,7 @@ impl Signature {
         self.inputs.push(
             SocketSpec::trigger("stop")
                 .auto(AutoTrigger::Stop)
-                .doc("Stops. Unwired: on transport stop, or never."),
+                .doc("Stops. Also on transport stop, wired or not, unless set to never."),
         );
         self.inputs
             .push(SocketSpec::trigger("reset").doc("Returns to the beginning."));

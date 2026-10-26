@@ -180,6 +180,11 @@ pub struct EditorApp {
     allow_close: bool,
     loop_sent: Option<Option<(u64, u64)>>,
     space_shift: bool,
+    /// When Escape was last pressed: a second press soon after is Panic.
+    escape_at: Option<f64>,
+    /// Which Audio Out nodes are sounding (the status bar).
+    sounding: crate::sounding::Sounding,
+    heard: Vec<crate::sounding::Output>,
     close_now: bool,
     /// The last subgraph copied (for pastes that don't carry text).
     clipboard: Option<String>,
@@ -267,6 +272,9 @@ impl Clock {
         self.last
     }
 }
+
+/// Two Escapes at most this far apart (seconds) are Panic (D201).
+const DOUBLE_ESCAPE: f64 = 0.5;
 
 // The embedding host shares the editor between its own thread and the
 // window's (egui-baseview runs a window on its own thread on X11), so the
@@ -435,6 +443,9 @@ impl EditorApp {
             allow_close: false,
             loop_sent: None,
             space_shift: false,
+            escape_at: None,
+            sounding: Default::default(),
+            heard: Vec::new(),
             close_now: false,
             clipboard: None,
             pack_after_save: false,
@@ -789,6 +800,11 @@ impl EditorApp {
     }
 
     /// The status bar's message, if one is showing (tests read this).
+    /// The Audio Out nodes the status bar says are sounding.
+    pub fn sounding(&self) -> &[crate::sounding::Output] {
+        &self.heard
+    }
+
     pub fn status(&self) -> Option<&str> {
         self.status.as_ref().map(|(text, _, _)| text.as_str())
     }
@@ -1005,6 +1021,15 @@ impl EditorApp {
 
     fn say(&mut self, text: impl Into<String>, now: f64) {
         self.status = Some((text.into(), now, false));
+    }
+
+    /// Panic (D201): let go of everything the editor holds down in the
+    /// patch, then stop, reset every node, and mute the outputs for a block.
+    fn panic(&mut self, now: f64) {
+        self.play_keys.release_all(&mut self.engine);
+        self.perform.let_go(&mut self.doc, &mut self.engine.handle);
+        self.engine.handle.panic();
+        self.say(tr("status-panic"), now);
     }
 
     fn warn(&mut self, text: impl Into<String>, now: f64) {
@@ -1418,8 +1443,46 @@ impl EditorApp {
                         self.side.tab = Tab::Problems;
                     }
                 }
+                self.sounding_readout(ui, now);
             });
         });
+    }
+
+    /// The outputs that are sounding (D201), named, in the status bar;
+    /// clicking shows the first on the canvas.
+    fn sounding_readout(&mut self, ui: &mut egui::Ui, now: f64) {
+        let tele = self.engine.handle.telemetry();
+        let heard = self
+            .sounding
+            .update(&self.doc.project, &self.registry, &tele, now);
+        self.heard = heard.clone();
+        let Some(first) = heard.first().cloned() else {
+            return;
+        };
+        // Keep looking while something sounds, so it goes when it stops.
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(100));
+        let names: Vec<&str> = heard.iter().map(|o| o.name.as_str()).collect();
+        let list = names.join(" · ");
+        let text = tr_args("status-sounding", &[("outputs", (&list).into())]);
+        let r = icons::spoken(
+            ui.add(
+                egui::Button::new(
+                    RichText::new(format!("{}  {text}", icons::SPEAKER_HIGH))
+                        .small()
+                        .color(theme::text_muted()),
+                )
+                .frame(false)
+                .truncate(),
+            ),
+        )
+        .on_hover_text(tr("status-sounding-tip"));
+        if r.clicked() {
+            self.set_view(false);
+            if let Some(id) = self.doc.navigate_to(&first.path) {
+                self.canvas.jump_to(&self.doc, &self.registry, id);
+            }
+        }
     }
 
     /// The engine runs what the document says, and its upkeep is done.
@@ -1809,6 +1872,16 @@ impl EditorApp {
                     if key == Key::Escape && pressed {
                         if self.palette.open || self.find.open {
                             continue; // they handle it
+                        }
+                        // Escape twice in quick succession is Panic; the
+                        // first one still cancels what it would.
+                        if !repeat {
+                            if self.escape_at.is_some_and(|t| now - t <= DOUBLE_ESCAPE) {
+                                self.escape_at = None;
+                                self.run(ctx, Action::Panic, now);
+                                continue;
+                            }
+                            self.escape_at = Some(now);
                         }
                         if self.perform.shown {
                             // A field takes its own Escape; then popups and
@@ -2414,7 +2487,11 @@ impl EditorApp {
         // host as well); the editor's would fight it.
         let host_transport = matches!(
             a,
-            Action::PlayStop | Action::PlayFromStart | Action::Record | Action::Rewind
+            Action::PlayStop
+                | Action::Stop
+                | Action::PlayFromStart
+                | Action::Record
+                | Action::Rewind
         );
         if host_transport && self.in_host() {
             return;
@@ -2673,6 +2750,14 @@ impl EditorApp {
                 } else {
                     self.engine.handle.play();
                 }
+                ctx.request_repaint();
+            }
+            Action::Stop => {
+                self.engine.handle.stop();
+                ctx.request_repaint();
+            }
+            Action::Panic => {
+                self.panic(now);
                 ctx.request_repaint();
             }
             Action::PlayFromStart => {

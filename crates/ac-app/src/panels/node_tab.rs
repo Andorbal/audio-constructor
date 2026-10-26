@@ -1025,10 +1025,21 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
                         } else {
                             src
                         };
-                        ui.label(
-                            RichText::new(format!("← {from}.{}", w.from.socket))
-                                .color(theme::text_muted()),
-                        );
+                        let beside = s
+                            .spec
+                            .as_ref()
+                            .filter(|spec| crate::canvas::widgets::shown_beside_wire(spec));
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(format!("← {from}.{}", w.from.socket))
+                                    .color(theme::text_muted()),
+                            );
+                            // A wired `stop` still chooses whether
+                            // transport Stop reaches it.
+                            if let Some(spec) = beside {
+                                param_widget(ui, io, id, &node, spec, label_id);
+                            }
+                        });
                     } else if let Some(spec) = &s.spec {
                         param_widget(ui, io, id, &node, spec, label_id);
                     } else {

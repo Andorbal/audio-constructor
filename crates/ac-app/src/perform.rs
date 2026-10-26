@@ -460,6 +460,7 @@ impl PerformView {
             if play.clicked() {
                 actions.push(Action::PlayStop);
             }
+            crate::transport::panic_button(ui, &mut actions);
             let spoken = tr_args(
                 "transport-position",
                 &[("bars", (&bars).into()), ("time", (&time).into())],

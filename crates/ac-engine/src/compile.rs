@@ -22,10 +22,10 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use ac_core::{
-    Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, LOCAL, MIDI_CAPACITY, MidiEvent,
-    Node, NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate, Registry,
-    RenderWholeFn, Resources, SignalType, SocketSpec, SpectrumBuf, SpectrumShape, TempoMap,
-    TextBuf, TextSrc, TriggerSrc, WholeInputs, conversion, param_text, param_value,
+    AutoTrigger, Channels, Config, Conversion, FloatSrc, InputSlot, IntSrc, LOCAL, MIDI_CAPACITY,
+    MidiEvent, Node, NodePath, OutRate, OutputSlot, ParamSlot, Phase, PrepareCtx, Project, Rate,
+    Registry, RenderWholeFn, Resources, SignalType, SocketSpec, SpectrumBuf, SpectrumShape,
+    TempoMap, TextBuf, TextSrc, TriggerSrc, WholeInputs, conversion, param_text, param_value,
     util::{Fnv64, derive_seed},
 };
 use serde_json::json;
@@ -130,6 +130,9 @@ impl CarryLayout {
 pub struct ParamTarget {
     pub slot: u32,
     pub spec: SocketSpec,
+    /// The input is wired; the slot holds only its transport mode (a
+    /// wired `stop`'s dropdown), so bindings leave it alone.
+    pub wired: bool,
 }
 
 /// (node path, socket) → param slots, including group-instance inputs.
@@ -744,7 +747,8 @@ pub(crate) fn compile_with(
                 Some((s, o)) => {
                     let src_spec = &flat.nodes[s].sig.outputs[o];
                     let a = alloc[s][o].clone();
-                    wired_input(&mut b, f, spec, src_spec.ty, &a, &mut report)
+                    let slot = wired_input(&mut b, f, spec, src_spec.ty, &a, &mut report);
+                    keep_auto_stop(&mut b, f, spec, slot)
                 }
                 None => unwired_input(&mut b, f, spec, smooth_len),
             };
@@ -1020,7 +1024,9 @@ pub(crate) fn compile_with(
                         read(&mut vsamples, b.chan_table[c as usize]);
                     }
                 }
-                InputSlot::Trigger(TriggerSrc::Wired(v)) => read(&mut vtriggers, v),
+                InputSlot::Trigger(
+                    TriggerSrc::Wired(v) | TriggerSrc::WiredAuto { wire: v, .. },
+                ) => read(&mut vtriggers, v),
                 InputSlot::Midi(Some(v)) => read(&mut vmidi, v),
                 _ => {}
             }
@@ -1133,7 +1139,9 @@ pub(crate) fn compile_with(
                         }
                     }
                 }
-                InputSlot::Trigger(TriggerSrc::Wired(v)) => {
+                InputSlot::Trigger(
+                    TriggerSrc::Wired(v) | TriggerSrc::WiredAuto { wire: v, .. },
+                ) => {
                     let def = b.vtriggers.get(*v as usize).map(|l| l.def);
                     local(v, def, &lay.pos_triggers, base.triggers);
                 }
@@ -1188,7 +1196,9 @@ pub(crate) fn compile_with(
     for s in &mut b.input_slots {
         match s {
             InputSlot::Float(FloatSrc::Sample(v)) => *v = map_s(*v),
-            InputSlot::Trigger(TriggerSrc::Wired(v)) => *v = map_t(*v),
+            InputSlot::Trigger(TriggerSrc::Wired(v) | TriggerSrc::WiredAuto { wire: v, .. }) => {
+                *v = map_t(*v)
+            }
             InputSlot::Midi(Some(v)) => *v = map_m(*v),
             _ => {}
         }
@@ -1784,9 +1794,9 @@ fn step_reads(b: &Builder) -> Vec<Vec<usize>> {
                         }
                         None
                     }
-                    InputSlot::Trigger(TriggerSrc::Wired(v)) => {
-                        b.vtriggers.get(v as usize).map(|l| l.def)
-                    }
+                    InputSlot::Trigger(
+                        TriggerSrc::Wired(v) | TriggerSrc::WiredAuto { wire: v, .. },
+                    ) => b.vtriggers.get(v as usize).map(|l| l.def),
                     InputSlot::Midi(Some(v)) => b.vmidi.get(v as usize).map(|l| l.def),
                     InputSlot::Spectrum(Some(k)) => b.spectra.get(k as usize).map(|sp| sp.1),
                     InputSlot::Buffer(Some(k)) => b.buffer_def.get(k as usize).copied(),
@@ -2479,7 +2489,9 @@ fn boundary_input(
             run.boundary_in.push(BoundaryIn::Int { input, at: v });
             InputSlot::Int(IntSrc::Int(LOCAL | v))
         }
-        InputSlot::Trigger(TriggerSrc::Wired(_)) => {
+        InputSlot::Trigger(TriggerSrc::Wired(_) | TriggerSrc::WiredAuto { .. }) => {
+            // The boundary copy reads the outer slot, which also carries a
+            // transport stop, so inside the loop it's a plain wire.
             outer.push(slot);
             let v = next(&mut at.triggers);
             let cursor = next(&mut at.cursors);
@@ -2640,6 +2652,30 @@ fn silent_audio(b: &mut Builder, spec: &SocketSpec) -> InputSlot {
     }
 }
 
+/// A wired generator `stop` still hears the transport's Stop, unless its
+/// dropdown says *Never*: it gets a param slot for that dropdown as if it
+/// were unwired (DECISIONS D200).
+fn keep_auto_stop(b: &mut Builder, f: &FlatNode, spec: &SocketSpec, slot: InputSlot) -> InputSlot {
+    match slot {
+        InputSlot::Trigger(TriggerSrc::Wired(wire)) if spec.auto == AutoTrigger::Stop => {
+            let InputSlot::Trigger(TriggerSrc::Unwired { param, auto }) =
+                unwired_input(b, f, spec, 0)
+            else {
+                return slot;
+            };
+            if let Some(t) = b
+                .param_map
+                .get_mut(&(f.path.clone(), spec.name.to_string()))
+                .and_then(|v| v.iter_mut().find(|t| t.slot == param))
+            {
+                t.wired = true;
+            }
+            InputSlot::Trigger(TriggerSrc::WiredAuto { wire, param, auto })
+        }
+        other => other,
+    }
+}
+
 fn unwired_input(b: &mut Builder, f: &FlatNode, spec: &SocketSpec, smooth_len: u32) -> InputSlot {
     let new_param = |b: &mut Builder| -> u32 {
         let value = param_value(spec, f.params.get(spec.name.as_ref()));
@@ -2657,6 +2693,7 @@ fn unwired_input(b: &mut Builder, f: &FlatNode, spec: &SocketSpec, smooth_len: u
             .push(ParamTarget {
                 slot,
                 spec: spec.clone(),
+                wired: false,
             });
         slot
     };

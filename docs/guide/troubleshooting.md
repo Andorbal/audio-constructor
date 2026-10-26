@@ -34,6 +34,23 @@ look there first.
    level climbs until the numbers stop being numbers, and Audio Out sends
    silence instead of passing them on. Lower the gain inside the loop.
 
+## It won't stop
+
+1. **Press Stop.** The transport bar's Stop (the square) stops every
+   clip, pattern, sampler, and other generator whose `stop` says **On
+   stop**, wired or not, even with the transport already stopped. A
+   generator whose `stop` says **Never** keeps going.
+2. **Press `Esc` twice (Panic).** Panic stops the transport, resets every
+   node (voices let go, notes end, delays empty), and silences the
+   outputs for a moment. It's also the octagon button in the transport
+   bar, in Transport ▸ Panic, and a transport action you can bind to a
+   key, a pad, or a gamepad button.
+3. **See where it comes out.** While anything sounds, the status line
+   says which Audio Out nodes it reaches ("Sounding: Main · Click"). Click
+   it to show the first one on the canvas, then follow the wires back. A
+   live input (Audio In) passes through whatever the transport does: find
+   the Switch or Toggle that opens it.
+
 ## Crackles, dropouts, and xruns
 
 An **xrun** is a buffer the computer didn't finish in time, heard as a
