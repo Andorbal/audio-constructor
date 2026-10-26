@@ -255,9 +255,23 @@ impl Harness {
         self
     }
 
-    /// Move the transport to `position` before the next block (as a seek
-    /// while playing, this also fires `play` start triggers).
+    /// Move the transport to `position` before the next block, as the
+    /// engine's seek does: the node's [`Node::seek`] runs (a reset, by
+    /// default, so *On load* fires again), and while playing the transport
+    /// starts there (firing `play` start triggers).
     pub fn seek(&mut self, position: u64) -> &mut Self {
+        self.node.seek(position);
+        self.pending_load = true;
+        self.position = position;
+        if self.playing {
+            self.pending_play = true;
+        }
+        self
+    }
+
+    /// Move the transport to `position` without a seek, as a loop does:
+    /// while playing the transport starts there, and nothing is reset.
+    pub fn locate(&mut self, position: u64) -> &mut Self {
         self.position = position;
         if self.playing {
             self.pending_play = true;

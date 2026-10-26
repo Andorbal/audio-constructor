@@ -286,6 +286,13 @@ it also plays when started while the transport is stopped. `rate`
 scales the speed (2 is double time; 0 pauses, holding any sounding
 notes).
 
+**Placed in the song:** set `start` to *At beat…* and the clip
+starts at song beat `at` and stops at `until` (unless that's 0). Start the transport anywhere and it
+carries on from where the song is: around again if it loops,
+finished if it doesn't, waiting before its beat. Notes already
+under way where the transport starts stay silent; the next ones
+play.
+
 Generator contract: `start` (on transport play by default) plays
 from the top: note-offs for anything sounding, then the notes at
 beat 0 on the same sample. `stop` ends sounding notes and fires
@@ -309,7 +316,9 @@ one's `start`.
 
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
 | `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
@@ -438,6 +447,13 @@ the last step played, counting from 0. Nothing moves without a
 clock: wire a `Clock` into `clock` (`interval` 0.25 for sixteenth
 notes).
 
+**Placed in the song:** set `start` to *At beat…* and the pattern
+starts at song beat `at` (and stops at `until`, unless that's 0), with `interval` beats per step (0.25,
+sixteenths, by default: set it to the clock's interval). Each clock
+then plays the step the song is on, counted from `at`, so after a
+seek, a loop, or play from the middle the pattern is on the right
+step at once; clocks before its beat play nothing.
+
 Generator contract: `start` (on transport play by default) goes
 back to the beginning and plays, so the next clock, or one on the
 same sample, plays the first step (the gates close until then).
@@ -462,7 +478,10 @@ for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `clock` | Trigger | — |  | Moves to the next step. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
+| `interval` | Float (beats) | 0.25 | 0 … 4 | Beats per step, placed in the song: each clock plays the step the song is on. |
 | `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |

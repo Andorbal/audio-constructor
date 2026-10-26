@@ -178,7 +178,61 @@ pub struct TransportView<'a> {
     pub stopped: bool,
 }
 
+/// What a song-locked generator (its `start` set to *At beat…*) does in a
+/// block, from [`TransportView::song_lock`] (DECISIONS D206).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SongLock {
+    /// Carry on as it is.
+    Hold,
+    /// The transport (re)started before the generator's beat, or past the
+    /// beat it stops at: be stopped.
+    Wait,
+    /// The transport (re)started past the beat: be playing from frame 0,
+    /// this far into itself, in samples and in beats.
+    Land { samples: u64, beats: f64 },
+    /// The song reaches the beat at this frame of the block: start there.
+    Start(usize),
+    /// The song reaches the beat it stops at, at this frame: stop there.
+    Stop(usize),
+}
+
 impl<'a> TransportView<'a> {
+    /// Where a generator placed in the song from beat `at` until beat
+    /// `until` (no end when `until` isn't past `at`) should be this block
+    /// of `frames`. It lands whenever the transport starts (play, a seek, a
+    /// loop), so it's in the same place however the song got there; while
+    /// stopped it holds.
+    pub fn song_lock(&self, frames: usize, at: f64, until: f64) -> SongLock {
+        if !self.playing {
+            return SongLock::Hold;
+        }
+        let beat = |b: f64| if b.is_finite() { b.max(0.0) } else { 0.0 };
+        let (at, until) = (beat(at), beat(until));
+        let target = self.tempo.sample_at(at);
+        let end = (until > at).then(|| self.tempo.sample_at(until));
+        let within = |s: u64| s >= self.position && s - self.position < frames as u64;
+        if self.started && end.is_some_and(|e| self.position >= e) {
+            return SongLock::Wait;
+        }
+        if self.started && self.position > target {
+            return SongLock::Land {
+                samples: self.position - target,
+                beats: (self.tempo.beat_at(self.position) - at).max(0.0),
+            };
+        }
+        if within(target) {
+            return SongLock::Start((target - self.position) as usize);
+        }
+        if let Some(e) = end.filter(|&e| within(e)) {
+            return SongLock::Stop((e - self.position) as usize);
+        }
+        if self.started {
+            SongLock::Wait
+        } else {
+            SongLock::Hold
+        }
+    }
+
     /// A stopped transport at zero.
     pub fn stopped_at_zero(tempo: &'a TempoMap) -> Self {
         TransportView {
@@ -202,6 +256,57 @@ mod tests {
             bpm,
             time_sig: sig,
         }
+    }
+
+    #[test]
+    fn a_song_lock_lands_waits_and_starts_on_its_sample() {
+        let tempo = TempoMap::constant(48_000.0, 120.0);
+        let at = |position: u64, started: bool| TransportView {
+            playing: true,
+            recording: false,
+            position,
+            tempo: &tempo,
+            started,
+            stopped: false,
+        };
+        // Beat 8 is sample 192 000 at 120 BPM; beat 10, 240 000.
+        assert_eq!(at(0, true).song_lock(64, 8.0, 0.0), SongLock::Wait);
+        assert_eq!(at(64, false).song_lock(64, 8.0, 0.0), SongLock::Hold);
+        assert_eq!(
+            at(191_990, false).song_lock(64, 8.0, 0.0),
+            SongLock::Start(10)
+        );
+        assert_eq!(
+            at(192_000, true).song_lock(64, 8.0, 0.0),
+            SongLock::Start(0)
+        );
+        assert_eq!(
+            at(216_000, true).song_lock(64, 8.0, 10.0),
+            SongLock::Land {
+                samples: 24_000,
+                beats: 1.0
+            }
+        );
+        let stopped = TransportView {
+            playing: false,
+            ..at(216_000, true)
+        };
+        assert_eq!(stopped.song_lock(64, 8.0, 0.0), SongLock::Hold);
+        // It stops on the sample of `until`, and past it stays stopped.
+        assert_eq!(
+            at(239_990, false).song_lock(64, 8.0, 10.0),
+            SongLock::Stop(10)
+        );
+        assert_eq!(at(240_000, true).song_lock(64, 8.0, 10.0), SongLock::Wait);
+        assert_eq!(at(250_000, false).song_lock(64, 8.0, 10.0), SongLock::Hold);
+        // An `until` not past `at` is no end.
+        assert!(matches!(
+            at(250_000, true).song_lock(64, 8.0, 4.0),
+            SongLock::Land {
+                samples: 58_000,
+                ..
+            }
+        ));
     }
 
     #[test]

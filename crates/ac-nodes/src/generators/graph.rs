@@ -1,11 +1,12 @@
 use ac_core::{
     Config, ConfigExt, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate, Signature, SocketSpec,
-    Unit, node,
+    SongLock, Unit, node,
 };
 use ac_dsp::curve::Curve;
 use ac_dsp::util::snap_samples;
 
 use crate::segments::Runs;
+use crate::song;
 
 node! {
     kind: "graph",
@@ -33,6 +34,12 @@ node! {
     /// holds the value at `x` = 0; after a pass finishes it holds the end
     /// value (the value at 1, or at 0 when reversed). `position` reports
     /// the playhead (0 to 1, once per block).
+    ///
+    /// **Placed in the song:** set `start` to *At beat…* and the curve
+    /// starts at song beat `at` (and stops at `until`, unless that's 0). Start the transport anywhere and the curve
+    /// is already where it would be: an automation lane holds its place
+    /// through a seek or a loop. Before its beat it holds its first value,
+    /// and past the end of an unlooped pass, its last.
     ///
     /// Generator contract: `start` plays from the beginning (from the end
     /// when reversed). A pass lasts `duration`; on its last frame `out`
@@ -65,11 +72,11 @@ node! {
 
 const DURATION: usize = 0;
 const START: usize = 1;
-const STOP: usize = 2;
-const RESET: usize = 3;
-const LOOP: usize = 4;
-const REVERSE: usize = 5;
-const RATE: usize = 6;
+const STOP: usize = 4;
+const RESET: usize = 5;
+const LOOP: usize = 6;
+const REVERSE: usize = 7;
+const RATE: usize = 8;
 
 const OUT: usize = 0;
 const POSITION: usize = 1;
@@ -128,7 +135,7 @@ impl Node for Graph {
                     .range(0.0, max)
                     .doc("How long one pass takes."),
             )
-            .generator_inputs(true, true)
+            .song_generator_inputs(true, true)
             .output(
                 SocketSpec::float("out", Unit::Generic, 0.0)
                     .rate(Rate::Sample)
@@ -164,17 +171,60 @@ impl Node for Graph {
         let duration = io.inputs.float(DURATION);
         let looping = io.inputs.boolean(LOOP);
         let speed = io.inputs.float(RATE);
+        let frames = io.frames();
+        let lock = song::lock(ctx, io, START);
+        let mut at = [0; 2];
+        let (start, stop) = song::triggers(
+            lock,
+            io.inputs.triggers(START),
+            io.inputs.triggers(STOP),
+            &mut at,
+        );
         let events = [
             io.inputs.triggers(REVERSE),
-            io.inputs.triggers(STOP),
-            io.inputs.triggers(START),
+            stop,
+            start,
             io.inputs.triggers(RESET),
         ];
-        let frames = io.frames();
         let len_at = |i: usize| {
             let len = snap_samples(f64::from(finite_or(duration.at(i), 1.0)) * per_unit);
             if len.is_finite() { len.max(1.0) } else { 1.0 }
         };
+        // Placed in the song: where the curve would be had the song played
+        // from the top (an automation lane stays in place after a seek).
+        match lock {
+            SongLock::Wait => {
+                self.playing = false;
+                self.elapsed = self.beginning();
+            }
+            SongLock::Land { samples, beats } => {
+                self.set_len(len_at(0));
+                let r = f64::from(finite_or(speed.first(), 1.0).clamp(-MAX_RATE, MAX_RATE));
+                let moved = if self.beats {
+                    beats * per_unit
+                } else {
+                    samples as f64
+                } * r;
+                let mut at = if self.forward {
+                    moved
+                } else {
+                    self.len - moved
+                };
+                let inside = (0.0..self.len).contains(&at);
+                if !inside && looping.first() {
+                    at = at.rem_euclid(self.len);
+                }
+                self.playing = inside || looping.first();
+                self.elapsed = if self.playing {
+                    at
+                } else if self.forward == (r >= 0.0) {
+                    self.len
+                } else {
+                    0.0
+                };
+            }
+            _ => {}
+        }
         {
             let (mut out, mut end) = io.outputs.float_trigger(OUT, END);
             for run in Runs::new(events, frames) {
@@ -251,6 +301,35 @@ mod tests {
         let mut h = harness(config, 64);
         h.set("duration", 0.01);
         h
+    }
+
+    #[test]
+    fn a_placed_curve_starts_on_its_beat_and_holds_its_place_after_a_seek() {
+        // Beat 0.01 at 120 BPM is sample 240; a pass is 480 samples.
+        let ramp = json!({ "points": [[0, 0], [1, 1]] });
+        let mut h = short(ramp.clone());
+        h.set("start", "at").set("at", 0.01);
+        let out = h.run(1_000);
+        let o = out.float("out");
+        assert!(o[..241].iter().all(|&v| v == 0.0));
+        assert!((o[480] - 0.5).abs() < 1e-6);
+        assert_eq!(out.triggers("end"), &[720]);
+        h.seek(480);
+        assert!((h.run(64).float("out")[0] - 0.5).abs() < 1e-6);
+        // Looped, it's around again; past an unlooped pass it holds the end.
+        h.set("loop", true).seek(240 + 480 + 120);
+        assert!((h.run(64).float("out")[0] - 0.25).abs() < 1e-6);
+        h.set("loop", false).seek(2_000);
+        let out = h.run(64);
+        assert_eq!(out.float("out")[0], 1.0);
+        assert!(out.triggers("end").is_empty());
+        // In beats, the same place.
+        let mut h = harness(json!({ "points": [[0, 0], [1, 1]], "unit": "beats" }), 64);
+        h.set("duration", 0.02)
+            .set("start", "at")
+            .set("at", 0.01)
+            .seek(480);
+        assert!((h.run(64).float("out")[0] - 0.5).abs() < 1e-6);
     }
 
     #[test]

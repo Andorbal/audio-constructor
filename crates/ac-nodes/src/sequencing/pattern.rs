@@ -1,9 +1,10 @@
 use ac_core::{
     Config, ConfigExt, FloatOut, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec,
-    Value, node,
+    SongLock, Unit, Value, node,
 };
 
 use crate::segments::Runs;
+use crate::song;
 
 node! {
     kind: "pattern",
@@ -30,6 +31,13 @@ node! {
     /// the last step played, counting from 0. Nothing moves without a
     /// clock: wire a `Clock` into `clock` (`interval` 0.25 for sixteenth
     /// notes).
+    ///
+    /// **Placed in the song:** set `start` to *At beat…* and the pattern
+    /// starts at song beat `at` (and stops at `until`, unless that's 0), with `interval` beats per step (0.25,
+    /// sixteenths, by default: set it to the clock's interval). Each clock
+    /// then plays the step the song is on, counted from `at`, so after a
+    /// seek, a loop, or play from the middle the pattern is on the right
+    /// step at once; clocks before its beat play nothing.
     ///
     /// Generator contract: `start` (on transport play by default) goes
     /// back to the beginning and plays, so the next clock, or one on the
@@ -72,10 +80,15 @@ node! {
 
 const CLOCK: usize = 0;
 const START: usize = 1;
-const STOP: usize = 2;
-const RESET: usize = 3;
-const LOOP: usize = 4;
-const REVERSE: usize = 5;
+const AT: usize = 2;
+const INTERVAL: usize = 4;
+const STOP: usize = 5;
+const RESET: usize = 6;
+const LOOP: usize = 7;
+const REVERSE: usize = 8;
+
+/// Shortest step a placed pattern counts, in beats.
+const MIN_INTERVAL: f64 = 1.0 / 64.0;
 
 pub const MAX_STEPS: u64 = 64;
 pub const MAX_ROWS: usize = 16;
@@ -177,6 +190,31 @@ impl Pattern {
         }
     }
 
+    /// One clock while placed in the song: the step the song is on, `k`
+    /// steps past the pattern's beat; before it, nothing; past the last
+    /// step unlooped, the end.
+    fn song_step(&mut self, at: u32, k: i64, looping: bool) {
+        if k < 0 {
+            self.gates = 0;
+            return;
+        }
+        let k = k as u64;
+        if k >= self.steps as u64 && !looping {
+            self.playing = false;
+            self.gates = 0;
+            self.push_end(at);
+            return;
+        }
+        let i = (k % self.steps as u64) as usize;
+        let s = if self.forward { i } else { self.steps - 1 - i };
+        self.current = Some(s);
+        self.shown = s;
+        self.gates = self.column(s);
+        if self.gates != 0 && self.fires.len() < self.fires.capacity() {
+            self.fires.push((at, self.gates));
+        }
+    }
+
     fn push_end(&mut self, at: u32) {
         if self.ends.len() < self.ends.capacity() {
             self.ends.push(at);
@@ -192,8 +230,17 @@ impl Node for Pattern {
     fn describe(config: &Config) -> Signature {
         let mut sig = Signature::new()
             .input(SocketSpec::trigger("clock").doc("Moves to the next step."))
-            .generator_inputs(true, false)
+            .song_generator_inputs(true, false)
             .input(SocketSpec::trigger("reverse").doc("Toggles the direction."));
+        sig.inputs.insert(
+            INTERVAL,
+            SocketSpec::float("interval", Unit::Beats, 0.25)
+                .range(0.0, 4.0)
+                .song()
+                .doc(
+                    "Beats per step, placed in the song: each clock plays the step the song is on.",
+                ),
+        );
         if let Some(l) = sig.inputs.iter_mut().find(|s| s.name == "loop") {
             l.default = Value::Bool(true);
         }
@@ -231,19 +278,54 @@ impl Node for Pattern {
         }
     }
 
-    fn process(&mut self, _ctx: &ProcessCtx, io: &mut Io) {
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         let frames = io.frames();
         let looping = io.inputs.boolean(LOOP);
+        let transport = ctx.transport;
+        // Placed in the song: the beat it starts on and the beats per step.
+        let song = io.inputs.song_locked(START).then(|| {
+            let at = f64::from(io.inputs.float(AT).first());
+            let interval = f64::from(io.inputs.float(INTERVAL).first());
+            (
+                if at.is_finite() { at.max(0.0) } else { 0.0 },
+                if interval.is_finite() {
+                    interval.max(MIN_INTERVAL)
+                } else {
+                    0.25
+                },
+            )
+        });
+        let lock = song::lock(ctx, io, START);
+        let mut at = [0; 2];
+        let (start, stop) = song::triggers(
+            lock,
+            io.inputs.triggers(START),
+            io.inputs.triggers(STOP),
+            &mut at,
+        );
         let events = [
             io.inputs.triggers(REVERSE),
-            io.inputs.triggers(STOP),
-            io.inputs.triggers(START),
+            stop,
+            start,
             io.inputs.triggers(RESET),
             io.inputs.triggers(CLOCK),
         ];
         self.changes.clear();
         self.fires.clear();
         self.ends.clear();
+        match lock {
+            SongLock::Wait => {
+                self.playing = false;
+                self.gates = 0;
+            }
+            SongLock::Land { .. } => {
+                // The next clock plays the step the song is on.
+                self.playing = true;
+                self.current = None;
+                self.gates = 0;
+            }
+            _ => {}
+        }
         let initial = self.gates;
 
         for run in Runs::new(events, frames) {
@@ -267,7 +349,15 @@ impl Node for Pattern {
                 self.current = None;
             }
             if clock && self.playing {
-                self.advance(at, looping.at(run.at));
+                match song {
+                    Some((beat, interval)) => {
+                        let now = transport.tempo.beat_at(transport.position + run.at as u64);
+                        // A hair of slack so a tick on the grid counts as on it.
+                        let k = ((now - beat) / interval + 1e-6).floor();
+                        self.song_step(at, k as i64, looping.at(run.at));
+                    }
+                    None => self.advance(at, looping.at(run.at)),
+                }
             }
             if self.gates != before && self.changes.len() < self.changes.capacity() {
                 self.changes.push((at, self.gates));
@@ -341,6 +431,34 @@ mod tests {
     }
 
     #[test]
+    fn a_placed_pattern_plays_the_step_the_song_is_on() {
+        // 120 BPM: a sixteenth is 6000 samples; placed at beat 1.
+        const STEP: u64 = 6_000;
+        let mut h = harness(two_rows(), 64);
+        h.set("start", "at").set("at", 1.0);
+        let ticks: Vec<u64> = (0..9).map(|k| k * STEP).collect();
+        h.triggers("clock", &ticks);
+        let out = h.run((9 * STEP) as usize);
+        assert_eq!(out.triggers("trigger_0"), &[4 * STEP, 6 * STEP, 8 * STEP]);
+        assert_eq!(out.triggers("trigger_1"), &[5 * STEP, 6 * STEP]);
+        // From the middle of the song: six steps in is step 2 of the next
+        // pass, which both rows play.
+        let t = 9 * STEP;
+        h.seek(4 * STEP + 6 * STEP);
+        h.triggers("clock", &[t, t + STEP]);
+        let out = h.run(STEP as usize + 64);
+        assert_eq!(out.triggers("trigger_0"), &[t]);
+        assert_eq!(out.triggers("trigger_1"), &[t]);
+        assert_eq!(out.int("step").last(), Some(&3));
+        // Unlooped, the clock after the last step ends it.
+        let mut h = harness(two_rows(), 64);
+        h.set("start", "at").set("at", 1.0).set("loop", false);
+        h.triggers("clock", &ticks);
+        let out = h.run((9 * STEP) as usize);
+        assert_eq!(out.triggers("end"), &[8 * STEP]);
+    }
+
+    #[test]
     fn sockets_follow_the_config() {
         let sig = Pattern::describe(&json!({ "rows": 3 }));
         let outs: Vec<_> = sig.outputs.iter().map(|s| s.name.as_ref()).collect();
@@ -359,7 +477,13 @@ mod tests {
             ]
         );
         let ins: Vec<_> = sig.inputs.iter().map(|s| s.name.as_ref()).collect();
-        assert_eq!(ins, ["clock", "start", "stop", "reset", "loop", "reverse"]);
+        assert_eq!(
+            ins,
+            [
+                "clock", "start", "at", "until", "interval", "stop", "reset", "loop", "reverse"
+            ]
+        );
+        assert!(sig.inputs[AT].song && sig.inputs[INTERVAL].song);
         assert_eq!(sig.inputs[LOOP].default, Value::Bool(true));
         assert_eq!(Pattern::describe(&json!({})).outputs.len(), 4 * 2 + 3);
         assert_eq!(

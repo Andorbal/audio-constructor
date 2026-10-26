@@ -391,10 +391,15 @@ The same list is in Help ▸ Keyboard Shortcuts. On macOS, shortcuts with
 | Panic | `Esc` twice |
 | Play from Start | `Shift+Space` |
 | Record | `R` |
+| Go to End | `End` |
+| Metronome | `Shift+C` |
+| Add Marker | `Alt+M` |
+| Previous Marker, Next Marker | `Alt+←`, `Alt+→` |
 | Play Keys | `Ctrl+K` |
 | Keyboard Shortcuts | `Ctrl+/` |
 
 Transport ▸ Stop, Transport ▸ Loop, and Transport ▸ Go to Start have no
-shortcut; use the transport bar's buttons.
+shortcut; use the transport bar's buttons. Click the ruler under the
+transport bar to play from any bar.
 
 Next: [Building sounds](building-sounds.md).

@@ -135,7 +135,8 @@ impl Node for Record {
             (false, true, sink) => {
                 self.take_frames = 0;
                 if let Some(sink) = sink {
-                    sink.start();
+                    let t = ctx.transport;
+                    sink.start_at(t.playing.then_some(t.position));
                 }
             }
             (true, false, Some(sink)) => sink.stop(),

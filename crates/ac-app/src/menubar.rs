@@ -58,6 +58,8 @@ pub struct MenuState<'a> {
     pub panels: bool,
     pub playing: bool,
     pub looping: bool,
+    /// The transport's click is on.
+    pub metronome: bool,
     pub play_keys: bool,
     pub theme: &'a ThemeChoice,
     /// The person's own themes, listed after the built-in ones.
@@ -554,7 +556,13 @@ pub fn show(ui: &mut egui::Ui, s: &MenuState) -> Vec<MenuCommand> {
             entry(ui, &mut out, Action::PlayFromStart, icons::PLAY, true);
             entry(ui, &mut out, Action::Record, icons::RECORD, true);
             entry(ui, &mut out, Action::Rewind, icons::SKIP_BACK, true);
+            entry(ui, &mut out, Action::GoToEnd, icons::SKIP_FORWARD, true);
             toggle(ui, &mut out, Action::ToggleLoop, s.looping);
+            toggle(ui, &mut out, Action::Metronome, s.metronome);
+            ui.separator();
+            entry(ui, &mut out, Action::AddMarker, icons::FLAG, true);
+            entry(ui, &mut out, Action::PreviousMarker, icons::FLAG, true);
+            entry(ui, &mut out, Action::NextMarker, icons::FLAG, true);
             ui.separator();
             entry(ui, &mut out, Action::Panic, icons::WARNING_OCTAGON, true);
             ui.separator();

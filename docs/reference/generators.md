@@ -28,6 +28,14 @@ backwards); fractional rates are interpolated. Events at the same
 frame apply in the order reverse, stop, start, reset. A missing or
 empty file fires `end` as soon as it starts, so chains keep moving.
 
+**Placed in the song:** set `start` to *At beat…* and the clip
+starts when the song reaches beat `at`, on that sample, and stops at
+beat `until` (0 plays on). Start the
+transport anywhere (play from bar 9, a seek, a loop) and the clip is
+already where it would be had the song played from the top:
+partway through, around again if it loops, or finished and silent
+if it doesn't; before its beat it waits.
+
 Changing `position` (seconds) seeks there, at the start of the next
 block. After loading or a transport reset the clip counts as being at
 0, so a fixed nonzero `position` acts as the point transport playback
@@ -42,7 +50,9 @@ the second one's `start`.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `position` | Float (s) | 0 | 0 … 600 | Seeks here when it changes. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
 | `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |
@@ -153,6 +163,12 @@ holds the value at `x` = 0; after a pass finishes it holds the end
 value (the value at 1, or at 0 when reversed). `position` reports
 the playhead (0 to 1, once per block).
 
+**Placed in the song:** set `start` to *At beat…* and the curve
+starts at song beat `at` (and stops at `until`, unless that's 0). Start the transport anywhere and the curve
+is already where it would be: an automation lane holds its place
+through a seek or a loop. Before its beat it holds its first value,
+and past the end of an unlooped pass, its last.
+
 Generator contract: `start` plays from the beginning (from the end
 when reversed). A pass lasts `duration`; on its last frame `out`
 reaches the end value, `end` fires, and the Graph stops, or wraps
@@ -173,7 +189,9 @@ one-bar modulation shape that stays in time.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `duration` | Float (s) | 1 | 0 … 10 | How long one pass takes. |
-| `start` | Trigger | `play` | `play`, `load`, `never` | Starts or restarts. Unwired: on transport play, on load, or never. |
+| `start` | Trigger | `play` | `play`, `load`, `never`, `at` | Starts or restarts. Unwired: on transport play, on load, never, or at a beat of the song. |
+| `at` | Float (beats) | 0 | 0 … 256 | The song beat it plays from, with `start` set to At beat. |
+| `until` | Float (beats) | 0 | 0 … 256 | The song beat it stops at, placed in the song; 0 plays on. |
 | `stop` | Trigger | `stop` | `stop`, `never` | Stops. Also on transport stop, wired or not, unless set to never. |
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | false |  | Wrap around at the end. |

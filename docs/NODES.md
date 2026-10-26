@@ -30,7 +30,14 @@ losing performance or clarity, it should be a *block* (a saved group) in
 - **Generators share a contract.** Anything that produces a signal over time
   (Oscillator, Clip, Graph, Sampler, Pattern, MidiPattern) has:
   - `start: Trigger` — starts or restarts. Unwired, it shows a dropdown:
-    *On transport play* (default) / *Never* (only via wire).
+    *On transport play* (default) / *On load* / *Never* (only via wire).
+    Generators that can be **placed in the song** (Clip, Graph, MIDI
+    Pattern, Pattern) also offer *At beat…*: they start on the exact
+    sample of song beat `at` and stop at beat `until` (0: no end), two
+    inputs shown while it's chosen. Whenever the transport starts (play,
+    a seek, a loop), a placed generator lands where it would be had the
+    song played from the top, so playback can start anywhere (DECISIONS
+    D206). Use `song::lock` and `song::triggers` in `ac-nodes`.
   - `stop: Trigger` — stops. It shows a dropdown, *On transport stop*
     (default) / *Never*, wired or not: a wire is a second source, so
     transport Stop still reaches a generator a button or a clock stops
@@ -48,7 +55,8 @@ losing performance or clarity, it should be a *block* (a saved group) in
   it can be wired from downstream (a clip's `playing` back to the button
   that starts it) without making a cycle (DECISIONS D205).
 - **Stateful nodes implement `reset()`** and are reset when the transport
-  restarts from zero.
+  restarts from zero. A seek calls `seek(sample)`, which resets by
+  default; override it only for state that should outlive a jump.
 - **Nodes whose config is edited while they play implement `take_over()`**
   when an edit shouldn't start them over: a step grid, step values, or a
   piano roll drawn in the editor keeps its place and keeps playing
@@ -70,7 +78,7 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3, **P4** Phase 4. **WI** =
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `AudioIn` | P1, Live | A device input channel (or pair). Config: channel selection. Out: `out: Audio`. |
-| `AudioOut` | P1 | A device output. In: `in: Audio`. Multiple instances allowed (main, cue). |
+| `AudioOut` | P1 | A device output. In: `in: Audio`. Multiple instances allowed (main, cue). A `role` config, *main* or *monitor* (P4): monitor outputs play live only and renders leave them out. |
 | `MidiIn` | P1, Live | A MIDI device (or all). Out: `midi: Midi`. |
 | `MidiOut` | P2 | Send `Midi` to a device. |
 | `Record` | P1 | Writes `in: Audio` to a file while `arm: Bool` is true (or between `start`/`stop` triggers). Outputs `recording: Bool`, `length: Float(Seconds)`, and (Phase 2) `buffer: Buffer`, the last finished take, so a recording can feed a Sampler immediately. |
@@ -84,10 +92,10 @@ Legend: **P1** Phase 1, **P2** Phase 2, **P3** Phase 3, **P4** Phase 4. **WI** =
 | Node | Phase | What it does |
 | --- | --- | --- |
 | `Oscillator` | P1 | `freq: Float(Hz)`, `shape` (sine, tri, saw, square, pulse with `width`), `phase: Float`, `sync: Trigger` (hard sync), `fm: Float` (linear FM). Out: `out: Float` at sample rate (wires to Audio or to any parameter). Band-limited for audio use; a `pure` config flag disables anti-aliasing for LFO-style use. |
-| `Clip` | P1 | Plays an audio file. Generator contract (start/stop/loop/reverse/rate). `position: Float(Seconds)` input for seeking; outputs `out: Audio`, `position: Float`, `end: Trigger`. Resamples to engine rate on load. |
+| `Clip` | P1 | Plays an audio file. Generator contract (start/stop/loop/reverse/rate), placeable in the song (P4). `position: Float(Seconds)` input for seeking; outputs `out: Audio`, `position: Float`, `end: Trigger`. Resamples to engine rate on load. |
 | `Transport` | P1 | Song time as signals: `time: Float(Seconds)`, `beat: Float(Beats)`, `bar: Int`, `beat_in_bar: Int`, `bpm: Float`, `playing: Bool`, `play: Trigger`, `stop: Trigger`. (The user's "SongTime".) |
 | `Noise` | P2 | White, pink, brown at the same RMS; seeded. `gain`, `seed` config; start/stop/reset. |
-| `Graph` | P2 | A hand-drawn curve (straight, held, smooth, or bent segments, drawn in the node editor) with `duration: Float(Seconds or Beats)`; generator contract. Out: `out: Float`, `position`. Doubles as an envelope. |
+| `Graph` | P2 | A hand-drawn curve (straight, held, smooth, or bent segments, drawn in the node editor) with `duration: Float(Seconds or Beats)`; generator contract, placeable in the song (P4), so a curve is an automation lane that holds its place through a seek. Out: `out: Float`, `position`. Doubles as an envelope. |
 | `Sampler` | P2 | Plays a `Buffer` (or, unwired, an audio file) with pitch (`note` against a `root` config), start/end points, loop points, crossfade, and the generator contract. The building block for drum machines and keyboards. |
 | `Wavetable` | P2 | Scans a table (from a `Buffer` or the built-in sine → triangle → saw → square set) with `position: Float` morphing; band-limited per octave; `freq`, `phase`, `sync`, `fm`. |
 | `Impulse` | P2 | A single-sample click on `trigger`; for testing filters and building percussion. |
@@ -210,8 +218,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `MidiCC` | P2 | One controller number → `Float` (0..1 or custom range, with `smooth`), `channel` filter, `changed: Trigger`. Controller 128 reads pitch bend, 129 channel pressure. |
 | `MidiFilter` | P2 | Channel, note range, event types. A note-off whose note-on passed always passes. |
 | `MidiTranspose` | P2 | Semitones; `snap` to a `scale` over `root` (or a custom `mask`). Note-offs follow the note each note-on became. |
-| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k` and `gate_k`; also `step: Int`, `reset`, `reverse`, generator contract. The user's "pattern of 4, 8, 16 buttons". |
-| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`; `midi` and `position` outputs. From a riff to a whole song. |
+| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k` and `gate_k`; also `step: Int`, `reset`, `reverse`, generator contract. Placed in the song (P4), each clock plays the step the song is on, counted from `at` in steps of `interval` beats. The user's "pattern of 4, 8, 16 buttons". |
+| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`, placeable in the song (P4); `midi` and `position` outputs. From a riff to a whole song. |
 | `NoteToMidi` | P2 | `trigger`/`gate` + `note: Int` + `velocity` → `Midi` events. How a hand-built keyboard of `Button`s becomes a MIDI source. |
 | `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes up/down/up-down/random/as played, octaves, `gate` length, `latch`. |
 | `Chord` | P2 | One note → several: named chords or custom `intervals`, `inversion`, `spread`. |

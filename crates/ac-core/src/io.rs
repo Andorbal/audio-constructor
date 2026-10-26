@@ -491,6 +491,12 @@ impl<'a> Inputs<'a> {
         }
     }
 
+    /// Whether input `i` is a generator's `start` set to *At beat…*: the
+    /// generator is placed in the song (DECISIONS D206).
+    pub fn song_locked(&self, i: usize) -> bool {
+        self.auto_mode(i) == Some(crate::START_AT)
+    }
+
     /// MIDI events in this block, ascending by offset.
     pub fn midi(&self, i: usize) -> &'a [MidiEvent] {
         match self.slot(i) {

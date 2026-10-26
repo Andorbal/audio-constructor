@@ -15,7 +15,30 @@
           4
         ]
       }
-    ]
+    ],
+    "punch": [
+      16.0,
+      24.0
+    ],
+    "markers": [
+      {
+        "beat": 0.0,
+        "name": "Intro"
+      },
+      {
+        "beat": 16.0,
+        "name": "Chords"
+      },
+      {
+        "beat": 32.0,
+        "name": "Lead"
+      },
+      {
+        "beat": 48.0,
+        "name": "Outro"
+      }
+    ],
+    "count_in": 1
   },
   "graph": {
     "nodes": [
@@ -23,7 +46,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each a Track block (fader, pan, mute, solo) with a reverb send and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. Chords enter at bar 5 and lead at bar 9, a volume ride on the lead, and a punch-in window for the vocal on bars 5 and 6. The Mixer panel is the mixer window: each Track block pinned as a channel strip with its send under it, the bus returns, the master fader with its meter, and the recording controls, each section under a label.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, start playing from bar 9 (every clip restarts from its own top), record MIDI, comp takes, trim or fade a clip, drop markers, or keep the click out of the export. Read docs/GAPS.md for the full list."
+          "text": "Study: a linear multitrack recorder, built from today's nodes.\n\nFive tracks (drums, bass, chords, lead, and a vocal you record), each a Track block (fader, pan, mute, solo) with a reverb send and a stem file; a reverb bus and a delay bus; a master with a compressor, a limiter, and meters. The clips are placed in the song (`start` At beat): chords from bar 5 to bar 13, lead from bar 9, so playing from any bar finds each one where it belongs. A volume ride on the lead, a punch range for the vocal on bars 5 and 6, and markers for the sections, all on the ruler. The Mixer panel is the mixer window: each Track block pinned as a channel strip with its send under it, the bus returns, the master fader with its meter, and the recording controls, each section under a label.\n\nClick the ruler at bar 9 and press Space: everything plays from there. The click is the metronome button, live only, so it's never in the export.\n\nWhat a recorder does that this can't: see the song as clips on a timeline, record MIDI, comp takes, or trim and fade a clip. Read docs/GAPS.md for the full list."
         },
         "ui": {
           "pos": [
@@ -37,18 +60,6 @@
         }
       },
       {
-        "id": "2",
-        "kind": "transport",
-        "ui": {
-          "pos": [
-            0.0,
-            -300.0
-          ],
-          "label": "Song position"
-        },
-        "hide_unwired": true
-      },
-      {
         "id": "3",
         "kind": "clip",
         "config": {
@@ -56,7 +67,9 @@
           "channels": 1
         },
         "params": {
-          "loop": true
+          "at": 0.0,
+          "loop": true,
+          "start": "at"
         },
         "ui": {
           "pos": [
@@ -74,7 +87,9 @@
           "channels": 1
         },
         "params": {
-          "loop": true
+          "at": 0.0,
+          "loop": true,
+          "start": "at"
         },
         "ui": {
           "pos": [
@@ -92,8 +107,10 @@
           "channels": 1
         },
         "params": {
+          "at": 16.0,
           "loop": true,
-          "start": "never"
+          "start": "at",
+          "until": 48.0
         },
         "ui": {
           "pos": [
@@ -104,58 +121,6 @@
         }
       },
       {
-        "id": "6",
-        "kind": "compare",
-        "params": {
-          "b": 16.0,
-          "op": "greater_equal"
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            1360.0
-          ],
-          "label": "Bar 5 reached"
-        }
-      },
-      {
-        "id": "7",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            300.0,
-            1360.0
-          ],
-          "label": "Enter"
-        }
-      },
-      {
-        "id": "8",
-        "kind": "compare",
-        "params": {
-          "b": 48.0,
-          "op": "greater_equal"
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            1560.0
-          ],
-          "label": "Bar 13 reached"
-        }
-      },
-      {
-        "id": "9",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            300.0,
-            1560.0
-          ],
-          "label": "Leave"
-        }
-      },
-      {
         "id": "a",
         "kind": "clip",
         "config": {
@@ -163,8 +128,9 @@
           "channels": 1
         },
         "params": {
+          "at": 32.0,
           "loop": true,
-          "start": "never"
+          "start": "at"
         },
         "ui": {
           "pos": [
@@ -172,32 +138,6 @@
             2040.0
           ],
           "label": "Lead"
-        }
-      },
-      {
-        "id": "b",
-        "kind": "compare",
-        "params": {
-          "b": 32.0,
-          "op": "greater_equal"
-        },
-        "ui": {
-          "pos": [
-            0.0,
-            2040.0
-          ],
-          "label": "Bar 9 reached"
-        }
-      },
-      {
-        "id": "c",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            300.0,
-            2040.0
-          ],
-          "label": "Enter"
         }
       },
       {
@@ -254,65 +194,7 @@
             0.0,
             3020.0
           ],
-          "label": "Punch in (bars 5-6)"
-        }
-      },
-      {
-        "id": "11",
-        "kind": "compare",
-        "params": {
-          "b": 16.0,
-          "op": "greater_equal"
-        },
-        "ui": {
-          "pos": [
-            300.0,
-            2900.0
-          ],
-          "label": "Bar 5 reached"
-        }
-      },
-      {
-        "id": "12",
-        "kind": "compare",
-        "params": {
-          "b": 24.0,
-          "op": "less"
-        },
-        "ui": {
-          "pos": [
-            300.0,
-            3080.0
-          ],
-          "label": "Before bar 7"
-        }
-      },
-      {
-        "id": "13",
-        "kind": "logic",
-        "params": {
-          "op": "and"
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            2960.0
-          ],
-          "label": "In window"
-        }
-      },
-      {
-        "id": "14",
-        "kind": "logic",
-        "params": {
-          "op": "and"
-        },
-        "ui": {
-          "pos": [
-            600.0,
-            3110.0
-          ],
-          "label": "Arm"
+          "label": "Arm vocal"
         }
       },
       {
@@ -333,7 +215,7 @@
         "id": "16",
         "kind": "comment",
         "config": {
-          "text": "Recording: press R. The Record node writes a take while Arm is on: the Punch toggle AND the song being inside bars 5-6. Monitor passes the input to the track so you hear yourself; it starts off, so the microphone is quiet until you turn it on. After the take, the status line offers Create Clip from take; the clip then needs its own enter/leave logic like Chords above to sit at bar 5. There's no count-in, no pre-roll, and no take lanes."
+          "text": "Recording: press R. With Arm vocal on (F5), the Record node writes a take only inside the transport's punch range, bars 5 and 6 (Shift-drag on the ruler to move it), starting on its exact sample; recording from a stop counts in one bar of click first (right-click the metronome button). Monitor passes the input to the track so you hear yourself; it starts off, so the microphone is quiet until you turn it on. After the take, Create Clip from take places the clip at the beat the take started and wires it where the microphone went. There are no take lanes."
         },
         "ui": {
           "pos": [
@@ -689,7 +571,9 @@
           ]
         },
         "params": {
-          "duration": 64.0
+          "at": 0.0,
+          "duration": 64.0,
+          "start": "at"
         },
         "ui": {
           "pos": [
@@ -718,7 +602,7 @@
         "id": "46",
         "kind": "comment",
         "config": {
-          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song and is added to a fixed −12 dB, so the Lead strip's fader shows the ride as it plays rather than taking a hand; there's no automation lane under the track, no write/touch/latch, and the curve has no idea where bar 9 is."
+          "text": "Automation: the Graph draws the lead's volume over the 64 beats of the song, placed at beat 0 so it's in the right place from any bar, and is added to a fixed -12 dB, so the Lead strip's fader shows the ride as it plays rather than taking a hand; there's no automation lane under the track and no write/touch/latch."
         },
         "ui": {
           "pos": [
@@ -985,52 +869,10 @@
         }
       },
       {
-        "id": "59",
-        "kind": "toggle",
-        "params": {
-          "value": false
-        },
-        "ui": {
-          "pos": [
-            3300.0,
-            700.0
-          ],
-          "label": "Click"
-        }
-      },
-      {
-        "id": "5a",
-        "kind": "group",
-        "config": {
-          "def": "metronome"
-        },
-        "params": {
-          "volume": -12.0
-        },
-        "ui": {
-          "pos": [
-            3600.0,
-            650.0
-          ],
-          "label": "Metronome"
-        }
-      },
-      {
-        "id": "5b",
-        "kind": "audio_out",
-        "ui": {
-          "pos": [
-            3900.0,
-            650.0
-          ],
-          "label": "Click out"
-        }
-      },
-      {
         "id": "5c",
         "kind": "comment",
         "config": {
-          "text": "The master: a Mix of five tracks and two returns, the Compressor and Limiter blocks, a Fader with the master's meter beside it, an analyzer, and the output. The click goes to a second Audio Out, which a render still sums into the file: a cue path that stays out of the export doesn't exist yet."
+          "text": "The master: a Mix of five tracks and two returns, the Compressor and Limiter blocks, a Fader with the master's meter beside it, an analyzer, and the output. The click isn't here: it's the transport's, and it never reaches a render."
         },
         "ui": {
           "pos": [
@@ -1046,42 +888,6 @@
     ],
     "wires": [
       {
-        "from": "2:beat",
-        "to": "6:a"
-      },
-      {
-        "from": "6:out",
-        "to": "7:in"
-      },
-      {
-        "from": "7:out",
-        "to": "5:start"
-      },
-      {
-        "from": "2:beat",
-        "to": "8:a"
-      },
-      {
-        "from": "8:out",
-        "to": "9:in"
-      },
-      {
-        "from": "9:out",
-        "to": "5:stop"
-      },
-      {
-        "from": "2:beat",
-        "to": "b:a"
-      },
-      {
-        "from": "b:out",
-        "to": "c:in"
-      },
-      {
-        "from": "c:out",
-        "to": "a:start"
-      },
-      {
         "from": "d:out",
         "to": "f:b"
       },
@@ -1092,34 +898,6 @@
       {
         "from": "d:out",
         "to": "15:in"
-      },
-      {
-        "from": "2:beat",
-        "to": "11:a"
-      },
-      {
-        "from": "2:beat",
-        "to": "12:a"
-      },
-      {
-        "from": "11:out",
-        "to": "13:a"
-      },
-      {
-        "from": "12:out",
-        "to": "13:b"
-      },
-      {
-        "from": "13:out",
-        "to": "14:a"
-      },
-      {
-        "from": "10:out",
-        "to": "14:b"
-      },
-      {
-        "from": "14:out",
-        "to": "15:arm"
       },
       {
         "from": "3:out",
@@ -1354,16 +1132,12 @@
         "to": "56:in"
       },
       {
-        "from": "59:out",
-        "to": "5a:enabled"
-      },
-      {
-        "from": "5a:out",
-        "to": "5b:in"
-      },
-      {
         "from": "53:out",
         "to": "57:meter"
+      },
+      {
+        "from": "10:out",
+        "to": "15:arm"
       }
     ],
     "frames": [
@@ -2362,303 +2136,6 @@
         ]
       }
     },
-    "metronome": {
-      "name": "Metronome",
-      "description": "Clicks on every beat while the transport plays, with a higher click on the first beat of each bar. Follows the project tempo.\n\n- `volume` (dB): how loud the clicks are.\n- `enabled`: switch the clicks on or off (with a 5 ms fade).\n- `beats_per_bar`: beats in a bar, counted from the start of the song; set it to match the time signature (3 for a waltz).\n- `out` (audio, mono): the clicks. Send it to its own output to make a click track only you hear.\n\nInside: one Clock ticks on every beat and another on every bar. The bar ticks start the accent click; a Switch in trigger mode passes the beat ticks only while the bar clock's short gate is low, so the downbeat doesn't get both clicks. Each click is a sine Oscillator, restarted from the top of its cycle by the tick so every click sounds the same, multiplied by an ADSR that jumps up and dies away in about 40 ms. The accent sounds an octave higher (1760 Hz against 880 Hz) and 3 dB louder. A Mix adds the two, a Gain sets the volume, and a Switch in audio mode turns the result on and off.",
-      "version": 1,
-      "author": "Audio Constructor",
-      "tags": [
-        "rhythm",
-        "utility",
-        "click",
-        "tempo"
-      ],
-      "source": "shipped:metronome",
-      "inputs": [
-        {
-          "name": "volume",
-          "type": "float",
-          "unit": "db",
-          "default": -6.0,
-          "range": [
-            -60.0,
-            12.0
-          ],
-          "targets": [
-            "11:gain"
-          ]
-        },
-        {
-          "name": "enabled",
-          "type": "bool",
-          "default": true,
-          "targets": [
-            "12:select"
-          ]
-        },
-        {
-          "name": "beats_per_bar",
-          "type": "float",
-          "unit": "beats",
-          "default": 4.0,
-          "range": [
-            1.0,
-            16.0
-          ],
-          "targets": [
-            "2:interval"
-          ]
-        }
-      ],
-      "outputs": [
-        {
-          "name": "out",
-          "type": "audio",
-          "source": "12:out"
-        }
-      ],
-      "graph": {
-        "nodes": [
-          {
-            "id": "1",
-            "kind": "clock",
-            "params": {
-              "duty": 0.5,
-              "interval": 1.0
-            },
-            "ui": {
-              "pos": [
-                0.0,
-                320.0
-              ],
-              "label": "Beat"
-            }
-          },
-          {
-            "id": "2",
-            "kind": "clock",
-            "params": {
-              "duty": 0.02
-            },
-            "ui": {
-              "pos": [
-                0.0,
-                0.0
-              ],
-              "label": "Bar"
-            }
-          },
-          {
-            "id": "3",
-            "kind": "switch",
-            "config": {
-              "type": "trigger"
-            },
-            "ui": {
-              "pos": [
-                220.0,
-                320.0
-              ],
-              "label": "Not the downbeat"
-            }
-          },
-          {
-            "id": "4",
-            "kind": "adsr",
-            "params": {
-              "attack": 0.0,
-              "curve": "exponential",
-              "decay": 0.04,
-              "release": 0.01,
-              "sustain": 0.0
-            },
-            "ui": {
-              "pos": [
-                440.0,
-                0.0
-              ],
-              "label": "Accent envelope"
-            }
-          },
-          {
-            "id": "5",
-            "kind": "oscillator",
-            "params": {
-              "freq": 1760.0,
-              "shape": "sine",
-              "start": "play"
-            },
-            "ui": {
-              "pos": [
-                440.0,
-                160.0
-              ],
-              "label": "Accent tone"
-            }
-          },
-          {
-            "id": "6",
-            "kind": "math",
-            "params": {
-              "op": "multiply"
-            },
-            "ui": {
-              "pos": [
-                660.0,
-                0.0
-              ]
-            }
-          },
-          {
-            "id": "7",
-            "kind": "adsr",
-            "params": {
-              "attack": 0.0,
-              "curve": "exponential",
-              "decay": 0.04,
-              "release": 0.01,
-              "sustain": 0.0
-            },
-            "ui": {
-              "pos": [
-                440.0,
-                320.0
-              ],
-              "label": "Beat envelope"
-            }
-          },
-          {
-            "id": "8",
-            "kind": "oscillator",
-            "params": {
-              "freq": 880.0,
-              "shape": "sine",
-              "start": "play"
-            },
-            "ui": {
-              "pos": [
-                440.0,
-                480.0
-              ],
-              "label": "Beat tone"
-            }
-          },
-          {
-            "id": "9",
-            "kind": "math",
-            "params": {
-              "op": "multiply"
-            },
-            "ui": {
-              "pos": [
-                660.0,
-                320.0
-              ]
-            }
-          },
-          {
-            "id": "10",
-            "kind": "mix",
-            "config": {
-              "inputs": 2
-            },
-            "params": {
-              "gain_0": 0.0,
-              "gain_1": -3.0
-            },
-            "ui": {
-              "pos": [
-                880.0,
-                160.0
-              ]
-            }
-          },
-          {
-            "id": "11",
-            "kind": "gain",
-            "ui": {
-              "pos": [
-                1100.0,
-                160.0
-              ],
-              "label": "Volume"
-            }
-          },
-          {
-            "id": "12",
-            "kind": "switch",
-            "config": {
-              "type": "audio"
-            },
-            "ui": {
-              "pos": [
-                1320.0,
-                160.0
-              ],
-              "label": "Enabled"
-            }
-          }
-        ],
-        "wires": [
-          {
-            "from": "1:trigger",
-            "to": "3:a"
-          },
-          {
-            "from": "2:gate",
-            "to": "3:select"
-          },
-          {
-            "from": "2:trigger",
-            "to": "4:on"
-          },
-          {
-            "from": "2:trigger",
-            "to": "5:sync"
-          },
-          {
-            "from": "4:out",
-            "to": "6:a"
-          },
-          {
-            "from": "5:out",
-            "to": "6:b"
-          },
-          {
-            "from": "3:out",
-            "to": "7:on"
-          },
-          {
-            "from": "3:out",
-            "to": "8:sync"
-          },
-          {
-            "from": "7:out",
-            "to": "9:a"
-          },
-          {
-            "from": "8:out",
-            "to": "9:b"
-          },
-          {
-            "from": "6:out",
-            "to": "10:in_0"
-          },
-          {
-            "from": "9:out",
-            "to": "10:in_1"
-          },
-          {
-            "from": "10:out",
-            "to": "11:in"
-          },
-          {
-            "from": "11:out",
-            "to": "12:b"
-          }
-        ]
-      }
-    },
     "track": {
       "name": "Track",
       "description": "One channel of a mixer: a volume fader, a pan knob, and mute and solo switches for whatever you wire into `in`. Put one Track after each sound and add them up with a Mix.\n\n- `in` (audio): the track's sound, mono or stereo. Usually a Clip playing your file: wire the Clip into `in`. The Clip stays outside because every instance of a block shares the same inside, so a Clip inside would make every Track play the same file.\n- `volume` (dB): the track's level.\n- `pan`: −1 is left, 0 center, 1 right. A mono track keeps the same loudness as it moves (−3 dB per side at the center); a stereo track is balanced.\n- `mute`: silences the track (with a 5 ms fade, so it doesn't click).\n- `solo` and `soloed`: solo comes back out of `soloed` for the rest of the mix to see; on its own it doesn't change this track's sound. To make solo work across a mix, combine the `soloed` outputs of every track with Logic `or` nodes and wire the result into every track's `any_solo`.\n- `any_solo`: on while any track in the mix is soloed. A track that isn't soloed itself goes silent while it's on, so only the soloed tracks play. Mute wins over solo.\n- `out` (audio): always stereo.\n\nInside: a Gain sets the volume and a Pan places the sound. Three Logic nodes work out whether the track should be silent (muted, or another track soloed and not this one), and a Switch in audio mode fades between the track and silence. A Logic `or` with nothing on its second input passes `solo` to the `soloed` output.",
@@ -2959,14 +2436,6 @@
           "at": [
             7,
             8
-          ],
-          "compact": true
-        },
-        {
-          "node": "59",
-          "at": [
-            8,
-            7
           ],
           "compact": true
         }

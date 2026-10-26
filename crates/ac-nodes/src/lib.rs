@@ -19,6 +19,7 @@ pub mod math;
 pub mod modulation;
 mod segments;
 pub mod sequencing;
+mod song;
 pub mod spectral;
 pub mod time;
 pub mod triggers;

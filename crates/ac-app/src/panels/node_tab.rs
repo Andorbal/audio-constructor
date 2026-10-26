@@ -577,6 +577,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
         )],
         "audio_out" => vec![
             f(
+                "role",
+                "Role",
+                Kind::Choice {
+                    choices: &["main", "monitor"],
+                    default: "main",
+                },
+            ),
+            f(
                 "channel",
                 "First output",
                 Kind::Count {

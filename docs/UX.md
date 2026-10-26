@@ -345,10 +345,14 @@ only their icons, named on hover.
 ## Transport bar
 
 Play, stop, record, position in bars:beats and time, tempo and time signature
-(click to edit the tempo map), loop toggle and range, Panic, master meter, CPU and
-xrun indicator. (A metronome toggle is planned, not built yet; meanwhile the
-**Metronome** block in the library clicks along with the transport.) `Space` plays/stops,
-`R` records, `Shift+Space` plays from the start. Play and Stop are
+(click to edit the tempo map), loop toggle and range, the metronome, Panic,
+master meter, CPU and xrun indicator. `Space` plays/stops, `R` records,
+`Shift+Space` plays from the start, `End` goes to the song's end. Drag the
+position sideways to move the playhead a beat at a time, or click it to type
+a bar to go to. The **metronome** button (`Shift+C`, Transport ▸ Metronome)
+clicks on every beat, higher on the first of a bar; it plays live only and
+is never in an export (D207). Its right-click menu sets a **count-in** of
+0–8 bars, clicked before recording starts from a stop. Play and Stop are
 separate buttons so Stop is there with the transport already stopped: it
 fires every generator's `stop` that says *On stop*, wired or not, so
 anything a button, a clock, or a live input started stops too (D200).
@@ -362,6 +366,21 @@ Main · Click"); clicking it shows the first on the canvas. At its right end, a
 window the host's transport plays the patch: the bar shows whether the
 host plays instead of the play, record, rewind, and loop buttons, and
 `Space`, `Shift+Space`, and `R` are the host's (D127).
+
+Under the bar, the **ruler** shows the song's bars (numbered every bar, or
+every few bars where they're narrow), the playhead, the loop (shaded), the
+punch range (a red band along the bottom), and the markers (flags with
+their names) (D207). Click it to move the playhead there, snapped to the
+beat (to the bar when beats are too narrow to aim at); a click on a
+marker jumps to it. Drag across it to set the loop, `Shift`-drag to set
+the punch range, and drag a marker to move it. Right-click it to add a
+marker there, rename or remove the marker under the pointer, or clear the
+loop or the punch range. Markers are in the project; `Alt+M` adds one at
+the playhead and `Alt+←`/`Alt+→` jump to the one before or after
+(Transport ▸ Add Marker, Previous Marker, Next Marker). While recording,
+armed Record nodes record only inside the punch range, from its exact
+first sample. In a plugin's window the host runs the transport, so there's
+no ruler.
 
 The keyboard button (also Transport ▸ Play Keys, `Ctrl+K`) turns on **Play
 keys**: computer keys go to the patch (`KeyboardIn` nodes, key bindings)

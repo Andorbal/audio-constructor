@@ -103,6 +103,7 @@ pub fn choice_label(spec: &SocketSpec, name: &str) -> String {
     match (spec.auto, name) {
         (AutoTrigger::Start, "play") => "On play".into(),
         (AutoTrigger::Start, "load") => "On load".into(),
+        (AutoTrigger::Start, "at") => "At beat…".into(),
         (AutoTrigger::Stop, "stop") => "On stop".into(),
         (_, "never") => "Never".into(),
         _ => {

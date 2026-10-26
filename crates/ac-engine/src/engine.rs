@@ -28,6 +28,7 @@ use crate::pool::{MAX_WORKERS, RtPool};
 use crate::report::CompileReport;
 use crate::telemetry::{EngineStatus, TelemetryLayout, TelemetryReader, TelemetryStore};
 
+mod click;
 mod relay;
 
 pub use relay::Relayed;
@@ -98,9 +99,20 @@ pub struct HostIo<'a> {
 enum Command {
     Play,
     Stop,
+    /// Jump: every node's `seek` runs (a reset by default), and a playing
+    /// transport starts there (DECISIONS D206).
     Seek(u64),
+    /// Move without a seek, as a loop does: a playing transport starts
+    /// there, but nothing is reset (a plugin host's jumps).
+    Locate(u64),
     SetRecording(bool),
     SetLoop(Option<(u64, u64)>),
+    /// Punch range in samples: armed Record nodes record only inside it.
+    SetPunch(Option<(u64, u64)>),
+    /// The transport's click on or off (live only).
+    SetMetronome(bool),
+    /// Bars of click before recording starts from a stop.
+    SetCountIn(u32),
     Reset,
     /// Stop, reset every node, and mute the outputs for a block.
     Panic,
@@ -127,8 +139,39 @@ struct Transport {
     start_flag: bool,
     stop_flag: bool,
     reset_flag: bool,
+    /// A seek to here is pending: nodes' `seek` runs before the next block.
+    seek_to: Option<u64>,
     /// Silence the device outputs for the rest of this host block (a panic).
     mute: bool,
+    punch: Option<(u64, u64)>,
+    metronome: bool,
+    count_in_bars: u32,
+    /// Play was pressed to record with a count-in: it starts at the next
+    /// block, where the tempo map is at hand.
+    count_in_wanted: bool,
+    /// The count-in under way.
+    counting: Option<CountIn>,
+}
+
+/// A count-in: clicks on a beat grid of its own while the transport waits.
+#[derive(Debug, Default, Clone, Copy)]
+struct CountIn {
+    /// Samples played and left.
+    elapsed: u64,
+    left: u64,
+    samples_per_beat: f64,
+    beats_per_bar: u32,
+}
+
+impl Transport {
+    /// Whether armed Record nodes record at `position`: recording is on,
+    /// and inside the punch range if there is one.
+    fn records_at(&self, position: u64) -> bool {
+        self.recording
+            && self
+                .punch
+                .is_none_or(|(a, b)| position >= a && position < b)
+    }
 }
 
 /// The audio-thread half.
@@ -148,6 +191,9 @@ pub struct Processor {
     learn_tx: Producer<InputEvent>,
     workers: Option<Arc<RtPool>>,
     busy: [u64; MAX_WORKERS + 1],
+    /// An offline render: no click and no count-in.
+    offline: bool,
+    click: click::Click,
 }
 
 /// The control-thread half.
@@ -215,11 +261,15 @@ impl Engine {
         status
             .sample_rate
             .store(options.sample_rate as u32, Ordering::Relaxed);
-        let loop_region = project.settings.loop_region.and_then(|[a, b]| {
-            let t = &compiled.graph.tempo;
-            let (s, e) = (t.sample_at(a), t.sample_at(b));
-            (e > s).then_some((s, e))
-        });
+        let span = |r: Option<[f64; 2]>| {
+            r.and_then(|[a, b]| {
+                let t = &compiled.graph.tempo;
+                let (s, e) = (t.sample_at(a), t.sample_at(b));
+                (e > s).then_some((s, e))
+            })
+        };
+        let loop_region = span(project.settings.loop_region);
+        let punch = span(project.settings.punch);
         let report = compiled.report.clone();
         let Compiled {
             graph,
@@ -239,6 +289,9 @@ impl Engine {
             cmd_rx,
             transport: Transport {
                 loop_region,
+                punch,
+                metronome: project.settings.metronome,
+                count_in_bars: project.settings.count_in.min(ac_core::MAX_COUNT_IN),
                 ..Transport::default()
             },
             status: status.clone(),
@@ -249,6 +302,8 @@ impl Engine {
             learn_tx,
             workers: None,
             busy: [0; MAX_WORKERS + 1],
+            offline: options.offline,
+            click: click::Click::default(),
         };
         let handle = EngineHandle {
             registry,
@@ -649,6 +704,27 @@ impl EngineHandle {
         self.command(Command::SetLoop(region));
     }
 
+    /// Punch range in samples, `[in, out)`: while recording, armed Record
+    /// nodes record only inside it, from its exact first sample.
+    pub fn set_punch(&mut self, range: Option<(u64, u64)>) {
+        self.command(Command::SetPunch(range));
+    }
+
+    /// The transport's click on every beat, live only (DECISIONS D207).
+    pub fn set_metronome(&mut self, on: bool) {
+        self.command(Command::SetMetronome(on));
+    }
+
+    /// Bars of click before recording starts from a stop (0: none).
+    pub fn set_count_in(&mut self, bars: u32) {
+        self.command(Command::SetCountIn(bars.min(ac_core::MAX_COUNT_IN)));
+    }
+
+    /// Whether a count-in is under way (the transport waits for it).
+    pub fn is_counting_in(&self) -> bool {
+        self.status.counting_in.load(Ordering::Relaxed)
+    }
+
     /// Reset every node (as on a restart from zero) at the next block.
     pub fn reset(&mut self) {
         self.command(Command::Reset);
@@ -754,7 +830,7 @@ impl Processor {
         if let Some(p) = position {
             let keep_playing = t.playing && playing;
             if p != t.position && (!keep_playing || p.abs_diff(t.position) > tolerance) {
-                command(t, Command::Seek(p));
+                command(t, Command::Locate(p));
             }
         }
         if playing != t.playing {
@@ -805,11 +881,20 @@ impl Processor {
                 }
                 next_bound += 1;
             }
+            if let Some(p) = self.transport.seek_to.take() {
+                self.graph.seek_nodes(p);
+            }
             if self.transport.reset_flag {
                 self.graph.reset_nodes();
                 self.transport.reset_flag = false;
             }
+            if std::mem::take(&mut self.transport.count_in_wanted) {
+                self.start_count_in();
+            }
             let mut n = (frames - done).min(max_block);
+            if let Some(c) = self.transport.counting {
+                n = n.min(c.left.max(1) as usize);
+            }
             let t = self.transport;
             // The transport stops on a frame of its own, so a wired `stop`
             // that it also fires carries at most that frame's events
@@ -823,6 +908,17 @@ impl Processor {
                 && t.position + n as u64 > le
             {
                 n = (le - t.position) as usize;
+            }
+            // Recording starts and ends on the punch range's own samples.
+            if t.playing
+                && t.recording
+                && let Some((pa, pb)) = t.punch
+            {
+                for edge in [pa, pb] {
+                    if t.position < edge && t.position + n as u64 > edge {
+                        n = (edge - t.position) as usize;
+                    }
+                }
             }
             // End the sub-block where the next bound event lands, so it
             // acts on its own sample whatever the block size.
@@ -861,7 +957,8 @@ impl Processor {
             }
             let block = BlockTransport {
                 playing: t.playing,
-                recording: t.recording,
+                // Nothing records until a count-in ends.
+                recording: t.records_at(t.position) && t.counting.is_none(),
                 position: t.position,
                 started: t.start_flag,
                 stopped: t.stop_flag,
@@ -892,6 +989,7 @@ impl Processor {
                 self.workers.as_deref(),
                 engine,
             );
+            self.clicks(io, done, n);
             self.transport.start_flag = false;
             self.transport.stop_flag = false;
             self.graph.advance_params(n);
@@ -903,6 +1001,14 @@ impl Processor {
                 {
                     self.transport.position = ls;
                     self.transport.start_flag = true;
+                }
+            }
+            if let Some(c) = &mut self.transport.counting {
+                c.elapsed += n as u64;
+                c.left = c.left.saturating_sub(n as u64);
+                if c.left == 0 {
+                    self.transport.counting = None;
+                    start_playing(&mut self.transport);
                 }
             }
             done += n;
@@ -917,9 +1023,88 @@ impl Processor {
         self.publish_status(io, frames, t_start);
     }
 
+    /// Begin the count-in: the bars asked for, at the tempo and time
+    /// signature where the transport is.
+    fn start_count_in(&mut self) {
+        let t = &mut self.transport;
+        let tempo = &self.graph.tempo;
+        let [num, den] = tempo.time_sig_at(t.position);
+        let beats_per_bar = (u32::from(num.max(1)) * 4 / u32::from(den.max(1))).max(1);
+        let samples_per_beat = tempo.samples_per_beat_at(t.position);
+        let bars = t.count_in_bars.min(ac_core::MAX_COUNT_IN);
+        let left = (f64::from(bars * beats_per_bar) * samples_per_beat).round() as u64;
+        if left == 0 {
+            start_playing(t);
+            return;
+        }
+        t.counting = Some(CountIn {
+            elapsed: 0,
+            left,
+            samples_per_beat,
+            beats_per_bar,
+        });
+    }
+
+    /// The click for frames `done..done + n`: on the song's beats while it
+    /// plays with the metronome on, and on the count-in's own beats.
+    fn clicks(&mut self, io: &mut HostIo, done: usize, n: usize) {
+        if self.offline {
+            return;
+        }
+        let t = self.transport;
+        let rate = self.graph.tempo.sample_rate();
+        let stride = io.frames;
+        let channels = io.out_channels;
+        let mut from = done;
+        let mut strike = |click: &mut click::Click, at: usize, accent: bool| {
+            click.render(io.output, channels, stride, from, done + at);
+            click.strike(accent, rate);
+            from = done + at;
+        };
+        if let Some(c) = t.counting {
+            // Beats at whole multiples of a beat from the count-in's start.
+            let spb = c.samples_per_beat.max(1.0);
+            let mut k = (c.elapsed as f64 / spb).ceil() as u64;
+            loop {
+                let at = (k as f64 * spb).round() as u64;
+                if at < c.elapsed {
+                    k += 1;
+                    continue;
+                }
+                if at >= c.elapsed + n as u64 {
+                    break;
+                }
+                strike(
+                    &mut self.click,
+                    (at - c.elapsed) as usize,
+                    k.is_multiple_of(u64::from(c.beats_per_bar)),
+                );
+                k += 1;
+            }
+        } else if t.playing && t.metronome {
+            let tempo = &self.graph.tempo;
+            let mut beat = (tempo.beat_at(t.position) - 1e-9).ceil().max(0.0);
+            loop {
+                let at = tempo.sample_at(beat);
+                if at >= t.position + n as u64 {
+                    break;
+                }
+                if at >= t.position {
+                    let (_, in_bar) = tempo.bar_at(at);
+                    strike(&mut self.click, (at - t.position) as usize, in_bar < 1e-6);
+                }
+                beat += 1.0;
+            }
+        }
+        self.click
+            .render(io.output, channels, stride, from, done + n);
+    }
+
     fn publish_status(&mut self, io: &HostIo, frames: usize, t_start: Option<u64>) {
         let s = &self.status;
         s.playing.store(self.transport.playing, Ordering::Relaxed);
+        s.counting_in
+            .store(self.transport.counting.is_some(), Ordering::Relaxed);
         s.recording
             .store(self.transport.recording, Ordering::Relaxed);
         s.position.store(self.transport.position, Ordering::Relaxed);
@@ -1037,16 +1222,12 @@ impl Processor {
 /// Apply a transport command.
 fn command(t: &mut Transport, c: Command) {
     match c {
-        Command::Play => {
-            if !t.playing {
-                t.playing = true;
-                t.start_flag = true;
-                t.stop_flag = false;
-                if t.position == 0 {
-                    t.reset_flag = true;
-                }
-            }
+        Command::Play
+            if !t.playing && t.recording && t.count_in_bars > 0 && t.counting.is_none() =>
+        {
+            t.count_in_wanted = true;
         }
+        Command::Play => start_playing(t),
         // Stop fires every generator's `stop` even when the transport is
         // already stopped, so anything a button or a live input started
         // while stopped can be stopped too (DECISIONS D200).
@@ -1055,8 +1236,17 @@ fn command(t: &mut Transport, c: Command) {
             t.stop_flag = true;
             t.start_flag = false;
             t.recording = false;
+            t.count_in_wanted = false;
+            t.counting = None;
         }
         Command::Seek(p) => {
+            t.position = p;
+            t.seek_to = Some(p);
+            if t.playing {
+                t.start_flag = true;
+            }
+        }
+        Command::Locate(p) => {
             t.position = p;
             if t.playing {
                 t.start_flag = true;
@@ -1067,11 +1257,26 @@ fn command(t: &mut Transport, c: Command) {
         }
         Command::SetRecording(on) => t.recording = on,
         Command::SetLoop(r) => t.loop_region = r.filter(|(a, b)| b > a),
+        Command::SetPunch(r) => t.punch = r.filter(|(a, b)| b > a),
+        Command::SetMetronome(on) => t.metronome = on,
+        Command::SetCountIn(bars) => t.count_in_bars = bars.min(ac_core::MAX_COUNT_IN),
         Command::Reset => t.reset_flag = true,
         Command::Panic => {
             command(t, Command::Stop);
             t.reset_flag = true;
             t.mute = true;
+        }
+    }
+}
+
+/// Start the transport where it is (resetting every node at zero).
+fn start_playing(t: &mut Transport) {
+    if !t.playing {
+        t.playing = true;
+        t.start_flag = true;
+        t.stop_flag = false;
+        if t.position == 0 {
+            t.reset_flag = true;
         }
     }
 }

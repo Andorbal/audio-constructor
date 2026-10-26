@@ -324,6 +324,17 @@ pub(crate) fn compile_with(
     let max_block = opts.max_block.clamp(1, 16_384);
 
     let mut flat = flatten(project, registry, &mut report);
+    // A device output in the monitor role plays live only: a render leaves
+    // it out (DECISIONS D207).
+    if opts.offline {
+        for f in &mut flat.nodes {
+            if f.meta.host_output
+                && ac_core::ConfigExt::get_str_or(&f.config, "role", "main") == "monitor"
+            {
+                f.muted = true;
+            }
+        }
+    }
 
     // --- 2. wires: one per input, compatible types ---
     let mut src_of: Vec<Vec<Option<(usize, usize)>>> = flat

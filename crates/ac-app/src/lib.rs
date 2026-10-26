@@ -33,6 +33,7 @@ pub mod play_keys;
 pub mod plugins;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod product;
+pub mod ruler;
 pub mod settings;
 pub mod sounding;
 pub mod theme;

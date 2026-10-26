@@ -13,11 +13,20 @@ use crate::i18n::{tr, tr_args};
 use crate::icons;
 use crate::theme;
 
-/// Master meter ballistics.
+/// Pixels of a sideways drag on the position per beat.
+const SCRUB_PX: f32 = 8.0;
+
+/// Master meter ballistics, and the position's drag.
 #[derive(Default)]
 pub struct TransportState {
     meter: [MeterChannel; 2],
     last: f64,
+    /// Dragging the position: the beat it started at.
+    scrub: Option<f64>,
+    /// A beat the playhead should move to, for the app to take.
+    seek: Option<f64>,
+    /// The bar typed into the position's popup.
+    go_to: u32,
 }
 
 /// `bar:beat` (1-based) and `m:ss.mmm` for a sample position.
@@ -30,6 +39,20 @@ pub fn position_text(tempo: &TempoMap, sample: u64) -> (String, String) {
     (bars, time)
 }
 
+/// The beat bar `bar` (from 0) starts on, following time signature changes.
+fn bar_start(tempo: &TempoMap, bar: f64) -> f64 {
+    // Walk to it a bar at a time from where its time signature begins: few
+    // songs change meter, and a bar is at least a beat.
+    let mut beat = 0.0;
+    let mut n = 0.0;
+    while n < bar && beat < 1.0e6 {
+        let [num, den] = tempo.time_sig_at(tempo.sample_at(beat));
+        beat += f64::from(num.max(1)) * 4.0 / f64::from(den.max(1));
+        n += 1.0;
+    }
+    beat
+}
+
 /// A transport button's icon.
 fn big(icon: &str, on: bool, color: Color32) -> RichText {
     RichText::new(icon)
@@ -39,12 +62,17 @@ fn big(icon: &str, on: bool, color: Color32) -> RichText {
 }
 
 impl TransportState {
+    /// The beat the position's drag or popup asked to move to, once.
+    pub fn take_seek(&mut self) -> Option<f64> {
+        self.seek.take()
+    }
+
     /// Go to start, play/stop, record, and loop: the editor's own
     /// transport (not shown when a host runs it).
     fn transport_buttons(
         &self,
         ui: &mut egui::Ui,
-        doc: &Document,
+        doc: &mut Document,
         playing: bool,
         recording: bool,
         actions: &mut Vec<Action>,
@@ -119,6 +147,35 @@ impl TransportState {
         {
             actions.push(Action::ToggleLoop);
         }
+        // The click, live only; its menu sets the count-in (D207).
+        let click = doc.project.settings.metronome;
+        let r = icons::spoken(
+            ui.add(
+                egui::Button::new(RichText::new(icons::METRONOME).size(17.0).color(if click {
+                    theme::accent()
+                } else {
+                    theme::text()
+                }))
+                .selected(click)
+                .min_size(vec2(32.0, 28.0)),
+            ),
+        )
+        .on_hover_text(tr("transport-metronome-tip"))
+        .accessible_name(tr("transport-metronome"));
+        if r.clicked() {
+            actions.push(Action::Metronome);
+        }
+        r.context_menu(|ui| {
+            ui.label(tr("transport-count-in"));
+            let now = doc.project.settings.count_in.min(ac_core::MAX_COUNT_IN);
+            for bars in 0..=ac_core::MAX_COUNT_IN {
+                let label = tr_args("transport-count-in-bars", &[("bars", bars.into())]);
+                if ui.radio(now == bars, label).clicked() {
+                    doc.edit_project(&tr("undo-count-in"), |p| p.settings.count_in = bars);
+                    ui.close();
+                }
+            }
+        });
         panic_button(ui, actions);
     }
 
@@ -191,9 +248,50 @@ impl TransportState {
                 actions.push(Action::PlayKeys);
             }
             ui.add_space(10.0);
-            // Position: bars:beats, large; time underneath.
+            // Position: bars:beats, large; time underneath. Drag it sideways
+            // to move the playhead by beats; click it to go to a bar.
             let (bars, time) = position_text(&tempo, pos);
-            let (rect, position) = ui.allocate_exact_size(vec2(160.0, 32.0), Sense::hover());
+            let (rect, position) = ui.allocate_exact_size(
+                vec2(160.0, 32.0),
+                if engine.in_host() {
+                    Sense::hover()
+                } else {
+                    Sense::click_and_drag()
+                },
+            );
+            if position.drag_started() {
+                self.scrub = Some(tempo.beat_at(pos).round());
+            }
+            if let Some(from) = self.scrub
+                && position.dragged()
+            {
+                let dx = position.total_drag_delta().map_or(0.0, |d| d.x);
+                let beat = (from + f64::from((dx / SCRUB_PX).round())).max(0.0);
+                if (tempo.beat_at(pos) - beat).abs() > 1e-6 {
+                    self.seek = Some(beat);
+                }
+            }
+            if position.drag_stopped() {
+                self.scrub = None;
+            }
+            if position.clicked() {
+                self.go_to = (tempo.bar_at(pos).0 + 1).max(1) as u32;
+            }
+            let position = position.on_hover_text(tr("transport-position-tip"));
+            egui::Popup::from_toggle_button_response(&position).show(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("transport-go-to-bar"));
+                    let r = ui.add(egui::DragValue::new(&mut self.go_to).range(1..=9999));
+                    let go = ui.button(icons::PLAY).clicked()
+                        || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
+                    if go {
+                        let bar = f64::from(self.go_to.saturating_sub(1));
+                        self.seek = Some(bar_start(&tempo, bar));
+                        ui.close();
+                    }
+                });
+            });
+            let counting = engine.handle.is_counting_in();
             // A screen reader reads the position as one readout.
             let spoken = tr_args(
                 "transport-position",
@@ -205,7 +303,11 @@ impl TransportState {
             ui.painter().text(
                 pos2(rect.min.x + 10.0, rect.center().y),
                 Align2::LEFT_CENTER,
-                bars,
+                if counting {
+                    tr("transport-counting-in")
+                } else {
+                    bars
+                },
                 theme::mono_font(16.0),
                 if playing {
                     theme::text_strong()

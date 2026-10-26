@@ -44,6 +44,28 @@ Phase 4: the tools the gap studies found missing.
   on a pen or touch screen), **Pads** (a grid of up to 8 × 8 pads playing
   MIDI notes, each with its own trigger), and **Light** (a lamp for a
   state: playing, armed, soloed, in a color you choose).
+- **Play from anywhere in the song.** Set a Clip's, Graph's, MIDI
+  Pattern's, or Pattern's `start` to **At beat…** and it starts at that
+  beat of the song (and stops at its `until` beat, if you give one).
+  Start the transport anywhere and every placed clip and pattern is
+  already where it belongs: partway through, around again if it loops,
+  or finished. `audioc render --from` and a seek in the editor give the
+  same result.
+- **A ruler under the transport bar.** It shows the song's bars, the
+  playhead, the loop, the punch range, and markers. Click it to play from
+  there, drag across it to set the loop, `Shift`-drag to set the punch
+  range, and right-click it for markers. Drag the position readout to
+  move by beats, or click it to type a bar. `End` goes to the end;
+  `Alt+M` adds a marker and `Alt+←`/`Alt+→` jump between them.
+- **Metronome and count-in.** The transport bar's metronome button
+  (`Shift+C`) clicks on every beat; right-click it for a count-in of up
+  to 8 bars before recording. The click is live only: it's never
+  recorded or exported.
+- **Punch in.** While a punch range is set, recording happens only inside
+  it, starting and ending on its exact samples.
+- **Monitor outputs.** An Audio Out's new `role` setting can be
+  *monitor*: it plays live and is left out of every render, for a cue
+  mix or hearing your input.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs
@@ -59,11 +81,18 @@ Phase 4: the tools the gap studies found missing.
   set it to **Never** to leave the generator to its wire, as before.
 - **Play and Stop are separate buttons** in the transport bar, so Stop is
   there while the transport is stopped. `Space` still plays and stops.
+- **Create Clip from take places the clip in the song** at the beat the
+  take started, and wires it where the recorded input went, so the take
+  plays in time in the mix straight away.
+- **A seek starts every node fresh** where it lands, as a render from that
+  point does: effects start empty and notes end. (A plugin host's loop
+  doesn't reset anything.)
 - **The multitrack recorder and scenes studies are rebuilt with pinned
   blocks.** The recorder's Mixer panel is a channel strip per track (its
   Track block with the reverb send under it), the bus returns, a master
-  Fader, and the recording controls, each under a label: 66 nodes instead
-  of 92. The scenes study's Session panel is a grid of tracks by scenes
+  Fader, and the recording controls, each under a label. Its clips are
+  placed in the song, so it plays from bar 9; the punch window and the
+  click are the transport's: 52 nodes instead of 92. The scenes study's Session panel is a grid of tracks by scenes
   with its slot buttons lit by their clips and a Track block per track.
 
 ## [0.14.2] - 2026-10-25

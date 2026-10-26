@@ -8,6 +8,7 @@ pub const STOP: &str = "\u{E46C}";
 pub const RECORD: &str = "\u{E3EE}";
 pub const REPEAT: &str = "\u{E3F6}";
 pub const SKIP_BACK: &str = "\u{E5A4}";
+pub const SKIP_FORWARD: &str = "\u{E5A6}";
 pub const METRONOME: &str = "\u{EC8E}";
 /// An octagon with an exclamation mark: Panic.
 pub const WARNING_OCTAGON: &str = "\u{E4E4}";

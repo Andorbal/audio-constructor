@@ -312,3 +312,81 @@ fn the_recorders_input_monitor_starts_off() {
         Some(false)
     );
 }
+
+/// Renders the recorder from `from` to `to` seconds and returns its stems
+/// by name.
+fn recorder_stems(from: f64, to: f64) -> Vec<(String, Vec<f32>)> {
+    let path = studies_dir().join("multitrack-recorder.acproj");
+    let project = ac_io::load_project(&path).expect("study loads");
+    let registry = Arc::new(ac_nodes::registry());
+    let assets = AssetStore::load_for(&project, path.parent().expect("dir"), &registry);
+    let res = Arc::new(FileResources {
+        assets,
+        recorder: None,
+        plugins: None,
+    });
+    let r = render(
+        &project,
+        registry,
+        res,
+        &RenderOptions {
+            from,
+            to: Some(to),
+            ..RenderOptions::default()
+        },
+    );
+    assert!(!r.report.has_errors(), "{}", r.report);
+    r.files
+        .into_iter()
+        .map(|f| (f.name, f.channels.into_iter().next().unwrap_or_default()))
+        .collect()
+}
+
+#[test]
+fn the_recorder_plays_from_bar_9_as_it_does_from_the_top() {
+    // Bar 9 is 16 s in. Every clip is placed in the song, so each track
+    // from bar 9 is the same as the same stretch of the whole song.
+    let whole = recorder_stems(0.0, 18.0);
+    let from9 = recorder_stems(16.0, 18.0);
+    let at = (16.0 * 48_000.0) as usize;
+    let mut compared = 0;
+    for (name, part) in &from9 {
+        if !name.contains("Drums") && !name.contains("Bass") && !name.contains("Lead") {
+            continue;
+        }
+        let full = &whole.iter().find(|(n, _)| n == name).expect("same stems").1;
+        assert!(
+            ac_core::testing::peak(part) > 0.01,
+            "{name} plays from bar 9"
+        );
+        let diff = part
+            .iter()
+            .zip(&full[at..])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(diff < 1e-4, "{name} differs by {diff}");
+        compared += 1;
+    }
+    assert_eq!(compared, 3);
+}
+
+#[test]
+fn the_recorders_click_never_reaches_the_export() {
+    let project = ac_io::load_project(&studies_dir().join("multitrack-recorder.acproj"))
+        .expect("study loads");
+    let outs: Vec<_> = project
+        .graph
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "audio_out")
+        .collect();
+    assert_eq!(outs.len(), 1, "the click is the transport's, not an output");
+    assert!(
+        !project
+            .graph
+            .nodes
+            .iter()
+            .any(|n| n.kind == "compare" || n.kind == "gate_to_trigger"),
+        "the arrangement is the clips' places, not logic"
+    );
+}

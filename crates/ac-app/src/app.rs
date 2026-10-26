@@ -146,6 +146,15 @@ enum AfterConfirm {
     Quit,
 }
 
+/// What the editor last told the engine about the song's transport.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SongSync {
+    looped: Option<(u64, u64)>,
+    punch: Option<(u64, u64)>,
+    metronome: bool,
+    count_in: u32,
+}
+
 pub struct EditorApp {
     pub registry: Arc<Registry>,
     pub doc: Document,
@@ -162,6 +171,7 @@ pub struct EditorApp {
     missing: BTreeSet<String>,
     loaded_assets: Vec<(String, Option<String>)>,
     transport: TransportState,
+    ruler: crate::ruler::Ruler,
     status: Option<(String, f64, bool)>,
     confirm: Option<AfterConfirm>,
     prompt: Option<PathPrompt>,
@@ -178,7 +188,8 @@ pub struct EditorApp {
     show_about: bool,
     title: String,
     allow_close: bool,
-    loop_sent: Option<Option<(u64, u64)>>,
+    /// The transport settings last sent to the engine (loop, punch, click).
+    loop_sent: Option<SongSync>,
     space_shift: bool,
     /// When Escape was last pressed: a second press soon after is Panic.
     escape_at: Option<f64>,
@@ -426,6 +437,7 @@ impl EditorApp {
             missing: missing_of(&assets),
             assets,
             transport: TransportState::default(),
+            ruler: crate::ruler::Ruler::default(),
             status,
             confirm: None,
             prompt: None,
@@ -1162,6 +1174,7 @@ impl EditorApp {
                     panels: self.perform.shown,
                     playing: self.engine.handle.is_playing(),
                     looping: self.doc.project.settings.loop_region.is_some(),
+                    metronome: self.doc.project.settings.metronome,
                     play_keys: self.play_keys.is_on(),
                     theme: &self.settings.prefs.theme,
                     themes: &self.themes,
@@ -1196,7 +1209,24 @@ impl EditorApp {
                 for a in actions {
                     self.run(&ctx, a, now);
                 }
+                if let Some(beat) = self.transport.take_seek() {
+                    self.seek_beat(beat);
+                }
             });
+        // A host that keeps the project runs the transport: no ruler to
+        // fight it.
+        if !self.in_host() {
+            egui::Panel::top("ruler")
+                .frame(egui::Frame::new().fill(theme::panel_bg()))
+                .exact_size(22.0)
+                .show(ui, |ui| {
+                    let rate = f64::from(self.engine.info.sample_rate);
+                    let position = self.engine.handle.position();
+                    if let Some(beat) = self.ruler.show(ui, &mut self.doc, rate, position, now) {
+                        self.seek_beat(beat);
+                    }
+                });
+        }
         egui::Panel::bottom("status-bar")
             .frame(
                 egui::Frame::new()
@@ -1322,7 +1352,7 @@ impl EditorApp {
                     .color(theme::text()),
                 );
                 if ui.small_button(tr("status-clip-from-take")).clicked() {
-                    self.clip_from_take(&take, now);
+                    self.clip_from_take(&take);
                 }
                 if icons::spoken(ui.small_button(icons::X))
                     .on_hover_text(tr("status-dismiss"))
@@ -1574,22 +1604,56 @@ impl EditorApp {
         }
     }
 
-    /// Keep the engine's loop region in step with the project.
+    /// Keep the engine's loop region, punch range, click, and count-in in
+    /// step with the project.
     fn sync_loop(&mut self) {
         // A host that keeps the project runs the transport (and its loop).
         if self.in_host() {
             return;
         }
         let rate = f64::from(self.engine.info.sample_rate);
-        let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
-        let want = self.doc.project.settings.loop_region.and_then(|[a, b]| {
-            let (s, e) = (tempo.sample_at(a), tempo.sample_at(b));
-            (e > s).then_some((s, e))
-        });
-        if self.loop_sent != Some(want) {
-            self.engine.handle.set_loop(want);
-            self.loop_sent = Some(want);
+        let s = &self.doc.project.settings;
+        let tempo = TempoMap::new(rate, &s.tempo);
+        let span = |r: Option<[f64; 2]>| {
+            r.and_then(|[a, b]| {
+                let (s, e) = (tempo.sample_at(a), tempo.sample_at(b));
+                (e > s).then_some((s, e))
+            })
+        };
+        let want = SongSync {
+            looped: span(s.loop_region),
+            punch: span(s.punch),
+            metronome: s.metronome,
+            count_in: s.count_in.min(ac_core::MAX_COUNT_IN),
+        };
+        let sent = self.loop_sent;
+        let h = &mut self.engine.handle;
+        if sent.is_none_or(|x| x.looped != want.looped) {
+            h.set_loop(want.looped);
         }
+        if sent.is_none_or(|x| x.punch != want.punch) {
+            h.set_punch(want.punch);
+        }
+        if sent.is_none_or(|x| x.metronome != want.metronome) {
+            h.set_metronome(want.metronome);
+        }
+        if sent.is_none_or(|x| x.count_in != want.count_in) {
+            h.set_count_in(want.count_in);
+        }
+        self.loop_sent = Some(want);
+    }
+
+    /// Move the playhead to song beat `beat`.
+    fn seek_beat(&mut self, beat: f64) {
+        let rate = f64::from(self.engine.info.sample_rate);
+        let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
+        self.engine.handle.seek(tempo.sample_at(beat.max(0.0)));
+    }
+
+    /// The playhead's song beat.
+    fn playhead_beat(&self) -> f64 {
+        let rate = f64::from(self.engine.info.sample_rate);
+        TempoMap::new(rate, &self.doc.project.settings.tempo).beat_at(self.engine.handle.position())
     }
 
     fn reload_assets(&mut self) {
@@ -1737,35 +1801,49 @@ impl EditorApp {
     }
 
     /// Add a Clip node playing a recorded take, next to its Record node when
-    /// that's in the current graph.
-    pub fn clip_from_take(&mut self, take: &ac_io::Take, now: f64) {
+    /// that's in the current graph: placed in the song at the beat the take
+    /// started, and wired where the Record's source went (D208).
+    pub fn clip_from_take(&mut self, take: &ac_io::Take) {
         let hash = std::fs::read(&take.path)
             .map(|b| ac_core::util::content_hash(&b))
             .unwrap_or_default();
         let prefix = self.doc.scope_prefix();
-        let near = take
+        let record = take
             .node_key
             .parse::<ac_core::NodePath>()
             .ok()
             .filter(|p| p.0.len() == prefix.len() + 1 && p.0[..prefix.len()] == prefix[..])
             .and_then(|p| p.leaf())
+            .filter(|id| self.doc.graph().node(*id).is_some());
+        let pos = record
             .and_then(|id| self.doc.graph().node(id))
-            .map(|n| egui::pos2(n.ui.pos[0] + theme::NODE_WIDTH + 60.0, n.ui.pos[1]));
-        let at = near.unwrap_or(self.canvas.view.center);
-        let c = Candidate {
-            name: "Clip".into(),
-            kind: "clip".into(),
-            category: None,
-            summary: String::new(),
-            config: serde_json::json!({
-                "file": take.relative_path,
-                "channels": take.channels,
-                "hash": hash,
-            }),
-            socket: None,
-            block: None,
-        };
-        self.add_candidate(&c, at + vec2(theme::NODE_WIDTH / 2.0, 14.0), None, now);
+            .map(|n| [n.ui.pos[0] + theme::NODE_WIDTH + 60.0, n.ui.pos[1]])
+            .unwrap_or([self.canvas.view.center.x, self.canvas.view.center.y]);
+        let tempo = TempoMap::new(
+            f64::from(take.sample_rate),
+            &self.doc.project.settings.tempo,
+        );
+        let beat = take.song_start.map(|s| tempo.beat_at(s));
+        let registry = self.registry.clone();
+        let clip = self
+            .doc
+            .edit(&registry, &tr("status-clip-from-take"), |g, ctx| {
+                edit::take::clip_from_take(
+                    g,
+                    ctx,
+                    edit::take::TakeClip {
+                        config: serde_json::json!({
+                            "file": take.relative_path,
+                            "channels": take.channels,
+                            "hash": hash,
+                        }),
+                        beat,
+                        record,
+                        pos,
+                    },
+                )
+            });
+        self.doc.selection = [clip].into();
         self.takes.retain(|t| t.path != take.path);
     }
 
@@ -2791,6 +2869,30 @@ impl EditorApp {
                     .edit_project(&tr("undo-loop"), |p| p.settings.loop_region = region);
             }
             Action::Rewind => self.engine.handle.seek(0),
+            Action::GoToEnd => {
+                let rate = f64::from(self.engine.info.sample_rate);
+                let tempo = TempoMap::new(rate, &self.doc.project.settings.tempo);
+                let end = crate::ruler::song_end(&self.doc.project, &tempo);
+                self.seek_beat(end);
+            }
+            Action::AddMarker => {
+                let beat = self.playhead_beat();
+                crate::ruler::add_marker(&mut self.doc, beat);
+            }
+            Action::PreviousMarker | Action::NextMarker => {
+                let d = if a == Action::NextMarker { 1 } else { -1 };
+                let from = self.playhead_beat();
+                match crate::ruler::next_marker(&self.doc.project, from, d) {
+                    Some(beat) => self.seek_beat(beat),
+                    None if d < 0 => self.engine.handle.seek(0),
+                    None => {}
+                }
+            }
+            Action::Metronome => {
+                let on = !self.doc.project.settings.metronome;
+                self.doc
+                    .edit_project(&tr("undo-metronome"), |p| p.settings.metronome = on);
+            }
             Action::PlayKeys => {
                 let on = !self.play_keys.is_on();
                 self.set_play_keys(on);

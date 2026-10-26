@@ -15,6 +15,7 @@ pub mod group;
 pub mod layout;
 pub mod pins;
 pub mod portal;
+pub mod take;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -301,6 +302,17 @@ impl Ctx<'_> {
     }
 }
 
+/// Whether a generator's `start` is *At beat…*: it's placed in the song.
+pub fn song_locked(node: &NodeInstance, sockets: &Sockets) -> bool {
+    sockets
+        .input("start")
+        .and_then(|s| s.spec.as_ref())
+        .is_some_and(|spec| {
+            spec.choices == ac_core::START_AT_CHOICES
+                && ac_core::param_value(spec, node.params.get("start")) == ac_core::START_AT as f32
+        })
+}
+
 /// See [`Ctx::sockets`].
 pub fn sockets_of(
     graph: &Graph,
@@ -334,10 +346,21 @@ pub fn sockets_of(
             }
             s
         }
-        NodeClass::Known | NodeClass::Group(_) => registry
-            .signature_of(node, defs)
-            .map(from_signature)
-            .unwrap_or_default(),
+        NodeClass::Known | NodeClass::Group(_) => {
+            let mut s = registry
+                .signature_of(node, defs)
+                .map(from_signature)
+                .unwrap_or_default();
+            // `at` and its kind show while the node is placed in the song,
+            // or while wired (DECISIONS D206).
+            if !song_locked(node, &s) {
+                s.inputs.retain(|i| {
+                    !i.spec.as_ref().is_some_and(|sp| sp.song)
+                        || graph.wires_to(id).any(|w| w.to.socket == i.name)
+                });
+            }
+            s
+        }
         NodeClass::Missing(_) => {
             let mut s = Sockets::default();
             let mut ins: Vec<String> = Vec::new();

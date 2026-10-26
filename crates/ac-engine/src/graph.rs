@@ -705,6 +705,15 @@ impl CompiledGraph {
         }
     }
 
+    /// The transport jumped to `sample`: every node's `seek` (a reset,
+    /// unless the node keeps something across a jump).
+    pub(crate) fn seek_nodes(&mut self, sample: u64) {
+        for n in &mut self.nodes {
+            n.node.seek(sample);
+            n.load_pending = true;
+        }
+    }
+
     /// Run every step for one block, spreading waves across `workers` when
     /// given.
     pub(crate) fn run(

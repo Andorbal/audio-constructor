@@ -39,3 +39,28 @@ transport-panels = Panels
 transport-panels-tip = Panels: the pinned controls without the graph (Ctrl+Tab)
 transport-canvas = Canvas
 transport-canvas-tip = The node canvas (Ctrl+Tab)
+
+## The ruler under the transport bar.
+
+ruler-name = Song ruler
+ruler-tip = Click to play from here · drag to set the loop · Shift-drag to set the punch range · right-click for markers
+ruler-add-marker = Add Marker Here
+ruler-remove-marker = Remove Marker
+ruler-marker-name = Name
+# A new marker's name: "Marker 3".
+ruler-marker-n = Marker { $n }
+ruler-clear-loop = Clear Loop
+ruler-clear-punch = Clear Punch Range
+
+transport-metronome = Metronome
+transport-metronome-tip = The click on every beat (Shift+C). It plays live only, never in an export. Right-click for a count-in.
+transport-count-in = Count-in before recording
+transport-count-in-bars =
+    { $bars ->
+        [0] None
+        [one] { $bars } bar
+       *[other] { $bars } bars
+    }
+transport-counting-in = Count-in…
+transport-position-tip = Drag sideways to move the playhead by beats · click to go to a bar
+transport-go-to-bar = Go to bar

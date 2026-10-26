@@ -106,11 +106,16 @@ and leaving at bar 13 and the lead entering at bar 9; a drawn volume ride
 on the lead; a vocal track with input monitoring and a punch-in window
 on bars 5 and 6; a Mixer panel of 39 cards; F5 bound to the punch toggle.
 
-**Rebuilt** in 0.15 (66 nodes, 80 wires): each Track block pinned as a
+**Rebuilt** in 0.15 (52 nodes, 63 wires): each Track block pinned as a
 channel strip replaces its two knobs, two toggles, and meter, and the
 master is a Fader with the master's meter beside it. The Mixer panel is
 a strip per track (the Track card with its send knob under it) under a
-*Tracks* label, then *Buses*, *Master*, and *Recording*.
+*Tracks* label, then *Buses*, *Master*, and *Recording*. The clips are
+placed in the song (`start` *At beat…*), so the song plays from bar 9
+and the Song Position, Compare, and Gate to Trigger nodes are gone; the
+punch window is the transport's punch range, the click is the
+transport's metronome (never in the export), and the sections are
+markers on the ruler.
 
 **What one track costs**: 9 nodes and 10 wires (source, Track, 2 knobs,
 2 toggles, meter, send knob and gain, File Out), plus one more Mix input,
@@ -122,19 +127,19 @@ Five tracks need four Logic nodes just so solo works.
 | Task | Today | Phase 4 | In a recorder | Why |
 | --- | --- | --- | --- | --- |
 | Add a track that shows up on the mixer with fader, pan, mute, solo, and a meter | about 50 (9 nodes from the palette, 10 wires, 5 renames, a Mix input, 5 pins, the solo OR) | about 8 (a Track block, 3 wires, a Mix input, `P`, an OR in the solo chain) | 1 or 2 | No strip; a block's inputs can't go on a panel, so every control is its own node |
-| Record a take on a new track and hear it in the mix | about 25 (Audio In, Record, save the project first, `R`, `R`, Create Clip from take, a Track, wires, a Mix input) | — | 4 (new track, arm, record, stop) | Record has no place in a track; the take has to be wired in by hand |
-| Hear yourself while recording | 8 (Switch, Toggle, 3 wires) | — | 1 (monitor button) | No monitor path |
+| Record a take on a new track and hear it in the mix | about 25 (Audio In, Record, save the project first, `R`, `R`, Create Clip from take, a Track, wires, a Mix input) | about 15 (Audio In, Record, a Track, wires, a Mix input, `R`, `R`, Create Clip from take, which places and wires the clip) | 4 (new track, arm, record, stop) | Record has no place in a track; the take has to be wired in by hand |
+| Hear yourself while recording | 8 (Switch, Toggle, 3 wires) | 3 (an Audio Out set to *monitor* and a wire, or the Switch and Toggle as before) | 1 (monitor button) | No monitor path |
 | Tell which controls belong to which track on the mixer | read the label prefixes; 39 cards flow in pin order and each meter breaks the line | default: a strip per track under a *Tracks* label | default: one strip per track | Panels have no strips, rows, or labels; every card takes the same cell |
 | Make the room quiet | Stop, then find the Monitor toggle among 39 cards | 1 (Stop, or Panic for anything else; the status line names what's sounding) | Stop | Stop reaches generators and nothing else; a live input through a Switch plays on, and nothing shows what is sounding |
-| Punch in on bars 5–6 | about 30 (2 Compares with typed beats, 2 Logics, a Toggle, 6 wires) | — | 2 drags on the ruler | No punch range in the transport |
-| Place a clip at bar 5 | 11 (Compare with a typed beat, Gate to Trigger, `start` set to Never, 3 wires) | — | 1 drag | Generators start when the transport starts; nothing is placed in time |
-| Start playing from bar 9 | impossible | — | 1 click on the ruler | The transport only seeks to 0 (`Rewind`); a seek restarts every generator from its own top (`Command::Seek` sets `start_flag`) |
-| Loop bars 5–8 | 6 (menu, two typed beats) | — | 1 drag | Fine; no ruler to drag on |
+| Punch in on bars 5–6 | about 30 (2 Compares with typed beats, 2 Logics, a Toggle, 6 wires) | 1 (`Shift`-drag on the ruler) | 2 drags on the ruler | No punch range in the transport |
+| Place a clip at bar 5 | 11 (Compare with a typed beat, Gate to Trigger, `start` set to Never, 3 wires) | 2 (`start` *At beat…*, type the beat) | 1 drag | Generators start when the transport starts; nothing is placed in time |
+| Start playing from bar 9 | impossible | 1 click on the ruler | 1 click on the ruler | The transport only seeks to 0 (`Rewind`); a seek restarts every generator from its own top (`Command::Seek` sets `start_flag`) |
+| Loop bars 5–8 | 6 (menu, two typed beats) | 1 drag on the ruler | 1 drag | Fine; no ruler to drag on |
 | Ride the lead's volume | about 20 plus drawing (Graph in beats with a typed duration, Map, Math add, 3 wires) | — | 2 plus drawing, or just move the fader in write mode | No automation lane; no write/touch; the curve doesn't know where bars are |
 | Export stems | 7 per track (File Out, a typed path, a wire) then `Ctrl+E` | — | 4 in one dialog | Acceptable; a "stem per track" option would make it 1 |
-| Keep the click out of the export | impossible | — | default | Every Audio Out is summed into a render |
+| Keep the click out of the export | impossible | default (the transport's click; any Audio Out set to *monitor*) | default | Every Audio Out is summed into a render |
 | Record MIDI | impossible | — | 2 | No MIDI recording of any kind |
-| Comp takes, trim a clip, fade a clip, drop a marker | impossible | — | a few each | No take lanes, no clip editing, no markers |
+| Comp takes, trim a clip, fade a clip, drop a marker | impossible | a marker is 1 (`Alt+M`, or right-click the ruler); the rest — | a few each | No take lanes, no clip editing, no markers |
 
 **Verdict.** A mixer can be built and sounds right, but every track is a
 page of nodes, and the arrangement half of a recorder isn't there:

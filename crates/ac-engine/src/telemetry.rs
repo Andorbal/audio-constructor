@@ -98,6 +98,8 @@ pub struct EngineStatus {
     /// Copy incoming MIDI and control events for the editor to learn from
     /// (`EngineHandle::set_input_monitor`).
     pub input_monitor: AtomicBool,
+    /// A count-in is under way: the transport starts when it ends.
+    pub counting_in: AtomicBool,
 }
 
 impl EngineStatus {

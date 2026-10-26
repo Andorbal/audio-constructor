@@ -1,10 +1,11 @@
 use ac_core::{
     BoolIn, Config, ConfigExt, Io, MidiMsg, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate,
-    Signature, SocketSpec, TempoMap, Unit, Value, node,
+    Signature, SocketSpec, SongLock, TempoMap, Unit, Value, node,
 };
 
 use super::notes::{RELEASE_VELOCITY, Sender, note_off};
 use crate::segments::Runs;
+use crate::song;
 
 node! {
     kind: "midi_pattern",
@@ -35,6 +36,13 @@ node! {
     /// it also plays when started while the transport is stopped. `rate`
     /// scales the speed (2 is double time; 0 pauses, holding any sounding
     /// notes).
+    ///
+    /// **Placed in the song:** set `start` to *At beat…* and the clip
+    /// starts at song beat `at` and stops at `until` (unless that's 0). Start the transport anywhere and it
+    /// carries on from where the song is: around again if it loops,
+    /// finished if it doesn't, waiting before its beat. Notes already
+    /// under way where the transport starts stay silent; the next ones
+    /// play.
     ///
     /// Generator contract: `start` (on transport play by default) plays
     /// from the top: note-offs for anything sounding, then the notes at
@@ -89,10 +97,10 @@ node! {
 }
 
 const START: usize = 0;
-const STOP: usize = 1;
-const RESET: usize = 2;
-const LOOP: usize = 3;
-const RATE: usize = 4;
+const STOP: usize = 3;
+const RESET: usize = 4;
+const LOOP: usize = 5;
+const RATE: usize = 6;
 
 const MIDI: usize = 0;
 const POSITION: usize = 1;
@@ -358,7 +366,7 @@ impl Node for MidiPattern {
     }
 
     fn describe(_: &Config) -> Signature {
-        let mut sig = Signature::new().generator_inputs(true, false).input(
+        let mut sig = Signature::new().song_generator_inputs(true, false).input(
             SocketSpec::float("rate", Unit::Ratio, 1.0)
                 .range(0.0, 4.0)
                 .doc("Playback speed: 2 is double time, 0 pauses."),
@@ -403,11 +411,15 @@ impl Node for MidiPattern {
         let tempo = transport.tempo;
         let looping = io.inputs.boolean(LOOP);
         let rate = io.inputs.float(RATE);
-        let events = [
-            io.inputs.triggers(STOP),
+        let lock = song::lock(ctx, io, START);
+        let mut at = [0; 2];
+        let (start, stop) = song::triggers(
+            lock,
             io.inputs.triggers(START),
-            io.inputs.triggers(RESET),
-        ];
+            io.inputs.triggers(STOP),
+            &mut at,
+        );
+        let events = [stop, start, io.inputs.triggers(RESET)];
         // Song sample of frame 0: the transport's, or this node's own clock
         // while it plays.
         let mut first = if self.playing {
@@ -419,6 +431,36 @@ impl Node for MidiPattern {
         let mut tx = Sender::new(io.outputs.midi(MIDI));
         if std::mem::take(&mut self.flush) {
             self.release_all(&mut tx, 0);
+        }
+        // Placed in the song: carry on from where the song is, `beats` past
+        // the clip's beat. Notes that would already be sounding stay
+        // silent; the next ones play.
+        match lock {
+            SongLock::Wait => {
+                self.release_all(&mut tx, 0);
+                self.playing = false;
+                self.position = 0.0;
+            }
+            SongLock::Land { beats, .. } => {
+                self.release_all(&mut tx, 0);
+                self.resume = None;
+                first = transport.position;
+                self.rate = rate_of(rate.first());
+                let pos = beats * self.rate;
+                let passes = (pos / self.length).floor().max(0.0);
+                self.playing = looping.first() || pos < self.length;
+                if self.playing {
+                    self.anchor_beat = tempo.beat_at(first);
+                    self.anchor_pos = pos;
+                    self.passes = passes as u64;
+                    let in_pass = pos - self.pass_start();
+                    self.cursor = self.notes.partition_point(|n| n.start < in_pass);
+                    self.position = in_pass;
+                } else {
+                    self.position = self.length;
+                }
+            }
+            _ => {}
         }
         if let Some(at) = self.resume.take()
             && self.playing
@@ -583,6 +625,41 @@ mod tests {
             }
         }
         held.iter().all(|&h| h == 0)
+    }
+
+    #[test]
+    fn a_placed_clip_starts_on_its_beat_and_lands_after_a_seek() {
+        let mut h = harness(riff(), 64);
+        h.set("start", "at").set("at", 2.0);
+        let out = h.run((4 * BEAT) as usize);
+        assert_eq!(
+            notes(out.midi("midi")),
+            vec![
+                (2 * BEAT, 60),
+                (3 * BEAT, -60),
+                (3 * BEAT, 64),
+                (BEAT * 7 / 2, -64)
+            ]
+        );
+        // 1.25 beats in: the note under way stays silent, the next plays.
+        h.seek(2 * BEAT + BEAT * 5 / 4);
+        let t = 4 * BEAT;
+        let out = h.run((3 * BEAT) as usize);
+        assert_eq!(
+            notes(out.midi("midi")),
+            vec![
+                (t + BEAT * 5 / 4, 67),
+                (t + BEAT * 9 / 4, -67),
+                (t + BEAT * 11 / 4, 60)
+            ]
+        );
+        // Two passes and a beat in: the note still sounding ends at the
+        // seek, and a note starting right there plays.
+        h.seek(2 * BEAT + 9 * BEAT);
+        let t = 7 * BEAT;
+        let out = h.run(64);
+        assert_eq!(notes(out.midi("midi")), vec![(t, -60), (t, 64)]);
+        assert_eq!(out.float("position")[0], 1.0 + 64.0 / BEAT as f32);
     }
 
     #[test]
