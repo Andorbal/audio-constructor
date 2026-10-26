@@ -11,6 +11,7 @@
 //! editor so they can be tested without a window.
 
 pub mod bands;
+pub mod banks;
 pub mod curve;
 pub mod pattern;
 pub mod piano_roll;

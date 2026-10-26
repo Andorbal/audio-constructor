@@ -277,6 +277,17 @@ no length, or hold something other than numbers are skipped. Up to
 4096 notes, played on MIDI channel `channel` (config, 1–16,
 default 1).
 
+**Banks:** a clip can hold several sets of notes of the same length
+(up to 16), added as tabs in the piano roll; `notes` is then a list
+of note lists. The `bank` input picks which plays, counting from 0.
+A new bank starts with the next pass, so the riff changes on its
+downbeat; while stopped it applies at once.
+
+**Swing:** `swing` (0 to 1) moves the notes on every other
+sixteenth (or eighth, with the `swing_grid` config) later, by up to
+half a sixteenth, stretching the time between so nothing changes
+order: at about 0.67 a straight riff shuffles in triplets.
+
 Timing follows the song's tempo map from wherever the clip started:
 a note `n` beats into the clip plays `n / rate` song beats after the
 start, on the exact sample the tempo map gives for that beat, so
@@ -323,6 +334,8 @@ one's `start`.
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `rate` | Float (×) | 1 | 0 … 4 | Playback speed: 2 is double time, 0 pauses. |
+| `swing` | Float | 0 | 0 … 1 | Moves every other sixteenth later, up to half of one. |
+| `bank` | Int | 0 | 0 … 15 | Which notes play, from 0; a new bank starts with the next pass. |
 
 **Outputs**
 
@@ -480,16 +493,26 @@ A grid of step buttons that plays one step per clock tick, like a drum machine's
 
 The grid has `steps` columns (config, 1–64, default 16) and `rows`
 rows (config, 1–16, default 4); click cells in the node to switch
-them on. The `cells` config holds the grid as one string per row,
-`x` for an on step and `.` for an off one, such as
-`["x...x...x...x...", "....x.......x..."]`. Missing rows and steps
-are off, and any other character counts as off.
+them on, and drag up or down on one to set its level. The `cells`
+config holds the grid as one string per row, `x` for an on step at
+full level, `1` to `9` for an on step at that many tenths, and `.`
+for an off one, such as `["x...x...x...x...", "....x.......x..."]`.
+Missing rows and steps are off, and any other character counts as
+off.
+
+**Banks:** a Pattern can hold several grids of the same size (up to
+16), added as tabs in the editor; `cells` is then a list of grids,
+one list of strings each. The `bank` input picks which plays,
+counting from 0. A new bank starts at the beginning of the next
+pass, so a scene change lands on the downbeat; while stopped it
+applies at once.
 
 Each `clock` trigger moves to the next step. Where that step is on
-in row *n*, `trigger_n` fires on the clock's sample and `gate_n`
-goes high until the next clock (rows count from 0, the top row). On
-steps next to each other keep the gate high from one to the next,
-so use the trigger to restart an envelope on every step. `step` is
+in row *n*, `trigger_n` fires on the clock's sample, `gate_n` goes
+high until the next clock, and `velocity_n` holds the step's level
+(0 to 1) until the row's next on step (rows count from 0, the top
+row). On steps next to each other keep the gate high from one to the
+next, so use the trigger to restart an envelope on every step. `step` is
 the last step played, counting from 0. Nothing moves without a
 clock: wire a `Clock` into `clock` (`interval` 0.25 for sixteenth
 notes).
@@ -518,7 +541,8 @@ reverse, stop, start, reset, clock.
 `trigger_0` into the `on` of an `ADSR` (sustain 0) on a low
 `Oscillator` for a kick, and `trigger_1` into another on a `Noise`
 for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
-`....x.......x...`.
+`....x.......x...`. Paint the hats at level 5 with an `x` on every
+fourth step, and wire `velocity_2` into their amplifier, for accents.
 
 **Inputs**
 
@@ -533,6 +557,7 @@ for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles the direction. |
+| `bank` | Int | 0 | 0 … 15 | Which grid plays, from 0; a new one starts with the next pass. |
 
 **Outputs**
 
@@ -540,12 +565,16 @@ for a snare. Fill row 0 with `x...x...x...x...` and row 1 with
 | --- | --- | --- |
 | `trigger_0` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_0` | Bool | High from an on step until the next clock. |
+| `velocity_0` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_1` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_1` | Bool | High from an on step until the next clock. |
+| `velocity_1` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_2` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_2` | Bool | High from an on step until the next clock. |
+| `velocity_2` | Float | The level of this row's last on step, 0 to 1. |
 | `trigger_3` | Trigger | Fires when a clock lands on an on step in this row. |
 | `gate_3` | Bool | High from an on step until the next clock. |
+| `velocity_3` | Float | The level of this row's last on step, 0 to 1. |
 | `step` | Int | The last step played, from 0. |
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |

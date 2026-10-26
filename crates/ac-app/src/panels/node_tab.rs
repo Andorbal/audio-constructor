@@ -557,6 +557,14 @@ fn schema(kind: &str) -> Vec<ConfigField> {
                     default: 1,
                 },
             ),
+            f(
+                "swing_grid",
+                "Swing",
+                Kind::Choice {
+                    choices: &ac_nodes::sequencing::midi_pattern::SWING_GRIDS,
+                    default: "sixteenths",
+                },
+            ),
         ],
         "random_walk" => vec![f(
             "seed",

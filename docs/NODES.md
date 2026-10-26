@@ -197,7 +197,7 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 
 | Node | Phase | What it does |
 | --- | --- | --- |
-| `Clock` | P1 | Emits `trigger` every `interval` (beats, with division/multiplier, or seconds), sample-accurate to the transport. Also outputs `gate` (high for `duty`). |
+| `Clock` | P1 | Emits `trigger` every `interval` (beats, with division/multiplier, or seconds), sample-accurate to the transport. Also outputs `gate` (high for `duty`). `swing` (P4) delays every odd tick by up to half an interval, so everything it clocks swings. |
 | `Button` (see Controls) | P1 | Manual trigger. |
 | `ThresholdTrigger` | P2 | Fires when `in` (a level, usually from `EnvelopeFollower`) rises above `threshold` (with `hysteresis`), or stays above for `hold: Float(Seconds)`. Outputs `trigger`, `gate`, `release: Trigger`. |
 | `FrequencyTrigger` | P2 | Fires when energy in a band (`low`, `high`) exceeds `threshold`, or when `PitchDetect`'s frequency is above/below/within a range. Outputs `trigger`, `gate`. |
@@ -224,8 +224,8 @@ work on `Float`; `Audio` can be wired in via the implicit conversion.
 | `Velocity` | P4 | Reshapes note-on velocities: `curve`, `scale`, a `min`–`max` range, or one `fixed` velocity. |
 | `Zones` | P4 | `note`, `velocity`, `trigger` → which zones of a key and velocity map (`zones` config, drawn in the Node tab) the note falls in: `trigger_k` per zone and `zone`, the first. Keymaps and velocity layers. |
 | `MidiTranspose` | P2 | Semitones; `snap` to a `scale` over `root` (or a custom `mask`). Note-offs follow the note each note-on became. |
-| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k` and `gate_k`; also `step: Int`, `reset`, `reverse`, generator contract. Placed in the song (P4), each clock plays the step the song is on, counted from `at` in steps of `interval` beats. The user's "pattern of 4, 8, 16 buttons". |
-| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`, placeable in the song (P4); `midi` and `position` outputs. From a riff to a whole song. |
+| `Pattern` | P2 | A grid of N step buttons (config: steps, rows; painted in the editor). Advances on `clock`; per row `k` outputs `trigger_k`, `gate_k`, and `velocity_k` (the level of the row's last on step, P4); also `step: Int`, `reset`, `reverse`, generator contract. Cells carry a level (`x` full, `1`–`9` tenths), set by dragging up or down in the editor. Banks (P4): up to 16 grids, tabs in the editor, picked by a `bank: Int` input at the start of the next pass. Placed in the song (P4), each clock plays the step the song is on, counted from `at` in steps of `interval` beats. The user's "pattern of 4, 8, 16 buttons". |
+| `MidiPattern` | P2 | A piano-roll clip (notes, lengths, velocities) in beats, drawn in the editor; generator contract with `rate`, placeable in the song (P4); `midi` and `position` outputs. From a riff to a whole song. P4: banks (up to 16 note lists, tabs in the piano roll, a `bank: Int` input that switches at the next pass) and `swing` (every other sixteenth, or eighth, later by up to half of one). |
 | `NoteToMidi` | P2 | `trigger`/`gate` + `note: Int` + `velocity` → `Midi` events. How a hand-built keyboard of `Button`s becomes a MIDI source. |
 | `Arpeggiator` | P2 | Held notes → sequenced notes on `clock`; modes up/down/up-down/random/as played, octaves, `gate` length, `latch`. |
 | `Chord` | P2 | One note → several: named chords or custom `intervals`, `inversion`, `spread`. |

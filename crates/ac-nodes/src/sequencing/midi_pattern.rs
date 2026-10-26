@@ -28,6 +28,17 @@ node! {
     /// 4096 notes, played on MIDI channel `channel` (config, 1–16,
     /// default 1).
     ///
+    /// **Banks:** a clip can hold several sets of notes of the same length
+    /// (up to 16), added as tabs in the piano roll; `notes` is then a list
+    /// of note lists. The `bank` input picks which plays, counting from 0.
+    /// A new bank starts with the next pass, so the riff changes on its
+    /// downbeat; while stopped it applies at once.
+    ///
+    /// **Swing:** `swing` (0 to 1) moves the notes on every other
+    /// sixteenth (or eighth, with the `swing_grid` config) later, by up to
+    /// half a sixteenth, stretching the time between so nothing changes
+    /// order: at about 0.67 a straight riff shuffles in triplets.
+    ///
     /// Timing follows the song's tempo map from wherever the clip started:
     /// a note `n` beats into the clip plays `n / rate` song beats after the
     /// start, on the exact sample the tempo map gives for that beat, so
@@ -63,7 +74,14 @@ node! {
     /// clips by turning `loop` off and wiring one's `end` into the next
     /// one's `start`.
     pub struct MidiPattern {
-        notes: Vec<ClipNote>,
+        /// Each bank's notes.
+        banks: Vec<Vec<ClipNote>>,
+        /// The bank playing, and the one the `bank` input asks for.
+        bank: usize,
+        wanted: usize,
+        /// Swing amount, and the grid it swings, in beats.
+        swing: f64,
+        swing_grid: f64,
         length: f64,
         channel: u8,
         playing: bool,
@@ -101,14 +119,18 @@ const STOP: usize = 3;
 const RESET: usize = 4;
 const LOOP: usize = 5;
 const RATE: usize = 6;
+const SWING: usize = 7;
+const BANK: usize = 8;
 
 const MIDI: usize = 0;
 const POSITION: usize = 1;
 const PLAYING: usize = 2;
 const END: usize = 3;
 
-/// Most notes a clip holds; the rest are ignored.
+/// Most notes a clip (each bank) holds; the rest are ignored.
 pub const MAX_NOTES: usize = 4096;
+pub const MAX_BANKS: usize = 16;
+pub const SWING_GRIDS: [&str; 2] = ["sixteenths", "eighths"];
 const MIN_LENGTH: f64 = 0.25;
 const MAX_LENGTH: f64 = 1024.0;
 /// Fastest `rate`, beyond the input's soft range.
@@ -141,13 +163,58 @@ pub fn clip_length(config: &Config) -> f64 {
     }
 }
 
-/// The `notes` config, repaired and sorted by start.
-fn parse_notes(config: &Config, length: f64) -> Vec<ClipNote> {
-    let mut notes = Vec::new();
+/// The swing grid from config, in beats.
+fn swing_grid(config: &Config) -> f64 {
+    if config.get_str_or("swing_grid", SWING_GRIDS[0]) == SWING_GRIDS[1] {
+        0.5
+    } else {
+        0.25
+    }
+}
+
+/// The banks in `notes`: a list of notes is one bank, a list of note lists
+/// several (an empty list counts as a bank). At least one, at most
+/// [`MAX_BANKS`].
+pub fn note_banks(config: &Config) -> Vec<&[serde_json::Value]> {
     let list = config
         .get("notes")
         .and_then(|v| v.as_array())
         .map_or(&[][..], Vec::as_slice);
+    let is_bank = |v: &serde_json::Value| {
+        v.as_array()
+            .is_some_and(|a| a.first().is_none_or(serde_json::Value::is_array))
+    };
+    if !list.is_empty() && list.iter().all(is_bank) {
+        list.iter()
+            .take(MAX_BANKS)
+            .map(|b| b.as_array().map_or(&[][..], Vec::as_slice))
+            .collect()
+    } else {
+        vec![list]
+    }
+}
+
+/// Swung clip position: within each pair of `grid` steps, the second
+/// starts `swing × grid / 2` late and both stretch to meet it.
+pub fn swung(x: f64, swing: f64, grid: f64) -> f64 {
+    if swing <= 0.0 || grid <= 0.0 {
+        return x;
+    }
+    let pair = 2.0 * grid;
+    let base = (x / pair).floor() * pair;
+    let t = x - base;
+    let mid = grid * (1.0 + swing / 2.0);
+    let warped = if t < grid {
+        t * mid / grid
+    } else {
+        mid + (t - grid) * (pair - mid) / grid
+    };
+    base + warped
+}
+
+/// One bank's notes, repaired and sorted by start.
+fn parse_notes(list: &[serde_json::Value], length: f64) -> Vec<ClipNote> {
+    let mut notes = Vec::new();
     for item in list {
         if notes.len() >= MAX_NOTES {
             break;
@@ -205,6 +272,21 @@ fn rate_of(v: f32) -> f64 {
 }
 
 impl MidiPattern {
+    /// The notes of the bank playing.
+    fn notes(&self) -> &[ClipNote] {
+        self.banks.get(self.bank).map_or(&[], Vec::as_slice)
+    }
+
+    /// A clip position, swung, kept inside the clip.
+    fn swing(&self, x: f64) -> f64 {
+        swung(x, self.swing, self.swing_grid).min(self.length)
+    }
+
+    /// The first note starting at or after `x` beats into the clip.
+    fn cursor_at(&self, x: f64) -> usize {
+        self.notes().partition_point(|n| self.swing(n.start) < x)
+    }
+
     /// The song sample where clip position `pos` falls (a position at or
     /// before the anchor falls on the anchor; with the clip paused, later
     /// positions never come).
@@ -244,6 +326,7 @@ impl MidiPattern {
         self.passes = 0;
         self.cursor = 0;
         self.position = 0.0;
+        self.bank = self.wanted;
     }
 
     /// When a sounding note's note-off is due: its end, but never on the
@@ -304,7 +387,7 @@ impl MidiPattern {
         if tx.send_if_room(at, msg, reserve) {
             self.mask |= bit;
             self.sounding[p] = Sounding {
-                end: self.pass_start() + n.end,
+                end: self.pass_start() + self.swing(n.end),
                 started: sample,
             };
         }
@@ -322,12 +405,12 @@ impl MidiPattern {
     ) {
         // Each pass handles at least one event; this only guards against
         // a clip shorter than a sample.
-        let mut budget = 4 * (to - from) as usize + 2 * self.notes.len() + 64;
+        let mut budget = 4 * (to - from) as usize + 2 * self.notes().len() + 64;
         while self.playing && budget > 0 {
             budget -= 1;
             let wrap = self.sample_of(tempo, (self.passes + 1) as f64 * self.length);
-            let next_on = self.notes.get(self.cursor).map_or(u64::MAX, |n| {
-                self.sample_of(tempo, self.pass_start() + n.start)
+            let next_on = self.notes().get(self.cursor).map_or(u64::MAX, |n| {
+                self.sample_of(tempo, self.pass_start() + self.swing(n.start))
             });
             let now = self.next_off(tempo).min(wrap).min(next_on).max(from);
             if now >= to {
@@ -340,6 +423,8 @@ impl MidiPattern {
                 if looping.at(at as usize) {
                     self.passes += 1;
                     self.cursor = 0;
+                    // A new bank starts with the pass.
+                    self.bank = self.wanted;
                 } else {
                     self.playing = false;
                     self.position = self.length;
@@ -349,8 +434,9 @@ impl MidiPattern {
                     break;
                 }
             }
-            while let Some(&n) = self.notes.get(self.cursor) {
-                if self.sample_of(tempo, self.pass_start() + n.start).max(from) > now {
+            while let Some(&n) = self.notes().get(self.cursor) {
+                let on = self.pass_start() + self.swing(n.start);
+                if self.sample_of(tempo, on).max(from) > now {
                     break;
                 }
                 self.cursor += 1;
@@ -366,11 +452,24 @@ impl Node for MidiPattern {
     }
 
     fn describe(_: &Config) -> Signature {
-        let mut sig = Signature::new().song_generator_inputs(true, false).input(
-            SocketSpec::float("rate", Unit::Ratio, 1.0)
-                .range(0.0, 4.0)
-                .doc("Playback speed: 2 is double time, 0 pauses."),
-        );
+        let mut sig = Signature::new()
+            .song_generator_inputs(true, false)
+            .input(
+                SocketSpec::float("rate", Unit::Ratio, 1.0)
+                    .range(0.0, 4.0)
+                    .doc("Playback speed: 2 is double time, 0 pauses."),
+            )
+            .input(
+                SocketSpec::float("swing", Unit::Generic, 0.0)
+                    .range(0.0, 1.0)
+                    .no_smooth()
+                    .doc("Moves every other sixteenth later, up to half of one."),
+            )
+            .input(
+                SocketSpec::int("bank", 0)
+                    .range(0.0, (MAX_BANKS - 1) as f64)
+                    .doc("Which notes play, from 0; a new bank starts with the next pass."),
+            );
         if let Some(l) = sig.inputs.iter_mut().find(|s| s.name == "loop") {
             l.default = Value::Bool(true);
         }
@@ -386,7 +485,14 @@ impl Node for MidiPattern {
     fn new(config: &Config, ctx: &PrepareCtx) -> Self {
         let length = clip_length(config);
         MidiPattern {
-            notes: parse_notes(config, length),
+            banks: note_banks(config)
+                .into_iter()
+                .map(|b| parse_notes(b, length))
+                .collect(),
+            bank: 0,
+            wanted: 0,
+            swing: 0.0,
+            swing_grid: swing_grid(config),
             length,
             channel: (config.get_u64_or("channel", 1).clamp(1, 16) - 1) as u8,
             playing: false,
@@ -411,6 +517,16 @@ impl Node for MidiPattern {
         let tempo = transport.tempo;
         let looping = io.inputs.boolean(LOOP);
         let rate = io.inputs.float(RATE);
+        let swing = io.inputs.float(SWING).first();
+        self.swing = if swing.is_finite() {
+            f64::from(swing).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        self.wanted = (io.inputs.int(BANK).max(0) as usize).min(self.banks.len() - 1);
+        if !self.playing {
+            self.bank = self.wanted;
+        }
         let lock = song::lock(ctx, io, START);
         let mut at = [0; 2];
         let (start, stop) = song::triggers(
@@ -453,8 +569,9 @@ impl Node for MidiPattern {
                     self.anchor_beat = tempo.beat_at(first);
                     self.anchor_pos = pos;
                     self.passes = passes as u64;
+                    self.bank = self.wanted;
                     let in_pass = pos - self.pass_start();
-                    self.cursor = self.notes.partition_point(|n| n.start < in_pass);
+                    self.cursor = self.cursor_at(in_pass);
                     self.position = in_pass;
                 } else {
                     self.position = self.length;
@@ -469,7 +586,7 @@ impl Node for MidiPattern {
             self.anchor_pos = at;
             self.passes = 0;
             // Notes from here on play; a note starting exactly here hasn't.
-            self.cursor = self.notes.partition_point(|n| n.start < at);
+            self.cursor = self.cursor_at(at);
         }
 
         for run in Runs::new(events, frames) {
@@ -499,6 +616,7 @@ impl Node for MidiPattern {
                     self.passes = 0;
                     self.cursor = 0;
                     self.position = 0.0;
+                    self.bank = self.wanted;
                 }
             }
             // Render the run in stretches of constant rate; a rate change
@@ -563,6 +681,9 @@ impl Node for MidiPattern {
         }
         self.playing = old.playing;
         self.rate = old.rate;
+        self.bank = old.bank.min(self.banks.len() - 1);
+        self.wanted = old.wanted.min(self.banks.len() - 1);
+        self.swing = old.swing;
         self.next_sample = old.next_sample;
         self.flush = old.flush;
         self.position = old.position.min(self.length);
@@ -893,8 +1014,7 @@ mod tests {
 
     #[test]
     fn bad_notes_are_skipped_and_repaired() {
-        let n = parse_notes(
-            &json!({ "notes": [
+        let config = json!({ "notes": [
                 [0, 1, 60],
                 [-1, 2, 61, 300],
                 [1, 0, 62, 100],
@@ -904,9 +1024,8 @@ mod tests {
                 "x",
                 [1, 1],
                 [2, 1, 64.4, 0]
-            ] }),
-            4.0,
-        );
+        ] });
+        let n = parse_notes(note_banks(&config)[0], 4.0);
         assert_eq!(
             n,
             vec![
@@ -932,9 +1051,83 @@ mod tests {
         );
         assert_eq!(clip_length(&json!({ "length": 0 })), MIN_LENGTH);
         assert_eq!(clip_length(&json!({ "length": "long" })), 4.0);
-        let dup = parse_notes(&json!({ "notes": [[0, 1, 60, 10], [0, 2, 60, 20]] }), 4.0);
+        let config = json!({ "notes": [[0, 1, 60, 10], [0, 2, 60, 20]] });
+        let dup = parse_notes(note_banks(&config)[0], 4.0);
         assert_eq!(dup.len(), 1);
         assert_eq!(dup[0].end, 2.0);
+    }
+
+    #[test]
+    fn banks_parse_from_nested_lists() {
+        let one = json!({ "notes": [[0, 1, 60]] });
+        assert_eq!(note_banks(&one).len(), 1);
+        let none = json!({});
+        assert!(matches!(note_banks(&none).as_slice(), [b] if b.is_empty()));
+        let two = json!({ "notes": [[[0, 1, 60]], []] });
+        let b = note_banks(&two);
+        assert_eq!((b.len(), b[0].len(), b[1].len()), (2, 1, 0));
+        let many: Vec<_> = (0..40).map(|_| json!([])).collect();
+        assert_eq!(note_banks(&json!({ "notes": many })).len(), MAX_BANKS);
+    }
+
+    #[test]
+    fn a_new_bank_starts_with_the_next_pass() {
+        let config = json!({
+            "length": 2,
+            "notes": [[[0, 1, 60], [1, 1, 62]], [[0, 1, 70], [1, 1, 72]]]
+        });
+        let mut h = harness(config.clone(), 64);
+        let out = h.run(BEAT as usize);
+        assert_eq!(notes(out.midi("midi")), vec![(0, 60)]);
+        // Asked for in the middle of the first pass: the second beat is
+        // still bank 0, and the next pass is bank 1.
+        h.set("bank", 1);
+        let out = h.run(2 * BEAT as usize);
+        assert_eq!(
+            notes(out.midi("midi")),
+            vec![(BEAT, -60), (BEAT, 62), (2 * BEAT, -62), (2 * BEAT, 70)]
+        );
+        // Stopped, it applies at once: from the start, bank 1.
+        let mut h = harness(config, 64);
+        h.set("bank", 1);
+        assert_eq!(notes(h.run(64).midi("midi")), vec![(0, 70)]);
+    }
+
+    #[test]
+    fn swing_moves_every_other_sixteenth_late() {
+        assert_eq!(swung(0.25, 0.5, 0.25), 0.3125);
+        assert_eq!(swung(0.5, 0.5, 0.25), 0.5, "the pair's end stays");
+        assert_eq!(swung(0.125, 0.5, 0.25), 0.15625, "stretched to meet it");
+        assert_eq!(swung(0.375, 0.5, 0.25), 0.40625);
+        assert_eq!(swung(1.25, 0.0, 0.25), 1.25);
+        // Four sixteenths; the second and fourth land 1/16 beat late.
+        let config = json!({
+            "length": 1,
+            "notes": [[0, 0.25, 60], [0.25, 0.25, 61], [0.5, 0.25, 62], [0.75, 0.25, 63]]
+        });
+        let mut h = harness(config.clone(), 64);
+        h.set("swing", 0.5);
+        let ons: Vec<u64> = h
+            .run(BEAT as usize)
+            .midi("midi")
+            .iter()
+            .filter(|(_, m)| matches!(m, MidiMsg::NoteOn { .. }))
+            .map(|(t, _)| *t)
+            .collect();
+        let s = BEAT / 16;
+        assert_eq!(ons, vec![0, 4 * s + s, 8 * s, 12 * s + s]);
+        // Eighths: the swung grid is twice as wide, so the first sixteenth
+        // stretches to 5/16 of a beat.
+        let mut c = config;
+        c["swing_grid"] = json!("eighths");
+        let mut h = harness(c, 64);
+        h.set("swing", 0.5);
+        let out = h.run(BEAT as usize);
+        let first_off = out
+            .midi("midi")
+            .iter()
+            .find(|(_, m)| matches!(m, MidiMsg::NoteOff { .. }));
+        assert_eq!(first_off.map(|(t, _)| *t), Some(5 * s));
     }
 
     #[test]

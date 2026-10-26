@@ -352,7 +352,7 @@ bindings-missing-node = missing node { $node }
 ## Node editors (curves, grids, piano rolls, bands, steps)
 
 editor-curve-hint = Drag points; double-click to add or remove one; right-click a point to bend the segment after it.
-editor-pattern-hint = Click or drag across cells to switch them.
+editor-pattern-hint = Click or drag across cells to switch them; drag up or down on a cell for its level. Tabs are banks: + adds a copy, right-click removes one.
 editor-piano-roll-hint = Click or drag to draw a note, drag one to move it or its end to stretch it, right-click to delete. Shift: off the grid.
 editor-bands-hint = Drag an edge; double-click to split a band; right-click an edge to merge its bands.
 editor-steps-hint = Click or drag to draw values. Shift: fine values.

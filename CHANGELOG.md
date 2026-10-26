@@ -83,6 +83,15 @@ Phase 4: the tools the gap studies found missing.
 - **Drop sound files.** Drop a WAV file on the canvas for a Clip (with
   `Shift`, a Sampler), on a Clip or Sampler to give it that sound, or on a
   panel for a pad that plays it.
+- **Pattern banks and accents.** A Pattern can hold up to 16 grids: add
+  them as tabs above the grid and pick one with the new `bank` input, which
+  changes over at the start of the next pass. Drag up or down on a cell to
+  set its level; each row's new `velocity` output holds the level of its
+  last step, for accents. A MIDI Pattern gets banks too, as tabs above the
+  piano roll.
+- **Swing.** The Clock's new `swing` input moves every other tick later,
+  so everything it clocks swings together; a MIDI Pattern's `swing` does
+  the same for its drawn notes, on sixteenths or eighths.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs
