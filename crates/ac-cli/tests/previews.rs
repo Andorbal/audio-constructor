@@ -120,6 +120,8 @@ fn shipped_block_previews_match_their_golden_hashes() {
         };
         if g["frames"] != w["frames"] || g["feeds"] != w["feeds"] || g["none"] != w["none"] {
             failures.push(format!("{id}: got {g}\n  want {w}"));
+        } else if !g["none"].is_null() {
+            // No preview, as expected: no sound to compare.
         } else if reference {
             if g["sha256"] != w["sha256"] {
                 failures.push(format!("{id}: sha256 {} != {}", g["sha256"], w["sha256"]));

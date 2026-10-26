@@ -214,12 +214,25 @@ fn four_tracks_gets_a_recorded_track_in_four_gestures() {
         .map(|w| w.from.node)
         .unwrap();
     assert_eq!(g.node(input).unwrap().kind, "audio_in");
-    // 2 and 3: R records (and plays), Space stops.
+    let record = g
+        .wires_from(input)
+        .filter_map(|w| g.node(w.to.node))
+        .find(|n| n.kind == "record")
+        .map(|n| ac_core::NodePath::root(n.id))
+        .expect("the track's Record");
+    // 2 and 3: R records (and plays), Space stops, once the Record has run
+    // a block recording. Space reads whether the engine is playing, which
+    // it reports after a block: on a busy machine that runs none in time,
+    // Space would play again instead of stopping.
     h.hover_at(egui::pos2(700.0, 600.0));
     h.run_steps(1);
     h.key_press_modifiers(Modifiers::NONE, Key::R);
     h.run_steps(2);
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    let recording = wait_for(&mut h, |app| {
+        app.engine.handle.telemetry().node_value(&record, 0) == Some(1.0)
+    });
+    assert!(recording, "the Record records");
+    std::thread::sleep(std::time::Duration::from_millis(200));
     h.run_steps(1);
     h.key_press_modifiers(Modifiers::NONE, Key::Space);
     assert!(wait_for(&mut h, |app| !app.takes.is_empty()), "a take");
