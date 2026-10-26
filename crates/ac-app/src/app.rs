@@ -2526,7 +2526,9 @@ impl EditorApp {
             now,
         );
         // A Drum Pad's new Sample asks for its sound.
-        if let Some(sample) = added.first() {
+        if t == crate::templates::Template::DrumPad
+            && let Some(sample) = added.first()
+        {
             self.file_dialog(FilePurpose::ChooseClip(*sample), now);
         }
         Some(id)

@@ -655,3 +655,17 @@ fn malformed_golden_controls_fail_loudly() {
     );
     let _ = inputs(&project);
 }
+
+/// The Clip Slot block launches on its grid and stops on it: launched at
+/// 0.3 s with a one-beat grid at 120 BPM, the clip starts at 0.5 s; stopped
+/// at 1.6 s, it ends at 2.0 s.
+#[test]
+fn the_clip_slot_block_launches_and_stops_on_its_grid() {
+    let (_, out, _) = render_with(&golden_dir().join("block-clip-slot.acproj"), Some(256));
+    let ch = &out.channels[0];
+    let peak = |a: usize, b: usize| ch[a..b].iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    assert_eq!(peak(0, 23_900), 0.0, "silent until the beat");
+    assert!(peak(24_000, 30_000) > 0.1, "playing from 0.5 s");
+    assert!(peak(80_000, 95_000) > 0.1, "still playing before 2.0 s");
+    assert!(peak(96_200, 120_000) < 1e-3, "stopped at 2.0 s");
+}

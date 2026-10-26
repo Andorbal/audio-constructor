@@ -77,8 +77,10 @@ fn source(graph: &Graph, ctx: &mut Ctx, selection: &[NodeId], ty: SignalType) ->
 }
 
 /// Wire the pasted `instance` of `t` in: from the selection where it
-/// takes something, into the master mix where it makes sound. Returns the
-/// nodes it added beside it (a Drum Pad's Sample).
+/// takes something, into the master mix where it makes sound. A Track
+/// with no sound selected records: an Audio In feeds it and an armed
+/// Record. Returns the nodes it added beside it (a Drum Pad's Sample, a
+/// recording Track's Audio In and Record).
 pub fn wire(
     t: Template,
     graph: &mut Graph,
@@ -89,7 +91,40 @@ pub fn wire(
     let mut added = Vec::new();
     let at = graph.node(instance).map_or([0.0, 0.0], |n| n.ui.pos);
     match t {
-        Template::Track | Template::Send => {
+        Template::Track => {
+            let from = source(graph, ctx, selection, SignalType::Audio).unwrap_or_else(|| {
+                // Nothing to play: a track that records the input. Its take
+                // becomes a Clip in its place (Create Clip from take).
+                let input = edit::add_node(
+                    graph,
+                    ctx,
+                    "audio_in",
+                    serde_json::json!({ "channels": 1 }),
+                    [at[0] - 520.0, at[1]],
+                );
+                let record = edit::add_node(
+                    graph,
+                    ctx,
+                    "record",
+                    serde_json::json!({ "channels": 1 }),
+                    [at[0] - 260.0, at[1] + 140.0],
+                );
+                if let Some(n) = graph.node_mut(record) {
+                    n.ui.label = Some(tr("template-track-take"));
+                }
+                let _ = edit::connect(
+                    graph,
+                    ctx,
+                    Endpoint::new(input, "out"),
+                    Endpoint::new(record, "in"),
+                );
+                added.extend([input, record]);
+                Endpoint::new(input, "out")
+            });
+            let _ = edit::connect(graph, ctx, from, Endpoint::new(instance, "in"));
+            generate::hear(graph, ctx, instance);
+        }
+        Template::Send => {
             if let Some(from) = source(graph, ctx, selection, SignalType::Audio) {
                 let _ = edit::connect(graph, ctx, from, Endpoint::new(instance, "in"));
             }

@@ -131,6 +131,9 @@ Phase 4: the tools the gap studies found missing.
   you selected into the mix, and pinned to the panel. **Save Selection as
   Template** keeps your own, to add again from the same menu. Drum Pad,
   Clip Slot, and Send are new blocks in the Library too.
+  A **Track** added with nothing selected is ready to record: it plays
+  your input and arms a Record node, so recording a take on a new track
+  is Add ▸ Track, `R`, `Space`, and Create Clip from take.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs
@@ -160,6 +163,8 @@ Phase 4: the tools the gap studies found missing.
 - **Create Clip from take places the clip in the song** at the beat the
   take started, and wires it where the recorded input went, so the take
   plays in time in the mix straight away.
+- **The Four Tracks example is 24 seconds long**, twelve bars, so there's
+  a bar 9 to play from.
 - **A seek starts every node fresh** where it lands, as a render from that
   point does: effects start empty and notes end. (A plugin host's loop
   doesn't reset anything.)

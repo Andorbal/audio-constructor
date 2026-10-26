@@ -165,3 +165,78 @@ fn a_saved_selection_adds_again_with_its_controls_pinned() {
     assert_eq!(again.prefs.templates.len(), 1);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Step in real time, so the null stream runs blocks, until `done` holds.
+fn wait_for(h: &mut Harness<'static, EditorApp>, mut done: impl FnMut(&EditorApp) -> bool) -> bool {
+    let t0 = std::time::Instant::now();
+    while t0.elapsed() < std::time::Duration::from_secs(5) {
+        if done(h.state()) {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        h.run_steps(1);
+    }
+    done(h.state())
+}
+
+/// Phase 4 acceptance: from the Four Tracks example (saved), add a track
+/// and record a take in four gestures (Add ▸ Track, R, Space, Create Clip
+/// from take), then play from bar 9 (a click on the ruler).
+#[test]
+fn four_tracks_gets_a_recorded_track_in_four_gestures() {
+    use egui::{Key, Modifiers};
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/four-tracks.acproj"
+    );
+    let project = ac_io::load_project(std::path::Path::new(path)).expect("the example");
+    let mut h = harness(project);
+    let dir = std::env::temp_dir().join(format!("ac-four-tracks-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    h.state_mut().save_to(&dir.join("four-tracks.acproj"), 0.5);
+    h.state_mut().doc.selection.clear();
+    h.run_steps(2);
+    let before = h.state().document().project.graph.nodes.len();
+    // 1: Add ▸ Track, with nothing selected: a track that records.
+    let track = h.state_mut().add_template(Template::Track, 1.0).unwrap();
+    h.run_steps(3);
+    let g = h.state().document().project.graph.clone();
+    assert_eq!(
+        g.nodes.len(),
+        before + 3,
+        "the Track, an Audio In, a Record"
+    );
+    let input = g
+        .wire_into(&Endpoint::new(track, "in"))
+        .map(|w| w.from.node)
+        .unwrap();
+    assert_eq!(g.node(input).unwrap().kind, "audio_in");
+    // 2 and 3: R records (and plays), Space stops.
+    h.hover_at(egui::pos2(700.0, 600.0));
+    h.run_steps(1);
+    h.key_press_modifiers(Modifiers::NONE, Key::R);
+    h.run_steps(2);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    h.run_steps(1);
+    h.key_press_modifiers(Modifiers::NONE, Key::Space);
+    assert!(wait_for(&mut h, |app| !app.takes.is_empty()), "a take");
+    // 4: Create Clip from take.
+    let take = h.state().takes[0].clone();
+    h.state_mut().clip_from_take(&take);
+    h.run_steps(2);
+    let g = &h.state().document().project.graph;
+    let clip = g
+        .wire_into(&Endpoint::new(track, "in"))
+        .map(|w| w.from.node)
+        .unwrap();
+    assert_eq!(
+        g.node(clip).unwrap().kind,
+        "clip",
+        "the take plays on the track"
+    );
+    // Then play from bar 9: the song is long enough to have one.
+    let settings = &h.state().document().project.settings;
+    assert!(ac_app::editors::arrange::song_end(settings) >= 36.0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
