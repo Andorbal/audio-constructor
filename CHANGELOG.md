@@ -130,6 +130,12 @@ Phase 4: the tools the gap studies found missing.
   resampled pad, Zones and Route for velocity layers and round robin, a
   choke group, and keys whose zones are a Zones node: 36 nodes instead
   of 83.
+- **The pattern and scenes studies are rebuilt** with the new pattern
+  tools: one Pattern with two banks, accented hats, and a swung clock
+  instead of two Patterns and four Switches, chord banks in one piano roll,
+  a one-node playlist, and a Beat panel with the grid and the piano roll
+  (45 nodes instead of 56); and a Looper with Record, Overdub, and Undo
+  buttons in the scenes study (84 nodes instead of 89).
 - **Create Clip from take places the clip in the song** at the beat the
   take started, and wires it where the recorded input went, so the take
   plays in time in the mix straight away.

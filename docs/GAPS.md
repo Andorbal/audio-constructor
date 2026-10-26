@@ -159,6 +159,15 @@ bass for the whole song into an FM pair; a Track block with knobs and a
 mute per channel; a reverb bus and a tempo-synced delay; a limiter and a
 meter; a Rack panel; keys 1–6 bound to the mutes.
 
+**Rebuilt** in 0.15 (45 nodes, 49 wires): one Pattern with two banks
+replaces the two Patterns and the four trigger Switches; its hat row has
+accents painted into the cells and wired from `velocity_2` into the hat
+Sampler's `velocity`, replacing the Step Sequencer and the Map; the
+Sixteenths clock swings; one MIDI Pattern with two banks replaces the two
+chord rolls and the MIDI Switch; the playlist is one Clock whose gate
+drives both `bank` inputs (B in bars 5–8 of every eight, from any bar);
+a Beat panel holds the grid and the piano roll, edited while they play.
+
 **What one drum channel costs**: 6 nodes (Switch for the pattern, Sampler,
 Track, 2 knobs, Toggle) and 8 wires, plus a row in each Pattern and a Mix
 input. A velocity row adds 2 nodes. A second pattern adds one Switch per
@@ -170,12 +179,12 @@ Switches and two Compares before any music is written.
 | Task | Today | Phase 4 | In a pattern studio | Why |
 | --- | --- | --- | --- | --- |
 | Put a sample on a new channel in the rack | about 25 (Sampler, Choose file, start and end points typed, Switch, Track, knobs, mute, wires, a Pattern row, a Mix input) | — | 1 drag | No channel strip; Sampler has no waveform to set points on |
-| Program a beat | 16 clicks on the grid, after the Pattern and Clock exist (7) | — | 16 clicks | Same, once set up; but the grid lives in the Node tab, not on a panel |
-| Accent some steps | 7 plus 16 typed values (Step Sequencer, Map, 2 wires) | — | 16 drags under the grid | Pattern steps are on or off; no velocity per step |
-| Swing the beat | impossible | — | 1 drag | No swing anywhere: not on Clock, Pattern, or MIDI Pattern |
-| Make pattern B | 3 plus painting, then one Switch and 3 wires per channel | — | 1 (new pattern) | A Pattern holds one grid; switching needs a node per channel |
-| Arrange A and B into a song | 8 for an alternation; a real song needs a Compare and a Select per section | — | drag patterns onto the playlist | No playlist; no view of patterns in time |
-| See the piano roll next to the drum grid | impossible | — | default | Editors are one at a time in the Node tab, and never on a panel |
+| Program a beat | 16 clicks on the grid, after the Pattern and Clock exist (7) | 16 clicks on the grid, on the Pattern's card on a panel if you like | 16 clicks | Same, once set up; but the grid lives in the Node tab, not on a panel |
+| Accent some steps | 7 plus 16 typed values (Step Sequencer, Map, 2 wires) | 1 drag up or down per step, and 1 wire from the row's `velocity` | 16 drags under the grid | Pattern steps are on or off; no velocity per step |
+| Swing the beat | impossible | 1 drag (the Clock's `swing`) | 1 drag | No swing anywhere: not on Clock, Pattern, or MIDI Pattern |
+| Make pattern B | 3 plus painting, then one Switch and 3 wires per channel | 1 click (the `+` bank tab) plus painting; a wire into `bank` picks it | 1 (new pattern) | A Pattern holds one grid; switching needs a node per channel |
+| Arrange A and B into a song | 8 for an alternation; a real song needs a Compare and a Select per section | 2 for an alternation (a Clock, its gate into `bank`); a real song still needs logic per section | drag patterns onto the playlist | No playlist; no view of patterns in time |
+| See the piano roll next to the drum grid | impossible | pin both to a panel, or open both in windows | default | Editors are one at a time in the Node tab, and never on a panel |
 | Route a channel to a send effect | 4 (Gain, 2 wires, a Mix input) | — | 2 (pick a mixer track, turn a send) | Acceptable |
 | Mute a channel from the keyboard | 2 (Bind…, press) | — | 1 | Fine |
 
@@ -257,6 +266,9 @@ strip, and the Session panel is a grid: a column per track with its name
 on top, a row per scene with its button on the left, the stop buttons in
 a compact row, and the strips under a *Mixer* label.
 
+The looper is now one Looper node with Record, Overdub, and Undo
+buttons, waiting for the bar (84 nodes, 112 wires).
+
 **What one slot costs**: 10 nodes and 13 wires (9 since 0.15). Six slots
 are 60 nodes.
 Exclusive slots on a track and scenes each add a Merge input per slot,
@@ -273,8 +285,8 @@ because a trigger input takes one wire.
 | Add a scene | 1 Button plus a Merge and 2 wires per slot | — | 1 | Same |
 | See which slot is playing | a Readout showing 0 or 1 | default: `playing` wired into the slot button's `lit` | default | No light; Buttons don't light up |
 | Lay the slots out as a grid of tracks and scenes | drag 23 cards by hand; it flows in pin order | 1 (Launch Grid from Selection), or places and labels | default | Panels have no rows, columns, or labels |
-| Record a loop at the next bar | about 35 (12 nodes) | — | 1 | No looper |
-| Overdub on it | impossible in practice (a second Record and Sampler pair and a buffer swap on every pass) | — | 1 | Record writes one take at a time; Sampler latches its buffer at start |
+| Record a loop at the next bar | about 35 (12 nodes) | 4 (a Looper, a Button, 2 wires) | 1 | No looper |
+| Overdub on it | impossible in practice (a second Record and Sampler pair and a buffer swap on every pass) | 2 (a Button into the Looper's `overdub`); `undo` takes a layer off | 1 | Record writes one take at a time; Sampler latches its buffer at start |
 | Set the tempo from the first loop's length | impossible | — | default | Nothing writes the tempo map from the patch |
 
 **Verdict.** The launch logic works, and bar-quantized launching built

@@ -23,7 +23,7 @@
         "id": "1",
         "kind": "comment",
         "config": {
-          "text": "Study: a clip launcher and looper (clip slots, scenes, quantized launch, a loop pedal), built from today's nodes.\n\nThree tracks with two clip slots each. A slot's button arms it; at the next bar a Clock samples the armed state and the slot's Clip starts or stops, so launches land on the bar. Launching one slot disarms the other on its track, a Stop button clears a track, and a scene button launches a whole row. The Looper records the input between two bar lines into a buffer that a Sampler loops. In a render the demo arms scene 1 at the start and scene 2 at bar 5. The Session panel is the grid.\n\nThe Session panel is a grid of tracks by scenes: a column per track with its name on top, a row per scene with its button on the left, the slot buttons lit while their clip plays, and each track's Track block pinned as a channel strip.\n\nWhat a launcher has that this can't: an armed state on the slot; follow actions; overdubbing; recording a loop whose length sets the tempo. Read docs/GAPS.md."
+          "text": "Study: a clip launcher and looper (clip slots, scenes, quantized launch, a loop pedal), built from today's nodes.\n\nThree tracks with two clip slots each. A slot's button arms it; at the next bar a Clock samples the armed state and the slot's Clip starts or stops, so launches land on the bar. Launching one slot disarms the other on its track, a Stop button clears a track, and a scene button launches a whole row. The Looper is one node: Record starts a loop at the next bar and ends it at the bar after the next press, then plays it round; Overdub layers more on top, and Undo takes the last layer off. In a render the demo arms scene 1 at the start and scene 2 at bar 5. The Session panel is the grid.\n\nThe Session panel is a grid of tracks by scenes: a column per track with its name on top, a row per scene with its button on the left, the slot buttons lit while their clip plays, and each track's Track block pinned as a channel strip.\n\nWhat a launcher has that this can't: an armed state on the slot; follow actions; recording a loop whose length sets the tempo. Read docs/GAPS.md."
         },
         "ui": {
           "pos": [
@@ -1007,130 +1007,57 @@
         "kind": "button",
         "ui": {
           "pos": [
-            0.0,
-            2050.0
-          ],
-          "label": "Loop: record / play"
-        }
-      },
-      {
-        "id": "56",
-        "kind": "latch",
-        "ui": {
-          "pos": [
             300.0,
-            2050.0
+            1900.0
           ],
-          "label": "Want recording"
+          "label": "Loop: record"
         }
       },
       {
-        "id": "57",
-        "kind": "sample_hold",
+        "id": "74",
+        "kind": "looper",
+        "config": {
+          "channels": 1,
+          "seconds": 30
+        },
+        "params": {
+          "quantize": 4.0
+        },
         "ui": {
           "pos": [
             600.0,
-            2050.0
-          ],
-          "label": "At the bar"
-        }
-      },
-      {
-        "id": "58",
-        "kind": "compare",
-        "params": {
-          "b": 0.5,
-          "op": "greater"
-        },
-        "ui": {
-          "pos": [
-            900.0,
-            2050.0
-          ],
-          "label": "Recording"
-        }
-      },
-      {
-        "id": "59",
-        "kind": "gate_to_trigger",
-        "ui": {
-          "pos": [
-            1200.0,
-            2050.0
-          ],
-          "label": "Start take"
-        }
-      },
-      {
-        "id": "5a",
-        "kind": "gate_to_trigger",
-        "params": {
-          "edge": "falling"
-        },
-        "ui": {
-          "pos": [
-            1200.0,
-            2200.0
-          ],
-          "label": "End take"
-        }
-      },
-      {
-        "id": "5b",
-        "kind": "record",
-        "config": {
-          "channels": 1
-        },
-        "params": {
-          "arm": false
-        },
-        "ui": {
-          "pos": [
-            1500.0,
             1900.0
           ],
-          "label": "Loop take"
+          "label": "Looper"
         }
       },
       {
-        "id": "5c",
-        "kind": "trigger_delay",
-        "params": {
-          "time": 0.05
-        },
+        "id": "75",
+        "kind": "button",
         "ui": {
           "pos": [
-            1500.0,
-            2200.0
+            300.0,
+            2060.0
           ],
-          "label": "Play when the file is safe"
+          "label": "Loop: overdub"
         }
       },
       {
-        "id": "5d",
-        "kind": "sampler",
-        "config": {
-          "channels": 1,
-          "root": 60
-        },
-        "params": {
-          "loop": true,
-          "start": "never"
-        },
+        "id": "76",
+        "kind": "button",
         "ui": {
           "pos": [
-            1800.0,
-            1900.0
+            300.0,
+            2220.0
           ],
-          "label": "Loop"
-        },
-        "hide_unwired": true
+          "label": "Loop: undo"
+        }
       },
       {
         "id": "60",
         "kind": "comment",
         "config": {
-          "text": "The looper: press once, recording starts at the next bar; press again, it ends at the next bar and the Sampler starts looping the take 50 ms later, hoping the file is on disk by then. A second press to overdub would need another Record and Sampler pair and a swap: not built."
+          "text": "The looper: Record starts the loop at the next bar, and a second press ends it on a bar line and plays it round; the button lights while it records. Overdub records on top as it plays (press again to stop layering), and Undo takes the last layer off, or puts it back. Every press waits for the bar."
         },
         "ui": {
           "pos": [
@@ -1241,7 +1168,7 @@
         },
         "ui": {
           "pos": [
-            2100.0,
+            900.0,
             1900.0
           ],
           "label": "Loop track"
@@ -1614,54 +1541,6 @@
         "to": "50:in_1"
       },
       {
-        "from": "55:trigger",
-        "to": "56:toggle"
-      },
-      {
-        "from": "56:out",
-        "to": "57:in"
-      },
-      {
-        "from": "2:trigger",
-        "to": "57:trigger"
-      },
-      {
-        "from": "57:out",
-        "to": "58:a"
-      },
-      {
-        "from": "58:out",
-        "to": "59:in"
-      },
-      {
-        "from": "58:out",
-        "to": "5a:in"
-      },
-      {
-        "from": "59:out",
-        "to": "5b:start"
-      },
-      {
-        "from": "5a:out",
-        "to": "5b:stop"
-      },
-      {
-        "from": "54:out",
-        "to": "5b:in"
-      },
-      {
-        "from": "5a:out",
-        "to": "5c:in"
-      },
-      {
-        "from": "5c:out",
-        "to": "5d:start"
-      },
-      {
-        "from": "5b:buffer",
-        "to": "5d:buffer"
-      },
-      {
         "from": "61:out",
         "to": "62:in"
       },
@@ -1718,12 +1597,32 @@
         "to": "61:in_2"
       },
       {
-        "from": "5d:out",
+        "from": "73:out",
+        "to": "61:in_3"
+      },
+      {
+        "from": "54:out",
+        "to": "74:in"
+      },
+      {
+        "from": "55:trigger",
+        "to": "74:record"
+      },
+      {
+        "from": "75:trigger",
+        "to": "74:overdub"
+      },
+      {
+        "from": "76:trigger",
+        "to": "74:undo"
+      },
+      {
+        "from": "74:out",
         "to": "73:in"
       },
       {
-        "from": "73:out",
-        "to": "61:in_3"
+        "from": "74:recording",
+        "to": "55:lit"
       }
     ],
     "frames": [
@@ -1822,8 +1721,8 @@
         "rect": [
           -24.0,
           1848.0,
-          2344.0,
-          471.0
+          1244.0,
+          650.0
         ]
       },
       {
@@ -2110,6 +2009,21 @@
           ]
         },
         {
+          "node": "75",
+          "at": [
+            4,
+            3
+          ]
+        },
+        {
+          "node": "76",
+          "at": [
+            4,
+            5
+          ],
+          "compact": true
+        },
+        {
           "node": "b",
           "at": [
             1,
@@ -2328,6 +2242,28 @@
       "target": {
         "type": "input",
         "node": "55",
+        "socket": "pressed"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "east"
+      },
+      "target": {
+        "type": "input",
+        "node": "75",
+        "socket": "pressed"
+      }
+    },
+    {
+      "source": {
+        "type": "gamepad_button",
+        "button": "west"
+      },
+      "target": {
+        "type": "input",
+        "node": "76",
         "socket": "pressed"
       }
     }

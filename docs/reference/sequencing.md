@@ -381,7 +381,7 @@ one's `start`.
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `rate` | Float (×) | 1 | 0 … 4 | Playback speed: 2 is double time, 0 pauses. |
 | `swing` | Float | 0 | 0 … 1 | Moves every other sixteenth later, up to half of one. |
-| `bank` | Int | 0 | 0 … 15 | Which notes play, from 0; a new bank starts with the next pass. |
+| `bank` | Float | 0 | 0 … 15 | Which notes play, from 0; a new bank starts with the next pass. |
 
 **Outputs**
 
@@ -603,7 +603,7 @@ fourth step, and wire `velocity_2` into their amplifier, for accents.
 | `reset` | Trigger | — |  | Returns to the beginning. |
 | `loop` | Bool | true |  | Wrap around at the end. |
 | `reverse` | Trigger | — |  | Toggles the direction. |
-| `bank` | Int | 0 | 0 … 15 | Which grid plays, from 0; a new one starts with the next pass. |
+| `bank` | Float | 0 | 0 … 15 | Which grid plays, from 0; a new one starts with the next pass. |
 
 **Outputs**
 

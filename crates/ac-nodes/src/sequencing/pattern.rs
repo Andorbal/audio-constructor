@@ -129,6 +129,15 @@ pub fn row_count(config: &Config) -> usize {
     config.get_u64_or("rows", 4).clamp(1, MAX_ROWS as u64) as usize
 }
 
+/// A `bank` input's value as a bank index, rounded and kept in `0..=last`.
+pub fn bank_index(v: f32, last: usize) -> usize {
+    if v.is_finite() {
+        (v.round().max(0.0) as usize).min(last)
+    } else {
+        0
+    }
+}
+
 /// A cell's level from its character: `x` full, `1`–`9` tenths, else off.
 pub fn level_of(c: char) -> u8 {
     match c {
@@ -325,8 +334,9 @@ impl Node for Pattern {
             .song_generator_inputs(true, false)
             .input(SocketSpec::trigger("reverse").doc("Toggles the direction."))
             .input(
-                SocketSpec::int("bank", 0)
+                SocketSpec::float("bank", Unit::Generic, 0.0)
                     .range(0.0, (MAX_BANKS - 1) as f64)
+                    .no_smooth()
                     .doc("Which grid plays, from 0; a new one starts with the next pass."),
             );
         sig.inputs.insert(
@@ -387,9 +397,13 @@ impl Node for Pattern {
     fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
         let frames = io.frames();
         let looping = io.inputs.boolean(LOOP);
-        let bank = (io.inputs.int(BANK).max(0) as usize).min(self.banks - 1);
+        // Read where each pass begins, so a gate flipping on the bar line
+        // switches on that bar.
+        let banks = io.inputs.float(BANK);
+        let last = self.banks - 1;
+        let bank_at = |i: usize| bank_index(banks.at(i), last);
         if !self.playing || self.current.is_none() {
-            self.bank = bank;
+            self.bank = bank_at(0);
         }
         let transport = ctx.transport;
         // Placed in the song: the beat it starts on and the beats per step.
@@ -464,9 +478,9 @@ impl Node for Pattern {
                         let now = transport.tempo.beat_at(transport.position + run.at as u64);
                         // A hair of slack so a tick on the grid counts as on it.
                         let k = ((now - beat) / interval + 1e-6).floor();
-                        self.song_step(at, k as i64, looping.at(run.at), bank);
+                        self.song_step(at, k as i64, looping.at(run.at), bank_at(run.at));
                     }
-                    None => self.advance(at, looping.at(run.at), bank),
+                    None => self.advance(at, looping.at(run.at), bank_at(run.at)),
                 }
             }
             if self.gates != before && self.changes.len() < self.changes.capacity() {
@@ -839,6 +853,21 @@ mod tests {
         h.set("bank", 7);
         h.triggers("clock", &[0, 10]);
         assert_eq!(h.run(16).triggers("trigger_0"), &[0, 10]);
+    }
+
+    #[test]
+    fn a_bank_flipped_on_the_bar_line_plays_that_bar() {
+        // Clocks every 10 samples; the bank goes to 1 on the sample the
+        // second pass begins, in the middle of a block.
+        let c = json!({ "steps": 4, "rows": 1, "cells": [["x..."], ["xxxx"]] });
+        let mut h = harness(c, 64);
+        h.triggers("clock", &(0..8).map(|k| k * 10).collect::<Vec<_>>());
+        let mut bank = vec![0.0; 64];
+        bank[40..].fill(1.0);
+        h.set_samples("bank", bank);
+        assert_eq!(h.run(64).triggers("trigger_0"), &[0, 40, 50, 60]);
+        assert_eq!(bank_index(2.6, 1), 1);
+        assert_eq!(bank_index(f32::NAN, 3), 0);
     }
 
     #[test]

@@ -1,9 +1,10 @@
 use ac_core::{
-    BoolIn, Config, ConfigExt, Io, MidiMsg, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate,
+    BoolIn, Config, ConfigExt, FloatIn, Io, MidiMsg, Node, NodeMeta, PrepareCtx, ProcessCtx, Rate,
     Signature, SocketSpec, SongLock, TempoMap, Unit, Value, node,
 };
 
 use super::notes::{RELEASE_VELOCITY, Sender, note_off};
+use super::pattern::bank_index;
 use crate::segments::Runs;
 use crate::song;
 
@@ -404,7 +405,7 @@ impl MidiPattern {
         &mut self,
         tx: &mut Sender,
         tempo: &TempoMap,
-        looping: &BoolIn,
+        (looping, banks): (&BoolIn, &FloatIn),
         first: u64,
         (from, to): (u64, u64),
     ) {
@@ -428,7 +429,9 @@ impl MidiPattern {
                 if looping.at(at as usize) {
                     self.passes += 1;
                     self.cursor = 0;
-                    // A new bank starts with the pass.
+                    // A new bank starts with the pass, as asked for on
+                    // its first sample.
+                    self.wanted = bank_index(banks.at(at as usize), self.banks.len() - 1);
                     self.bank = self.wanted;
                 } else {
                     self.playing = false;
@@ -471,8 +474,9 @@ impl Node for MidiPattern {
                     .doc("Moves every other sixteenth later, up to half of one."),
             )
             .input(
-                SocketSpec::int("bank", 0)
+                SocketSpec::float("bank", Unit::Generic, 0.0)
                     .range(0.0, (MAX_BANKS - 1) as f64)
+                    .no_smooth()
                     .doc("Which notes play, from 0; a new bank starts with the next pass."),
             );
         if let Some(l) = sig.inputs.iter_mut().find(|s| s.name == "loop") {
@@ -528,7 +532,9 @@ impl Node for MidiPattern {
         } else {
             0.0
         };
-        self.wanted = (io.inputs.int(BANK).max(0) as usize).min(self.banks.len() - 1);
+        let banks = io.inputs.float(BANK);
+        let last = self.banks.len() - 1;
+        self.wanted = bank_index(banks.first(), last);
         if !self.playing {
             self.bank = self.wanted;
         }
@@ -605,6 +611,7 @@ impl Node for MidiPattern {
                     self.ends.push(at);
                 }
             }
+            self.wanted = bank_index(banks.at(run.at), last);
             if start {
                 self.release_all(&mut tx, at);
                 // Line up with the transport again from here.
@@ -642,7 +649,13 @@ impl Node for MidiPattern {
                         b += 1;
                     }
                 }
-                self.render(&mut tx, tempo, &looping, first, (sample, first + b as u64));
+                self.render(
+                    &mut tx,
+                    tempo,
+                    (&looping, &banks),
+                    first,
+                    (sample, first + b as u64),
+                );
                 a = b;
             }
         }

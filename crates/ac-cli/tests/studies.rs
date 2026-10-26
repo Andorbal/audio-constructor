@@ -149,6 +149,10 @@ fn study_blocks_are_the_shipped_versions() {
 
 /// Kinds that have a widget to pin to a performance panel (UX.md "Panels").
 const PINNABLE: &[&str] = &[
+    "pattern",
+    "midi_pattern",
+    "step_sequencer",
+    "graph",
     "waveform",
     "midi_monitor",
     "tuner",
@@ -474,5 +478,61 @@ fn the_kit_is_made_of_sampler_nodes_not_chains() {
         project.graph.nodes.len() <= 40,
         "{}",
         project.graph.nodes.len()
+    );
+}
+
+/// ROADMAP M4.5: the pattern study's one Pattern plays bank B in bars 5–8
+/// of every eight, switching on the bar line, from the top or from a seek;
+/// the chords follow; the hats carry accents.
+#[test]
+fn the_pattern_study_alternates_its_banks_on_the_bar() {
+    let path = |id: u64| ac_core::NodePath(vec![ac_core::NodeId(id)]);
+    let (beat, chords) = (path(0x7), path(0x13));
+    let bank = |host: &mut ac_engine::NullHost, p: &ac_core::NodePath, k: usize| {
+        host.handle().telemetry().node_value(p, k)
+    };
+    // 128 BPM: a bar is 1.875 s, so bar 5 begins 7.5 s in.
+    let bar = |n: f64| (48_000.0 * 1.875 * (n - 1.0)) as usize;
+    let mut host = live_study(&studies_dir().join("pattern-studio.acproj"), 256);
+    host.handle().play();
+    host.run(bar(5.0) - 2_400, 256);
+    assert_eq!(bank(&mut host, &beat, 1), Some(0.0), "A in bar 4");
+    host.run(4_800, 256);
+    assert_eq!(bank(&mut host, &beat, 1), Some(1.0), "B from bar 5");
+    assert_eq!(bank(&mut host, &chords, 1), Some(1.0), "the chords too");
+    // From bar 9: A again.
+    host.handle().seek(bar(9.0) as u64);
+    host.run(4_800, 256);
+    assert_eq!(bank(&mut host, &beat, 1), Some(0.0));
+    let project = ac_io::load_project(&studies_dir().join("pattern-studio.acproj")).unwrap();
+    let hats = project.graph.node(ac_core::NodeId(0x7)).unwrap().config["cells"][0][2].clone();
+    assert_eq!(hats, "x.7.x.7.x.7.x.8.", "accented hats");
+    let g = &project.graph;
+    assert!(!g.nodes.iter().any(|n| n.kind == "switch"), "no Switches");
+}
+
+/// ROADMAP M4.5: the scenes study's looper is one Looper node, with record,
+/// overdub, and undo on buttons, waiting for the bar.
+#[test]
+fn the_scenes_looper_is_one_node_that_overdubs() {
+    let project = ac_io::load_project(&studies_dir().join("scenes.acproj")).unwrap();
+    let g = &project.graph;
+    let loopers: Vec<_> = g.nodes.iter().filter(|n| n.kind == "looper").collect();
+    assert_eq!(loopers.len(), 1);
+    let looper = loopers[0].id;
+    for input in ["in", "record", "overdub", "undo"] {
+        assert!(
+            g.wire_into(&Endpoint::new(looper, input)).is_some(),
+            "{input} is wired"
+        );
+    }
+    assert_eq!(
+        loopers[0].params["quantize"].as_f64(),
+        Some(4.0),
+        "on the bar"
+    );
+    assert!(
+        !g.nodes.iter().any(|n| n.kind == "record"),
+        "no Record and Sampler pair"
     );
 }
