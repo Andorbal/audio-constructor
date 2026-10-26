@@ -267,7 +267,26 @@ meet, so a dry signal mixed back in stays lined up; see
   reverse it, or change its `rate`.
 - **Sampler** plays a sound at any pitch (`note` against its **Root note**
   setting) with start, end, and loop points. It plays a file, or a
-  `buffer` straight from a Record node.
+  `buffer` straight from a Record node or a **Sample** node. The Node tab
+  draws the sound: drag the white handles to set where it starts and
+  ends, and watch the playhead. `velocity` (0 to 1) makes each note as
+  loud as it was played.
+- **Sample** is a file as a sound to wire, so one file can feed several
+  Samplers or a block.
+- **Slicer** cuts a sound into slices, equally, at its hits, or where you
+  click in its waveform, and plays them one at a time, by number or from
+  MIDI notes: a drum loop becomes a kit on a pad grid.
+- **Note Split** turns MIDI into a trigger, a gate, and a velocity for
+  each note of a list, so a drum pad's notes reach their sounds in one
+  node; give notes a choke group and the closed hat cuts the open one.
+  **Velocity** reshapes how hard notes play.
+- **Zones** looks a note up in a map of key and velocity zones you draw in
+  the Node tab, for keymapped instruments and soft and hard layers;
+  **Route** sends a trigger (or MIDI, audio, a sound) to one of several
+  outputs, for round robin.
+- Drop a WAV file on the canvas for a Clip (hold `Shift` for a Sampler),
+  on a Clip or Sampler to give it that sound, or on a panel for a pad that
+  plays it.
 - **Pattern** is a grid of step buttons: one step per `clock` trigger, a
   `trigger` and `gate` output per row. The **Drum Machine** block wraps a
   Pattern and four synthesized drums; **Euclidean Drummer** spreads hits

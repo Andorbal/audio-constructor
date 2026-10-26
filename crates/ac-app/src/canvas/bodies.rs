@@ -1497,3 +1497,207 @@ pub fn pads(
         );
     }
 }
+
+/// What a Waveform shows: the sound's overview, the playhead, and the
+/// handles (start, end, loop start, loop end), as fractions of the sound.
+#[derive(Clone, Debug, Default)]
+pub struct WaveView {
+    /// Each column's lowest and highest sample.
+    pub columns: Vec<(f32, f32)>,
+    pub playhead: Option<f32>,
+    pub handles: Option<[f32; 4]>,
+    /// Slice starts, for a Slicer.
+    pub slices: Vec<f32>,
+}
+
+/// A sound's waveform with its handles: the shaded region between start
+/// and end, the loop bracketed, a line at the playhead. Shared by the
+/// Waveform card and the Node tab's editor for Clip, Sampler, and Slicer.
+pub fn waveform(painter: &Painter, rect: Rect, zoom: f32, w: &WaveView, alpha: f32) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    let x = |f: f32| rect.min.x + f.clamp(0.0, 1.0) * rect.width();
+    if let Some([s, e, ls, le]) = w.handles {
+        // Outside the region dims.
+        for (a, b) in [(0.0, s), (e, 1.0)] {
+            if b > a {
+                painter.rect_filled(
+                    Rect::from_x_y_ranges(x(a)..=x(b), rect.y_range()),
+                    0.0,
+                    theme::fade(theme::panel_bg(), 0.55 * alpha),
+                );
+            }
+        }
+        if le > ls && (ls > 0.0 || le < 1.0) {
+            let band = Rect::from_x_y_ranges(x(ls)..=x(le), rect.top()..=rect.top() + 4.0 * zoom);
+            painter.rect_filled(band, 0.0, theme::fade(theme::accent(), 0.7 * alpha));
+        }
+    }
+    let mid = rect.center().y;
+    let half = rect.height() / 2.0 - 2.0 * zoom;
+    let n = w.columns.len().max(1);
+    let col_w = rect.width() / n as f32;
+    for (k, &(lo, hi)) in w.columns.iter().enumerate() {
+        let cx = rect.min.x + (k as f32 + 0.5) * col_w;
+        let (lo, hi) = (lo.clamp(-1.0, 1.0), hi.clamp(-1.0, 1.0));
+        painter.line_segment(
+            [pos2(cx, mid - hi * half), pos2(cx, mid - lo * half + 0.5)],
+            Stroke::new(
+                col_w.max(1.0),
+                theme::fade(theme::type_color(ac_core::SignalType::Audio), 0.85 * alpha),
+            ),
+        );
+    }
+    for &f in &w.slices {
+        painter.line_segment(
+            [pos2(x(f), rect.top()), pos2(x(f), rect.bottom())],
+            Stroke::new(1.0, theme::fade(theme::warning(), alpha)),
+        );
+    }
+    if let Some([s, e, ..]) = w.handles {
+        for f in [s, e] {
+            let hx = x(f);
+            painter.line_segment(
+                [pos2(hx, rect.top()), pos2(hx, rect.bottom())],
+                Stroke::new(
+                    2.0 * zoom.max(0.5),
+                    theme::fade(theme::text_strong(), alpha),
+                ),
+            );
+            painter.rect_filled(
+                Rect::from_center_size(pos2(hx, rect.bottom() - 4.0 * zoom), vec2(6.0, 8.0) * zoom),
+                theme::radius(1.0),
+                theme::fade(theme::text_strong(), alpha),
+            );
+        }
+    }
+    if let Some(p) = w.playhead {
+        let px = x(p);
+        painter.line_segment(
+            [pos2(px, rect.top()), pos2(px, rect.bottom())],
+            Stroke::new(1.5 * zoom.max(0.5), theme::fade(theme::play(), alpha)),
+        );
+    }
+}
+
+/// Which handle (0 start, 1 end, 2 loop start, 3 loop end) is under `x`
+/// on a waveform in `rect`, if one is near: the ends win ties, so a
+/// handle at the far edge can still be pulled back.
+pub fn waveform_handle_at(rect: Rect, handles: [f32; 4], x: f32, reach: f32) -> Option<usize> {
+    let at = |f: f32| rect.min.x + f.clamp(0.0, 1.0) * rect.width();
+    [1usize, 0, 3, 2]
+        .into_iter()
+        .map(|k| (k, (at(handles[k]) - x).abs()))
+        .filter(|(_, d)| *d <= reach)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(k, _)| k)
+}
+
+/// MIDI Monitor: the last messages, newest at the top.
+pub fn midi_monitor(painter: &Painter, rect: Rect, zoom: f32, lines: &[String], alpha: f32) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    if zoom < 0.4 {
+        return;
+    }
+    let font = theme::canvas_font(theme::FONT_SMALL, zoom, true);
+    let line = (theme::FONT_SMALL + 3.0) * zoom;
+    for (k, text) in lines.iter().enumerate() {
+        let y = rect.top() + 4.0 * zoom + k as f32 * line;
+        if y + line > rect.bottom() {
+            break;
+        }
+        painter.text(
+            pos2(rect.min.x + 6.0 * zoom, y),
+            Align2::LEFT_TOP,
+            text,
+            font.clone(),
+            theme::fade(
+                if k == 0 {
+                    theme::text_strong()
+                } else {
+                    theme::text_muted()
+                },
+                alpha,
+            ),
+        );
+    }
+}
+
+/// Tuner: the note's name, and a needle from −50 to +50 cents that turns
+/// green within 5 cents.
+pub fn tuner(
+    painter: &Painter,
+    rect: Rect,
+    zoom: f32,
+    note: &str,
+    cents: f32,
+    clear: bool,
+    alpha: f32,
+) {
+    painter.rect_filled(
+        rect,
+        theme::radius(4.0 * zoom),
+        theme::fade(theme::well_bg(), alpha),
+    );
+    let cents = if cents.is_finite() {
+        cents.clamp(-50.0, 50.0)
+    } else {
+        0.0
+    };
+    let in_tune = clear && cents.abs() <= 5.0;
+    let scale = Rect::from_min_max(
+        pos2(rect.min.x + 10.0 * zoom, rect.bottom() - 12.0 * zoom),
+        pos2(rect.max.x - 10.0 * zoom, rect.bottom() - 6.0 * zoom),
+    );
+    painter.line_segment(
+        [scale.left_center(), scale.right_center()],
+        Stroke::new(1.0, theme::fade(theme::text_faint(), alpha)),
+    );
+    for t in [-50.0f32, -25.0, 0.0, 25.0, 50.0] {
+        let x = scale.min.x + (t + 50.0) / 100.0 * scale.width();
+        let h = if t == 0.0 { 6.0 } else { 3.0 } * zoom;
+        painter.line_segment(
+            [pos2(x, scale.center().y - h), pos2(x, scale.center().y + h)],
+            Stroke::new(1.0, theme::fade(theme::text_faint(), alpha)),
+        );
+    }
+    let nx = scale.min.x + (cents + 50.0) / 100.0 * scale.width();
+    let color = if in_tune {
+        theme::play()
+    } else {
+        theme::warning()
+    };
+    painter.line_segment(
+        [pos2(nx, rect.top() + 6.0 * zoom), pos2(nx, scale.bottom())],
+        Stroke::new(
+            2.0 * zoom.max(0.5),
+            theme::fade(color, if clear { alpha } else { 0.4 * alpha }),
+        ),
+    );
+    if zoom >= 0.3 {
+        painter.text(
+            pos2(
+                rect.center().x,
+                rect.top() + (rect.height() - 16.0 * zoom) / 2.0,
+            ),
+            Align2::CENTER_CENTER,
+            note,
+            theme::canvas_font(17.0, zoom, true),
+            theme::fade(
+                if in_tune {
+                    theme::play()
+                } else {
+                    theme::text_strong()
+                },
+                alpha,
+            ),
+        );
+    }
+}

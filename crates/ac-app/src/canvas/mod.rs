@@ -528,6 +528,17 @@ impl Canvas {
         Some(self.transform().to_screen(p))
     }
 
+    /// The card under screen point `p` in the last drawn frame, topmost.
+    pub fn node_under(&self, p: Pos2) -> Option<NodeId> {
+        let s = self.last_scene.as_ref()?;
+        let t = self.transform();
+        s.nodes
+            .iter()
+            .rev()
+            .find(|n| t.rect_to_screen(n.rect).contains(p))
+            .map(|n| n.id)
+    }
+
     /// Screen rectangle of a node's card in the last drawn frame (tests).
     pub fn node_screen_rect(&self, node: NodeId) -> Option<Rect> {
         let s = self.last_scene.as_ref()?;

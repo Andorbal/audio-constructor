@@ -211,3 +211,24 @@ fn step_values_follow_the_pointer() {
     assert!(v[1].as_f64().unwrap() > 0.8, "{v:?}");
     assert_eq!(v[0], json!(0.0));
 }
+
+#[test]
+fn zones_move_resize_appear_and_go() {
+    // 320 points over 128 notes: 2.5 points a note.
+    let mut h = harness(Editor::Zones, json!({ "zones": [[60, 71, 0, 1]] }));
+    let zones = |h: &Harness<'static, State>| h.state().config["zones"].clone();
+    // Drag the zone's body a dozen notes right.
+    let mid = at(&h, 66.0 / 128.0, 0.5);
+    drag(&mut h, mid, mid + vec2(30.0, 0.0));
+    assert_eq!(zones(&h), json!([[72.0, 83.0, 0.0, 1.0]]));
+    // Pull its top edge down to half velocity.
+    let top = at(&h, 78.0 / 128.0, 0.0) + vec2(0.0, 1.0);
+    drag(&mut h, top, top + vec2(0.0, H / 2.0));
+    assert_eq!(zones(&h)[0][3], json!(0.5));
+    // Double-click empty space adds one; right-click removes it.
+    let empty = at(&h, 20.0 / 128.0, 0.5);
+    double_click(&mut h, empty);
+    assert_eq!(zones(&h).as_array().map(Vec::len), Some(2));
+    right_click(&mut h, empty);
+    assert_eq!(zones(&h).as_array().map(Vec::len), Some(1));
+}

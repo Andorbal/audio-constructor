@@ -1077,6 +1077,7 @@ impl EditorApp {
         }
         self.track_selection();
         self.handle_keys(&ctx, now);
+        self.dropped_files(&ctx, now);
         self.update_bindings(now);
         if self.show_timing {
             let tele = self.engine.handle.telemetry();
@@ -3622,6 +3623,135 @@ impl EditorApp {
             Ok(a) => self.assign_clip_asset(node, a, now),
             Err(e) => self.warn(
                 tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                now,
+            ),
+        }
+    }
+
+    /// Audio files dropped on the window: on a panel, a pad playing each;
+    /// on a Clip, Sampler, or Sample card, its new file; elsewhere on the
+    /// canvas, a Clip playing it (a Sampler with `Shift` held) (D209).
+    fn dropped_files(&mut self, ctx: &egui::Context, now: f64) {
+        let (files, at, shift) = ctx.input(|i| {
+            (
+                i.raw.dropped_files.clone(),
+                i.pointer.latest_pos(),
+                i.modifiers.shift,
+            )
+        });
+        for (k, f) in files.into_iter().enumerate() {
+            let path = f.path().to_path_buf();
+            if path.as_os_str().is_empty() {
+                continue;
+            }
+            let wav = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("wav") || e.eq_ignore_ascii_case("wave"));
+            if !wav {
+                self.warn(
+                    tr_args(
+                        "status-drop-not-wav",
+                        &[("file", path.display().to_string().into())],
+                    ),
+                    now,
+                );
+                continue;
+            }
+            let offset = vec2(0.0, 90.0 * k as f32);
+            self.drop_audio(&path, at.map(|p| p + offset), shift, now);
+        }
+    }
+
+    /// One dropped audio file, at screen point `at`.
+    pub fn drop_audio(&mut self, path: &Path, at: Option<egui::Pos2>, sampler: bool, now: f64) {
+        let asset = match self.import_audio(path) {
+            Ok(a) => a,
+            Err(e) => {
+                self.warn(
+                    tr_args("status-couldnt-use-file", &[("error", e.into())]),
+                    now,
+                );
+                return;
+            }
+        };
+        let label = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let config = serde_json::json!({
+            "file": asset.file,
+            "channels": asset.channels,
+            "hash": asset.hash,
+        });
+        let registry = self.registry.clone();
+        if self.perform.shown {
+            // A pad on the panel showing, playing the file.
+            let panel = self.perform.current;
+            let pos = self
+                .doc
+                .project
+                .graph
+                .nodes
+                .iter()
+                .map(|n| n.ui.pos[1])
+                .fold(0.0f32, f32::max)
+                + 240.0;
+            let made = self.doc.at_root(|doc| {
+                doc.edit_with_panels(&registry, &tr("undo-pad-from-file"), |g, ctx, panels| {
+                    if panels.is_empty() {
+                        crate::edit::pins::add_panel(panels, &tr("perform-pads"));
+                    }
+                    let panel = panel.min(panels.len().saturating_sub(1));
+                    crate::edit::generate::pad_from_file(
+                        g,
+                        ctx,
+                        panels,
+                        panel,
+                        config.clone(),
+                        &label,
+                        [0.0, pos],
+                    )
+                })
+            });
+            self.reload_assets();
+            if made.added.is_empty() {
+                return;
+            }
+            self.say(
+                tr_args("status-pad-from-file", &[("file", (&label).into())]),
+                now,
+            );
+            return;
+        }
+        let screen =
+            at.unwrap_or_else(|| self.canvas.transform().to_screen(self.canvas.view.center));
+        let target = self.canvas.node_under(screen).filter(|id| {
+            self.doc
+                .graph()
+                .node(*id)
+                .is_some_and(|n| matches!(n.kind.as_str(), "clip" | "sampler" | "sample"))
+        });
+        if let Some(node) = target {
+            self.assign_clip_asset(node, asset, now);
+            return;
+        }
+        let kind = if sampler { "sampler" } else { "clip" };
+        let p = self.canvas.transform().to_canvas(screen);
+        let pos = [p.x - theme::NODE_WIDTH / 2.0, p.y - 14.0];
+        let node = self.doc.edit(&registry, &tr("undo-add-file"), |g, ctx| {
+            let id = crate::edit::add_node(g, ctx, kind, config.clone(), pos);
+            if let Some(n) = g.node_mut(id) {
+                n.ui.label = Some(label.clone());
+            }
+            id
+        });
+        self.doc.selection = [node].into();
+        self.reload_assets();
+        match asset.note {
+            Some(n) => self.say(n, now),
+            None => self.say(
+                tr_args("status-clip-plays", &[("file", asset.file.into())]),
                 now,
             ),
         }

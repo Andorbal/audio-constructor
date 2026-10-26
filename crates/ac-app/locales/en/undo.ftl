@@ -81,3 +81,5 @@ undo-rename-strip = Rename strip
 undo-mixer-from-selection = Mixer from selection
 undo-pads-from-selection = Pads from selection
 undo-grid-from-selection = Launch grid from selection
+undo-pad-from-file = Pad from file
+undo-add-file = Add file

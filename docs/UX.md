@@ -154,6 +154,7 @@ a label without brackets. [TRANSLATING.md](TRANSLATING.md) has the rest.
 | Add node | `Shift+A` or double-click empty canvas: search palette (fuzzy, synonyms: "volume" finds Gain, "lpf" finds Biquad); it also lists groups, blocks, and the plugins installed on this computer by name |
 | Wire | drag from socket to socket; drop on empty canvas opens the palette **filtered to compatible nodes** and auto-wires the result |
 | Insert on wire | drop a node onto a wire to splice it in (if types match) |
+| Drop a sound file | a WAV file dropped on the canvas becomes a Clip playing it (a Sampler with `Shift` held), copied into the project's `assets/`; dropped on a Clip, Sampler, or Sample card it becomes that card's sound; dropped on a panel, a Pad playing it through a new Sampler, pinned there and wired to the output (D209) |
 | Disconnect | drag a wire end away and release, or `Ctrl+drag` across wires to cut |
 | Connect selected to new node | select two or more nodes, then add a node (`Shift+A` or the Add menu): they're wired into it in selection order and it goes to their right (see below) |
 | Lazy connect | `F` with two selected nodes wires the left one into the right one (see below); the status line says what was wired, or why not |

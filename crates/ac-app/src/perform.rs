@@ -1999,6 +1999,9 @@ pub fn natural_span(registry: &Registry, node: &ac_core::NodeInstance) -> [u32; 
         }
         Some(Body::XyPad) => [2, 2],
         Some(Body::Scope | Body::Analyzer | Body::Spectrogram) => [3, 2],
+        Some(Body::Waveform) => [3, 1],
+        Some(Body::MidiMonitor) => [2, 2],
+        Some(Body::Tuner) => [2, 1],
         Some(Body::Slider | Body::Meter | Body::Clip | Body::Record | Body::AudioOut) => [2, 1],
         Some(Body::Fader) => [1, 2],
         Some(Body::Pads) => {
@@ -2026,7 +2029,10 @@ fn fit_body(body: Body, content: Rect, zoom: f32) -> Rect {
         | Body::Spectrogram
         | Body::Fader
         | Body::Pad
-        | Body::Pads => content,
+        | Body::Pads
+        | Body::Waveform
+        | Body::MidiMonitor
+        | Body::Tuner => content,
         _ => {
             let h = (body.height() * zoom).min(content.height());
             Rect::from_center_size(content.center(), vec2(content.width(), h))

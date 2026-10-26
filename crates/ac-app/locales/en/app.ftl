@@ -174,6 +174,8 @@ status-relinked =
        *[other] Relinked { $count } nodes
     }
 status-clip-plays = Clip plays { $file }
+status-pad-from-file = A pad on the panel plays { $file }
+status-drop-not-wav = { $file } isn't a WAV file; only WAV files can be dropped
 status-clip-outside-project = The project isn't saved yet, so the clip refers to the file where it is. Saving the project copies it into the project's assets folder.
 status-couldnt-use-file = Couldn't use that file: { $error }
 

@@ -704,6 +704,75 @@ fn schema(kind: &str) -> Vec<ConfigField> {
             },
         )],
         "clip" => vec![f("file", "File", Kind::File)],
+        "sample" => vec![f("file", "File", Kind::File)],
+        "slicer" => vec![
+            f(
+                "mode",
+                "Slices",
+                Kind::Choice {
+                    choices: &["equal", "transients", "markers"],
+                    default: "equal",
+                },
+            ),
+            f(
+                "low",
+                "First note",
+                Kind::Count {
+                    min: 0,
+                    max: 127,
+                    default: 36,
+                },
+            ),
+            f(
+                "channels",
+                "Channels",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 2,
+                },
+            ),
+        ],
+        "note_split" => vec![
+            f("notes", "Notes", Kind::Numbers),
+            f("chokes", "Choke groups (one per note)", Kind::Numbers),
+            f(
+                "channel",
+                "MIDI channel (0: all)",
+                Kind::Count {
+                    min: 0,
+                    max: 16,
+                    default: 0,
+                },
+            ),
+        ],
+        "route" => vec![
+            f(
+                "mode",
+                "Mode",
+                Kind::Choice {
+                    choices: &["index", "gate"],
+                    default: "index",
+                },
+            ),
+            f(
+                "outputs",
+                "Outputs",
+                Kind::Count {
+                    min: 1,
+                    max: 64,
+                    default: 4,
+                },
+            ),
+            f(
+                "type",
+                "Type",
+                Kind::Choice {
+                    choices: ROUTE_TYPES,
+                    default: "trigger",
+                },
+            ),
+        ],
         "voices" => vec![
             f(
                 "voices",
@@ -982,6 +1051,7 @@ pub(super) fn show(ui: &mut egui::Ui, io: &mut PanelIo, label_edit: &mut Option<
 
     // A node drawn rather than typed shows its editor first.
     node_editor(ui, io, id, &node);
+    sound_editor(ui, io, id, &node);
 
     // Parameters.
     let sockets = edit::sockets_of(
@@ -1550,6 +1620,130 @@ fn node_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::
         apply_editor(io, id, editor, edit);
     }
     ui.data_mut(|d| d.insert_temp(open_id, open));
+}
+
+/// The waveform of a Clip's, Sampler's, or Slicer's sound, with a
+/// Sampler's points as handles and a Slicer's slices (D209).
+fn sound_editor(ui: &mut egui::Ui, io: &mut PanelIo, id: NodeId, node: &ac_core::NodeInstance) {
+    use editors::sound::{Sound, SoundEdit};
+    if !matches!(node.kind.as_str(), "clip" | "sampler" | "slicer") {
+        return;
+    }
+    let graph = io.doc.display_graph();
+    // The sound: a Slicer's or a wired Sampler's from the Sample feeding
+    // it; otherwise the node's own file.
+    let source = graph
+        .wire_into(&ac_core::Endpoint::new(id, "buffer"))
+        .and_then(|w| graph.node(w.from.node))
+        .filter(|n| n.kind == "sample")
+        .map(|n| n.config.get_str_or("file", "").to_string());
+    let file = source.unwrap_or_else(|| node.config.get_str_or("file", "").to_string());
+    let data = (!file.is_empty()).then(|| io.assets.get(&file)).flatten();
+    section(ui, &tr("section-sound"));
+    if data.is_none() {
+        ui.label(
+            RichText::new(tr("node-tab-no-sound"))
+                .small()
+                .color(theme::text_faint()),
+        );
+        return;
+    }
+    let tele = io.engine.handle.telemetry();
+    let path = io.doc.node_path(id);
+    let seconds = data
+        .as_ref()
+        .map_or(0.0, |d| d.frames() as f32 / d.sample_rate.max(1) as f32);
+    let playing = tele.socket_value(&path, "playing").is_some_and(|v| v > 0.5);
+    let playhead = tele
+        .socket_value(&path, "position")
+        .filter(|_| playing && seconds > 0.0)
+        .map(|p| (p / seconds).clamp(0.0, 1.0));
+    let sockets = edit::sockets_of(&graph, id, io.registry, &io.doc.project.group_defs, None);
+    let names = ["start_point", "end_point", "loop_start", "loop_end"];
+    let handles = (node.kind == "sampler").then(|| {
+        let mut h = [0.0f32; 4];
+        let mut free = [false; 4];
+        for (k, name) in names.iter().enumerate() {
+            if let Some(s) = sockets.input(name) {
+                let wired = graph
+                    .wire_into(&ac_core::Endpoint::new(id, *name))
+                    .is_some();
+                free[k] = !wired;
+                h[k] = if wired {
+                    tele.socket_value(&path, name).unwrap_or(0.0)
+                } else {
+                    s.spec
+                        .as_ref()
+                        .map_or(0.0, |spec| widgets::number(node, spec) as f32)
+                };
+            }
+        }
+        (h, free)
+    });
+    let (slices, markers) = if node.kind == "slicer" {
+        use ac_nodes::generators::slicer::{TELEMETRY_COUNT, TELEMETRY_STARTS, marker_list};
+        let count = tele.node_value(&path, TELEMETRY_COUNT).unwrap_or(0.0) as usize;
+        let slices = (1..count.min(ac_nodes::generators::slicer::MAX_SLICES))
+            .filter_map(|k| tele.node_value(&path, TELEMETRY_STARTS + k))
+            .collect();
+        let marked = node.config.get_str_or("mode", "equal") == "markers";
+        (slices, marked.then(|| marker_list(&node.config)))
+    } else {
+        (Vec::new(), None)
+    };
+    let width = ui.available_width().max(120.0);
+    let sound = Sound {
+        data: data.as_ref(),
+        playhead,
+        handles,
+        slices,
+        markers,
+    };
+    let edit = editors::sound::ui(
+        ui,
+        egui::Id::unique(("sound-editor", id)),
+        &sound,
+        width,
+        (width * 0.3).clamp(70.0, 180.0),
+    );
+    ui.label(
+        RichText::new(if sound.markers.is_some() {
+            tr("editor-markers-hint")
+        } else {
+            tr("editor-sound-hint")
+        })
+        .small()
+        .color(theme::text_faint()),
+    );
+    match edit {
+        Some(SoundEdit::Handle { k, value, done }) => {
+            let v = (f64::from(value) * 1000.0).round() / 1000.0;
+            params::set(
+                io.doc,
+                &mut io.engine.handle,
+                id,
+                names[k],
+                ac_core::Value::Float(v),
+                io.now,
+            );
+            if done {
+                io.doc.end_coalescing();
+            }
+        }
+        Some(SoundEdit::Markers { markers, done }) => {
+            let value = serde_json::Value::Array(
+                markers
+                    .iter()
+                    .map(|m| serde_json::json!((f64::from(*m) * 10_000.0).round() / 10_000.0))
+                    .collect(),
+            );
+            io.doc.set_config(id, "markers", value, io.now);
+            if done {
+                io.doc.end_coalescing();
+            }
+        }
+        None => {}
+    }
 }
 
 fn apply_editor(

@@ -450,7 +450,22 @@ fn speak(io: &CanvasIo, live: &Live, meters: &LiveState, n: &NodeView) -> Spoken
             s.role = Role::Status;
             s.value = Some(controls::readout_text(live.node_value(n.id, 0)));
         }
-        Body::Scope | Body::Analyzer | Body::Spectrogram => s.role = Role::Image,
+        Body::Scope | Body::Analyzer | Body::Spectrogram | Body::Waveform => s.role = Role::Image,
+        Body::MidiMonitor => {
+            s.role = Role::Log;
+            s.value = controls::monitor_lines(live, n).into_iter().next();
+        }
+        Body::Tuner => {
+            s.role = Role::Status;
+            let (note, cents, _) = controls::tuner_reading(live, n);
+            s.value = Some(tr_args(
+                "a11y-tuner",
+                &[
+                    ("note", note.into()),
+                    ("cents", format!("{cents:+.0}").into()),
+                ],
+            ));
+        }
         Body::Clip => {
             s.role = Role::Button;
             s.presses = true;

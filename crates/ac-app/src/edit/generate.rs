@@ -268,6 +268,74 @@ pub fn launch_grid(
     })
 }
 
+/// Wire `node`'s `out` where it will be heard: into the first Audio Out's
+/// input if that's free, or else into a free input of the Mix feeding it.
+/// Returns whether it was wired.
+pub fn hear(graph: &mut Graph, ctx: &mut Ctx, node: NodeId) -> bool {
+    let Some(out) = graph
+        .nodes
+        .iter()
+        .find(|n| n.kind == "audio_out")
+        .map(|n| n.id)
+    else {
+        return false;
+    };
+    let from = Endpoint::new(node, "out");
+    let into_out = Endpoint::new(out, "in");
+    let Some(feeding) = graph.wire_into(&into_out).map(|w| w.from.node) else {
+        return connect(graph, ctx, from, into_out).is_ok();
+    };
+    let Some(mix) = graph.node(feeding).filter(|n| n.kind == "mix") else {
+        return false;
+    };
+    let inputs = mix
+        .config
+        .get("inputs")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(4);
+    let free = (0..inputs)
+        .map(|k| Endpoint::new(feeding, format!("in_{k}")))
+        .find(|e| graph.wire_into(e).is_none());
+    match free {
+        Some(e) => connect(graph, ctx, from, e).is_ok(),
+        None => false,
+    }
+}
+
+/// A pad from an audio file dropped on a panel: a Sampler playing it and a
+/// Pad that starts it (with the hit's velocity), the Pad pinned to
+/// `panel` and the Sampler wired where it's heard. `pos` is where the pair
+/// goes on the canvas.
+pub fn pad_from_file(
+    graph: &mut Graph,
+    ctx: &mut Ctx,
+    panels: &mut [Panel],
+    panel: usize,
+    sampler: ac_core::Config,
+    label: &str,
+    pos: [f32; 2],
+) -> Made {
+    let s = add_node(graph, ctx, "sampler", sampler, [pos[0] + 260.0, pos[1]]);
+    let pad = add_node(graph, ctx, "pad", ac_core::empty_config(), pos);
+    if let Some(n) = graph.node_mut(s) {
+        n.params
+            .insert("start".into(), ac_core::Value::Text("never".into()));
+        n.ui.label = Some(label.to_string());
+    }
+    if let Some(n) = graph.node_mut(pad) {
+        n.ui.label = Some(label.to_string());
+    }
+    for (o, i) in [("trigger", "start"), ("velocity", "velocity")] {
+        let _ = connect(graph, ctx, Endpoint::new(pad, o), Endpoint::new(s, i));
+    }
+    hear(graph, ctx, s);
+    pins::pin(panels, graph, panel, &[pad]);
+    Made {
+        panel,
+        added: vec![s, pad],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;

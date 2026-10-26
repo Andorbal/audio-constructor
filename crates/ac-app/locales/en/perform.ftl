@@ -71,3 +71,5 @@ perform-scene-n = Scene { $n }
 a11y-lit = lit
 a11y-light-on = on
 a11y-light-off = off
+# A tuner's reading: "A4, +5 cents".
+a11y-tuner = { $note }, { $cents } cents

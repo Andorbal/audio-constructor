@@ -66,6 +66,23 @@ Phase 4: the tools the gap studies found missing.
 - **Monitor outputs.** An Audio Out's new `role` setting can be
   *monitor*: it plays live and is left out of every render, for a cue
   mix or hearing your input.
+- **Sampler nodes.** **Sample** turns a WAV file into a sound to wire;
+  **Slicer** cuts a sound into equal slices, at its hits, or at markers
+  you click in, and plays them from MIDI notes or by number; **Note
+  Split** gives each note of a list a trigger, a gate, a velocity, and a
+  choke group; **Zones** finds a note's key and velocity zone in a map you
+  draw; **Route** sends a trigger, MIDI, audio, or a sound to one of
+  several outputs (round robin), or passes it while open; **Velocity**
+  reshapes how hard notes play. The Sampler takes a `velocity`, and Select
+  and Switch can pick between sounds.
+- **See the sound.** The Node tab of a Clip, Sampler, or Slicer draws its
+  sound with the playhead; drag a Sampler's start, end, and loop points as
+  handles, and a Slicer's slice markers. The new **Waveform** display does
+  the same on a card or a panel, and **MIDI Monitor** and **Tuner** show
+  what's on a MIDI wire and what note a sound plays.
+- **Drop sound files.** Drop a WAV file on the canvas for a Clip (with
+  `Shift`, a Sampler), on a Clip or Sampler to give it that sound, or on a
+  panel for a pad that plays it.
 - **Buttons, toggles, and pads light up.** Wire a clip's `playing` into a
   button's new `lit` input and the button shows its clip playing; Pads
   light the pads whose notes are on in their `lit` input. These inputs
@@ -81,6 +98,11 @@ Phase 4: the tools the gap studies found missing.
   set it to **Never** to leave the generator to its wire, as before.
 - **Play and Stop are separate buttons** in the transport bar, so Stop is
   there while the transport is stopped. `Space` still plays and stops.
+- **The pads study is rebuilt with the sampler nodes**: a Pads grid, eight
+  slices of the loop from one Slicer, Note Split for the snare, hats, and
+  resampled pad, Zones and Route for velocity layers and round robin, a
+  choke group, and keys whose zones are a Zones node: 36 nodes instead
+  of 83.
 - **Create Clip from take places the clip in the song** at the beat the
   take started, and wires it where the recorded input went, so the take
   plays in time in the mix straight away.

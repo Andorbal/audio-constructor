@@ -149,6 +149,10 @@ fn study_blocks_are_the_shipped_versions() {
 
 /// Kinds that have a widget to pin to a performance panel (UX.md "Panels").
 const PINNABLE: &[&str] = &[
+    "waveform",
+    "midi_monitor",
+    "tuner",
+    "sample",
     "button",
     "toggle",
     "slider",
@@ -388,5 +392,87 @@ fn the_recorders_click_never_reaches_the_export() {
             .iter()
             .any(|n| n.kind == "compare" || n.kind == "gate_to_trigger"),
         "the arrangement is the clips' places, not logic"
+    );
+}
+
+/// Renders the pads study for `seconds` with MIDI `events` played in and
+/// the demo beat silenced; channel 0.
+fn pads_with(events: &[(u64, ac_core::MidiMsg)], seconds: f64) -> Vec<f32> {
+    let path = studies_dir().join("pads-and-keys.acproj");
+    let project = ac_io::load_project(&path).expect("study loads");
+    let registry = Arc::new(ac_nodes::registry());
+    let assets = AssetStore::load_for(&project, path.parent().expect("dir"), &registry);
+    let res = Arc::new(FileResources {
+        assets,
+        recorder: None,
+        plugins: None,
+    });
+    let demo = ac_core::NodePath::root(ac_core::NodeId(6));
+    let r = render(
+        &project,
+        registry,
+        res,
+        &RenderOptions {
+            to: Some(seconds),
+            midi: events.to_vec(),
+            set: vec![(demo, "start".into(), ac_core::Value::Text("never".into()))],
+            ..RenderOptions::default()
+        },
+    );
+    assert!(!r.report.has_errors(), "{}", r.report);
+    r.channels.into_iter().next().unwrap_or_default()
+}
+
+#[test]
+fn the_pads_play_slices_and_the_kit_with_velocity() {
+    let on = |note, velocity| ac_core::MidiMsg::NoteOn {
+        channel: 0,
+        note,
+        velocity,
+    };
+    let peak = |x: &[f32]| ac_core::testing::peak(x);
+    // A slice of the loop, hard and soft: one Slicer, velocity from the note.
+    let hard = pads_with(&[(0, on(36, 127))], 0.5);
+    let soft = pads_with(&[(0, on(36, 30))], 0.5);
+    assert!(peak(&hard) > 0.01, "slice 0 sounds");
+    assert!(
+        peak(&hard) > 2.0 * peak(&soft),
+        "{} vs {}",
+        peak(&hard),
+        peak(&soft)
+    );
+    // The snare, the hats, and the resampled pad come through Note Split.
+    for note in [44, 45, 46] {
+        assert!(
+            peak(&pads_with(&[(0, on(note, 110))], 0.5)) > 0.01,
+            "note {note}"
+        );
+    }
+}
+
+#[test]
+fn the_kit_is_made_of_sampler_nodes_not_chains() {
+    let project =
+        ac_io::load_project(&studies_dir().join("pads-and-keys.acproj")).expect("study loads");
+    let kinds: Vec<&str> = project
+        .graph
+        .nodes
+        .iter()
+        .map(|n| n.kind.as_str())
+        .collect();
+    for gone in ["midi_note", "map", "compare", "switch"] {
+        assert!(!kinds.contains(&gone), "no {gone} left in the kit");
+    }
+    // The pads are one Pads grid; the only Button is Resample's.
+    assert_eq!(kinds.iter().filter(|k| **k == "button").count(), 1);
+    for needed in ["pads", "sample", "slicer", "note_split", "zones", "route"] {
+        assert!(kinds.contains(&needed), "a {needed}");
+    }
+    let keys = &project.group_defs[&ac_core::GroupId::from("sampled-keys")];
+    assert!(keys.graph.nodes.iter().any(|n| n.kind == "zones"));
+    assert!(
+        project.graph.nodes.len() <= 40,
+        "{}",
+        project.graph.nodes.len()
     );
 }

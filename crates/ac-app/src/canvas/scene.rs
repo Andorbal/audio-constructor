@@ -47,6 +47,9 @@ pub enum Body {
     Fader,
     Pad,
     Pads,
+    Waveform,
+    MidiMonitor,
+    Tuner,
 }
 
 impl Body {
@@ -65,13 +68,16 @@ impl Body {
             "analyzer" => Body::Analyzer,
             "spectrogram" => Body::Spectrogram,
             "readout" => Body::Readout,
-            "clip" => Body::Clip,
+            "clip" | "sample" => Body::Clip,
             "record" => Body::Record,
             "audio_out" => Body::AudioOut,
             "light" => Body::Light,
             "fader" => Body::Fader,
             "pad" => Body::Pad,
             "pads" => Body::Pads,
+            "waveform" => Body::Waveform,
+            "midi_monitor" => Body::MidiMonitor,
+            "tuner" => Body::Tuner,
             _ => return None,
         })
     }
@@ -99,6 +105,9 @@ impl Body {
             Body::Fader => 150.0,
             Body::Pad => 64.0,
             Body::Pads => 150.0,
+            Body::Waveform => 72.0,
+            Body::MidiMonitor => 124.0,
+            Body::Tuner => 58.0,
         }
     }
 

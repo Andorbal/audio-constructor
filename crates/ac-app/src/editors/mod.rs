@@ -1,7 +1,9 @@
 //! Editors for node settings that are more than a number: breakpoint
 //! curves (`Graph`, `Envelope`, `Shaper`), step grids (`Pattern`), piano
-//! rolls (`MidiPattern`), crossover bands (`BandSplit`), and step values
-//! (`StepSequencer`).
+//! rolls (`MidiPattern`), crossover bands (`BandSplit`), step values
+//! (`StepSequencer`), and key and velocity zones (`Zones`). The waveform
+//! editor for Clip, Sampler, and Slicer (`sound`) edits inputs and markers
+//! instead, so the Node tab drives it directly.
 //!
 //! Each editor reads one config key and, when the person changes it, returns
 //! the new value; the caller stores it as an undo step (coalesced while a
@@ -12,7 +14,9 @@ pub mod bands;
 pub mod curve;
 pub mod pattern;
 pub mod piano_roll;
+pub mod sound;
 pub mod steps;
+pub mod zones;
 
 use ac_core::Config;
 use egui::{Color32, Rect, Sense, Stroke, StrokeKind};
@@ -28,6 +32,7 @@ pub enum Editor {
     PianoRoll,
     Bands,
     Steps,
+    Zones,
 }
 
 impl Editor {
@@ -39,6 +44,7 @@ impl Editor {
             Editor::PianoRoll => "notes",
             Editor::Bands => "edges",
             Editor::Steps => "values",
+            Editor::Zones => "zones",
         }
     }
 
@@ -50,6 +56,7 @@ impl Editor {
             Editor::PianoRoll => tr("editor-piano-roll-hint"),
             Editor::Bands => tr("editor-bands-hint"),
             Editor::Steps => tr("editor-steps-hint"),
+            Editor::Zones => tr("editor-zones-hint"),
         }
     }
 
@@ -60,6 +67,7 @@ impl Editor {
             Editor::Pattern => (width * 0.4).clamp(80.0, 320.0),
             Editor::PianoRoll => (width * 0.7).clamp(160.0, 480.0),
             Editor::Bands => (width * 0.4).clamp(90.0, 240.0),
+            Editor::Zones => (width * 0.45).clamp(100.0, 280.0),
         }
     }
 }
@@ -75,6 +83,7 @@ pub fn editor_for(kind: &str, config: &Config) -> Option<Editor> {
         "midi_pattern" => Editor::PianoRoll,
         "band_split" => Editor::Bands,
         "step_sequencer" => Editor::Steps,
+        "zones" => Editor::Zones,
         _ => return None,
     })
 }
@@ -104,6 +113,7 @@ pub fn show(
         Editor::PianoRoll => piano_roll::ui(ui, id, config, width, height),
         Editor::Bands => bands::ui(ui, id, config, width, height),
         Editor::Steps => steps::ui(ui, id, config, width, height),
+        Editor::Zones => zones::ui(ui, id, config, width, height),
     }
 }
 
@@ -168,6 +178,7 @@ mod tests {
         assert_eq!(editor_for("midi_pattern", &c), Some(Editor::PianoRoll));
         assert_eq!(editor_for("band_split", &c), Some(Editor::Bands));
         assert_eq!(editor_for("step_sequencer", &c), Some(Editor::Steps));
+        assert_eq!(editor_for("zones", &c), Some(Editor::Zones));
         assert_eq!(editor_for("oscillator", &c), None);
     }
 

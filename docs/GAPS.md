@@ -199,6 +199,15 @@ Samplers, a Compare, an audio Switch, an ADSR, a Map, a Gain); a Record
 fed by the pads whose buffer a ninth pad plays; a Pads panel; keys 1–8
 bound to the pads.
 
+**Rebuilt** in 0.15 (36 nodes, 52 wires): a 4 × 3 Pads grid merged with
+MIDI and the computer keys (and lit by them); notes 36–43 are eight slices
+of the loop from one Sample and one Slicer cut at its hits, with velocity
+from the note; one Note Split gives the snare, the two hats (in a choke
+group), and the resampled pad a trigger and a velocity each; Zones splits
+the snare by velocity and a Counter steps two Routes for round robin;
+the keys body finds its zone with Zones. A pad from MIDI with velocity is
+two nodes (Note Split and a Sampler); a slice of the loop is none.
+
 **What one pad costs**: 6 nodes and 7 wires from MIDI with velocity and a
 button. Eight pads are 48 nodes; a 16-pad kit would be 96 before layers,
 envelopes, or per-pad effects. The snare's two layers times two round
@@ -210,13 +219,13 @@ shared pad block can't hold a different sample per instance.
 
 | Task | Today | Phase 4 | In a sampler | Why |
 | --- | --- | --- | --- | --- |
-| Put a sound on a pad and play it from note 36 | about 30 (6 nodes, a file chosen, low and high typed, 7 wires) | — | 1 drag | No note-to-trigger node; Sampler needs a chain to listen to one note |
-| Set a slice's start and end | 2 typed fractions, by ear | — | 2 drags on the waveform | No waveform anywhere in the editor |
-| Slice a loop onto eight pads | 8 Samplers with 16 typed points | — | 1 (slice at transients) and 1 drag | No slicer; Onset can't cut a buffer |
-| Two velocity layers | about 15 (Compare, 2 Switches, a second Sampler, wires) | — | 1 drag to split a zone | No zone map; no trigger routing node, so Switch is misused twice |
-| Round robin | about 15 (Counter, Compare, 2 Switches per layer) | — | 1 click | Same |
-| Choke the open hat | 1 wire | — | 1 setting | Fine |
-| Keymap two samples with an envelope | about 40 (a Voices body of 8 nodes) | — | 2 drags | No zone node; a Sample-to-Buffer node would let a shared body take its sound as an input |
+| Put a sound on a pad and play it from note 36 | about 30 (6 nodes, a file chosen, low and high typed, 7 wires) | 2 (Note Split and a Sampler, wired); or drop the file on a panel | 1 drag | No note-to-trigger node; Sampler needs a chain to listen to one note |
+| Set a slice's start and end | 2 typed fractions, by ear | 2 drags on the Sampler's waveform in the Node tab | 2 drags on the waveform | No waveform anywhere in the editor |
+| Slice a loop onto eight pads | 8 Samplers with 16 typed points | 2 (a Sample and a Slicer at its transients), and 1 drag per marker | 1 (slice at transients) and 1 drag | No slicer; Onset can't cut a buffer |
+| Two velocity layers | about 15 (Compare, 2 Switches, a second Sampler, wires) | about 5 (Zones, two zones dragged, 2 wires) | 1 drag to split a zone | No zone map; no trigger routing node, so Switch is misused twice |
+| Round robin | about 15 (Counter, Compare, 2 Switches per layer) | about 4 (Counter, Route, 2 wires) | 1 click | Same |
+| Choke the open hat | 1 wire | 1 setting (a Note Split choke group) | 1 setting | Fine |
+| Keymap two samples with an envelope | about 40 (a Voices body of 8 nodes) | about 10 (Zones in the body, two zones dragged) | 2 drags | No zone node; a Sample-to-Buffer node would let a shared body take its sound as an input |
 | Resample the pads onto a new pad | 8 (Record, 2 Buttons, Sampler, 4 wires) | — | 2 | Good |
 | Play a pad with velocity from the mouse | impossible | default (Pad, Pads) | default | Buttons have no velocity or pressure |
 | See a pad light when the pattern hits it | impossible | 1 wire into `lit` | default | No light display; Buttons take no `lit` input |

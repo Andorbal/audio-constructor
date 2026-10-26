@@ -1026,7 +1026,7 @@ impl Canvas {
                 tip: warnings.join("\n"),
             });
         }
-        if n.kind == "clip"
+        if (n.kind == "clip" || n.kind == "sample")
             && let Some(node) = io.doc.graph().node(n.id)
         {
             let file = node.config.get_str_or("file", "");

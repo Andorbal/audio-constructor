@@ -381,6 +381,37 @@ impl Controls {
                 None => Grab::Other,
             },
             Some(Body::Pad | Body::Pads) => Grab::Nothing,
+            // A waveform's handles drag sideways, one to one with the sound.
+            Some(Body::Waveform) => {
+                let Some(inst) = io.shown_node(node) else {
+                    return Grab::Other;
+                };
+                // Unwired handles only: a wired one follows its wire.
+                let place = |name: &str| {
+                    free(name).map(|spec| (widgets::number(&inst, &spec) as f32, spec))
+                };
+                let handles = WAVE_HANDLES.map(|h| place(h).map_or(f32::NAN, |p| p.0));
+                let reach = 8.0;
+                match bodies::waveform_handle_at(rect, handles, origin.x, reach) {
+                    Some(k) => match place(WAVE_HANDLES[k]) {
+                        Some((v, spec)) => {
+                            let width = rect.width().max(1.0);
+                            self.begin_value_drag(
+                                node,
+                                WAVE_HANDLES[k],
+                                spec,
+                                f64::from(v),
+                                origin,
+                                width,
+                                false,
+                            );
+                            Grab::Control
+                        }
+                        None => Grab::Other,
+                    },
+                    None => Grab::Other,
+                }
+            }
             // Knobs turn with an up-and-down drag; number fields drag
             // sideways like inline fields.
             Some(b @ (Body::Knob | Body::Number)) => {
@@ -861,6 +892,128 @@ pub fn plain_number(v: f64, spec: &SocketSpec) -> String {
 
 // ---------------------------------------------------------------- painting
 
+/// A Waveform card's picture: its overview and playhead from telemetry,
+/// its handles from the node (or their wires).
+pub fn wave_view(io: &CanvasIo, live: &Live, n: &NodeView) -> bodies::WaveView {
+    use ac_nodes::display::waveform::{COLUMNS, TELEMETRY_COLUMNS, TELEMETRY_PLAYHEAD};
+    let value = |k: usize| live.node_value(n.id, k).unwrap_or(0.0);
+    let columns = (0..COLUMNS)
+        .map(|c| {
+            (
+                value(TELEMETRY_COLUMNS + 2 * c),
+                value(TELEMETRY_COLUMNS + 2 * c + 1),
+            )
+        })
+        .collect();
+    let head = live.node_value(n.id, TELEMETRY_PLAYHEAD).unwrap_or(-1.0);
+    let path = live.path(n.id);
+    let shown = io.shown_node(n.id);
+    let handle = |name: &str| -> f32 {
+        let input = n.socket(name, true);
+        match (input, shown.as_ref()) {
+            (Some(s), _) if s.wired => live.tele.socket_value(&path, name).unwrap_or(0.0),
+            (Some(s), Some(node)) => s
+                .spec
+                .as_ref()
+                .map_or(0.0, |spec| widgets::number(node, spec) as f32),
+            _ => 0.0,
+        }
+    };
+    bodies::WaveView {
+        columns,
+        playhead: (head >= 0.0).then_some(head),
+        handles: Some(WAVE_HANDLES.map(handle)),
+        slices: Vec::new(),
+    }
+}
+
+/// The Waveform's handle inputs, in the order `bodies::waveform` draws them.
+pub const WAVE_HANDLES: [&str; 4] = ["start_point", "end_point", "loop_start", "loop_end"];
+
+/// A MIDI Monitor's lines, newest first, from telemetry.
+pub fn monitor_lines(live: &Live, n: &NodeView) -> Vec<String> {
+    use ac_nodes::display::midi_monitor::{SHOWN, TELEMETRY_MESSAGES};
+    (0..SHOWN)
+        .filter_map(|k| {
+            let b = |i| {
+                live.node_value(n.id, TELEMETRY_MESSAGES + 3 * k + i)
+                    .unwrap_or(0.0) as u8
+            };
+            ac_core::MidiMsg::from_bytes(&[b(0), b(1), b(2)])
+        })
+        .map(|m| describe_midi(&m))
+        .collect()
+}
+
+/// One MIDI message as the monitor shows it.
+pub fn describe_midi(m: &ac_core::MidiMsg) -> String {
+    use ac_core::MidiMsg as M;
+    let ch = m.channel() + 1;
+    match *m {
+        M::NoteOn { note, velocity, .. } => tr_args(
+            "canvas-midi-note-on",
+            &[
+                ("note", ac_core::binding::note_name(note).into()),
+                ("velocity", velocity.to_string().into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+        M::NoteOff { note, .. } => tr_args(
+            "canvas-midi-note-off",
+            &[
+                ("note", ac_core::binding::note_name(note).into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+        M::ControlChange {
+            controller, value, ..
+        } => tr_args(
+            "canvas-midi-cc",
+            &[
+                ("controller", controller.to_string().into()),
+                ("value", value.to_string().into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+        M::PitchBend { value, .. } => tr_args(
+            "canvas-midi-bend",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+        M::ChannelPressure { value, .. } | M::PolyPressure { value, .. } => tr_args(
+            "canvas-midi-pressure",
+            &[
+                ("value", value.to_string().into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+        M::ProgramChange { program, .. } => tr_args(
+            "canvas-midi-program",
+            &[
+                ("program", program.to_string().into()),
+                ("channel", ch.to_string().into()),
+            ],
+        ),
+    }
+}
+
+/// A Tuner's reading: the note's name (a dash before any), cents, and
+/// whether the latest reading was clear.
+pub fn tuner_reading(live: &Live, n: &NodeView) -> (String, f32, bool) {
+    use ac_nodes::display::tuner::{
+        TELEMETRY_CENTS, TELEMETRY_CLEAR, TELEMETRY_FREQ, TELEMETRY_NOTE,
+    };
+    let v = |k| live.node_value(n.id, k).unwrap_or(0.0);
+    let name = if v(TELEMETRY_FREQ) > 0.0 {
+        ac_core::binding::note_name(v(TELEMETRY_NOTE).clamp(0.0, 127.0) as u8)
+    } else {
+        "–".to_string()
+    };
+    (name, v(TELEMETRY_CENTS), v(TELEMETRY_CLEAR) > 0.5)
+}
+
 /// How a body looks this frame, from the view's own state.
 #[derive(Clone, Debug, Default)]
 pub struct Look {
@@ -937,6 +1090,16 @@ pub fn paint(
                 };
                 bodies::pads(painter, &rects, z, &down, &lit, over, alpha);
             }
+        }
+        Body::Waveform => {
+            bodies::waveform(painter, rect, z, &wave_view(io, live, n), alpha);
+        }
+        Body::MidiMonitor => {
+            bodies::midi_monitor(painter, rect, z, &monitor_lines(live, n), alpha);
+        }
+        Body::Tuner => {
+            let (note, cents, clear) = tuner_reading(live, n);
+            bodies::tuner(painter, rect, z, &note, cents, clear, alpha);
         }
         Body::Light => {
             let level = live.node_value(n.id, 0).unwrap_or(0.0);
@@ -1224,5 +1387,33 @@ pub fn paint(
             let ch: [MeterChannel; 2] = state.meter(&path, [(r(0), r(0)), (r(1), r(1))], now, dt);
             bodies::audio_out(painter, rect, z, ch, alpha);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_core::MidiMsg;
+
+    #[test]
+    fn midi_messages_read_as_people_name_them() {
+        let on = MidiMsg::NoteOn {
+            channel: 0,
+            note: 60,
+            velocity: 100,
+        };
+        assert_eq!(describe_midi(&on), "C4 on · vel 100 · ch 1");
+        let cc = MidiMsg::ControlChange {
+            channel: 9,
+            controller: 7,
+            value: 64,
+        };
+        assert_eq!(describe_midi(&cc), "CC 7 = 64 · ch 10");
+        let off = MidiMsg::NoteOff {
+            channel: 1,
+            note: 69,
+            velocity: 0,
+        };
+        assert_eq!(describe_midi(&off), "A4 off · ch 2");
     }
 }
