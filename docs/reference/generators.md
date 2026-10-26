@@ -348,6 +348,36 @@ apply in the order stop, start, reset, sync.
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
 
+<a id="sample"></a>
+## Sample
+
+Kind: `sample` · Also found by: file, audio file, wav, buffer, sound, load, drum, one shot
+
+An audio file as a sound to wire: its `buffer` output holds the
+whole file, for a `Sampler`, a `Slicer`, or anything else that
+plays a Buffer.
+
+Assign the file in the side panel (the `file` config, a path
+relative to the project). It's converted to the engine's sample rate
+once, when the project loads, and keeps all its channels. `length`
+is how long it is, in seconds. A missing file gives no sound (the
+Sampler it feeds plays silence) and is flagged in the editor.
+
+A Sample is how a sound gets into a block from outside: a pad or
+keyboard block can take its sound as a Buffer input, so one block
+plays any file.
+
+**Try this:** wire Sample into a `Sampler`'s `buffer` and a pad's
+trigger into the Sampler's `start`; then wire it into a `Slicer`
+too, set to eight slices, and play the slices from a `Pads` grid.
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `buffer` | Buffer | The whole file. |
+| `length` | Float (s) | How long the file is. |
+
 <a id="sampler"></a>
 ## Sampler
 
@@ -372,7 +402,9 @@ mono sound goes to every channel and extra channels are dropped.
 speed, and each semitone above multiplies the speed by 2^(1/12).
 `rate` multiplies on top. Fractional speeds are interpolated (cubic
 Hermite); a buffer recorded at another sample rate still plays at
-its own pitch. `gain` is in decibels (silent at −60 and below).
+its own pitch. `gain` is in decibels (silent at −60 and below), and
+`velocity` (0 to 1, taken at each `start`) scales the note's level,
+so a `Note Split`'s `velocity` wires straight in.
 
 **Region and loop.** `start_point` and `end_point` (0 to 1, fractions
 of the whole sound) mark the part that plays; if `end_point` is
@@ -409,6 +441,7 @@ sampled instrument; or wire a `Record` node's `buffer` here and a
 | `buffer` | Buffer | — |  | Sound to play; unwired, the `file` config plays. |
 | `note` | Float | 60 | 0 … 127 | MIDI note; the `root` note plays at the sound's own pitch. |
 | `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+| `velocity` | Float | 1 | 0 … 1 | How hard the note was played (0–1), taken at each start. |
 | `start_point` | Float | 0 | 0 … 1 | Where playback starts (fraction of the sound). |
 | `end_point` | Float | 1 | 0 … 1 | Where playback ends (fraction of the sound). |
 | `loop_start` | Float | 0 | 0 … 1 | Start of the loop (fraction of the sound). |
@@ -429,6 +462,66 @@ sampled instrument; or wire a `Record` node's `buffer` here and a
 | `position` | Float (s) | Playback position in the sound. |
 | `playing` | Bool | True while running. |
 | `end` | Trigger | Fires on reaching the end or stopping. |
+
+<a id="slicer"></a>
+## Slicer
+
+Kind: `slicer` · Also found by: slice, chop, loop, break, beat, transient, pads, drum loop, cut, sampler
+
+Cuts a sound into slices and plays them one at a time: a drum loop
+becomes a kit on a pad grid.
+
+Wire a sound into `buffer` (a `Sample`, or a `Record` node's take).
+The `mode` config says where the slices are:
+
+- `equal` (the default): `count` slices of the same length;
+- `transients`: a slice at every hit the sound has, as many as
+  `sensitivity` (0 to 1) finds, up to `count`;
+- `markers`: at the `markers` config, fractions of the sound from 0
+  to 1, set by dragging in the Node tab's waveform.
+
+A `trigger` plays slice `slice` (from 0) at `velocity` (0 to 1).
+MIDI notes play slices too: note `low` (config, default 36) is
+slice 0, the next note slice 1, and so on, at the note's velocity,
+so a `Pads` grid plays the slices directly. One slice sounds at a
+time: a new one cuts the last. `rate` sets the speed (and pitch) and
+`gain` the level in dB. `playing` is high while a slice plays,
+`end` fires when one finishes, `slice` says which played last, and
+`slices` how many there are.
+
+The slices are found again when the sound, `count`, or
+`sensitivity` change; finding transients reads the whole sound, so
+it costs a moment the first time.
+
+**Try this:** wire a `Sample` of a drum loop into `buffer`, set
+`count` to 8, and wire a 4 × 2 `Pads` grid's `midi` into `midi`:
+eight pads, each a hit from the loop, played as hard as you hit
+them. Switch `mode` to `transients` for slices that start on each
+hit.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `buffer` | Buffer | — |  | The sound to slice. |
+| `midi` | Midi | — |  | Notes from `low` up play the slices. |
+| `trigger` | Trigger | — |  | Plays slice `slice`. |
+| `slice` | Int | 0 | 0 … 63 | Which slice a trigger plays, from 0. |
+| `velocity` | Float | 1 | 0 … 1 | How hard a trigger plays, 0 to 1. |
+| `count` | Int | 8 | 1 … 64 | Slices (equal), or the most to find (transients). |
+| `sensitivity` | Float | 0.5 | 0 … 1 | How faint a hit still starts a slice (transients). |
+| `rate` | Float (×) | 1 | 0.25 … 4 | Playback speed. |
+| `gain` | Float (dB) | 0 | -60 … 12 | Level in decibels. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out` | Audio | The slice playing. |
+| `slice` | Int | The slice played last, from 0. |
+| `slices` | Int | How many slices there are. |
+| `playing` | Bool | True while a slice plays. |
+| `end` | Trigger | Fires when a slice finishes. |
 
 <a id="transport"></a>
 ## Transport

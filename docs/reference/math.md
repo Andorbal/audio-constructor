@@ -649,6 +649,58 @@ render.
 | --- | --- | --- |
 | `out` | Float | The held random value. |
 
+<a id="route"></a>
+## Route
+
+Kind: `route` · Also found by: demux, demultiplexer, send, distribute, gate, round robin, layer, split, router, pass
+
+Sends its input to one of several outputs, picked by `index`: the
+mirror of Select. Or, in gate mode, passes it while `open` is on.
+
+The `type` config sets what it carries: `trigger` (the default),
+`midi`, `audio`, `buffer`, `float`, `bool`, or `int`. The `outputs`
+config sets how many outputs there are (1 to 64, default 4), named
+`out_0`, `out_1`, ….
+
+`index` picks the output, counting from 0, and wraps around like
+Select's: with four outputs, 4 is `out_0` again and −1 is `out_3`,
+so a `Counter` steps through them for round robin. It's an `Int`, so
+the choice changes at block boundaries. The other outputs carry
+nothing: no triggers or events, silence, no sound, or 0.
+
+- `audio`: a new `index` fades the old output out and the new one in
+  over 5 ms, so it doesn't click.
+- `midi`: a new `index` releases the notes (and sustain pedals) still
+  held on the old output, so nothing hangs there.
+
+**Gate mode** (`mode` config `gate`): one output, `out`, which passes
+`in` while `open` is on, on its exact sample: triggers and MIDI
+events that arrive while it's open, audio faded in and out over
+5 ms, the sound while open at the start of a block, and values
+(else 0). Closing releases held notes.
+
+**Try this:** wire a pad's trigger into `in` and a `Counter` of the
+same trigger into `index`, then `out_0` and `out_1` into two
+Samplers of the same snare: round robin, so a roll never sounds
+like a machine gun. Or give `index` a `Zones` node's `zone` to send
+each hit to the sample for its key or velocity.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `in` | Trigger | — |  | What to send on. |
+| `index` | Int | 0 | 0 … 3 | Which output gets `in` (wraps around). |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `out_0` | Trigger | `in`, while `index` picks it. |
+| `out_1` | Trigger | `in`, while `index` picks it. |
+| `out_2` | Trigger | `in`, while `index` picks it. |
+| `out_3` | Trigger | `in`, while `index` picks it. |
+
 <a id="sample-hold"></a>
 ## Sample & Hold
 
@@ -689,8 +741,8 @@ Passes on one of several inputs, picked by `index`.
 
 The `inputs` config sets how many inputs there are (1 to 64, default
 4), named `in_0`, `in_1`, …, and the `type` config sets what they
-carry: `float` (the default), `audio`, `int`, `bool`, `trigger`, or
-`midi`. `out` has the same type.
+carry: `float` (the default), `audio`, `int`, `bool`, `trigger`,
+`midi`, or `buffer`. `out` has the same type.
 
 `index` picks the input, counting from 0. It wraps around: with four
 inputs, 4 picks `in_0` again and −1 picks `in_3`, so a `Counter`
@@ -706,6 +758,8 @@ an `Int`, so the choice changes at block boundaries.
 - `midi`: passes on the picked input's events. Changing `index`
   releases any notes (and sustain pedals) still held from the old
   input, so nothing hangs.
+- `buffer`: passes on the picked sound (from a `Sample` or a
+  `Record`), so one `Sampler` can play any of several.
 
 **Try this:** set four `Constant`s to note numbers, wire them into
 `in_0`..`in_3`, and drive `index` from a `Counter` counting `Clock`
@@ -780,7 +834,7 @@ Kind: `switch` · Also found by: toggle, choose, either, if, router, bypass, ab
 Passes on `a` while `select` is false and `b` while it is true.
 
 The `type` config sets what `a`, `b`, and `out` carry: `float` (the
-default), `audio`, `int`, `bool`, `trigger`, or `midi`. `select` is
+default), `audio`, `int`, `bool`, `trigger`, `midi`, or `buffer`. `select` is
 a gate read per sample, so a sample-rate gate switches on its exact
 sample.
 
@@ -793,6 +847,7 @@ sample.
   `select` picks at that sample.
 - `midi`: events pass the same way, and flipping `select` releases
   any notes (and sustain pedals) still held from the other input.
+- `buffer`: passes on one sound, read from `select` once per block.
 
 **Try this:** wire a `Toggle` into `select` with `type` `audio` for a
 click-free A/B comparison of a dry and an effected signal, or switch

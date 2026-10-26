@@ -3,7 +3,7 @@ use ac_core::{
 };
 
 use super::finite_or_zero;
-use super::route::{Fader, HeldNotes, RouteType};
+use super::routing::{Fader, HeldNotes, RouteType};
 
 node! {
     kind: "select",
@@ -14,8 +14,8 @@ node! {
     ///
     /// The `inputs` config sets how many inputs there are (1 to 64, default
     /// 4), named `in_0`, `in_1`, …, and the `type` config sets what they
-    /// carry: `float` (the default), `audio`, `int`, `bool`, `trigger`, or
-    /// `midi`. `out` has the same type.
+    /// carry: `float` (the default), `audio`, `int`, `bool`, `trigger`,
+    /// `midi`, or `buffer`. `out` has the same type.
     ///
     /// `index` picks the input, counting from 0. It wraps around: with four
     /// inputs, 4 picks `in_0` again and −1 picks `in_3`, so a `Counter`
@@ -31,6 +31,8 @@ node! {
     /// - `midi`: passes on the picked input's events. Changing `index`
     ///   releases any notes (and sustain pedals) still held from the old
     ///   input, so nothing hangs.
+    /// - `buffer`: passes on the picked sound (from a `Sample` or a
+    ///   `Record`), so one `Sampler` can play any of several.
     ///
     /// **Try this:** set four `Constant`s to note numbers, wire them into
     /// `in_0`..`in_3`, and drive `index` from a `Counter` counting `Clock`
@@ -131,6 +133,10 @@ impl Node for Select {
                     self.held.forward(&mut out, ev);
                 }
             }
+            RouteType::Buffer => {
+                let b = io.inputs.buffer(k);
+                io.outputs.set_buffer(OUT, b);
+            }
         }
         self.last = Some(k);
     }
@@ -170,6 +176,7 @@ mod tests {
             ("bool", SignalType::Bool),
             ("trigger", SignalType::Trigger),
             ("midi", SignalType::Midi),
+            ("buffer", SignalType::Buffer),
             ("bogus", SignalType::Float),
         ] {
             let sig = Select::describe(&json!({ "type": ty, "inputs": 2 }));
@@ -179,6 +186,27 @@ mod tests {
         }
         assert_eq!(Select::describe(&json!({ "inputs": 0 })).inputs.len(), 2);
         assert_eq!(Select::describe(&json!({ "inputs": 500 })).inputs.len(), 65);
+    }
+
+    #[test]
+    fn buffers_pass_the_picked_sound() {
+        let sound = |v: f32| {
+            std::sync::Arc::new(ac_core::AudioData {
+                sample_rate: 48_000,
+                channels: vec![vec![v; 8]],
+            })
+        };
+        let mut h = Harness::new::<Select>(json!({ "type": "buffer", "inputs": 3 }));
+        h.buffer("in_0", sound(0.1))
+            .buffer("in_2", sound(0.3))
+            .set("index", 2);
+        let out = h.run(64);
+        assert_eq!(out.buffer("out").map(|b| b.channels[0][0]), Some(0.3));
+        h.set("index", 1);
+        assert!(
+            h.run(64).buffer("out").is_none(),
+            "an unwired input is no sound"
+        );
     }
 
     #[test]

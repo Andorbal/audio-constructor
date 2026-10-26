@@ -380,6 +380,53 @@ lands in A minor pentatonic.
 | --- | --- | --- |
 | `midi` | Midi | The shifted notes and everything else. |
 
+<a id="note-split"></a>
+## Note Split
+
+Kind: `note_split` · Also found by: drum map, drum, pad, note, split, trigger, gate, velocity, choke, midi to trigger
+
+Splits MIDI into a trigger, a gate, and a velocity for each of a
+list of notes: one node turns a drum pad's or a pattern's notes into
+what each sound needs.
+
+The `notes` config lists the notes, such as `[36, 38, 42, 46]`
+(kick, snare, closed and open hat); without it, `count` notes from
+`low` (default one note, 36). Up to 64. For the note at place *k* in
+the list:
+
+- `trigger_k` fires on its note-on, on that sample;
+- `gate_k` is high from the note-on until its note-off;
+- `velocity_k` is how hard it was played, 0 to 1, from the note-on
+  (wire it into a `Sampler`'s `velocity`);
+- `off_k` fires when the gate ends.
+
+**Choke groups:** the `chokes` config gives each note a group, such
+as `[0, 0, 1, 1]`. A note in a group ends every other note of its
+group (their gates close and their `off` fires), so wiring `off_k`
+into a Sampler's `stop` lets the closed hat cut the open one. Group 0
+chokes nothing. `channel` (config, 1–16; 0, the default, for all)
+picks the MIDI channel to listen to.
+
+**Try this:** wire a `Pads` grid's `midi` into Note Split with
+`notes` `[36, 37, 38, 39]`, and each `trigger_k` and `velocity_k`
+into the `start` and `velocity` of a Sampler: four pads that play
+soft and hard, in two nodes per pad.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to split. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `trigger_0` | Trigger | Fires on this note's note-on. |
+| `gate_0` | Bool | High while this note is held. |
+| `velocity_0` | Float | How hard this note was played, 0 to 1. |
+| `off_0` | Trigger | Fires when this note ends or is choked. |
+
 <a id="note-to-midi"></a>
 ## Note To MIDI
 
@@ -554,6 +601,43 @@ part in key.
 | `out` | Float | The nearest scale note. |
 | `note` | Int | The nearest scale note, per block. |
 
+<a id="velocity"></a>
+## Velocity
+
+Kind: `velocity` · Also found by: dynamics, velocity curve, sensitivity, accent, midi, touch, fixed
+
+Reshapes how hard MIDI notes are played: scale, curve, range, or one
+fixed velocity for every note.
+
+Each note-on's velocity, as 0 to 1, is bent by `curve` (positive
+makes soft playing louder, negative makes it quieter; 0 leaves it),
+multiplied by `scale`, and placed between `min` and `max`. A `fixed`
+above 0 replaces it all with that one velocity. Notes stay at least
+velocity 1, so a soft hit is never taken for a note-off. Note-offs
+and every other message pass unchanged.
+
+**Try this:** put Velocity between a drum pad controller and a
+`Note Split`, with `curve` at 0.5 for pads that feel too stiff, or
+`min` at 0.4 so the softest hit still speaks; set `fixed` to 1 to
+hear every hit at full strength.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `midi` | Midi | — |  | Notes to reshape. |
+| `scale` | Float (×) | 1 | 0 … 2 | Multiplies every velocity. |
+| `curve` | Float | 0 | -1 … 1 | Positive: soft playing louder; negative: quieter. |
+| `min` | Float | 0 | 0 … 1 | The softest velocity out, 0 to 1. |
+| `max` | Float | 1 | 0 … 1 | The hardest velocity out, 0 to 1. |
+| `fixed` | Float | 0 | 0 … 1 | Above 0: every note at this velocity. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `midi` | Midi | The notes, reshaped. |
+
 <a id="voice"></a>
 ## Voice
 
@@ -633,4 +717,44 @@ node, and change the group into a Voices node: play chords.
 | Socket | Type | Default | Range / choices | Description |
 | --- | --- | --- | --- | --- |
 | `midi` | Midi | — |  | Notes to share out among the voices. |
+
+<a id="zones"></a>
+## Zones
+
+Kind: `zones` · Also found by: keymap, key zone, velocity layer, split, layer, multisample, map, range, sampler
+
+Finds which zone of a key and velocity map a note falls in: the
+heart of a keymapped or velocity-layered instrument.
+
+The `zones` config lists the zones, each `[low, high, soft, hard]`:
+the notes from `low` to `high` (MIDI numbers, both included) played
+at a velocity from `soft` to `hard` (0 to 1). Draw them in the Node
+tab's map: drag a zone to move it, its edges to resize it. The
+default is one zone over every note and velocity. Up to 32.
+
+On each `trigger`, the `note` and `velocity` at that sample pick
+the zones they fall in: every one fires its `trigger_k`, and `zone`
+becomes the first of them (−1 when none). With `trigger` unwired,
+`zone` follows `note` and `velocity` all the time.
+
+**Try this:** in a `Voices` body, wire the Voice node's `note`,
+`velocity`, and `trigger` into Zones with two zones, `[0, 59, 0, 1]`
+and `[60, 127, 0, 1]`, and `trigger_0` and `trigger_1` into the
+`start` of two Samplers: a low sound and a high one. Split a zone by
+velocity instead for a soft and a hard layer.
+
+**Inputs**
+
+| Socket | Type | Default | Range / choices | Description |
+| --- | --- | --- | --- | --- |
+| `note` | Float | 60 | 0 … 127 | The note number. |
+| `velocity` | Float | 1 | 0 … 1 | How hard it was played, 0 to 1. |
+| `trigger` | Trigger | — |  | When to look the note up. |
+
+**Outputs**
+
+| Socket | Type | Description |
+| --- | --- | --- |
+| `zone` | Int | The first zone the note falls in, from 0; −1 for none. |
+| `trigger_0` | Trigger | Fires when a triggered note falls in this zone. |
 

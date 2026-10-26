@@ -1,258 +1,385 @@
-//! Shared plumbing for the routing nodes (`Select`, `Switch`): the `type`
-//! config that sets their socket types, a click-free crossfader for audio,
-//! and a held-note tracker that releases notes when a MIDI route changes.
-
 use ac_core::{
-    AudioIn, AudioOut, Config, ConfigExt, MidiEvent, MidiMsg, MidiOut, SocketSpec, Unit,
+    Config, ConfigExt, Io, Node, NodeMeta, PrepareCtx, ProcessCtx, Signature, SocketSpec, node,
 };
 
-/// What a routing node carries, from its `type` config.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RouteType {
-    Float,
-    Audio,
-    Int,
-    Bool,
-    Trigger,
-    Midi,
+use super::finite_or_zero;
+use super::routing::{FADE_SECONDS, HeldNotes, MAX_ROUTES, RouteType};
+
+node! {
+    kind: "route",
+    name: "Route",
+    category: Math,
+    keywords: [
+        "demux", "demultiplexer", "send", "distribute", "gate", "round robin", "layer",
+        "split", "router", "pass"
+    ],
+    /// Sends its input to one of several outputs, picked by `index`: the
+    /// mirror of Select. Or, in gate mode, passes it while `open` is on.
+    ///
+    /// The `type` config sets what it carries: `trigger` (the default),
+    /// `midi`, `audio`, `buffer`, `float`, `bool`, or `int`. The `outputs`
+    /// config sets how many outputs there are (1 to 64, default 4), named
+    /// `out_0`, `out_1`, ….
+    ///
+    /// `index` picks the output, counting from 0, and wraps around like
+    /// Select's: with four outputs, 4 is `out_0` again and −1 is `out_3`,
+    /// so a `Counter` steps through them for round robin. It's an `Int`, so
+    /// the choice changes at block boundaries. The other outputs carry
+    /// nothing: no triggers or events, silence, no sound, or 0.
+    ///
+    /// - `audio`: a new `index` fades the old output out and the new one in
+    ///   over 5 ms, so it doesn't click.
+    /// - `midi`: a new `index` releases the notes (and sustain pedals) still
+    ///   held on the old output, so nothing hangs there.
+    ///
+    /// **Gate mode** (`mode` config `gate`): one output, `out`, which passes
+    /// `in` while `open` is on, on its exact sample: triggers and MIDI
+    /// events that arrive while it's open, audio faded in and out over
+    /// 5 ms, the sound while open at the start of a block, and values
+    /// (else 0). Closing releases held notes.
+    ///
+    /// **Try this:** wire a pad's trigger into `in` and a `Counter` of the
+    /// same trigger into `index`, then `out_0` and `out_1` into two
+    /// Samplers of the same snare: round robin, so a roll never sounds
+    /// like a machine gun. Or give `index` a `Zones` node's `zone` to send
+    /// each hit to the sample for its key or velocity.
+    pub struct Route {
+        ty: RouteType,
+        outputs: usize,
+        gate: bool,
+        /// Per output: the fade gain (audio) and the notes held (MIDI).
+        gains: Vec<f32>,
+        held: Vec<HeldNotes>,
+        step: f32,
+        /// The output picked (or whether open) last block.
+        last: Option<usize>,
+    }
 }
 
-impl RouteType {
-    pub fn from_config(config: &Config) -> RouteType {
-        match config.get_str_or("type", "float") {
-            "audio" => RouteType::Audio,
-            "int" => RouteType::Int,
-            "bool" => RouteType::Bool,
-            "trigger" => RouteType::Trigger,
-            "midi" => RouteType::Midi,
-            // Unknown types fall back to the default rather than failing to load.
-            _ => RouteType::Float,
-        }
-    }
+const IN: usize = 0;
+const CONTROL: usize = 1;
 
-    /// An input socket of this type.
-    pub fn input(self, name: String) -> SocketSpec {
-        match self {
-            RouteType::Float => SocketSpec::float(name, Unit::Generic, 0.0),
-            RouteType::Audio => SocketSpec::audio(name),
-            RouteType::Int => SocketSpec::int(name, 0),
-            RouteType::Bool => SocketSpec::boolean(name, false),
-            RouteType::Trigger => SocketSpec::trigger(name),
-            RouteType::Midi => SocketSpec::midi(name),
-        }
-    }
+fn output_count(config: &Config) -> usize {
+    config.get_u64_or("outputs", 4).clamp(1, MAX_ROUTES as u64) as usize
+}
 
-    /// The `out` socket: Float and Bool follow the fastest input, Audio
-    /// follows the widest input, Int runs at block rate.
-    pub fn output(self) -> SocketSpec {
-        match self {
-            RouteType::Float => SocketSpec::float("out", Unit::Generic, 0.0).poly(),
-            RouteType::Bool => SocketSpec::boolean("out", false).poly(),
-            other => other.input("out".to_string()),
-        }
+fn is_gate(config: &Config) -> bool {
+    config.get_str_or("mode", "index") == "gate"
+}
+
+fn route_type(config: &Config) -> RouteType {
+    match config.get_str_or("type", "trigger") {
+        "trigger" => RouteType::Trigger,
+        _ => RouteType::from_config(config),
     }
 }
 
-/// Crossfade length when an audio route changes.
-pub(crate) const FADE_SECONDS: f64 = 0.005;
-
-/// Most routes a fader handles (`Select` allows 64 inputs).
-pub(crate) const MAX_ROUTES: usize = 64;
-
-/// Equal-gain crossfader over up to [`MAX_ROUTES`] audio inputs. Each
-/// input's gain slews toward 1 while it is the target and toward 0
-/// otherwise, at a rate that crosses fully in [`FADE_SECONDS`], so any
-/// sequence of changes (even mid-fade) stays click-free.
-#[derive(Debug)]
-pub(crate) struct Fader {
-    gains: Vec<f32>,
-    scratch: Vec<f32>,
-    step: f32,
-    primed: bool,
+impl Route {
+    /// Outputs that carry anything this block (one, or none when shut).
+    fn outs(&self) -> usize {
+        if self.gate { 1 } else { self.outputs }
+    }
 }
 
-impl Fader {
-    pub fn new(routes: usize, sample_rate: f64) -> Fader {
-        let n = routes.clamp(1, MAX_ROUTES);
-        let samples = (FADE_SECONDS * sample_rate).max(1.0);
-        Fader {
-            gains: vec![0.0; n],
-            scratch: vec![0.0; n],
+impl Node for Route {
+    fn meta() -> NodeMeta {
+        Self::base_meta()
+    }
+
+    fn describe(config: &Config) -> Signature {
+        let ty = route_type(config);
+        let mut sig = Signature::new().input(ty.input("in".to_string()).doc("What to send on."));
+        if is_gate(config) {
+            sig = sig
+                .input(SocketSpec::boolean("open", true).doc("Passes `in` while on."))
+                .output(ty.output().doc("`in` while `open` is on."));
+        } else {
+            let n = output_count(config);
+            sig = sig.input(
+                SocketSpec::int("index", 0)
+                    .range(0.0, (n - 1) as f64)
+                    .doc("Which output gets `in` (wraps around)."),
+            );
+            for k in 0..n {
+                let mut out = ty.input(format!("out_{k}"));
+                out.rate = ty.output().rate;
+                sig = sig.output(out.doc("`in`, while `index` picks it."));
+            }
+        }
+        sig
+    }
+
+    fn new(config: &Config, ctx: &PrepareCtx) -> Self {
+        let gate = is_gate(config);
+        let outputs = if gate { 1 } else { output_count(config) };
+        let samples = (FADE_SECONDS * ctx.sample_rate).max(1.0);
+        Route {
+            ty: route_type(config),
+            outputs,
+            gate,
+            gains: vec![0.0; outputs],
+            held: vec![HeldNotes::default(); outputs],
             step: (1.0 / samples) as f32,
-            primed: false,
+            last: None,
         }
     }
 
-    /// Forget the current route; the next block starts on its target with
-    /// no fade.
-    pub fn reset(&mut self) {
-        self.primed = false;
-    }
-
-    fn settled_on(&self, t: usize) -> bool {
-        self.gains
-            .iter()
-            .enumerate()
-            .all(|(k, &g)| if k == t { g >= 1.0 } else { g <= 0.0 })
-    }
-
-    /// Write one block: `input(k)` is route `k`, `target(i)` the route
-    /// wanted at frame `i` (only read at frame 0 unless `varying`).
-    pub fn render<'a>(
-        &mut self,
-        out: &mut AudioOut,
-        frames: usize,
-        input: impl Fn(usize) -> AudioIn<'a>,
-        target: impl Fn(usize) -> usize,
-        varying: bool,
-    ) {
-        let n = self.gains.len();
-        let clamp = |t: usize| t.min(n - 1);
-        if !self.primed {
-            self.gains.fill(0.0);
-            self.gains[clamp(target(0))] = 1.0;
-            self.primed = true;
-        }
-        let t0 = clamp(target(0));
-        if !varying && self.settled_on(t0) {
-            let src = input(t0);
-            for c in 0..out.channels() {
-                let dst = out.channel(c);
-                dst.fill(0.0);
-                for (o, s) in dst.iter_mut().zip(src.channel(c)) {
-                    *o = if s.is_finite() { *s } else { 0.0 };
-                }
-            }
-            return;
-        }
-        let step = self.step;
-        for c in 0..out.channels() {
-            let mut srcs: [&[f32]; MAX_ROUTES] = [&[]; MAX_ROUTES];
-            for (k, s) in srcs.iter_mut().enumerate().take(n) {
-                *s = input(k).channel(c);
-            }
-            // Every channel replays the same gain trajectory from the
-            // block's starting gains.
-            self.scratch.copy_from_slice(&self.gains);
-            let dst = out.channel(c);
-            for (i, o) in dst.iter_mut().enumerate().take(frames) {
-                let t = if varying { clamp(target(i)) } else { t0 };
-                let mut acc = 0.0f32;
-                for (k, g) in self.scratch.iter_mut().enumerate() {
-                    if k == t {
-                        *g = (*g + step).min(1.0);
-                    } else if *g > 0.0 {
-                        *g = (*g - step).max(0.0);
-                    }
-                    if *g > 0.0 {
-                        acc += *g * srcs[k].get(i).copied().unwrap_or(0.0);
+    fn process(&mut self, ctx: &ProcessCtx, io: &mut Io) {
+        let frames = ctx.frames;
+        let n = self.outs();
+        let open = io.inputs.boolean(CONTROL);
+        // The output picked, or whether the gate is open, at frame `i`.
+        let picked = if self.gate {
+            None
+        } else {
+            Some(i64::from(io.inputs.int(CONTROL)).rem_euclid(n as i64) as usize)
+        };
+        let on = |k: usize, i: usize| match picked {
+            Some(p) => p == k,
+            None => open.at(i),
+        };
+        match self.ty {
+            RouteType::Trigger => {
+                let events = io.inputs.triggers(IN);
+                for k in 0..n {
+                    let mut out = io.outputs.trigger(k);
+                    for &at in events.iter().filter(|&&at| on(k, at as usize)) {
+                        out.push(at);
                     }
                 }
-                *o = if acc.is_finite() { acc } else { 0.0 };
             }
-        }
-        if out.channels() == 0 {
-            // Nothing to write, but keep time moving.
-            self.scratch.copy_from_slice(&self.gains);
-            for i in 0..frames {
-                let t = if varying { clamp(target(i)) } else { t0 };
-                for (k, g) in self.scratch.iter_mut().enumerate() {
-                    *g = if k == t {
-                        (*g + step).min(1.0)
-                    } else {
-                        (*g - step).max(0.0)
+            RouteType::Midi => {
+                let events = io.inputs.midi(IN);
+                for k in 0..n {
+                    let mut out = io.outputs.midi(k);
+                    let held = &mut self.held[k];
+                    let mut was = match (self.last, picked) {
+                        (Some(l), Some(_)) => l == k,
+                        (Some(l), None) => l == 1,
+                        (None, _) => on(k, 0),
                     };
+                    let mut next = 0;
+                    for i in 0..frames {
+                        let now = on(k, i);
+                        if was && !now {
+                            held.release_all(&mut out, i as u32);
+                        }
+                        was = now;
+                        while let Some(&ev) = events.get(next).filter(|e| e.offset as usize <= i) {
+                            next += 1;
+                            if now {
+                                held.forward(&mut out, ev);
+                            }
+                        }
+                        if picked.is_some() && next >= events.len() && i > 0 {
+                            break;
+                        }
+                    }
+                }
+            }
+            RouteType::Audio => {
+                let input = io.inputs.audio(IN);
+                let primed = self.last.is_some();
+                for k in 0..n {
+                    let mut out = io.outputs.audio(k);
+                    let mut g = if primed {
+                        self.gains[k]
+                    } else if on(k, 0) {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    let start = g;
+                    for c in 0..out.channels() {
+                        g = start;
+                        let src = input.channel(c);
+                        for (i, o) in out.channel(c).iter_mut().enumerate() {
+                            g = if on(k, i) {
+                                (g + self.step).min(1.0)
+                            } else {
+                                (g - self.step).max(0.0)
+                            };
+                            let s = src.get(i).copied().unwrap_or(0.0);
+                            *o = if g > 0.0 { finite_or_zero(s * g) } else { 0.0 };
+                        }
+                    }
+                    if out.channels() == 0 {
+                        for i in 0..frames {
+                            g = if on(k, i) {
+                                (g + self.step).min(1.0)
+                            } else {
+                                (g - self.step).max(0.0)
+                            };
+                        }
+                    }
+                    self.gains[k] = g;
+                }
+            }
+            RouteType::Buffer => {
+                let b = io.inputs.buffer(IN);
+                for k in 0..n {
+                    io.outputs.set_buffer(k, b.filter(|_| on(k, 0)));
+                }
+            }
+            RouteType::Int => {
+                let v = io.inputs.int(IN);
+                for k in 0..n {
+                    io.outputs.set_int(k, if on(k, 0) { v } else { 0 });
+                }
+            }
+            RouteType::Float | RouteType::Bool => {
+                let x = io.inputs.float(IN);
+                let bool = self.ty == RouteType::Bool;
+                for k in 0..n {
+                    io.outputs.float(k).fill_with(|i| {
+                        if !on(k, i) {
+                            0.0
+                        } else if bool {
+                            if x.at(i) > 0.5 { 1.0 } else { 0.0 }
+                        } else {
+                            finite_or_zero(x.at(i))
+                        }
+                    });
                 }
             }
         }
-        self.gains.copy_from_slice(&self.scratch);
+        self.last = match picked {
+            Some(p) => Some(p),
+            None => Some(usize::from(open.at(frames.saturating_sub(1)))),
+        };
+    }
+
+    fn reset(&mut self) {
+        self.gains.fill(0.0);
+        for h in &mut self.held {
+            h.clear();
+        }
+        self.last = None;
     }
 }
 
-/// Notes (and sustain pedals) passed on by a MIDI route and not yet
-/// released, so changing the route can release them instead of leaving
-/// them hanging.
-#[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct HeldNotes {
-    notes: [u128; 16],
-    pedals: u16,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ac_core::testing::Harness;
+    use ac_core::{MidiMsg, SignalType};
+    use serde_json::json;
 
-const SUSTAIN_PEDAL: u8 = 64;
-
-impl HeldNotes {
-    /// Note what `msg` does to the held set.
-    pub fn track(&mut self, msg: &MidiMsg) {
-        match *msg {
-            MidiMsg::NoteOn {
-                channel,
-                note,
-                velocity,
-            } => {
-                let bit = 1u128 << (note & 0x7f);
-                let ch = usize::from(channel & 0x0f);
-                if velocity > 0 {
-                    self.notes[ch] |= bit;
-                } else {
-                    self.notes[ch] &= !bit;
-                }
-            }
-            MidiMsg::NoteOff { channel, note, .. } => {
-                self.notes[usize::from(channel & 0x0f)] &= !(1u128 << (note & 0x7f));
-            }
-            MidiMsg::ControlChange {
-                channel,
-                controller: SUSTAIN_PEDAL,
-                value,
-            } => {
-                let bit = 1u16 << (channel & 0x0f);
-                if value >= 64 {
-                    self.pedals |= bit;
-                } else {
-                    self.pedals &= !bit;
-                }
-            }
-            _ => {}
+    fn on(note: u8) -> MidiMsg {
+        MidiMsg::NoteOn {
+            channel: 0,
+            note,
+            velocity: 100,
         }
     }
 
-    /// Pass `ev` on and track it.
-    pub fn forward(&mut self, out: &mut MidiOut, ev: MidiEvent) {
-        self.track(&ev.msg);
-        out.push(ev);
-    }
-
-    /// Release everything held, at `offset`: pedals up, then note-offs.
-    pub fn release_all(&mut self, out: &mut MidiOut, offset: u32) {
-        for ch in 0..16u8 {
-            if self.pedals & (1 << ch) != 0 {
-                out.push(MidiEvent::new(
-                    offset,
-                    MidiMsg::ControlChange {
-                        channel: ch,
-                        controller: SUSTAIN_PEDAL,
-                        value: 0,
-                    },
-                ));
-            }
-            let mut bits = self.notes[usize::from(ch)];
-            while bits != 0 {
-                let note = bits.trailing_zeros() as u8;
-                bits &= bits - 1;
-                out.push(MidiEvent::new(
-                    offset,
-                    MidiMsg::NoteOff {
-                        channel: ch,
-                        note,
-                        velocity: 0,
-                    },
-                ));
-            }
+    #[test]
+    fn config_sets_type_outputs_and_mode() {
+        let sig = Route::describe(&json!({}));
+        let ins: Vec<_> = sig.inputs.iter().map(|s| s.name.to_string()).collect();
+        assert_eq!(ins, ["in", "index"]);
+        let outs: Vec<_> = sig.outputs.iter().map(|s| s.name.to_string()).collect();
+        assert_eq!(outs, ["out_0", "out_1", "out_2", "out_3"]);
+        assert_eq!(sig.inputs[IN].ty, SignalType::Trigger);
+        for (ty, want) in [
+            ("midi", SignalType::Midi),
+            ("audio", SignalType::Audio),
+            ("buffer", SignalType::Buffer),
+            ("float", SignalType::Float),
+            ("bogus", SignalType::Float),
+        ] {
+            let sig = Route::describe(&json!({ "type": ty, "outputs": 2 }));
+            assert_eq!(sig.outputs.len(), 2, "{ty}");
+            assert_eq!(sig.outputs[1].ty, want, "{ty}");
         }
-        *self = HeldNotes::default();
+        let gate = Route::describe(&json!({ "mode": "gate" }));
+        let ins: Vec<_> = gate.inputs.iter().map(|s| s.name.to_string()).collect();
+        assert_eq!(ins, ["in", "open"]);
+        assert_eq!(gate.outputs.len(), 1);
+        assert_eq!(
+            Route::describe(&json!({ "outputs": 500 })).outputs.len(),
+            64
+        );
     }
 
-    pub fn clear(&mut self) {
-        *self = HeldNotes::default();
+    #[test]
+    fn triggers_go_to_the_picked_output_and_index_wraps() {
+        let mut h = Harness::new::<Route>(json!({ "outputs": 3 }));
+        h.triggers("in", &[4, 9]).set("index", 4);
+        let out = h.run(64);
+        assert_eq!(out.triggers("out_1"), &[4, 9]);
+        assert!(out.triggers("out_0").is_empty() && out.triggers("out_2").is_empty());
+    }
+
+    #[test]
+    fn a_new_index_releases_the_notes_left_on_the_old_output() {
+        let mut h = Harness::new::<Route>(json!({ "type": "midi", "outputs": 2 }));
+        h.midi("in", &[(3, on(60))]);
+        let out = h.run(64);
+        assert_eq!(out.midi("out_0"), &[(3, on(60))]);
+        h.set("index", 1);
+        let out = h.run(64);
+        assert!(matches!(
+            out.midi("out_0"),
+            [(64, MidiMsg::NoteOff { note: 60, .. })]
+        ));
+        assert!(out.midi("out_1").is_empty());
+    }
+
+    #[test]
+    fn audio_fades_between_outputs() {
+        let n = 1_024;
+        let mut h = Harness::new::<Route>(json!({ "type": "audio", "outputs": 2 }));
+        h.set_audio("in", vec![vec![1.0; n]]);
+        let out = h.run(512);
+        assert!(out.audio("out_0")[0].iter().all(|&s| s == 1.0));
+        assert!(out.audio("out_1")[0].iter().all(|&s| s == 0.0));
+        h.set("index", 1);
+        let out = h.run(512);
+        let a = &out.audio("out_0")[0];
+        let b = &out.audio("out_1")[0];
+        // 5 ms at 48 kHz is 240 samples.
+        assert!(a[0] < 1.0 && a[0] > 0.9 && b[0] > 0.0 && b[0] < 0.1);
+        assert_eq!(a[300], 0.0);
+        assert_eq!(b[300], 1.0);
+    }
+
+    #[test]
+    fn gate_mode_passes_while_open() {
+        let mut h = Harness::new::<Route>(json!({ "mode": "gate" }));
+        let open: Vec<f32> = (0..64).map(|i| if i < 32 { 1.0 } else { 0.0 }).collect();
+        h.triggers("in", &[10, 40]).set_samples("open", open);
+        assert_eq!(h.run(64).triggers("out"), &[10]);
+
+        let mut h = Harness::new::<Route>(json!({ "mode": "gate", "type": "midi" }));
+        let open: Vec<f32> = (0..64).map(|i| if i < 20 { 1.0 } else { 0.0 }).collect();
+        h.midi("in", &[(5, on(62)), (30, on(64))])
+            .set_samples("open", open);
+        let out = h.run(64);
+        let notes: Vec<(u64, bool)> = out
+            .midi("out")
+            .iter()
+            .map(|(t, m)| (*t, matches!(m, MidiMsg::NoteOn { .. })))
+            .collect();
+        assert_eq!(notes, vec![(5, true), (20, false)]);
+    }
+
+    #[test]
+    fn buffers_and_values_reach_only_the_picked_output() {
+        let sound = std::sync::Arc::new(ac_core::AudioData {
+            sample_rate: 48_000,
+            channels: vec![vec![0.5; 8]],
+        });
+        let mut h = Harness::new::<Route>(json!({ "type": "buffer", "outputs": 2 }));
+        h.buffer("in", sound).set("index", 1);
+        let out = h.run(64);
+        assert!(out.buffer("out_0").is_none());
+        assert!(out.buffer("out_1").is_some());
+
+        let mut h = Harness::new::<Route>(json!({ "type": "float", "outputs": 2 }));
+        h.set("in", 7.0).set("index", 0);
+        let out = h.run(8);
+        assert_eq!(out.float("out_0")[0], 7.0);
+        assert_eq!(out.float("out_1")[0], 0.0);
     }
 }

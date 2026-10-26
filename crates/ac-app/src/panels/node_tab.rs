@@ -75,7 +75,7 @@ const FFT_SIZES: &[&str] = &["256", "512", "1024", "2048", "4096", "8192", "1638
 const WINDOWS: &[&str] = &["hann", "hamming", "blackman", "rectangular"];
 
 /// Signal types `Select` and `Switch` route.
-const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi"];
+const ROUTE_TYPES: &[&str] = &["float", "audio", "int", "bool", "trigger", "midi", "buffer"];
 
 const UNITS: &[&str] = &[
     "generic",
