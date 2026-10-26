@@ -2894,13 +2894,19 @@ impl EditorApp {
                     self.say(tr("status-only-controls-pin"), now);
                     return;
                 }
+                let registry = self.registry.clone();
+                let defs = self.doc.project.group_defs.clone();
+                let columns = self.perform.place_columns();
                 let (index, added, name) =
                     self.doc.edit_panels(&tr("undo-pin-to-panel"), |panels, g| {
                         let index = match panel {
                             Some(i) if i < panels.len() => i,
                             _ => pins::add_panel(panels, ""),
                         };
-                        let added = pins::pin(panels, g, index, &nodes);
+                        let size = |it: &ac_core::PanelItem| {
+                            crate::perform::item_size(&registry, g, &defs, it)
+                        };
+                        let added = pins::pin_placed(panels, g, index, &nodes, &size, columns);
                         let name = panels.get(index).map_or(String::new(), |p| p.name.clone());
                         (index, added, name)
                     });
@@ -2918,6 +2924,79 @@ impl EditorApp {
                         tr_args("status-already-pinned", &[("panel", name.into())]),
                         now,
                     );
+                }
+            }
+            PinRequest::Strip { nodes, panel } => {
+                let registry = self.registry.clone();
+                let defs = self.doc.project.group_defs.clone();
+                let columns = self.perform.place_columns();
+                let name = nodes
+                    .first()
+                    .and_then(|id| self.doc.project.graph.node(*id))
+                    .and_then(|n| n.ui.label.clone())
+                    .unwrap_or_else(|| tr("perform-new-strip"));
+                // No panel named: the one the panel view shows, or a new one.
+                let current = self.perform.current;
+                let made = self.doc.edit_panels(&tr("undo-make-strip"), |panels, g| {
+                    let index = match panel.or(Some(current)) {
+                        Some(i) if i < panels.len() => i,
+                        _ => pins::add_panel(panels, ""),
+                    };
+                    let size = |it: &ac_core::PanelItem| {
+                        crate::perform::item_size(&registry, g, &defs, it)
+                    };
+                    pins::pin_strip(panels, g, index, &nodes, &name, &size, columns).map(|_| index)
+                });
+                match made {
+                    Some(index) => {
+                        self.perform.current = index;
+                        self.say(
+                            tr_args("status-pinned-strip", &[("name", name.into())]),
+                            now,
+                        );
+                    }
+                    None => self.say(tr("status-only-controls-pin"), now),
+                }
+            }
+            PinRequest::FromSelection { nodes, kind } => {
+                let words = crate::edit::generate::Words {
+                    mixer: tr("perform-mixer"),
+                    pads: tr("perform-pads"),
+                    grid: tr("perform-grid"),
+                    tracks: tr("perform-tracks"),
+                    track: |n| tr_args("perform-track-n", &[("n", n.into())]),
+                    scene: |n| tr_args("perform-scene-n", &[("n", n.into())]),
+                };
+                use crate::edit::generate;
+                use crate::perform::Generated;
+                let label = match kind {
+                    Generated::Mixer => tr("undo-mixer-from-selection"),
+                    Generated::Pads => tr("undo-pads-from-selection"),
+                    Generated::Grid => tr("undo-grid-from-selection"),
+                };
+                let registry = self.registry.clone();
+                let made =
+                    self.doc
+                        .edit_with_panels(&registry, &label, |g, ctx, panels| match kind {
+                            Generated::Mixer => generate::mixer(g, panels, &nodes, &words),
+                            Generated::Pads => generate::pads(g, ctx, panels, &nodes, &words),
+                            Generated::Grid => {
+                                generate::launch_grid(g, ctx, panels, &nodes, &words)
+                            }
+                        });
+                match made {
+                    Some(m) => {
+                        self.perform.current = m.panel;
+                        self.set_view(true);
+                        let name = self
+                            .doc
+                            .project
+                            .panels
+                            .get(m.panel)
+                            .map_or(String::new(), |p| p.name.clone());
+                        self.say(tr_args("status-panel-made", &[("panel", name.into())]), now);
+                    }
+                    None => self.say(tr("status-nothing-for-panel"), now),
                 }
             }
             PinRequest::Unpin { nodes, panel } => {

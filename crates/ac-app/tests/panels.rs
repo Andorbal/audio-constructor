@@ -505,12 +505,18 @@ fn cards_move_resize_and_unpin_on_the_panel() {
             .cloned()
             .expect("the card is drawn")
     };
-    // Drag the knob's card by its header onto the readout's card.
+    // Drag the knob's card by its header onto the readout's card: they
+    // swap places, and the panel keeps places from then on (D202).
     let from = cell(&h, 1).header.center();
     let to = cell(&h, 3).rect.center();
+    let (knob_was, readout_was) = (cell(&h, 1).rect.min, cell(&h, 3).rect.min);
     drag(&mut h, from, to);
-    assert_eq!(pinned(&h, 0), vec![NodeId(2), NodeId(3), NodeId(1)]);
+    assert_eq!(pinned(&h, 0), vec![NodeId(1), NodeId(2), NodeId(3)]);
     assert_eq!(h.state().document().undo_label(), Some("Move on panel"));
+    assert_eq!(cell(&h, 1).rect.min, readout_was);
+    assert_eq!(cell(&h, 3).rect.min, knob_was);
+    let items = &h.state().document().project.panels[0].items;
+    assert!(items.iter().all(|i| i.at.is_some()));
     // + makes the toggle's card wider; − puts it back.
     let wide = cell(&h, 2).rect.width();
     let [_, grow, _] = cell(&h, 2)
@@ -519,16 +525,16 @@ fn cards_move_resize_and_unpin_on_the_panel() {
     click(&mut h, grow.center());
     assert!(cell(&h, 2).rect.width() > wide * 1.5);
     assert_eq!(
-        h.state().document().project.panels[0].items[0].size,
+        h.state().document().project.panels[0].items[1].size,
         Some([2, 1])
     );
     let [shrink, _, _] = cell(&h, 2).buttons.unwrap();
     click(&mut h, shrink.center());
-    assert_eq!(h.state().document().project.panels[0].items[0].size, None);
+    assert_eq!(h.state().document().project.panels[0].items[1].size, None);
     // × unpins; the node stays in the patch.
     let [_, _, unpin] = cell(&h, 3).buttons.unwrap();
     click(&mut h, unpin.center());
-    assert_eq!(pinned(&h, 0), vec![NodeId(2), NodeId(1)]);
+    assert_eq!(pinned(&h, 0), vec![NodeId(1), NodeId(2)]);
     assert_eq!(h.state().document().project.graph.nodes.len(), 3);
     // Each was one step: undo them all, back to the start.
     for _ in 0..4 {

@@ -15,6 +15,10 @@ node! {
     /// can also be wired, which turns any gate into press and release
     /// triggers. Both triggers land on the exact sample `pressed` changes.
     ///
+    /// `lit` lights the button, on the canvas and on a panel, without
+    /// pressing it: wire a pattern's gate or a clip's `playing` into it so
+    /// the button shows what's playing.
+    ///
     /// **Try this:** wire `gate` into an `ADSR` to sound a note for as long
     /// as the button is held, or wire `trigger` into a `Clip`'s `start` to
     /// fire a sample.
@@ -25,6 +29,10 @@ node! {
 }
 
 const PRESSED: usize = 0;
+const LIT: usize = 1;
+
+/// Telemetry: 1 while `lit` was high in the last block.
+pub const TELEMETRY_LIT: usize = 0;
 
 const TRIGGER: usize = 0;
 const GATE: usize = 1;
@@ -56,12 +64,13 @@ pub(crate) fn for_each_edge(
 
 impl Node for Button {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(1)
     }
 
     fn describe(_: &Config) -> Signature {
         Signature::new()
             .input(SocketSpec::boolean("pressed", false).doc("True while the button is held."))
+            .input(SocketSpec::boolean("lit", false).doc("Lights the button without pressing it."))
             .output(SocketSpec::trigger("trigger").doc("Fires when the button goes down."))
             .output(SocketSpec::boolean("gate", false).doc("High while the button is held."))
             .output(SocketSpec::trigger("release").doc("Fires when the button comes up."))
@@ -87,6 +96,8 @@ impl Node for Button {
                 release.push(i);
             }
         });
+        let lit = super::lit_level(io.inputs.boolean(LIT), ctx.frames);
+        io.telemetry.set(TELEMETRY_LIT, lit);
     }
 
     fn reset(&mut self) {

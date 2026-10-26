@@ -61,7 +61,7 @@ pub use node::{
     AudioData, Category, Causality, Determinism, EngineInfo, FileRequest, NoResources, Node,
     NodeMeta, Phase, PrepareCtx, ProcessCtx, RecordRequest, RecordSink, Resources,
 };
-pub use panel::{Panel, PanelItem};
+pub use panel::{Panel, PanelItem, PanelLabel, Strip};
 pub use param::{param_text, param_value};
 pub use plugin::{
     MidiSink, NO_PLUGIN_HOST, PLUGIN_KIND, PluginBlock, PluginDesc, PluginEvent, PluginFormat,

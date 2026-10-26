@@ -43,6 +43,10 @@ pub enum Body {
     Clip,
     Record,
     AudioOut,
+    Light,
+    Fader,
+    Pad,
+    Pads,
 }
 
 impl Body {
@@ -64,6 +68,10 @@ impl Body {
             "clip" => Body::Clip,
             "record" => Body::Record,
             "audio_out" => Body::AudioOut,
+            "light" => Body::Light,
+            "fader" => Body::Fader,
+            "pad" => Body::Pad,
+            "pads" => Body::Pads,
             _ => return None,
         })
     }
@@ -87,6 +95,10 @@ impl Body {
             Body::Clip => 24.0,
             Body::Record => 26.0,
             Body::AudioOut => 16.0,
+            Body::Light => 24.0,
+            Body::Fader => 150.0,
+            Body::Pad => 64.0,
+            Body::Pads => 150.0,
         }
     }
 
@@ -95,8 +107,13 @@ impl Body {
     /// and `y` keep their fields for typing exact values.)
     pub fn controls(self) -> &'static [&'static str] {
         match self {
-            Body::Button => &["pressed"],
-            Body::Toggle | Body::Slider | Body::Knob | Body::Number | Body::Dropdown => &["value"],
+            Body::Button | Body::Pad => &["pressed"],
+            Body::Toggle
+            | Body::Slider
+            | Body::Knob
+            | Body::Number
+            | Body::Dropdown
+            | Body::Fader => &["value"],
             Body::XyPad => &["touched"],
             _ => &[],
         }

@@ -876,7 +876,13 @@ impl Canvas {
 /// panel it isn't on, or to a new one, and unpin it from the ones it is.
 /// Returns true when one was chosen.
 fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -> bool {
-    if n.body.is_none() {
+    let pinnable = io.doc.graph().node(n.id).is_some_and(edit::pins::pinnable);
+    let generates = io
+        .doc
+        .graph()
+        .node(n.id)
+        .is_some_and(|x| matches!(x.kind.as_str(), "sampler" | "clip"));
+    if !pinnable && !generates {
         return false;
     }
     ui.separator();
@@ -928,8 +934,46 @@ fn pin_items(ui: &mut egui::Ui, io: &mut CanvasIo, n: &super::scene::NodeView) -
             return true;
         }
     }
-    if item(ui, icons::PUSH_PIN, &tr("canvas-pin-to-new"), None) {
+    if pinnable && item(ui, icons::PUSH_PIN, &tr("canvas-pin-to-new"), None) {
         io.events.push(CanvasEvent::Pin(pin(None)));
+        return true;
+    }
+    if pinnable && item(ui, icons::SQUARES_FOUR, &tr("canvas-pin-as-strip"), None) {
+        io.events
+            .push(CanvasEvent::Pin(crate::perform::PinRequest::Strip {
+                nodes: nodes.clone(),
+                panel: None,
+            }));
+        return true;
+    }
+    let mut made = None;
+    ui.menu_button(
+        format!(
+            "{}  {}",
+            icons::SQUARES_FOUR,
+            tr("canvas-panel-from-selection")
+        ),
+        |ui| {
+            use crate::perform::Generated;
+            for (kind, label) in [
+                (Generated::Mixer, tr("canvas-mixer-from-selection")),
+                (Generated::Pads, tr("canvas-pads-from-selection")),
+                (Generated::Grid, tr("canvas-grid-from-selection")),
+            ] {
+                if ui.button(label).clicked() {
+                    made = Some(kind);
+                    ui.close();
+                }
+            }
+        },
+    );
+    if let Some(kind) = made {
+        io.events.push(CanvasEvent::Pin(
+            crate::perform::PinRequest::FromSelection {
+                nodes: nodes.clone(),
+                kind,
+            },
+        ));
         return true;
     }
     for (i, name, on) in &panels {

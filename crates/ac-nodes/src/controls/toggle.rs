@@ -15,6 +15,9 @@ node! {
     /// switch follows it again, whatever `flip` did before. Right-click
     /// `value` to bind it to a key or a MIDI control.
     ///
+    /// `lit` lights the switch, whichever way it's set: wire a clip's
+    /// `playing` into it so a mute switch also shows its track is sounding.
+    ///
     /// **Try this:** wire a `Button`'s `trigger` into `flip` for a latching
     /// footswitch, or multiply a signal by `out` with a `Math` node to
     /// switch it on and off.
@@ -27,6 +30,10 @@ node! {
 
 const VALUE: usize = 0;
 const FLIP: usize = 1;
+const LIT: usize = 2;
+
+/// Telemetry: 1 while `lit` was high in the last block.
+pub const TELEMETRY_LIT: usize = 0;
 
 const OUT: usize = 0;
 
@@ -41,13 +48,16 @@ impl Toggle {
 
 impl Node for Toggle {
     fn meta() -> NodeMeta {
-        Self::base_meta()
+        Self::base_meta().telemetry(1)
     }
 
     fn describe(_: &Config) -> Signature {
         Signature::new()
             .input(SocketSpec::boolean("value", false).doc("Sets the switch."))
             .input(SocketSpec::trigger("flip").doc("Turns the switch over."))
+            .input(
+                SocketSpec::boolean("lit", false).doc("Lights the switch, whichever way it's set."),
+            )
             .output(
                 SocketSpec::boolean("out", false)
                     .rate(Rate::Block)
@@ -85,6 +95,8 @@ impl Node for Toggle {
             }
         }
         io.outputs.set_bool(OUT, self.state);
+        let lit = super::lit_level(io.inputs.boolean(LIT), ctx.frames);
+        io.telemetry.set(TELEMETRY_LIT, lit);
     }
 
     fn reset(&mut self) {

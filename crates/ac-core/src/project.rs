@@ -556,8 +556,8 @@ mod tests {
         let mut live = Panel::new("Live");
         live.items.push(PanelItem::new(NodeId(1)));
         live.items.push(PanelItem {
-            node: NodeId(2),
             size: Some([3, 2]),
+            ..PanelItem::new(NodeId(2))
         });
         p.panels = vec![live, Panel::new("Mixer")];
         let text = p.to_json();

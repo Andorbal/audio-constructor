@@ -1,12 +1,15 @@
 //! controls nodes.
 
-use ac_core::{Config, ConfigExt, Io, Registry, Signature, SocketSpec, Unit};
+use ac_core::{BoolIn, Config, ConfigExt, Io, Registry, Signature, SocketSpec, Unit};
 
 pub mod button;
 pub mod dropdown;
+pub mod fader;
 pub mod keyboard;
 pub mod knob;
 pub mod number;
+pub mod pad;
+pub mod pads;
 pub mod slider;
 pub mod toggle;
 pub mod xy_pad;
@@ -21,6 +24,20 @@ pub fn register(r: &mut Registry) {
     r.register::<keyboard::Keyboard>();
     r.register::<number::Number>();
     r.register::<dropdown::Dropdown>();
+    r.register::<fader::Fader>();
+    r.register::<pad::Pad>();
+    r.register::<pads::Pads>();
+}
+
+/// 1 if a `lit` input was high anywhere in the block, so a light catches a
+/// gate shorter than a frame of the screen.
+pub(crate) fn lit_level(lit: BoolIn, frames: usize) -> f32 {
+    let n = if lit.is_varying() {
+        frames
+    } else {
+        frames.min(1)
+    };
+    if (0..n).any(|i| lit.at(i)) { 1.0 } else { 0.0 }
 }
 
 /// A range from two config keys, repaired (DECISIONS D29): missing or

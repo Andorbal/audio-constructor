@@ -330,6 +330,36 @@ impl Document {
     }
 
     /// Apply a change to the whole project (settings, defs) as one undo step.
+    /// Edit the current graph and the panels together, as one undo step:
+    /// nodes added for a panel and the panel that plays them (D204).
+    pub fn edit_with_panels<R>(
+        &mut self,
+        registry: &Registry,
+        label: &str,
+        f: impl FnOnce(&mut Graph, &mut Ctx, &mut Vec<ac_core::Panel>) -> R,
+    ) -> R {
+        let before = self.snapshot(label);
+        let scope = self.current_def().cloned();
+        let mut panels = std::mem::take(&mut self.project.panels);
+        let r = edit::edit_scope(
+            &mut self.project,
+            scope.as_ref(),
+            registry,
+            &mut self.ids,
+            |g, ctx| f(g, ctx, &mut panels),
+        );
+        self.project.panels = panels;
+        edit::group::prune_instance_wires(&mut self.project);
+        self.project.prune_panels();
+        crate::bindings::follow_edit(&before.project, &mut self.project);
+        if self.project != before.project {
+            self.history.push(before, None, 0.0);
+            self.changed(true);
+        }
+        self.fix_scope();
+        r
+    }
+
     pub fn edit_project<R>(&mut self, label: &str, f: impl FnOnce(&mut Project) -> R) -> R {
         let before = self.snapshot(label);
         let r = f(&mut self.project);

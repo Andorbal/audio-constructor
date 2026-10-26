@@ -206,9 +206,15 @@ impl PerformView {
             return;
         };
         match ask {
-            Ask::Shrink => return self.click(io, scene, PanelHit::Shrink(i)),
-            Ask::Grow => return self.click(io, scene, PanelHit::Grow(i)),
-            Ask::Unpin => return self.click(io, scene, PanelHit::Unpin(i)),
+            Ask::Shrink => {
+                return self.click(io, scene, PanelHit::Shrink(i), Default::default(), now);
+            }
+            Ask::Grow => {
+                return self.click(io, scene, PanelHit::Grow(i), Default::default(), now);
+            }
+            Ask::Unpin => {
+                return self.click(io, scene, PanelHit::Unpin(i), Default::default(), now);
+            }
             _ => {}
         }
         let Some((body, rect)) = c.body else {
@@ -248,20 +254,20 @@ impl PerformView {
                 crate::params::set(io.doc, io.engine, n.id, "value", value, now);
             }
             Ask::Hold => {
-                if body == Body::Button && self.key_hold.is_none() {
+                if matches!(body, Body::Button | Body::Pad) && self.key_hold.is_none() {
                     self.controls.press(io, n, rect, rect.center(), now);
                     self.key_hold = Some(n.id);
-                } else if body != Body::Button {
+                } else if !matches!(body, Body::Button | Body::Pad) {
                     self.answer(io, scene, i, Ask::Activate, now);
                 }
             }
             Ask::Activate => match body {
                 // A press from the keyboard or a screen reader is a tap.
-                Body::Button => {
+                Body::Button | Body::Pad => {
                     self.controls.press(io, n, rect, rect.center(), now);
                     self.controls.release(io, now);
                 }
-                Body::Knob | Body::Slider | Body::Number => {
+                Body::Knob | Body::Slider | Body::Number | Body::Fader => {
                     if let Some((spec, v)) = free_number(io, n) {
                         self.edit = Some(ValueEdit {
                             node: n.id,
@@ -274,7 +280,9 @@ impl PerformView {
                     }
                 }
                 _ => match controls::click(io, n) {
-                    Click::Choose => self.choice = Some((n.id, rect.left_bottom())),
+                    Click::Choose => {
+                        self.choice = Some((n.id, "value".into(), rect.left_bottom()));
+                    }
                     Click::Type { spec, text } => {
                         self.edit = Some(ValueEdit {
                             node: n.id,
@@ -366,7 +374,7 @@ fn speak(io: &CanvasIo, live: &Live, meters: &LiveState, n: &NodeView) -> Spoken
     };
     let path = live.path(n.id);
     match body {
-        Body::Knob | Body::Slider | Body::Number => {
+        Body::Knob | Body::Slider | Body::Number | Body::Fader => {
             s.role = if body == Body::Number {
                 Role::SpinButton
             } else {
@@ -403,9 +411,20 @@ fn speak(io: &CanvasIo, live: &Live, meters: &LiveState, n: &NodeView) -> Spoken
             s.toggled = Some(on);
             s.presses = true;
         }
-        Body::Button => {
+        Body::Button | Body::Pad => {
             s.role = Role::Button;
             s.presses = true;
+            if live.node_value(n.id, 0).is_some_and(|v| v > 0.5) {
+                s.value = Some(tr("a11y-lit"));
+            }
+        }
+        Body::Light => {
+            s.role = Role::Status;
+            s.value = Some(if live.node_value(n.id, 0).unwrap_or(0.0) > 0.5 {
+                tr("a11y-light-on")
+            } else {
+                tr("a11y-light-off")
+            });
         }
         Body::Dropdown => {
             s.role = Role::ComboBox;
@@ -451,7 +470,7 @@ fn speak(io: &CanvasIo, live: &Live, meters: &LiveState, n: &NodeView) -> Spoken
             });
         }
         // Played with the pointer (or Play keys for a Keyboard).
-        Body::XyPad | Body::Keyboard => {}
+        Body::XyPad | Body::Keyboard | Body::Pads => {}
     }
     s
 }

@@ -10,6 +10,7 @@
 
 pub mod align;
 pub mod connect;
+pub mod generate;
 pub mod group;
 pub mod layout;
 pub mod pins;

@@ -56,6 +56,13 @@ pub enum ControlGesture {
         since: f64,
         touch: bool,
     },
+    /// A drum Pad (`pressed`) or one pad of a Pads grid (`pad_k`) held
+    /// down; on a grid, sliding onto another pad plays that one instead.
+    HoldDrum {
+        node: NodeId,
+        socket: String,
+        since: f64,
+    },
 }
 
 impl ControlGesture {
@@ -65,7 +72,8 @@ impl ControlGesture {
             ControlGesture::DragValue { node, .. }
             | ControlGesture::HoldButton { node, .. }
             | ControlGesture::HoldKey { node, .. }
-            | ControlGesture::HoldPad { node, .. } => *node,
+            | ControlGesture::HoldPad { node, .. }
+            | ControlGesture::HoldDrum { node, .. } => *node,
         }
     }
 
@@ -81,6 +89,11 @@ impl ControlGesture {
                 since,
                 touch: true,
             } => Some((*node, "touched".into(), *since)),
+            ControlGesture::HoldDrum {
+                node,
+                socket,
+                since,
+            } => Some((*node, socket.clone(), *since)),
             _ => None,
         }
     }
@@ -137,12 +150,15 @@ impl Controls {
             if *n == node && socket.is_none_or(|x| x == s))
     }
 
-    /// The node a held Keyboard or XY Pad follows the pointer on.
+    /// The node a held Keyboard, XY Pad, or Pads grid follows the pointer
+    /// on.
     pub fn following(&self) -> Option<NodeId> {
         match &self.active {
-            Some(ControlGesture::HoldKey { node, .. } | ControlGesture::HoldPad { node, .. }) => {
-                Some(*node)
-            }
+            Some(
+                ControlGesture::HoldKey { node, .. }
+                | ControlGesture::HoldPad { node, .. }
+                | ControlGesture::HoldDrum { node, .. },
+            ) => Some(*node),
             _ => None,
         }
     }
@@ -201,6 +217,30 @@ impl Controls {
                     });
                 }
             }
+            Body::Pad => {
+                if n.socket("pressed", true).is_some_and(|s| s.wired) {
+                    return;
+                }
+                set_hit(io, node, hit_velocity(rect, pointer));
+                self.hold_down(io, node, "pressed");
+                self.active = Some(ControlGesture::HoldDrum {
+                    node,
+                    socket: "pressed".into(),
+                    since: now,
+                });
+            }
+            Body::Pads => {
+                if let Some((k, r)) = drum_pad_under(io, node, rect, pointer) {
+                    let socket = pad_socket(k);
+                    set_hit(io, node, hit_velocity(r, pointer));
+                    self.hold_down(io, node, &socket);
+                    self.active = Some(ControlGesture::HoldDrum {
+                        node,
+                        socket,
+                        since: now,
+                    });
+                }
+            }
             Body::XyPad => {
                 let touch = n.socket("touched", true).is_some_and(|s| !s.wired);
                 let values = pad_values(n, rect, pointer);
@@ -245,6 +285,26 @@ impl Controls {
                 let values = pad_values(n, rect, p);
                 crate::params::set_many(io.doc, io.engine, node, &values, now);
             }
+            Some(ControlGesture::HoldDrum {
+                node,
+                socket,
+                since,
+            }) if node == n.id && socket != "pressed" => {
+                let Some((k, r)) = drum_pad_under(io, node, rect, p) else {
+                    return;
+                };
+                let next = pad_socket(k);
+                if next != socket {
+                    self.let_go(io, node, socket, since, now);
+                    set_hit(io, node, hit_velocity(r, p));
+                    self.hold_down(io, node, &next);
+                    self.active = Some(ControlGesture::HoldDrum {
+                        node,
+                        socket: next,
+                        since: now,
+                    });
+                }
+            }
             _ => {}
         }
     }
@@ -253,7 +313,11 @@ impl Controls {
     pub fn release(&mut self, io: &mut CanvasIo, now: f64) {
         let pad = match self.active {
             Some(ControlGesture::HoldPad { .. }) => true,
-            Some(ControlGesture::HoldButton { .. } | ControlGesture::HoldKey { .. }) => false,
+            Some(
+                ControlGesture::HoldButton { .. }
+                | ControlGesture::HoldKey { .. }
+                | ControlGesture::HoldDrum { .. },
+            ) => false,
             _ => return,
         };
         if let Some((node, socket, since)) = self.active.as_ref().and_then(ControlGesture::held) {
@@ -302,6 +366,21 @@ impl Controls {
                 }
                 Grab::Control
             }
+            // A fader jumps to where it was grabbed, then drags up and
+            // down over its height.
+            Some(Body::Fader) => match free("value") {
+                Some(spec) => {
+                    let travel = rect.height().max(1.0);
+                    let tpos = ((rect.max.y - origin.y) / travel).clamp(0.0, 1.0);
+                    let lo = spec.range.map_or(0.0, |r| r.0);
+                    let start = widgets::dragged(lo, tpos * travel, travel, &spec, false, false);
+                    crate::params::set(io.doc, io.engine, node, "value", Value::Float(start), now);
+                    self.begin_value_drag(node, "value", spec, start, origin, travel, true);
+                    Grab::Control
+                }
+                None => Grab::Other,
+            },
+            Some(Body::Pad | Body::Pads) => Grab::Nothing,
             // Knobs turn with an up-and-down drag; number fields drag
             // sideways like inline fields.
             Some(b @ (Body::Knob | Body::Number)) => {
@@ -468,7 +547,7 @@ pub fn click(io: &mut CanvasIo, n: &NodeView) -> Click {
             Click::Done
         }
         // Pressing played them already.
-        Some(Body::Button | Body::Keyboard | Body::XyPad) => Click::Done,
+        Some(Body::Button | Body::Keyboard | Body::XyPad | Body::Pad | Body::Pads) => Click::Done,
         Some(Body::Dropdown) if free("value").is_some() => Click::Choose,
         // The number itself is the field: click to type.
         Some(Body::Number) => match (free("value"), io.shown_node(node)) {
@@ -487,7 +566,7 @@ pub fn click(io: &mut CanvasIo, n: &NodeView) -> Click {
 pub fn double_click(io: &mut CanvasIo, n: &NodeView, now: f64) -> Click {
     let node = n.id;
     match n.body.map(|b| b.0) {
-        Some(Body::Knob) => {
+        Some(Body::Knob | Body::Fader) => {
             if let Some(s) = n.socket("value", true).filter(|s| !s.wired)
                 && let Some(spec) = &s.spec
             {
@@ -701,6 +780,35 @@ fn key_under(io: &CanvasIo, node: NodeId, r: Rect, p: Pos2) -> Option<usize> {
     piano::key_at(&piano::keys(low, keys, r), p)
 }
 
+/// A drum pad's hidden `pad_k` input.
+pub fn pad_socket(k: usize) -> String {
+    format!("pad_{k}")
+}
+
+/// How hard a pad drawn in `r` is hit at `p`: harder towards its top, from
+/// a soft 0.2 at the bottom edge to full at the top.
+pub fn hit_velocity(r: Rect, p: Pos2) -> f64 {
+    let t = ((r.max.y - p.y) / r.height().max(1.0)).clamp(0.0, 1.0);
+    0.2 + 0.8 * f64::from(t)
+}
+
+/// The hit velocity goes to the engine with the press, like the press
+/// itself: playing a pad is no edit.
+fn set_hit(io: &mut CanvasIo, node: NodeId, v: f64) {
+    crate::params::momentary(io.doc, io.engine, node, "hit", Value::Float(v));
+}
+
+/// The pad of the Pads grid drawn in `r` under screen point `p`, and its
+/// rectangle.
+fn drum_pad_under(io: &CanvasIo, node: NodeId, r: Rect, p: Pos2) -> Option<(usize, Rect)> {
+    let inst = io.doc.graph().node(node)?;
+    let (rows, cols) = ac_nodes::controls::pads::shape(&inst.config);
+    bodies::pad_rects(r, rows, cols)
+        .into_iter()
+        .enumerate()
+        .find(|(_, pr)| pr.contains(p))
+}
+
 /// The XY Pad's unwired `x` and `y` for screen point `p` on the pad drawn
 /// in `r` (clamped to the pad; y grows upwards).
 fn pad_values(n: &NodeView, r: Rect, p: Pos2) -> Vec<(&'static str, Value)> {
@@ -802,7 +910,68 @@ pub fn paint(
                     .tele
                     .socket_value(&path, "gate")
                     .is_some_and(|v| v > 0.5);
-            bodies::button(painter, rect, z, down, hovered, alpha);
+            let lit = live.node_value(n.id, 0).is_some_and(|v| v > 0.5);
+            bodies::button(painter, rect, z, down, lit, hovered, alpha);
+        }
+        Body::Pad => {
+            let down = held("pressed")
+                || live
+                    .tele
+                    .socket_value(&path, "gate")
+                    .is_some_and(|v| v > 0.5);
+            let lit = live.node_value(n.id, 0).is_some_and(|v| v > 0.5);
+            let velocity = live.node_value(n.id, 1).unwrap_or(0.0);
+            bodies::pad(painter, rect, z, down, lit, velocity, hovered, alpha);
+        }
+        Body::Pads => {
+            if let Some(node) = shown.as_ref() {
+                let (rows, cols) = ac_nodes::controls::pads::shape(&node.config);
+                let rects = bodies::pad_rects(rect, rows, cols);
+                let down: Vec<bool> = (0..rects.len()).map(|k| held(&pad_socket(k))).collect();
+                let lit: Vec<bool> = (0..rects.len())
+                    .map(|k| live.node_value(n.id, k).is_some_and(|v| v > 0.5))
+                    .collect();
+                let over = match (hovered, look.pointer) {
+                    (true, Some(p)) => rects.iter().position(|r| r.contains(p)),
+                    _ => None,
+                };
+                bodies::pads(painter, &rects, z, &down, &lit, over, alpha);
+            }
+        }
+        Body::Light => {
+            let level = live.node_value(n.id, 0).unwrap_or(0.0);
+            let color = shown
+                .as_ref()
+                .and_then(|x| ac_nodes::display::light::color(&x.config))
+                .map_or(bodies::lit_color(), |[r, g, b]| {
+                    egui::Color32::from_rgb(r, g, b)
+                });
+            bodies::light(painter, rect, z, level, color, alpha);
+        }
+        Body::Fader => {
+            let input = n.socket("value", true);
+            let spec = input.and_then(|s| s.spec.clone());
+            if let (Some(spec), Some(node)) = (spec, shown.as_ref()) {
+                let wired = input.is_some_and(|s| s.wired);
+                let v = if wired {
+                    live.tele.socket_value(&path, "out").map_or(0.0, f64::from)
+                } else {
+                    widgets::number(node, &spec)
+                };
+                let r = |k| live.node_value(n.id, k).unwrap_or(0.0);
+                let meter = state.meter(&path, [(r(0), r(0)), (r(1), r(1))], now, dt);
+                bodies::fader(
+                    painter,
+                    rect,
+                    z,
+                    widgets::normalized(v, &spec).unwrap_or(0.0),
+                    &widgets::format(v, &spec),
+                    meter,
+                    hovered,
+                    look.dragging,
+                    alpha,
+                );
+            }
         }
         Body::Toggle => {
             let on = live
@@ -816,7 +985,8 @@ pub fn paint(
                         .and_then(|v| v.as_bool())
                 })
                 .unwrap_or(false);
-            bodies::toggle(painter, rect, z, on, hovered, alpha);
+            let lit = live.node_value(n.id, 0).is_some_and(|v| v > 0.5);
+            bodies::toggle(painter, rect, z, on, lit, hovered, alpha);
         }
         Body::Slider => {
             let spec = n.socket("value", true).and_then(|s| s.spec.clone());

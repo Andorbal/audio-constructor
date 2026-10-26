@@ -315,3 +315,6 @@ status-couldnt-save-pack = Couldn't save the pack to { $path }: { $error }
 status-panic = Panic: everything stopped and reset
 status-sounding = Sounding: { $outputs }
 status-sounding-tip = The Audio Out nodes something is coming out of. Click to show the first on the canvas.
+status-pinned-strip = Pinned the selection as the strip “{ $name }”
+status-panel-made = Made the panel “{ $panel }”
+status-nothing-for-panel = Nothing in the selection can go on that panel: select groups and controls for a mixer, or Samplers and Clips for pads or a launch grid
